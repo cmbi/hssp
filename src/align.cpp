@@ -195,14 +195,23 @@ int main(int argc, char* argv[])
 //		foreach (const entry& e, seq)
 //			cout << '>' << e.first << endl << e.second << endl;
 		
+		int n = 0;
 		for (uint32 a = 0; a < seq.size() - 1; ++a)
 		{
 			for (uint32 b = a + 1; b < seq.size(); ++b)
 			{
+				if ((++n % 1000) == 0)
+				{
+					cerr << '.';
+					if ((n % 60000) == 0)
+						cerr << ' ' << n << endl;
+				}
+				
 				uint16 d = calculateDistance(seq[a].second, seq[b].second);
 				cout << seq[a].first << '\t' << seq[b].first << '\t' << d << endl;
 			}
 		}
+		cerr << endl;
 	}
 	catch (const char* e)
 	{
