@@ -26,7 +26,8 @@ LDOPTS				= $(BOOST_LIB_DIR:%=-L%) -L$(MRS_LIB_DIR) -L$(ZEEP_DIR) $(LIBS:%=-l%) 
 
 CC					?= c++
 CFLAGS				= $(BOOST_INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
-					  -iquote ./ -gdwarf-2 -fPIC -O3 -pthread -Wno-multichar
+					  -iquote ./ -gdwarf-2 -fPIC -pthread -Wno-multichar -std=c++0x
+#CFLAGS				+= -O3
 
 VPATH += src
 
