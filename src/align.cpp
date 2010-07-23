@@ -1,13 +1,17 @@
 // align.cpp - simple attempt to write a multiple sequence alignment application
 //
 
+typedef char			int8;
+typedef unsigned char	uint8;
 typedef short			int16;
 typedef unsigned short	uint16;
 typedef long			int32;
 typedef unsigned long	uint32;
 
 #include <iostream>
+#include <iomanip>
 #include <string>
+#include <sstream>
 #include <limits>
 
 #include <boost/program_options.hpp>
@@ -16,16 +20,57 @@ typedef unsigned long	uint32;
 #include <boost/foreach.hpp>
 #include <boost/tr1/tuple.hpp>
 #define foreach BOOST_FOREACH
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/stream.hpp>
+
+#include "BLOSUM62.h"
 
 using namespace std;
 using namespace tr1;
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
+namespace io = boost::iostreams;
 
 #if defined(_MSC_VER)
 #include <ciso646>
 #define snprintf _snprintf
 #endif
+
+// --------------------------------------------------------------------
+
+typedef uint8				aa;
+typedef basic_string<aa>	sequence;
+
+string decode(const sequence& s);
+sequence encode(const string& s);
+
+const uint8 kAA[] = {
+	'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G',
+	'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S',
+	'T', 'W', 'Y', 'V', 'B', 'Z', 'X', '*',
+	'-'
+};
+
+const uint32
+	kAA_Count = sizeof(kAA),
+	kFilteredCode = 22,
+	kUnknownCode = 23,
+	kSignalGapCode = 24,
+	kSentinalScore = kSignalGapCode;
+
+aa kAA_Reverse[256];
+
+struct entry
+{
+					entry(const string& id, const sequence& seq)
+						: m_id(id)
+						, m_seq(seq) {}
+
+	string			m_id;
+	sequence		m_seq;
+};
+
+// --------------------------------------------------------------------
 
 class my_bad : public exception
 {
@@ -238,6 +283,221 @@ ostream& operator<<(ostream& lhs, const qmatrix<T>& rhs)
 
 // --------------------------------------------------------------------
 
+class substitution_matrix
+{
+  public:
+						substitution_matrix(const string& m);
+	
+	int32				operator()(aa a, aa b) const;
+
+  private:
+	
+	void				read(istream& is);
+
+	matrix<int8>		m_matrix;
+};
+
+substitution_matrix::substitution_matrix(const string& m)
+	: m_matrix(sizeof(kAA), sizeof(kAA))
+{
+	if (m == "BLOSUM62")
+	{
+		io::stream<io::array_source> in(kBLOSUM62, strlen(kBLOSUM62));
+		read(in);
+	}
+	else
+	{
+		ifstream file(m);
+		if (not file.is_open())
+			throw my_bad("could not open matrix file");
+		read(file);
+	}
+}
+
+void substitution_matrix::read(istream& is)
+{	
+	sequence ix;
+	
+	// first read up until we've got the header and calculate the index
+	for (;;)
+	{
+		string line;
+		getline(is, line);
+		if (line.empty())
+		{
+			if (is.eof())
+				break;
+			continue;
+		}
+		if (line[0] == '#')
+			continue;
+		
+		if (line[0] != ' ')
+			throw my_bad("invalid matrix file");
+		
+		string h;
+		foreach (char ch, line)
+		{
+			if (ch != ' ')
+				h += ch;
+		}
+		
+		ix = encode(h);
+		
+		break;
+	}
+	
+	for (;;)
+	{
+		string line;
+		getline(is, line);
+		if (line.empty())
+		{
+			if (is.eof())
+				break;
+			continue;
+		}
+		if (line[0] == '#')
+			continue;
+		
+		uint32 row = encode(line.substr(0, 1))[0];
+		
+		stringstream s(line.substr(1));
+		int32 v;
+
+		for (uint32 i = 0; i < ix.length(); ++i)
+		{
+			s >> v;
+			m_matrix(row, ix[i]) = v;
+		}
+	}
+}
+
+inline int32 substitution_matrix::operator()(aa a, aa b) const
+{
+	return m_matrix(a, b);
+}
+
+ostream& operator<<(ostream& os, substitution_matrix& m)
+{
+	// print header
+	os << ' ';
+	for (uint32 i = 0; i < sizeof(kAA); ++i)
+		os << "  " << kAA[i];
+	os << endl;
+	
+	// print matrix
+	for (uint32 r = 0; r < sizeof(kAA); ++r)
+	{
+		os << kAA[r];
+		
+		for (uint32 c = 0; c < sizeof(kAA); ++c)
+			os << setw(3) << m(r, c);
+
+		os << endl;
+	}
+	
+	return os;
+}
+
+// --------------------------------------------------------------------
+
+class pss_matrix
+{
+  public:
+						pss_matrix(const substitution_matrix& mat,
+							const vector<entry>& alignment,
+							int16 gapOpen, int16 gapExtend);
+
+	int32				operator()(uint32 p, aa a) const
+						{
+							return m_matrix[p].m_scores[a];
+						}
+						
+	int32				gap_open(uint32 p) const
+						{
+							return m_matrix[p].m_gap_open;
+						}
+
+	int32				gap_extend(uint32 p) const
+						{
+							return m_matrix[p].m_gap_extend;
+						}
+
+  private:
+
+	struct ps_score {
+		int16			m_scores[kAA_Count];
+		int16			m_gap_open;
+		int16			m_gap_extend;
+	};
+
+	vector<ps_score>	m_matrix;
+};
+
+pss_matrix::pss_matrix(const substitution_matrix& mat,
+	const vector<entry>& alignment, int16 gapOpen, int16 gapExtend)
+{
+	uint32 nseq = alignment.size();
+	assert(nseq > 0);
+	
+	uint32 slen = alignment[0].m_seq.length();
+	m_matrix.reserve(slen);
+	
+	for (uint32 p = 0; p < slen; ++p)
+	{
+		int32 s[kAA_Count] = { };
+		int32 n = 0, gaps = 0;
+
+		for (uint32 seq = 0; seq < nseq; ++seq)
+		{
+			aa r = alignment[seq].m_seq[p];
+			if (r == kSignalGapCode)
+				++gaps;
+			else if (r < kFilteredCode)
+			{
+				++n;
+				for (uint32 a = 0; a < kAA_Count; ++a)
+					s[a] += mat(a, r);
+			}
+		}
+		
+		if (n > 1)
+		{
+			for (uint32 a = 0; a < kAA_Count; ++a)
+				s[a] /= n;
+		}
+	
+		ps_score ms;
+		for (uint32 aa = 0; aa < kAA_Count; ++aa)
+		{
+			if (s[aa] < kSentinalScore)
+				ms.m_scores[aa] = kSentinalScore;
+			else
+				ms.m_scores[aa] = static_cast<int16>(s[aa]);
+		}
+		
+		ms.m_gap_open = gapOpen;
+		ms.m_gap_extend = gapExtend;
+
+//		if (gaps > 0)
+//		{
+//			assert(gaps < static_cast<int32>(nseq));
+//			
+//			gaps *= inGapScaleFactor;
+//			
+//			float gapfactor = static_cast<float>(nseq - gaps) / nseq;
+//			
+//			ms.gap_open *= gapfactor;
+//			ms.gap_extend *= gapfactor;
+//		}
+		
+		m_matrix.push_back(ms);
+	}
+}
+
+// --------------------------------------------------------------------
+
 struct base_node
 {
 	virtual				~base_node() {}
@@ -284,8 +544,9 @@ struct joined_node : public base_node
 
 struct leaf_node : public base_node
 {
-						leaf_node(const string& name)
-							: m_name(name) {}
+						leaf_node(const entry& e)
+							: m_name(e.m_id)
+							, m_sequence(e.m_seq) {}
 
 	virtual void		print(ostream& s)
 						{
@@ -293,6 +554,7 @@ struct leaf_node : public base_node
 						}
 
 	string				m_name;
+	sequence			m_sequence;
 };
 
 ostream& operator<<(ostream& lhs, base_node* rhs)
@@ -306,7 +568,7 @@ ostream& operator<<(ostream& lhs, base_node* rhs)
 // compute the distance between two sequences using the
 // Levenshtein algorithm.
 
-uint16 calculateDistance(const string& s, const string& t)
+uint16 calculateDistance(const sequence& s, const sequence& t)
 {
 	uint32 m = s.length();
 	uint32 n = t.length();
@@ -344,7 +606,46 @@ uint16 calculateDistance(const string& s, const string& t)
 }
 
 // --------------------------------------------------------------------
-void readFasta(fs::path path, vector<pair<string,string> >& seq)
+
+string decode(const sequence& s)
+{
+	string result;
+	result.reserve(s.length());
+	
+	foreach (aa a, s)
+		result.push_back(kAA[a]);
+
+	return result;
+}
+
+sequence encode(const string& s)
+{
+	static bool sInited = false;
+	static uint8 kAA_Reverse[256];
+	
+	if (not sInited)
+	{
+		// init global reverse mapping
+		for (uint32 a = 0; a < 256; ++a)
+			kAA_Reverse[a] = 255;
+		for (uint32 a = 0; a < sizeof(kAA); ++a)
+			kAA_Reverse[kAA[a]] = a;
+	}
+	
+	sequence result;
+	result.reserve(s.length());
+
+	foreach (char r, s)
+	{
+		aa rc = kAA_Reverse[static_cast<uint8>(r)];
+		if (rc < sizeof(kAA))
+			result.push_back(rc);
+	}
+	
+	return result;
+}
+
+void readFasta(fs::path path, vector<entry>& seq)
 {
 	fs::ifstream file(path);
 	if (not file.is_open())
@@ -362,7 +663,7 @@ void readFasta(fs::path path, vector<pair<string,string> >& seq)
 				continue;
 			
 			if (not (id.empty() or s.empty()))
-				seq.push_back(make_pair(id, s));
+				seq.push_back(entry(id, encode(s)));
 			id.clear();
 			s.clear();
 			
@@ -458,6 +759,81 @@ void joinNeighbours(qmatrix<uint16>& d, vector<base_node*>& tree)
 
 // --------------------------------------------------------------------
 
+void alignAlignments(vector<entry>& a, vector<entry>& b, vector<entry>& c)
+{
+	copy(a.begin(), a.end(), back_inserter(c));
+	copy(b.begin(), b.end(), back_inserter(c));
+}
+
+void createAlignment(base_node* node, vector<entry>& alignment)
+{
+	if (node->left() and node->right())
+	{
+		vector<entry> a, b;	
+		createAlignment(node->left(), a);
+		createAlignment(node->right(), b);
+		
+		alignAlignments(a, b, alignment);
+	}
+	else
+	{
+		leaf_node* n = dynamic_cast<leaf_node*>(node);
+		if (n == 0)
+			throw my_bad("internal error (not a leaf node)");
+		
+		alignment.push_back(entry(n->m_name, n->m_sequence));
+	}
+}
+
+// --------------------------------------------------------------------
+
+void report(const vector<entry>& alignment, const substitution_matrix& mat)
+{
+	cout << "CLUSTAL FORMAT for MaartensAlignment" << endl;
+
+	uint32 nseq = alignment.size();
+	uint32 len = alignment[0].m_seq.length();
+	uint32 offset = 0;
+	while (offset < len)
+	{
+		uint32 n = alignment[0].m_seq.length() - offset;
+		if (n > 60)
+			n = 60;
+		
+		vector<set<aa> > dist(n);
+		
+		foreach (const entry& e, alignment)
+		{
+			sequence ss = e.m_seq.substr(offset, n);
+			
+			for (uint32 i = 0; i < n; ++i)
+				dist[i].insert(ss[i]);
+
+			string id = e.m_id;
+			if (id.length() > 15)
+				id = id.substr(0, 12) + "...";
+			else if (id.length() < 15)
+				id += string(15 - id.length(), ' ');
+			
+			cout << id << ' ' << decode(ss) << endl;
+		}
+		
+		string scores(n, '*');
+		for (uint32 i = 0; i < n; ++i)
+		{
+			if (dist[i].size() > 1)
+			{
+				
+			}
+		}
+		
+		cout << string(16, ' ') << scores << endl;
+		
+		offset += n;
+		cout << endl;
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	try
@@ -466,6 +842,7 @@ int main(int argc, char* argv[])
 		desc.add_options()
 			("help,h", "Display help message")
 			("input,i", po::value<string>(), "Input file")
+			("matrix,m", po::value<string>(), "Substitution matrix, default is BLOSUM62")
 			;
 	
 		po::variables_map vm;
@@ -478,22 +855,27 @@ int main(int argc, char* argv[])
 			exit(1);
 		}
 	
+		// matrix
+		string matrix = "BLOSUM62";
+		if (vm.count("matrix"))
+			matrix = vm["matrix"].as<string>();
+		substitution_matrix mat(matrix);
+//		cout << "matrix:" << endl << mat << endl;
+
 		fs::path path(vm["input"].as<string>());
+		vector<entry> data;
+		readFasta(path, data);
 		
-		typedef pair<string,string> entry;
-		vector<entry> seq;
-		readFasta(path, seq);
-		
-		if (seq.size() < 2)
+		if (data.size() < 2)
 			throw my_bad("insufficient number of sequences");
 		
 		// a distance matrix
-		qmatrix<uint16> d(seq.size());
+		qmatrix<uint16> d(data.size());
 		
 		int n = 0;
-		for (uint32 a = 0; a < seq.size() - 1; ++a)
+		for (uint32 a = 0; a < data.size() - 1; ++a)
 		{
-			for (uint32 b = a + 1; b < seq.size(); ++b)
+			for (uint32 b = a + 1; b < data.size(); ++b)
 			{
 				if ((++n % 1000) == 0)
 				{
@@ -502,16 +884,16 @@ int main(int argc, char* argv[])
 						cerr << ' ' << n << endl;
 				}
 				
-				d(a, b) = calculateDistance(seq[a].second, seq[b].second);
+				d(a, b) = calculateDistance(data[a].m_seq, data[b].m_seq);
 			}
 		}
 		cerr << endl;
 		
 		// build 'tree'
 		vector<base_node*> tree;
-		tree.reserve(seq.size());
-		foreach (const entry& e, seq)
-			tree.push_back(new leaf_node(e.first));
+		tree.reserve(data.size());
+		foreach (const entry& e, data)
+			tree.push_back(new leaf_node(e));
 		
 		// calculate initial Q
 		while (tree.size() > 2)
@@ -520,6 +902,10 @@ int main(int argc, char* argv[])
 		joined_node* root = new joined_node(tree[0], tree[1], d(0, 1) / 2, d(0, 1) / 2);
 		
 		cout << root << endl;
+		
+		vector<entry> alignment;
+		createAlignment(root, alignment);
+		report(alignment, mat);
 
 		delete root;
 	}
