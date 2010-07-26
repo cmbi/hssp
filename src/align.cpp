@@ -36,6 +36,8 @@ namespace io = boost::iostreams;
 #define snprintf _snprintf
 #endif
 
+int DEBUG = 0;
+
 // --------------------------------------------------------------------
 
 typedef uint8				aa;
@@ -280,6 +282,84 @@ ostream& operator<<(ostream& lhs, const qmatrix<T>& rhs)
 
 	return lhs;
 }
+
+struct trace_back
+{
+				trace_back(
+					uint32		inDimX,
+					uint32		inDimY)
+					: mDimX(inDimX)
+					, mDimY(inDimY)
+					, mData(NULL)
+				{
+					mData = new int8[(mDimX + 1) * (mDimY + 1)];
+					memset(mData, 0, (mDimX + 1) * (mDimY + 1));
+				}
+				
+				~trace_back()
+				{
+					delete[] mData;
+				}
+	
+	int32		operator()(
+					int32		inB,
+					int32		inIx,
+					int32		inIy,
+					uint32		inX,
+					uint32		inY)
+				{
+					int32 result;
+
+					if (inB >= inIx and inB >= inIy)
+					{
+						result = inB;
+						set(inX, inY, 0);
+					}
+					else if (inIx >= inB and inIx >= inIy)
+					{
+						result = inIx;
+						set(inX, inY, 1);
+					}
+					else
+					{
+						result = inIy;
+						set(inX, inY, -1);
+					}
+					
+					return result;
+				}
+
+	void		set(
+					uint32		inX,
+					uint32		inY,
+					int16		inV)
+				{
+					assert(inX <= mDimX);
+					assert(inY <= mDimY);
+					mData[inX * mDimY + inY] = inV;
+				}
+	
+	int16		test(
+					uint32		inX,
+					uint32		inY)
+				{
+					assert(inX <= mDimX);
+					assert(inY <= mDimY);
+					return mData[inX * mDimY + inY];
+				}
+
+	int16		operator()(
+					uint32		inX,
+					uint32		inY) const
+				{
+					assert(inX <= mDimX);
+					assert(inY <= mDimY);
+					return mData[inX * mDimY + inY];
+				}
+
+	uint32		mDimX, mDimY;
+	int8*		mData;
+};
 
 // --------------------------------------------------------------------
 
@@ -759,21 +839,188 @@ void joinNeighbours(qmatrix<uint16>& d, vector<base_node*>& tree)
 
 // --------------------------------------------------------------------
 
-void alignAlignments(vector<entry>& a, vector<entry>& b, vector<entry>& c)
+int32 score(const vector<entry>& a, const vector<entry>& b,
+	uint32 ix_a, uint32 ix_b, const substitution_matrix& mat)
 {
-	copy(a.begin(), a.end(), back_inserter(c));
-	copy(b.begin(), b.end(), back_inserter(c));
+	int32 result = 0;
+	
+	foreach (const entry& ea, a)
+	{
+		foreach (const entry &eb, b)
+		{
+			assert(ix_a < ea.m_seq.length());
+			assert(ix_b < eb.m_seq.length());
+
+if (DEBUG)
+{
+	cout << "ix_a: " << ix_a
+		 << "; ix_b: " << ix_b
+		 << "; a: " << kAA[ea.m_seq[ix_a]]
+		 << "; b: " << kAA[eb.m_seq[ix_b]]
+		 << "; m: " << mat(ea.m_seq[ix_a], eb.m_seq[ix_b])
+		 << "; r: " << result + mat(ea.m_seq[ix_a], eb.m_seq[ix_b])
+		 << endl;
+}
+			result += mat(ea.m_seq[ix_a], eb.m_seq[ix_b]);
+
+		}
+	}
+	
+	return result / int32(a.size() * b.size());
 }
 
-void createAlignment(base_node* node, vector<entry>& alignment)
+void align(vector<entry>& a, vector<entry>& b, vector<entry>& c,
+	const substitution_matrix& mat,
+	int32 gapOpen = 10, int32 gapExtend = 1)
+{
+	int32 dimX = a.front().m_seq.length();
+	int32 dimY = b.front().m_seq.length();
+	
+	matrix<int32> B(dimX + 1, dimY + 1);
+	matrix<int32> Ix(dimX + 1, dimY + 1);
+	matrix<int32> Iy(dimX + 1, dimY + 1);
+	
+	Ix(0, 0) = 0;
+	Ix(0, 1) = 0;
+	Iy(0, 0) = 0;
+	Iy(1, 0) = 0;
+	B(0, 0) = 0;
+
+	trace_back tb(dimX, dimY);
+
+	for (int32 x = 1; x <= dimX; ++x)
+	{
+		for (int32 y = 1; y <= dimY; ++y)
+		{
+			int32 Ix1 = Ix(x - 1, y);	if (x == 1 and y > 1) Ix1 = -(gapOpen + y * gapExtend);
+			int32 Iy1 = Iy(x, y - 1);	if (x > 1 and y == 1) Iy1 = -(gapOpen + x * gapExtend);
+			
+			// (1)
+			int32 M = score(a, b, x - 1, y - 1, mat);
+			if (x > 1 and y > 1)
+				M += B(x - 1, y - 1);
+
+			if (M >= Ix1 and M >= Iy1)
+			{
+				tb.set(x, y, 0);
+				B(x, y) = M;
+			}
+			else if (Ix1 >= Iy1)
+			{
+				tb.set(x, y, 1);
+				B(x, y) = Ix1;
+			}
+			else
+			{
+				tb.set(x, y, -1);
+				B(x, y) = Iy1;
+			}
+
+if (DEBUG)
+{
+cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1: " << Iy1
+	 << "; B=> " << B(x, y) << "; tb=> " << tb(x, y) << endl;
+}
+//			int32 d = s.GapOpen(y - 1);
+//			int32 e = s.GapExtend(y - 1);
+			int32 d = gapOpen;
+			int32 e = gapExtend;
+
+			// (3)
+			Ix(x, y) = max(M - d, Ix1 - e);
+			
+			// (4)
+			Iy(x, y) = max(M - d, Iy1 - e);
+		}
+	}
+	
+	// build the final alignment
+	
+	int32 x = dimX, y = dimY;
+	while (x > 0 and y > 0)
+	{
+		if (tb(x, y) == 0)
+		{
+			--x;
+			--y;
+		}
+		else if (tb(x, y) < 0)
+		{
+			foreach (entry& e, a)
+				e.m_seq.insert(e.m_seq.begin() + x, char(kSignalGapCode));
+			
+			--y;
+		}
+		else
+		{
+			foreach (entry& e, b)
+				e.m_seq.insert(e.m_seq.begin() + y, char(kSignalGapCode));
+			
+			--x;
+		}
+	}
+
+	while (x > 0)
+	{
+		foreach (entry& e, b)
+			e.m_seq.insert(e.m_seq.begin() + y, char(kSignalGapCode));
+		
+		--x;
+	}
+	
+	while (y > 0)
+	{
+		foreach (entry& e, a)
+			e.m_seq.insert(e.m_seq.begin() + x, char(kSignalGapCode));
+		
+		--y;
+	}
+			
+
+	copy(a.begin(), a.end(), back_inserter(c));
+	copy(b.begin(), b.end(), back_inserter(c));
+	
+// debug code:
+	if (DEBUG)
+	{
+		foreach (entry& e, c)
+			cout << e.m_id << ": " << decode(e.m_seq) << endl;
+		cout << endl;
+		
+		cout << "      ";
+		for (int32 x = 1; x <= dimX; ++x)
+			cout << setw(8) << x << "   ";
+		cout << endl;
+		
+		for (int32 y = 1; y <= dimY; ++y)
+		{
+			cout << setw(6) << y;
+			for (int32 x = 1; x <= dimX; ++x)
+				cout << ' ' << setw(7) << B(x, y) << ' ' << setw(2) << tb(x, y);
+			cout << endl;
+		}
+		
+		cout << endl;
+	}
+
+}
+
+void alignAlignments(vector<entry>& a, vector<entry>& b, vector<entry>& c,
+	const substitution_matrix& mat)
+{
+	align(a, b, c, mat);
+}
+
+void createAlignment(base_node* node, vector<entry>& alignment,
+	const substitution_matrix& mat)
 {
 	if (node->left() and node->right())
 	{
 		vector<entry> a, b;	
-		createAlignment(node->left(), a);
-		createAlignment(node->right(), b);
+		createAlignment(node->left(), a, mat);
+		createAlignment(node->right(), b, mat);
 		
-		alignAlignments(a, b, alignment);
+		alignAlignments(a, b, alignment, mat);
 	}
 	else
 	{
@@ -818,16 +1065,16 @@ void report(const vector<entry>& alignment, const substitution_matrix& mat)
 			cout << id << ' ' << decode(ss) << endl;
 		}
 		
-		string scores(n, '*');
-		for (uint32 i = 0; i < n; ++i)
-		{
-			if (dist[i].size() > 1)
-			{
-				
-			}
-		}
-		
-		cout << string(16, ' ') << scores << endl;
+//		string scores(n, '*');
+//		for (uint32 i = 0; i < n; ++i)
+//		{
+//			if (dist[i].size() > 1)
+//			{
+//				
+//			}
+//		}
+//		
+//		cout << string(16, ' ') << scores << endl;
 		
 		offset += n;
 		cout << endl;
@@ -842,6 +1089,7 @@ int main(int argc, char* argv[])
 		desc.add_options()
 			("help,h", "Display help message")
 			("input,i", po::value<string>(), "Input file")
+			("debug,d", "Debug output")
 			("matrix,m", po::value<string>(), "Substitution matrix, default is BLOSUM62")
 			;
 	
@@ -854,6 +1102,8 @@ int main(int argc, char* argv[])
 			cout << desc << endl;
 			exit(1);
 		}
+	
+		DEBUG = vm.count("debug");
 	
 		// matrix
 		string matrix = "BLOSUM62";
@@ -901,10 +1151,10 @@ int main(int argc, char* argv[])
 		
 		joined_node* root = new joined_node(tree[0], tree[1], d(0, 1) / 2, d(0, 1) / 2);
 		
-		cout << root << endl;
+//		cout << root << endl;
 		
 		vector<entry> alignment;
-		createAlignment(root, alignment);
+		createAlignment(root, alignment, mat);
 		report(alignment, mat);
 
 		delete root;
