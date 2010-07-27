@@ -18,7 +18,7 @@
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
 
-#include "matrices.h"
+#include "matrix.h"
 
 using namespace std;
 using namespace tr1;
@@ -67,18 +67,11 @@ class distance_matrix
 					distance_matrix(uint32 n);
 	virtual			~distance_matrix();
 	
-	value_type		operator()(uint32 i, uint32 j) const;
+//	value_type		operator()(uint32 i, uint32 j) const;
 	value_type&		operator()(uint32 i, uint32 j);
 	
-	uint32			dim() const			{ return m_n; }
-	
-//	tuple<uint32,uint32>
-//					min() const;
-
 	// erase two rows, add one at the end (for neighbour joining)
 	void			erase_2(uint32 i, uint32 j);
-	
-	void			print(ostream& s);
 
   private:
 	value_type*		m_data;
@@ -100,57 +93,14 @@ distance_matrix<T>::~distance_matrix()
 
 template<typename T>
 inline
-T distance_matrix<T>::operator()(uint32 i, uint32 j) const
-{
-	assert(i < m_n); assert(j < m_n);
-	
-	T result = 0;
-
-	if (i > j)
-		result = m_data[(i * (i - 1)) / 2 + j];
-	else if (i < j)
-		result = m_data[(j * (j - 1)) / 2 + i];
-	
-	return result;
-}
-
-template<typename T>
-inline
 T& distance_matrix<T>::operator()(uint32 i, uint32 j)
 {
-	assert(i != j); assert(i < m_n); assert(j < m_n);
-	
 	if (i > j)
-		return m_data[(i * (i - 1)) / 2 + j];
-	else if (i < j)
-		return m_data[(j * (j - 1)) / 2 + i];
+		swap(i, j);
+	
+	assert(j < m_n); assert(i != j);
+	return m_data[(j * (j - 1)) / 2 + i];
 }
-
-//template<typename T>
-//tuple<uint32,uint32> distance_matrix<T>::min() const
-//{
-//	uint32 min_i = 1, min_j = 0,
-//		m = m_data[0], r = (m_n * (m_n - 1)) / 2;
-//	
-//	for (uint32 x = 1, i = 2, j = 0; x < r; ++x)
-//	{
-//		if (m_data[x] < m)
-//		{
-//			min_i = i;
-//			min_j = j;
-//			m = m_data[x];
-//		}
-//		
-//		++j;
-//		if (j == i)
-//		{
-//			j = 0;
-//			++i;
-//		}
-//	}
-//	
-//	return make_tuple(min_i, min_j);
-//}
 
 template<typename T>
 void distance_matrix<T>::erase_2(uint32 di, uint32 dj)
@@ -174,205 +124,6 @@ void distance_matrix<T>::erase_2(uint32 di, uint32 dj)
 	--m_n;
 }
 
-template<typename T>
-ostream& operator<<(ostream& lhs, const distance_matrix<T>& rhs)
-{
-	for (uint32 i = 0; i < rhs.dim(); ++i)
-	{
-		for (uint32 j = 0; j < rhs.dim(); ++j)
-		{
-			if (i == j)
-				lhs << '-';
-			else
-				lhs << rhs(i, j);
-			
-			if (j < rhs.dim() - 1)
-				lhs << '\t';
-		}
-		lhs << endl;
-	}
-
-	return lhs;
-}
-
-struct trace_back
-{
-				trace_back(
-					uint32		inDimX,
-					uint32		inDimY)
-					: mDimX(inDimX)
-					, mDimY(inDimY)
-					, mData(NULL)
-				{
-					mData = new int8[(mDimX + 1) * (mDimY + 1)];
-					memset(mData, 0, (mDimX + 1) * (mDimY + 1));
-				}
-				
-				~trace_back()
-				{
-					delete[] mData;
-				}
-	
-	int32		operator()(
-					int32		inB,
-					int32		inIx,
-					int32		inIy,
-					uint32		inX,
-					uint32		inY)
-				{
-					int32 result;
-
-					if (inB >= inIx and inB >= inIy)
-					{
-						result = inB;
-						set(inX, inY, 0);
-					}
-					else if (inIx >= inB and inIx >= inIy)
-					{
-						result = inIx;
-						set(inX, inY, 1);
-					}
-					else
-					{
-						result = inIy;
-						set(inX, inY, -1);
-					}
-					
-					return result;
-				}
-
-	void		set(
-					uint32		inX,
-					uint32		inY,
-					int16		inV)
-				{
-					assert(inX <= mDimX);
-					assert(inY <= mDimY);
-					mData[inX * mDimY + inY] = inV;
-				}
-	
-	int16		test(
-					uint32		inX,
-					uint32		inY)
-				{
-					assert(inX <= mDimX);
-					assert(inY <= mDimY);
-					return mData[inX * mDimY + inY];
-				}
-
-	int16		operator()(
-					uint32		inX,
-					uint32		inY) const
-				{
-					assert(inX <= mDimX);
-					assert(inY <= mDimY);
-					return mData[inX * mDimY + inY];
-				}
-
-	uint32		mDimX, mDimY;
-	int8*		mData;
-};
-
-// --------------------------------------------------------------------
-
-
-
-// --------------------------------------------------------------------
-
-class pss_matrix
-{
-  public:
-						pss_matrix(const substitution_matrix& mat,
-							const vector<entry>& alignment,
-							int16 gapOpen, int16 gapExtend);
-
-	int32				operator()(uint32 p, aa a) const
-						{
-							return m_matrix[p].m_scores[a];
-						}
-						
-	int32				gap_open(uint32 p) const
-						{
-							return m_matrix[p].m_gap_open;
-						}
-
-	int32				gap_extend(uint32 p) const
-						{
-							return m_matrix[p].m_gap_extend;
-						}
-
-  private:
-
-	struct ps_score {
-		int16			m_scores[kAA_Count];
-		int16			m_gap_open;
-		int16			m_gap_extend;
-	};
-
-	vector<ps_score>	m_matrix;
-};
-
-pss_matrix::pss_matrix(const substitution_matrix& mat,
-	const vector<entry>& alignment, int16 gapOpen, int16 gapExtend)
-{
-	uint32 nseq = alignment.size();
-	assert(nseq > 0);
-	
-	uint32 slen = alignment[0].m_seq.length();
-	m_matrix.reserve(slen);
-	
-	for (uint32 p = 0; p < slen; ++p)
-	{
-		int32 s[kAA_Count] = { };
-		int32 n = 0, gaps = 0;
-
-		for (uint32 seq = 0; seq < nseq; ++seq)
-		{
-			aa r = alignment[seq].m_seq[p];
-			if (r == kSignalGapCode)
-				++gaps;
-			else if (r < kFilteredCode)
-			{
-				++n;
-				for (uint32 a = 0; a < kAA_Count; ++a)
-					s[a] += mat(a, r);
-			}
-		}
-		
-		if (n > 1)
-		{
-			for (uint32 a = 0; a < kAA_Count; ++a)
-				s[a] /= n;
-		}
-	
-		ps_score ms;
-		for (uint32 aa = 0; aa < kAA_Count; ++aa)
-		{
-			if (s[aa] < kSentinalScore)
-				ms.m_scores[aa] = kSentinalScore;
-			else
-				ms.m_scores[aa] = static_cast<int16>(s[aa]);
-		}
-		
-		ms.m_gap_open = gapOpen;
-		ms.m_gap_extend = gapExtend;
-
-//		if (gaps > 0)
-//		{
-//			assert(gaps < static_cast<int32>(nseq));
-//			
-//			gaps *= inGapScaleFactor;
-//			
-//			float gapfactor = static_cast<float>(nseq - gaps) / nseq;
-//			
-//			ms.gap_open *= gapfactor;
-//			ms.gap_extend *= gapfactor;
-//		}
-		
-		m_matrix.push_back(ms);
-	}
-}
-
 // --------------------------------------------------------------------
 
 struct base_node
@@ -385,10 +136,16 @@ struct base_node
 	virtual base_node*	right() const		{ return 0; }
 };
 
+ostream& operator<<(ostream& lhs, base_node& rhs)
+{
+	rhs.print(lhs);
+	return lhs;
+}
+
 struct joined_node : public base_node
 {
 						joined_node(base_node* left, base_node* right,
-							int32 d_left, int32 d_right)
+							float d_left, float d_right)
 							: m_left(left)
 							, m_right(right)
 							, m_d_left(d_left)
@@ -402,11 +159,9 @@ struct joined_node : public base_node
 
 	virtual void		print(ostream& s)
 						{
-							s << '(' << endl;
-							m_left->print(s);
-							s << ':' << m_d_left << ',' << endl;
-							m_right->print(s);
-							s << ':' << m_d_right << endl
+							s << '(' << endl
+							  << *m_left << ':' << setw(5) << m_d_left << ',' << endl
+							  << *m_right << ':' << setw(5) << m_d_right << endl
 							  << ')';
 						}
 
@@ -434,13 +189,6 @@ struct leaf_node : public base_node
 	string				m_name;
 	sequence			m_sequence;
 };
-
-ostream& operator<<(ostream& lhs, base_node* rhs)
-{
-	rhs->print(lhs);
-	lhs << ';' << endl;
-	return lhs;
-}
 
 // --------------------------------------------------------------------
 // compute the distance between two sequences using the
@@ -568,7 +316,7 @@ void joinNeighbours(distance_matrix<uint16>& d, vector<base_node*>& tree)
 {
 	uint32 r = tree.size();
 	
-//	matrix<int32> Q(r);
+//	matrix<int32> Q(r);			// since we're using Q only to find minimum, it is not really needed
 	vector<int32> sum(r);
 	
 	// calculate the sums first
@@ -602,10 +350,6 @@ void joinNeighbours(distance_matrix<uint16>& d, vector<base_node*>& tree)
 		}
 	}
 	
-//	// debug output
-//	cerr << "Q is now:" << endl << Q << endl
-//		 << "joining " << min_i << " and " << min_j << endl;
-
 	// distance to joined node
 	int32 d_i, d_j;
 	int32 half_dij = d(min_i, min_j) / 2;
@@ -656,57 +400,57 @@ int32 score(const vector<entry>& a, const vector<entry>& b,
 	return static_cast<int32>(result / (a.size() * b.size()));
 }
 
-void align(vector<entry>& a, vector<entry>& b, vector<entry>& c,
-	const substitution_matrix& mat,
+void align(
+	const joined_node* node,
+	vector<entry>& a, vector<entry>& b, vector<entry>& c,
+	const substitution_matrix_family& mat_fam,
 	int32 gapOpen = 10, int32 gapExtend = 1)
 {
-	int32 dimX = a.front().m_seq.length();
-	int32 dimY = b.front().m_seq.length();
+	int32 x, dimX = a.front().m_seq.length();
+	int32 y, dimY = b.front().m_seq.length();
 	
 	matrix<int32> B(dimX + 1, dimY + 1);
 	matrix<int32> Ix(dimX + 1, dimY + 1);
 	matrix<int32> Iy(dimX + 1, dimY + 1);
+	matrix<int8> tb(dimX + 1, dimY + 1);
 	
-	Ix(0, 0) = 0;
 	Ix(0, 1) = 0;
-	Iy(0, 0) = 0;
 	Iy(1, 0) = 0;
-	B(0, 0) = 0;
 
-	trace_back tb(dimX, dimY);
+	const substitution_matrix& smat = mat_fam[node->m_distance];
 
-	for (int32 x = 1; x <= dimX; ++x)
+	for (x = 1; x <= dimX; ++x)
 	{
-		for (int32 y = 1; y <= dimY; ++y)
+		for (y = 1; y <= dimY; ++y)
 		{
 			int32 Ix1 = Ix(x - 1, y);	if (x == 1 and y > 1) Ix1 = -(gapOpen + y * gapExtend);
 			int32 Iy1 = Iy(x, y - 1);	if (x > 1 and y == 1) Iy1 = -(gapOpen + x * gapExtend);
 			
 			// (1)
-			int32 M = score(a, b, x - 1, y - 1, mat);
+			int32 M = score(a, b, x - 1, y - 1, smat);
 			if (x > 1 and y > 1)
 				M += B(x - 1, y - 1);
 
 			if (M >= Ix1 and M >= Iy1)
 			{
-				tb.set(x, y, 0);
+				tb(x, y) = 0;
 				B(x, y) = M;
 			}
 			else if (Ix1 >= Iy1)
 			{
-				tb.set(x, y, 1);
+				tb(x, y) = 1;
 				B(x, y) = Ix1;
 			}
 			else
 			{
-				tb.set(x, y, -1);
+				tb(x, y) = -1;
 				B(x, y) = Iy1;
 			}
 
 if (DEBUG)
 {
-cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1: " << Iy1
-	 << "; B=> " << B(x, y) << "; tb=> " << tb(x, y) << endl;
+	cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1: " << Iy1
+		 << "; B=> " << B(x, y) << "; tb=> " << tb(x, y) << endl;
 }
 //			int32 d = s.GapOpen(y - 1);
 //			int32 e = s.GapExtend(y - 1);
@@ -723,46 +467,30 @@ cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1
 	
 	// build the final alignment
 	
-	int32 x = dimX, y = dimY;
-	while (x > 0 and y > 0)
+	x = dimX;
+	y = dimY;
+
+	while (x > 0 or y > 0)
 	{
-		if (tb(x, y) == 0)
-		{
-			--x;
-			--y;
-		}
-		else if (tb(x, y) < 0)
+		if (x == 0 or tb(x, y) < 0)
 		{
 			foreach (entry& e, a)
 				e.m_seq.insert(e.m_seq.begin() + x, char(kSignalGapCode));
-			
 			--y;
 		}
-		else
+		else if (y == 0 or tb(x, y) > 0)
 		{
 			foreach (entry& e, b)
 				e.m_seq.insert(e.m_seq.begin() + y, char(kSignalGapCode));
-			
 			--x;
 		}
+		else
+		{
+			assert(x > 0); assert(y > 0);
+			--x;
+			--y;
+		}
 	}
-
-	while (x > 0)
-	{
-		foreach (entry& e, b)
-			e.m_seq.insert(e.m_seq.begin() + y, char(kSignalGapCode));
-		
-		--x;
-	}
-	
-	while (y > 0)
-	{
-		foreach (entry& e, a)
-			e.m_seq.insert(e.m_seq.begin() + x, char(kSignalGapCode));
-		
-		--y;
-	}
-			
 
 	copy(a.begin(), a.end(), back_inserter(c));
 	copy(b.begin(), b.end(), back_inserter(c));
@@ -789,7 +517,6 @@ cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1
 		
 		cout << endl;
 	}
-
 }
 
 void alignAlignments(vector<entry>& a, vector<entry>& b, vector<entry>& c,
