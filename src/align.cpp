@@ -1,12 +1,7 @@
 // align.cpp - simple attempt to write a multiple sequence alignment application
 //
 
-typedef char			int8;
-typedef unsigned char	uint8;
-typedef short			int16;
-typedef unsigned short	uint16;
-typedef long			int32;
-typedef unsigned long	uint32;
+#include "align.h"
 
 #include <iostream>
 #include <iomanip>
@@ -23,7 +18,7 @@ typedef unsigned long	uint32;
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
 
-#include "BLOSUM62.h"
+#include "matrices.h"
 
 using namespace std;
 using namespace tr1;
@@ -31,34 +26,9 @@ namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 namespace io = boost::iostreams;
 
-#if defined(_MSC_VER)
-#include <ciso646>
-#define snprintf _snprintf
-#endif
-
 int DEBUG = 0;
 
 // --------------------------------------------------------------------
-
-typedef uint8				aa;
-typedef basic_string<aa>	sequence;
-
-string decode(const sequence& s);
-sequence encode(const string& s);
-
-const uint8 kAA[] = {
-	'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G',
-	'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S',
-	'T', 'W', 'Y', 'V', 'B', 'Z', 'X', '*',
-	'-'
-};
-
-const uint32
-	kAA_Count = sizeof(kAA),
-	kFilteredCode = 22,
-	kUnknownCode = 23,
-	kSignalGapCode = 24,
-	kSentinalScore = kSignalGapCode;
 
 aa kAA_Reverse[256];
 
@@ -66,94 +36,36 @@ struct entry
 {
 					entry(const string& id, const sequence& seq)
 						: m_id(id)
-						, m_seq(seq) {}
+						, m_seq(seq)
+						, m_weight(1.0f) {}
 
 	string			m_id;
 	sequence		m_seq;
+	float			m_weight;
 };
 
 // --------------------------------------------------------------------
 
-class my_bad : public exception
+my_bad::my_bad(const string& msg)
 {
-  public:
-					my_bad(const char* msg)
-					{
-						snprintf(m_msg, sizeof(m_msg), "%s", msg);
-					}
+	snprintf(m_msg, sizeof(m_msg), "%s", msg.c_str());
+}
 
-					my_bad(const string& msg)
-					{
-						snprintf(m_msg, sizeof(m_msg), "%s", msg.c_str());
-					}
+my_bad::my_bad(const boost::format& msg)
+{
+	snprintf(m_msg, sizeof(m_msg), "%s", msg.str().c_str());
+}
 
-					my_bad(const boost::format& msg)
-					{
-						snprintf(m_msg, sizeof(m_msg), "%s", msg.str().c_str());
-					}
-
-	virtual const char*
-					what() const throw()	{ return m_msg; }
-
-  private:
-	char			m_msg[1024];
-};
+// --------------------------------------------------------------------
 
 template<typename T>
-class matrix
+class distance_matrix
 {
   public:
 	typedef T value_type;
 	
-					matrix(uint32 m, uint32 n);
-	virtual			~matrix();
-	
-	value_type		operator()(uint32 i, uint32 j) const;
-	value_type&		operator()(uint32 i, uint32 j);
-
-  private:
-	value_type*		m_data;
-	uint32			m_m, m_n;
-};
-
-template<typename T>
-matrix<T>::matrix(uint32 m, uint32 n)
-	: m_m(m)
-	, m_n(n)
-{
-	m_data = new value_type[m_m * m_n];
-}
-
-template<typename T>
-matrix<T>::~matrix()
-{
-	delete[] m_data;
-}
-
-template<typename T>
-inline
-T matrix<T>::operator()(uint32 i, uint32 j) const
-{
-	assert(i < m_m); assert(j < m_n);
-	return m_data[i + j * m_m];
-}
-
-template<typename T>
-inline
-T& matrix<T>::operator()(uint32 i, uint32 j)
-{
-	assert(i < m_m); assert(j < m_n);
-	return m_data[i + j * m_m];
-}
-
-template<typename T>
-class qmatrix
-{
-  public:
-	typedef T value_type;
-	
-					qmatrix(uint32 n);
-	virtual			~qmatrix();
+					distance_matrix(uint32 n);
+	virtual			~distance_matrix();
 	
 	value_type		operator()(uint32 i, uint32 j) const;
 	value_type&		operator()(uint32 i, uint32 j);
@@ -174,21 +86,21 @@ class qmatrix
 };
 
 template<typename T>
-qmatrix<T>::qmatrix(uint32 n)
+distance_matrix<T>::distance_matrix(uint32 n)
 	: m_n(n)
 {
 	m_data = new value_type[(m_n * (m_n - 1)) / 2];
 }
 
 template<typename T>
-qmatrix<T>::~qmatrix()
+distance_matrix<T>::~distance_matrix()
 {
 	delete[] m_data;
 }
 
 template<typename T>
 inline
-T qmatrix<T>::operator()(uint32 i, uint32 j) const
+T distance_matrix<T>::operator()(uint32 i, uint32 j) const
 {
 	assert(i < m_n); assert(j < m_n);
 	
@@ -204,7 +116,7 @@ T qmatrix<T>::operator()(uint32 i, uint32 j) const
 
 template<typename T>
 inline
-T& qmatrix<T>::operator()(uint32 i, uint32 j)
+T& distance_matrix<T>::operator()(uint32 i, uint32 j)
 {
 	assert(i != j); assert(i < m_n); assert(j < m_n);
 	
@@ -215,7 +127,7 @@ T& qmatrix<T>::operator()(uint32 i, uint32 j)
 }
 
 //template<typename T>
-//tuple<uint32,uint32> qmatrix<T>::min() const
+//tuple<uint32,uint32> distance_matrix<T>::min() const
 //{
 //	uint32 min_i = 1, min_j = 0,
 //		m = m_data[0], r = (m_n * (m_n - 1)) / 2;
@@ -241,7 +153,7 @@ T& qmatrix<T>::operator()(uint32 i, uint32 j)
 //}
 
 template<typename T>
-void qmatrix<T>::erase_2(uint32 di, uint32 dj)
+void distance_matrix<T>::erase_2(uint32 di, uint32 dj)
 {
 	uint32 s = 0, d = 0;
 	for (uint32 i = 0; i < m_n; ++i)
@@ -263,7 +175,7 @@ void qmatrix<T>::erase_2(uint32 di, uint32 dj)
 }
 
 template<typename T>
-ostream& operator<<(ostream& lhs, const qmatrix<T>& rhs)
+ostream& operator<<(ostream& lhs, const distance_matrix<T>& rhs)
 {
 	for (uint32 i = 0; i < rhs.dim(); ++i)
 	{
@@ -363,122 +275,7 @@ struct trace_back
 
 // --------------------------------------------------------------------
 
-class substitution_matrix
-{
-  public:
-						substitution_matrix(const string& m);
-	
-	int32				operator()(aa a, aa b) const;
 
-  private:
-	
-	void				read(istream& is);
-
-	matrix<int8>		m_matrix;
-};
-
-substitution_matrix::substitution_matrix(const string& m)
-	: m_matrix(sizeof(kAA), sizeof(kAA))
-{
-	if (m == "BLOSUM62")
-	{
-		io::stream<io::array_source> in(kBLOSUM62, strlen(kBLOSUM62));
-		read(in);
-	}
-	else
-	{
-		ifstream file(m);
-		if (not file.is_open())
-			throw my_bad("could not open matrix file");
-		read(file);
-	}
-}
-
-void substitution_matrix::read(istream& is)
-{	
-	sequence ix;
-	
-	// first read up until we've got the header and calculate the index
-	for (;;)
-	{
-		string line;
-		getline(is, line);
-		if (line.empty())
-		{
-			if (is.eof())
-				break;
-			continue;
-		}
-		if (line[0] == '#')
-			continue;
-		
-		if (line[0] != ' ')
-			throw my_bad("invalid matrix file");
-		
-		string h;
-		foreach (char ch, line)
-		{
-			if (ch != ' ')
-				h += ch;
-		}
-		
-		ix = encode(h);
-		
-		break;
-	}
-	
-	for (;;)
-	{
-		string line;
-		getline(is, line);
-		if (line.empty())
-		{
-			if (is.eof())
-				break;
-			continue;
-		}
-		if (line[0] == '#')
-			continue;
-		
-		uint32 row = encode(line.substr(0, 1))[0];
-		
-		stringstream s(line.substr(1));
-		int32 v;
-
-		for (uint32 i = 0; i < ix.length(); ++i)
-		{
-			s >> v;
-			m_matrix(row, ix[i]) = v;
-		}
-	}
-}
-
-inline int32 substitution_matrix::operator()(aa a, aa b) const
-{
-	return m_matrix(a, b);
-}
-
-ostream& operator<<(ostream& os, substitution_matrix& m)
-{
-	// print header
-	os << ' ';
-	for (uint32 i = 0; i < sizeof(kAA); ++i)
-		os << "  " << kAA[i];
-	os << endl;
-	
-	// print matrix
-	for (uint32 r = 0; r < sizeof(kAA); ++r)
-	{
-		os << kAA[r];
-		
-		for (uint32 c = 0; c < sizeof(kAA); ++c)
-			os << setw(3) << m(r, c);
-
-		os << endl;
-	}
-	
-	return os;
-}
 
 // --------------------------------------------------------------------
 
@@ -618,8 +415,9 @@ struct joined_node : public base_node
 	
 	base_node*			m_left;
 	base_node*			m_right;
-	int32				m_d_left;
-	int32				m_d_right;
+	float				m_d_left;
+	float				m_d_right;
+	uint32				m_leaf_count;
 };
 
 struct leaf_node : public base_node
@@ -766,11 +564,11 @@ void readFasta(fs::path path, vector<entry>& seq)
 
 // --------------------------------------------------------------------
 
-void joinNeighbours(qmatrix<uint16>& d, vector<base_node*>& tree)
+void joinNeighbours(distance_matrix<uint16>& d, vector<base_node*>& tree)
 {
 	uint32 r = tree.size();
 	
-//	qmatrix<int32> Q(r);
+//	matrix<int32> Q(r);
 	vector<int32> sum(r);
 	
 	// calculate the sums first
@@ -842,7 +640,7 @@ void joinNeighbours(qmatrix<uint16>& d, vector<base_node*>& tree)
 int32 score(const vector<entry>& a, const vector<entry>& b,
 	uint32 ix_a, uint32 ix_b, const substitution_matrix& mat)
 {
-	int32 result = 0;
+	float result = 0;
 	
 	foreach (const entry& ea, a)
 	{
@@ -851,22 +649,11 @@ int32 score(const vector<entry>& a, const vector<entry>& b,
 			assert(ix_a < ea.m_seq.length());
 			assert(ix_b < eb.m_seq.length());
 
-if (DEBUG)
-{
-	cout << "ix_a: " << ix_a
-		 << "; ix_b: " << ix_b
-		 << "; a: " << kAA[ea.m_seq[ix_a]]
-		 << "; b: " << kAA[eb.m_seq[ix_b]]
-		 << "; m: " << mat(ea.m_seq[ix_a], eb.m_seq[ix_b])
-		 << "; r: " << result + mat(ea.m_seq[ix_a], eb.m_seq[ix_b])
-		 << endl;
-}
-			result += mat(ea.m_seq[ix_a], eb.m_seq[ix_b]);
-
+			result += ea.m_weight * eb.m_weight * mat(ea.m_seq[ix_a], eb.m_seq[ix_b]);
 		}
 	}
 	
-	return result / int32(a.size() * b.size());
+	return static_cast<int32>(result / (a.size() * b.size()));
 }
 
 void align(vector<entry>& a, vector<entry>& b, vector<entry>& c,
@@ -1090,7 +877,7 @@ int main(int argc, char* argv[])
 			("help,h", "Display help message")
 			("input,i", po::value<string>(), "Input file")
 			("debug,d", "Debug output")
-			("matrix,m", po::value<string>(), "Substitution matrix, default is BLOSUM62")
+			("matrix,m", po::value<string>(), "Substitution matrix, default is BLOSUM")
 			;
 	
 		po::variables_map vm;
@@ -1106,7 +893,7 @@ int main(int argc, char* argv[])
 		DEBUG = vm.count("debug");
 	
 		// matrix
-		string matrix = "BLOSUM62";
+		string matrix = "BLOSUM";
 		if (vm.count("matrix"))
 			matrix = vm["matrix"].as<string>();
 		substitution_matrix mat(matrix);
@@ -1120,7 +907,7 @@ int main(int argc, char* argv[])
 			throw my_bad("insufficient number of sequences");
 		
 		// a distance matrix
-		qmatrix<uint16> d(data.size());
+		distance_matrix<uint16> d(data.size());
 		
 		int n = 0;
 		for (uint32 a = 0; a < data.size() - 1; ++a)
@@ -1139,13 +926,13 @@ int main(int argc, char* argv[])
 		}
 		cerr << endl;
 		
-		// build 'tree'
+		// create the leaf nodes
 		vector<base_node*> tree;
 		tree.reserve(data.size());
 		foreach (const entry& e, data)
 			tree.push_back(new leaf_node(e));
 		
-		// calculate initial Q
+		// calculate guide tree
 		while (tree.size() > 2)
 			joinNeighbours(d, tree);
 		
