@@ -5,6 +5,8 @@
 
 #include <string>
 #include <cassert>
+#include <ostream>
+#include <iomanip>
 
 #include <boost/format.hpp>
 
@@ -70,14 +72,25 @@ class matrix
 	
 	value_type		operator()(uint32 i, uint32 j) const
 					{
-						std::assert(i < m_m); assert(j < m_n);
+						assert(i < m_m); assert(j < m_n);
 						return m_data[i + j * m_m];
 					}
 					
 	value_type&		operator()(uint32 i, uint32 j)
 					{
-						std::assert(i < m_m); assert(j < m_n);
+						assert(i < m_m); assert(j < m_n);
 						return m_data[i + j * m_m];
+					}
+
+	void			print(std::ostream& os) const
+					{
+						for (uint32 y = 0; y < m_m; ++y)
+						{
+							os << std::setw(3) << y;
+							for (uint32 x = 0; x < m_n; ++x)
+								os << ' ' << std::setw(5) << int32(m_data[x + y * m_m]);
+							os << std::endl;
+						}
 					}
 
   private:
@@ -87,6 +100,12 @@ class matrix
 	value_type*		m_data;
 	uint32			m_m, m_n;
 };
+
+template<typename T>
+std::ostream& operator<<(std::ostream& lhs, matrix<T>& rhs)
+{
+	rhs.print(lhs); return lhs;
+}
 
 // --------------------------------------------------------------------
 

@@ -11,8 +11,8 @@
 #BOOST_LIB_SUFFIX	= -mt				# Works for Ubuntu
 BOOST_LIB_DIR		= $(HOME)/projects/boost/lib
 BOOST_INC_DIR		= $(HOME)/projects/boost/include
-ZEEP_DIR			= $(HOME)/projects/libzeep/
-MRS_LIB_DIR			= $(HOME)/projects/mrs/lib
+#ZEEP_DIR			= $(HOME)/projects/libzeep/
+#MRS_LIB_DIR			= $(HOME)/projects/mrs/lib
 
 DESTDIR				?= /usr/local/
 LIBDIR				= $(DESTDIR)lib
@@ -21,8 +21,10 @@ MANDIR				= $(DESTDIR)man/man3
 
 BOOST_LIBS			= system thread regex filesystem program_options
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
-LIBS				= zeep mrs $(BOOST_LIBS) z bz2 uuid 
-LDOPTS				= $(BOOST_LIB_DIR:%=-L%) -L$(MRS_LIB_DIR) -L$(ZEEP_DIR) $(LIBS:%=-l%) -gdwarf-2 -pthread
+#LIBS				= zeep mrs $(BOOST_LIBS) z bz2 uuid 
+LIBS				= $(BOOST_LIBS)
+LDOPTS				= $(BOOST_LIB_DIR:%=-L%) # -L$(MRS_LIB_DIR) -L$(ZEEP_DIR)
+LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
 CC					?= c++
 CFLAGS				= $(BOOST_INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
@@ -32,13 +34,16 @@ CFLAGS				+= -O3
 VPATH += src
 
 OBJECTS = \
-	obj/align.o
+	obj/align.o \
+	obj/matrix.o
 
 align: $(OBJECTS)
-	c++ -o $@ $(OBJECTS) $(LDOPTS)
+	@ echo linking $@
+	@ c++ -o $@ $(OBJECTS) $(LDOPTS)
 
 obj/%.o: %.cpp
-	c++ -MD -c -o $@ $< $(CFLAGS)
+	@ echo compiling $@
+	@ c++ -MD -c -o $@ $< $(CFLAGS)
 
 include $(OBJECTS:%.o=%.d)
 
