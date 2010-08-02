@@ -609,7 +609,9 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 				if ((ix + d < gaps.size() and gaps[ix + d] > 0) or
 					(ix - d >= 0 and gaps[ix - d] > 0))
 				{
-					gop[ix] *= (2 + abs(8 - d) * 2) / 8;
+					cout << "ix: " << ix << " d: " << d << " f: " << (2 + abs((8 - d) * 2)) / 8.f << endl;
+					
+					gop[ix] += gop[ix] * (2 + abs((8 - d) * 2)) / 8.f;
 					break;
 				}
 			}
@@ -822,6 +824,26 @@ void report(const vector<entry*>& alignment)
 	}
 }
 
+void test()
+{
+	vector<entry*> s;
+	
+	s.push_back(new entry(1, "1", encode("HLTPEEKSAVTALWGKVN--VDEVGGEALGRLLVVYPWTQRFFESFGDL")));
+	s.push_back(new entry(2, "2", encode("QLSGEEKAAVLALWDKVN--EEEVGGEALGRLLVVYPWTQRFFDSFGDL")));
+	s.push_back(new entry(3, "3", encode("VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLS")));
+	s.push_back(new entry(4, "4", encode("VLSAADKTNVKAAWSKVGGHAGEYGAEALERMFLGFPTTKTYFPHFDLS")));
+	
+	uint32 n = s.front()->m_seq.length();
+	
+	vector<float> gop(n, 10), gep(n, 0.2);
+	
+	adjust_gp(gop, gep, s);
+	
+	copy(gop.begin(), gop.end(), ostream_iterator<float>(cout, "\t"));
+	cout << endl;
+	exit(0);
+}
+
 int main(int argc, char* argv[])
 {
 	try
@@ -834,7 +856,7 @@ int main(int argc, char* argv[])
 			("verbose,v", "Verbose output")
 			("gap_open", po::value<float>(), "Gap open penalty")
 			("gap_extend", po::value<float>(), "Gap extend penalty")
-//			("test,t", "run test function and exit")
+			("test,t", "run test function and exit")
 			("matrix,m", po::value<string>(), "Substitution matrix, default is BLOSUM")
 			;
 	
@@ -851,8 +873,8 @@ int main(int argc, char* argv[])
 		DEBUG = vm.count("debug");
 		VERBOSE = vm.count("verbose");
 
-//		if (vm.count("test"))
-//			test();
+		if (vm.count("test"))
+			test();
 	
 		// matrix
 		string matrix = "BLOSUM";
