@@ -25,7 +25,9 @@ foreach my $mat (@m) {
 	my $text = <$fh>;
 	close($fh);
 	
+	$text =~ s/"/\\"/g;
 	$text =~ s/.+/  "$&\\n"/g;
+
 	print $out
 		"const char k${mat}\[\] = \n",
 		$text, ";\n\n";

@@ -49,28 +49,14 @@ class substitution_matrix_family
 						{
 							const substitution_matrix* result;
 							
+							uint32 ix = 0;
+							while (distance < m_cutoff[ix] and ix < 3)
+								++ix;
+							
 							if (positive)
-							{
-								if (distance >= 0.8f)
-									result = m_pos_smat[0];
-								else if (distance >= 0.6f)
-									result = m_pos_smat[1];
-								else if (distance >= 0.4f)
-									result = m_pos_smat[2];
-								else
-									result = m_pos_smat[3];
-							}
+								result = m_pos_smat[ix];
 							else
-							{
-								if (distance >= 0.8f)
-									result = m_smat[0];
-								else if (distance >= 0.6f)
-									result = m_smat[1];
-								else if (distance >= 0.4f)
-									result = m_smat[2];
-								else
-									result = m_smat[3];
-							}
+								result = m_smat[ix];
 							
 							return *result;
 						}
@@ -81,6 +67,7 @@ class substitution_matrix_family
 	substitution_matrix_family&
 						operator=(const substitution_matrix_family&);
 
+	float				m_cutoff[4];
 	substitution_matrix*
 						m_smat[4];
 	substitution_matrix*

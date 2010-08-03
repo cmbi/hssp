@@ -38,6 +38,28 @@ substitution_matrix::substitution_matrix(const string& name)
 		io::stream<io::array_source> in(kBLOSUM30, strlen(kBLOSUM30));
 		read(in);
 	}
+
+	else if (name == "PAM20")
+	{
+		io::stream<io::array_source> in(kPAM20, strlen(kPAM20));
+		read(in);
+	}
+	else if (name == "PAM60")
+	{
+		io::stream<io::array_source> in(kPAM60, strlen(kPAM60));
+		read(in);
+	}
+	else if (name == "PAM120")
+	{
+		io::stream<io::array_source> in(kPAM120, strlen(kPAM120));
+		read(in);
+	}
+	else if (name == "PAM350")
+	{
+		io::stream<io::array_source> in(kPAM350, strlen(kPAM350));
+		read(in);
+	}
+
 	else if (name == "GONNET250")
 	{
 		io::stream<io::array_source> in(kGONNET250, strlen(kGONNET250));
@@ -164,13 +186,31 @@ void substitution_matrix::read(istream& is)
 substitution_matrix_family::substitution_matrix_family(
 	const std::string& name)
 {
-	if (name != "BLOSUM")
+	if (name != "BLOSUM" and name != "PAM")
 		throw my_bad(boost::format("unsuppported matrix %1%") % name);
 
-	m_smat[0] = new substitution_matrix(name + "80");
-	m_smat[1] = new substitution_matrix(name + "62");
-	m_smat[2] = new substitution_matrix(name + "45");
-	m_smat[3] = new substitution_matrix(name + "30");
+	if (name == "BLOSUM")
+	{
+		m_cutoff[0] = 0.8f;
+		m_smat[0] = new substitution_matrix(name + "80");
+		m_cutoff[0] = 0.6f;
+		m_smat[1] = new substitution_matrix(name + "62");
+		m_cutoff[0] = 0.3f;
+		m_smat[2] = new substitution_matrix(name + "45");
+		m_cutoff[0] = 0;
+		m_smat[3] = new substitution_matrix(name + "30");
+	}
+	else
+	{
+		m_cutoff[0] = 0.8f;
+		m_smat[0] = new substitution_matrix(name + "20");
+		m_cutoff[0] = 0.6f;
+		m_smat[1] = new substitution_matrix(name + "60");
+		m_cutoff[0] = 0.4f;
+		m_smat[2] = new substitution_matrix(name + "120");
+		m_cutoff[0] = 0;
+		m_smat[3] = new substitution_matrix(name + "350");
+	}
 
 	m_pos_smat[0] = new substitution_matrix(*m_smat[0], true);
 	m_pos_smat[1] = new substitution_matrix(*m_smat[1], true);

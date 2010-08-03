@@ -19,6 +19,7 @@
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/bind.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include "matrix.h"
 
@@ -27,6 +28,7 @@ using namespace tr1;
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 namespace io = boost::iostreams;
+namespace ba = boost::algorithm;
 
 int DEBUG = 0, VERBOSE = 0;
 
@@ -213,7 +215,7 @@ struct joined_node : public base_node
 	base_node*			m_right;
 	float				m_d_left;
 	float				m_d_right;
-	uint32				m_left_leaf_count, m_right_leaf_count, m_leaf_count;
+	uint32				m_leaf_count;
 };
 
 struct leaf_node : public base_node
@@ -239,25 +241,21 @@ struct leaf_node : public base_node
 	entry&				m_entry;
 };
 
-joined_node::joined_node(base_node* left, base_node* right,
-	float d_left, float d_right)
+joined_node::joined_node(base_node* left, base_node* right, float d_left, float d_right)
 	: m_left(left)
 	, m_right(right)
 	, m_d_left(d_left)
 	, m_d_right(d_right)
-	, m_left_leaf_count(left->leaf_count())
-	, m_right_leaf_count(right->leaf_count())
-	, m_leaf_count(m_left_leaf_count + m_right_leaf_count)
+	, m_leaf_count(left->leaf_count() + right->leaf_count())
 {
-	left->add_weight(d_left);
-	right->add_weight(d_right);
+	m_left->add_weight(d_left / m_left->leaf_count());
+	m_right->add_weight(d_right / m_right->leaf_count());
 }
 
 void joined_node::add_weight(float w)
 {
-	w *= m_left_leaf_count;
-	m_left->add_weight(w / m_left_leaf_count);
-	m_right->add_weight(w / m_right_leaf_count);
+	m_left->add_weight(w);
+	m_right->add_weight(w);
 }
 
 // --------------------------------------------------------------------
@@ -322,10 +320,8 @@ float calculateDistance(const entry& a, const entry& b)
 	{
 		for (y = 1; y <= dimY; ++y)
 		{
-//			float Ix1 = Ix(x - 1, y);	if (x == 1 and y > 1) Ix1 = -(gapOpen + y * gapExtend);
-//			float Iy1 = Iy(x, y - 1);	if (x > 1 and y == 1) Iy1 = -(gapOpen + x * gapExtend);
-			float Ix1 = Ix(x - 1, y);	if (x == 1 and y > 1) Ix1 = 0;
-			float Iy1 = Iy(x, y - 1);	if (x > 1 and y == 1) Iy1 = 0;
+			float Ix1 = Ix(x - 1, y);	if (x == 1) Ix1 = 0;
+			float Iy1 = Iy(x, y - 1);	if (y == 1) Iy1 = 0;
 			
 			// (1)
 			float M = smat(a.m_seq[x], b.m_seq[y]);
@@ -550,6 +546,214 @@ void joinNeighbours(distance_matrix<float>& d, vector<base_node*>& tree)
 
 // --------------------------------------------------------------------
 
+class GuideTreeParser
+{
+  public:
+						GuideTreeParser(istream& data, map<string,leaf_node*>& m)
+							: m_data(data)
+							, m_map(m)
+						{
+							getNextToken();
+						}
+	
+	base_node*			parse();
+
+  private:
+
+	enum GuideTreeToken {
+		gtt_Undef,
+		gtt_Open,
+		gtt_Close,
+		gtt_End,
+		gtt_ID,
+		gtt_Colon,
+		gtt_Comma,
+		gtt_Weight
+	};
+	
+	void				getNextToken();
+	void				match(GuideTreeToken token);
+	
+	tr1::tuple<base_node*,float>
+						parseNode();
+	base_node*			parseGroup();
+	
+	istream&			m_data;
+	map<string,leaf_node*>&
+						m_map;
+	float				m_value;
+	string				m_token;
+	GuideTreeToken		m_lookahead;
+};
+
+void GuideTreeParser::getNextToken()
+{
+	m_lookahead = gtt_Undef;
+	m_token.clear();
+	m_value = 0;
+	
+	enum State {
+		st_Start,
+		st_ID,
+		st_Number,
+		st_Fraction
+	} state = st_Start, start = st_Start;
+	
+	while (m_lookahead == gtt_Undef)
+	{
+		char ch = 0;
+		m_data.get(ch);
+		
+		m_token += ch;
+		
+		switch (state)
+		{
+			case st_Start:
+				switch (ch)
+				{
+					case ' ':
+					case '\r':
+					case '\n':
+					case '\t':	m_token.clear();			break;
+					case '(':	m_lookahead = gtt_Open;		break;
+					case ')':	m_lookahead = gtt_Close;	break;
+					case ':':	m_lookahead = gtt_Colon;	break;
+					case ',':	m_lookahead = gtt_Comma;	break;
+					case ';':	m_lookahead = gtt_End;		break;
+					default:
+						if (isdigit(ch))
+							state = st_Number;
+						else if (isalnum(ch) or ch == '_')
+							state = st_ID;
+						else
+							throw my_bad("unexpected character in guide tree");
+						break;
+				}
+				break;
+			
+			case st_Number:
+				if (ch == '.')
+					state = st_Fraction;
+				else if (not isdigit(ch))
+				{
+					m_data.unget();
+					m_token.erase(m_token.end() - 1);
+					m_lookahead = gtt_Weight;
+				}
+				break;
+			
+			case st_Fraction:
+				if (not isdigit(ch))
+				{
+					m_data.unget();
+					m_token.erase(m_token.end() - 1);
+					m_lookahead = gtt_Weight;
+				}
+				break;
+			
+			case st_ID:
+				if (not isalnum(ch) and ch != '_')
+				{
+					m_data.unget();
+					m_token.erase(m_token.end() - 1);
+					m_lookahead = gtt_ID;
+				}
+				break;
+		}
+	}
+}
+
+void GuideTreeParser::match(GuideTreeToken token)
+{
+	if (token == m_lookahead)
+		getNextToken();
+	else
+		throw my_bad(boost::format("invalid guide tree, expected %1% but found %2% ('%3%')") %
+			int(token) % int(m_lookahead) % m_token);
+}
+
+tr1::tuple<base_node*,float> GuideTreeParser::parseNode()
+{
+	base_node* n = NULL;
+	float w = 0;
+	
+	if (m_lookahead == gtt_Open)
+		n = parseGroup();
+	else
+	{
+		n = m_map[m_token];
+		if (n == NULL)
+			throw my_bad(boost::format("guide tree contains unknown id %1%") % m_token);
+		match(gtt_ID);
+	}
+	
+	if (m_lookahead == gtt_Colon)
+	{
+		match(gtt_Colon);
+		w = boost::lexical_cast<float>(m_token);
+		match(gtt_Weight);
+	}
+	
+	return tr1::make_tuple(n, w);
+}
+
+base_node* GuideTreeParser::parseGroup()
+{
+	base_node* na = NULL;
+	base_node* nb = NULL;
+	float wa = 0, wb = 0;
+	
+	match(gtt_Open);
+	
+	tr1::tie(na, wa) = parseNode();
+	
+	while (m_lookahead == gtt_Comma)
+	{
+		match(gtt_Comma);
+		
+		tr1::tie(nb, wb) = parseNode();
+		
+		na = new joined_node(na, nb, wa, wb);
+		wa = wb;
+	}
+	
+	match(gtt_Close);
+	
+	return na;
+}
+
+base_node* GuideTreeParser::parse()
+{
+	base_node* result = NULL;
+	if (m_lookahead == gtt_Open)
+		result = parseGroup();
+	if (m_lookahead != gtt_End)
+		throw my_bad("invalid guide tree file, missing semicolon at end");
+	return result;
+}
+
+void useGuideTree(const string& guide, vector<base_node*>& tree)
+{
+	uint32 r = tree.size();
+	
+	map<string,leaf_node*> m;
+	foreach (base_node* n, tree)
+	{
+		leaf_node* leaf = static_cast<leaf_node*>(n);
+		m[leaf->m_entry.m_id] = leaf;
+	}
+	
+	fs::ifstream file(guide);
+	if (not file.is_open())
+		throw my_bad("failed to open guide tree");
+	
+	tree.clear();
+	GuideTreeParser parser(file, m);
+	tree.push_back(parser.parse());
+}
+
+// --------------------------------------------------------------------
+
 int32 score(const vector<entry*>& a, const vector<entry*>& b,
 	uint32 ix_a, uint32 ix_b, const substitution_matrix& mat)
 {
@@ -577,18 +781,69 @@ int32 score(const vector<entry*>& a, const vector<entry*>& b,
 	return static_cast<int32>(result * 1.0f / (a.size() * b.size()));
 }
 
+const float kResidueSpecificPenalty[20] = {
+	1.13,		// A
+	0.72,		// R
+	0.63,		// N
+	0.96,		// D
+	1.13,		// C
+	1.07,		// Q
+	1.31,		// E
+	0.61,		// G
+	1.00,		// H
+	1.32,		// I
+	1.21,		// L
+	0.96,		// K
+	1.29,		// M
+	1.20,		// F
+	0.74,		// P
+	0.76,		// S
+	0.89,		// T
+	1.23,		// W
+	1.00,		// Y
+	1.25		// V
+};
+
 void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq)
 {
 	assert(gop.size() == seq.front()->m_seq.length());
 
 	vector<uint32> gaps(gop.size());
+	vector<bool> hydrophilic_stretch(gop.size(), false);
+	vector<float> residue_specific_penalty(gop.size());
 
 	foreach (const entry* e, seq)
 	{
+		const sequence& s = e->m_seq;
+		
 		for (uint32 ix = 0; ix < gop.size(); ++ix)
 		{
-			if (e->m_seq[ix] == kSignalGapCode)
+			aa r = s[ix];
+			
+			if (r == kSignalGapCode)
 				gaps[ix] += 1;
+
+			// residue specific gap penalty
+			if (r < kAACount)
+				residue_specific_penalty[ix] += kResidueSpecificPenalty[r];
+			else
+				residue_specific_penalty[ix] += 1.0f;
+		}
+		
+		// find a run of 5 hydrophilic residues
+		const boost::function<bool(aa)> is_hydrophilic = ba::is_any_of(encode("DEGKNQPRS"));
+		
+		for (uint32 si = 0, i = 0; i <= gop.size(); ++i)
+		{
+			if (i == gop.size() or is_hydrophilic(s[i]) == false)
+			{
+				if (i >= si + 5)
+				{
+					for (uint32 j = si; j < i; ++j)
+						hydrophilic_stretch[j] = true;
+				}
+				si = i + 1;
+			}
 		}
 	}
 	
@@ -597,7 +852,7 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 		// if there is a gap, lower gap open cost
 		if (gaps[ix] > 0)
 		{
-			gop[ix] *= 0.3f * (seq.size() - gaps[ix]);
+			gop[ix] *= 0.3f * ((seq.size() - gaps[ix]) / float(seq.size()));
 			gep[ix] /= 2;
 		}
 		
@@ -609,12 +864,15 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 				if ((ix + d < gaps.size() and gaps[ix + d] > 0) or
 					(ix - d >= 0 and gaps[ix - d] > 0))
 				{
-					cout << "ix: " << ix << " d: " << d << " f: " << (2 + abs((8 - d) * 2)) / 8.f << endl;
-					
-					gop[ix] += gop[ix] * (2 + abs((8 - d) * 2)) / 8.f;
+					gop[ix] *= (2 + abs((8 - d) * 2)) / 8.f;
 					break;
 				}
 			}
+			
+			if (hydrophilic_stretch[ix])
+				gop[ix] /= 3;
+			else
+				gop[ix] *= (residue_specific_penalty[ix] / seq.size());
 		}
 	}
 }
@@ -638,32 +896,31 @@ void align(
 
 	const substitution_matrix& smat = mat_fam(abs(node->m_d_left + node->m_d_right), true);
 	
-	// initial gap costs
+	// initial gap open cost
 	gop = abs((gop + log(min(dimX, dimY))) * smat.mismatch_average()) / 10;
-	gep = gep * (1 + abs(log(float(dimX) / dimY)));
 	
 	// position specific gap open costs
-	vector<float> gop_a(dimX, gop), gep_a(dimX, gep);
+	// initial gap extend cost is adjusted for difference in sequence lengths
+	vector<float> gop_a(dimX, gop),
+		gep_a(dimX, gep * (1 + abs(log(float(dimX) / dimY))));
 	adjust_gp(gop_a, gep_a, a);
 	
-	vector<float> gop_b(dimY, gop), gep_b(dimY, gep);
-	adjust_gp(gop_b, gep_b, b);
-
-	if (VERBOSE)
+	if (DEBUG > 1)
 	{
-		cout << "gop: " << gop << "; "
-			 << "gep: " << gep << endl;
-		
-		copy(gop_a.begin(), gop_a.end(), ostream_iterator<float>(cout, ", ")); cout << endl;
-		copy(gop_b.begin(), gop_b.end(), ostream_iterator<float>(cout, ", ")); cout << endl;
+		cout << a.front()->m_id << " (" << gop_a.size() << ")" << endl;
+		copy(gop_a.begin(), gop_a.end(), ostream_iterator<float>(cout, ";")); cout << endl;
 	}
+	
+	vector<float> gop_b(dimY, gop),
+		gep_b(dimY, gep * (1 + abs(log(float(dimY) / dimX))));
+	adjust_gp(gop_b, gep_b, b);
 
 	for (x = 1; x <= dimX; ++x)
 	{
 		for (y = 1; y <= dimY; ++y)
 		{
-			float Ix1 = Ix(x - 1, y);	if (x == 1 and y > 1) Ix1 = -(gop + y * gep);
-			float Iy1 = Iy(x, y - 1);	if (x > 1 and y == 1) Iy1 = -(gop + x * gep);
+			float Ix1 = Ix(x - 1, y);	if (x == 1) Ix1 = 0;
+			float Iy1 = Iy(x, y - 1);	if (y == 1) Iy1 = 0;
 			
 			// (1)
 			float M = score(a, b, x - 1, y - 1, smat);
@@ -686,7 +943,7 @@ void align(
 				B(x, y) = Iy1;
 			}
 
-if (DEBUG)
+if (DEBUG > 3)
 {
 	cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1: " << Iy1
 		 << "; B=> " << B(x, y) << "; tb=> " << tb(x, y) << endl;
@@ -731,7 +988,7 @@ if (DEBUG)
 	copy(b.begin(), b.end(), back_inserter(c));
 	
 // debug code:
-	if (DEBUG)
+	if (DEBUG > 2)
 	{
 		foreach (entry* e, c)
 			cout << e->m_id << ": " << decode(e->m_seq) << endl;
@@ -852,11 +1109,12 @@ int main(int argc, char* argv[])
 		desc.add_options()
 			("help,h", "Display help message")
 			("input,i", po::value<string>(), "Input file")
-			("debug,d", "Debug output")
+			("debug,d", po::value<int>(), "Debug output")
 			("verbose,v", "Verbose output")
-			("gap_open", po::value<float>(), "Gap open penalty")
-			("gap_extend", po::value<float>(), "Gap extend penalty")
+			("gap-open", po::value<float>(), "Gap open penalty")
+			("gap-extend", po::value<float>(), "Gap extend penalty")
 			("test,t", "run test function and exit")
+			("guide-tree,g", po::value<string>(), "use existing guide tree")
 			("matrix,m", po::value<string>(), "Substitution matrix, default is BLOSUM")
 			;
 	
@@ -870,7 +1128,8 @@ int main(int argc, char* argv[])
 			exit(1);
 		}
 		
-		DEBUG = vm.count("debug");
+		if (vm.count("debug"))
+			DEBUG = vm["debug"].as<int>();
 		VERBOSE = vm.count("verbose");
 
 		if (vm.count("test"))
@@ -882,8 +1141,8 @@ int main(int argc, char* argv[])
 			matrix = vm["matrix"].as<string>();
 		substitution_matrix_family mat(matrix);
 
-		float gop = 10.f;	if (vm.count("gap_open")) gop = vm["gap_open"].as<float>();
-		float gep = 0.2f;	if (vm.count("gap_extend")) gep = vm["gap_extend"].as<float>();
+		float gop = 10.f;	if (vm.count("gap-open")) gop = vm["gap-open"].as<float>();
+		float gep = 0.2f;	if (vm.count("gap-extend")) gep = vm["gap-extend"].as<float>();
 
 		fs::path path(vm["input"].as<string>());
 		vector<entry> data;
@@ -904,26 +1163,6 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			// a distance matrix
-			distance_matrix<float> d(data.size());
-			
-			int n = 0;
-			for (uint32 a = 0; a < data.size() - 1; ++a)
-			{
-				for (uint32 b = a + 1; b < data.size(); ++b)
-				{
-					if ((++n % 1000) == 0)
-					{
-						cerr << '.';
-						if ((n % 60000) == 0)
-							cerr << ' ' << n << endl;
-					}
-					
-					d(a, b) = calculateDistance(data[a], data[b]);
-				}
-			}
-			cerr << endl;
-			
 			// create the leaf nodes
 			vector<base_node*> tree;
 			tree.reserve(data.size());
@@ -932,12 +1171,38 @@ int main(int argc, char* argv[])
 			
 			// calculate guide tree
 			
-			joinNeighbours(d, tree);
+			if (vm.count("guide-tree"))
+				useGuideTree(vm["guide-tree"].as<string>(), tree);
+			else
+			{
+				// a distance matrix
+				distance_matrix<float> d(data.size());
+				
+				int n = 0;
+				for (uint32 a = 0; a < data.size() - 1; ++a)
+				{
+					for (uint32 b = a + 1; b < data.size(); ++b)
+					{
+						if ((++n % 1000) == 0)
+						{
+							cerr << '.';
+							if ((n % 60000) == 0)
+								cerr << ' ' << n << endl;
+						}
+						
+						d(a, b) = calculateDistance(data[a], data[b]);
+					}
+				}
+				cerr << endl;
+
+				joinNeighbours(d, tree);
+			}
+			
 			root = tree.front();
 		}
 		
 		if (VERBOSE)
-			cout << *root << endl;
+			cout << *root << ';' << endl;
 		
 		createAlignment(root, alignment, mat, gop, gep);
 
