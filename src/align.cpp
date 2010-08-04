@@ -367,41 +367,66 @@ float calculateDistance(const entry& a, const entry& b)
 	matrix<float>	B(dimX + 1, dimY + 1);
 	matrix<float>	Ix(dimX + 1, dimY + 1);
 	matrix<float>	Iy(dimX + 1, dimY + 1);
-	matrix<int8>	tb(dimX + 1, dimY + 1);
+	matrix<uint32>	id(dimX + 1, dimY + 1);
 	
 	Ix(0, 1) = 0;
 	Iy(1, 0) = 0;
+	id(0, 0) = 0;
 
 	static const substitution_matrix smat("GONNET250");
 	static const float gapOpen = 10;
-	static const float gapExtend = 0.1;
+	static const float gapExtend = 0.2;
+	
+	float high = numeric_limits<float>::min();
+	uint32 highX, highY;
 
 	for (x = 1; x <= dimX; ++x)
 	{
 		for (y = 1; y <= dimY; ++y)
 		{
-			float Ix1 = Ix(x - 1, y);	if (x == 1) Ix1 = 0;
-			float Iy1 = Iy(x, y - 1);	if (y == 1) Iy1 = 0;
-			
+			float Ix1 = 0; if (x > 1) Ix1 = Ix(x - 1, y);
+			float Iy1 = 0; if (y > 1) Iy1 = Iy(x, y - 1);
+
 			// (1)
-			float M = smat(a.m_seq[x], b.m_seq[y]);
+			float M = smat(a.m_seq[x - 1], b.m_seq[y - 1]);
 			if (x > 1 and y > 1)
 				M += B(x - 1, y - 1);
 
+			float s;
+			uint32 i = 0;
+			if (a.m_seq[x - 1] == b.m_seq[y - 1])
+				i = 1;
+
 			if (M >= Ix1 and M >= Iy1)
 			{
-				tb(x, y) = 0;
-				B(x, y) = M;
+				if (x > 1 and y > 1)
+					i += id(x - 1, y - 1);
+				s = M;
 			}
 			else if (Ix1 >= Iy1)
 			{
-				tb(x, y) = 1;
-				B(x, y) = Ix1;
+				if (x > 1)
+					i += id(x - 1, y);
+				s = Ix1;
 			}
 			else
 			{
-				tb(x, y) = -1;
-				B(x, y) = Iy1;
+				if (y > 1)
+					i += id(x, y - 1);
+				s = Iy1;
+			}
+			
+			B(x, y) = s;
+			
+			assert(i <= min(dimX, dimY));
+			
+			id(x, y) = i;
+			
+			if ((x == dimX or y == dimY) and high < s)
+			{
+				high = s;
+				highX = x;
+				highY = y;
 			}
 
 			// (3)
@@ -412,25 +437,7 @@ float calculateDistance(const entry& a, const entry& b)
 		}
 	}
 	
-	// traceback, counting the identities
-	uint32 n = 0;
-	x = dimX; y = dimY;
-	while (x > 0 or y > 0)
-	{
-		if (x == 0 or (y > 0 and tb(x, y) < 0))
-			--y;
-		else if (y == 0 or (x > 0 and tb(x, y) > 0))
-			--x;
-		else
-		{
-			if (a.m_seq[x] == b.m_seq[y])
-				++n;
-			--x;
-			--y;
-		}
-	}
-	
-	float result = 1.0f - float(n) / max(dimX, dimY);
+	float result = 1.0f - float(id(highX, highY)) / max(dimX, dimY);
 	
 	if (VERBOSE)
 	{
