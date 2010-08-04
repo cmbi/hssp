@@ -23,6 +23,7 @@ class substitution_matrix
 						}
 
 	float				mismatch_average() const		{ return m_mismatch_average; }
+	float				scale_factor() const			{ return m_scale_factor; }
 
   private:
 						substitution_matrix(
@@ -34,6 +35,7 @@ class substitution_matrix
 
 	matrix<int8>		m_matrix;
 	float				m_mismatch_average;
+	float				m_scale_factor;
 };
 
 class substitution_matrix_family

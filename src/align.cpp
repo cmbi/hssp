@@ -9,6 +9,7 @@
 #include <sstream>
 #include <limits>
 #include <cmath>
+#include <numeric>
 
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
@@ -45,11 +46,18 @@ struct entry
 						, m_weight(weight) {}
 
 	uint32			nr() const						{ return m_nr; }
+	float			weight() const					{ return m_weight; }
 
 	uint32			m_nr;
 	string			m_id;
 	sequence		m_seq;
 	float			m_weight;
+};
+
+// ah, too bad those lamda's are not supported yet...
+struct sum_weight
+{
+	float operator()(float sum, const entry* e) const { return sum + e->m_weight; }
 };
 
 // --------------------------------------------------------------------
@@ -259,11 +267,63 @@ void joined_node::add_weight(float w)
 }
 
 // --------------------------------------------------------------------
+
+void report(const vector<entry*>& alignment)
+{
+	cout << "CLUSTAL FORMAT for MaartensAlignment" << endl;
+
+	uint32 nseq = alignment.size();
+	uint32 len = alignment[0]->m_seq.length();
+	uint32 offset = 0;
+	while (offset < len)
+	{
+		uint32 n = alignment[0]->m_seq.length() - offset;
+		if (n > 60)
+			n = 60;
+		
+		vector<set<aa> > dist(n);
+		
+		foreach (const entry* e, alignment)
+		{
+			sequence ss = e->m_seq.substr(offset, n);
+			
+			for (uint32 i = 0; i < n; ++i)
+				dist[i].insert(ss[i]);
+
+			string id = e->m_id;
+			if (id.length() > 15)
+				id = id.substr(0, 12) + "...";
+			else if (id.length() < 15)
+				id += string(15 - id.length(), ' ');
+			
+			cout << id << ' ' << decode(ss) << endl;
+		}
+		
+//		string scores(n, '*');
+//		for (uint32 i = 0; i < n; ++i)
+//		{
+//			if (dist[i].size() > 1)
+//			{
+//				
+//			}
+//		}
+//		
+//		cout << string(16, ' ') << scores << endl;
+		
+		offset += n;
+		cout << endl;
+	}
+}
+
+// --------------------------------------------------------------------
 // compute the distance between two sequences using the
 // Levenshtein algorithm.
 
-//uint16 calculateDistance(const sequence& s, const sequence& t)
+//float calculateDistance(const entry& a, const entry& b)
 //{
+//	const sequence& s = a.m_seq;
+//	const sequence& t = b.m_seq;
+//	
 //	uint32 m = s.length();
 //	uint32 n = t.length();
 //	
@@ -357,9 +417,9 @@ float calculateDistance(const entry& a, const entry& b)
 	x = dimX; y = dimY;
 	while (x > 0 or y > 0)
 	{
-		if (x == 0 or tb(x, y) < 0)
+		if (x == 0 or (y > 0 and tb(x, y) < 0))
 			--y;
-		else if (y == 0 or tb(x, y) > 0)
+		else if (y == 0 or (x > 0 and tb(x, y) > 0))
 			--x;
 		else
 		{
@@ -621,12 +681,12 @@ void GuideTreeParser::getNextToken()
 					case ',':	m_lookahead = gtt_Comma;	break;
 					case ';':	m_lookahead = gtt_End;		break;
 					default:
-						if (isdigit(ch))
+						if (isdigit(ch) or ch == '-')
 							state = st_Number;
 						else if (isalnum(ch) or ch == '_')
 							state = st_ID;
 						else
-							throw my_bad("unexpected character in guide tree");
+							throw my_bad(boost::format("unexpected character '%1%' in guide tree") % ch);
 						break;
 				}
 				break;
@@ -754,7 +814,7 @@ void useGuideTree(const string& guide, vector<base_node*>& tree)
 
 // --------------------------------------------------------------------
 
-int32 score(const vector<entry*>& a, const vector<entry*>& b,
+float score(const vector<entry*>& a, const vector<entry*>& b,
 	uint32 ix_a, uint32 ix_b, const substitution_matrix& mat)
 {
 	float result = 0;
@@ -769,39 +829,56 @@ int32 score(const vector<entry*>& a, const vector<entry*>& b,
 			aa ra = ea->m_seq[ix_a];
 			aa rb = eb->m_seq[ix_b];
 			
-			float s;
-			
 			if (ra != kSignalGapCode and rb != kSignalGapCode)
-				s = mat(ra, rb);
-
-			result += ea->m_weight * eb->m_weight * s;
+				result += ea->m_weight * eb->m_weight * mat(ra, rb);
 		}
 	}
 	
-	return static_cast<int32>(result * 1.0f / (a.size() * b.size()));
+	return result / (a.size() * b.size());
 }
 
+float percentIdentity(const sequence& a, const sequence& b)
+{
+	float result = 0;
+	uint32 count = 0, total;
+	
+	total = min(a.length(), b.length());
+	
+	for (uint32 ix = 0; ix < total; ++ix)
+	{
+		if (a[ix] == b[ix])
+			++count;
+	}
+	
+	if (total > 0)
+		result = 100.0f * count / total;
+	
+	return result;
+}
+
+// don't ask me, but looking at the clustal code, they substract 0.2 from the table
+// as mentioned in the article in NAR.
 const float kResidueSpecificPenalty[20] = {
-	1.13,		// A
-	0.72,		// R
-	0.63,		// N
-	0.96,		// D
-	1.13,		// C
-	1.07,		// Q
-	1.31,		// E
-	0.61,		// G
-	1.00,		// H
-	1.32,		// I
-	1.21,		// L
-	0.96,		// K
-	1.29,		// M
-	1.20,		// F
-	0.74,		// P
-	0.76,		// S
-	0.89,		// T
-	1.23,		// W
-	1.00,		// Y
-	1.25		// V
+	1.13 - 0.2,		// A
+	0.72 - 0.2,		// R
+	0.63 - 0.2,		// N
+	0.96 - 0.2,		// D
+	1.13 - 0.2,		// C
+	1.07 - 0.2,		// Q
+	1.31 - 0.2,		// E
+	0.61 - 0.2,		// G
+	1.00 - 0.2,		// H
+	1.32 - 0.2,		// I
+	1.21 - 0.2,		// L
+	0.96 - 0.2,		// K
+	1.29 - 0.2,		// M
+	1.20 - 0.2,		// F
+	0.74 - 0.2,		// P
+	0.76 - 0.2,		// S
+	0.89 - 0.2,		// T
+	1.23 - 0.2,		// W
+	1.00 - 0.2,		// Y
+	1.25 - 0.2		// V
 };
 
 void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq)
@@ -831,7 +908,7 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 		}
 		
 		// find a run of 5 hydrophilic residues
-		const boost::function<bool(aa)> is_hydrophilic = ba::is_any_of(encode("DEGKNQPRS"));
+		static const boost::function<bool(aa)> is_hydrophilic = ba::is_any_of(encode("DEGKNQPRS"));
 		
 		for (uint32 si = 0, i = 0; i <= gop.size(); ++i)
 		{
@@ -861,10 +938,10 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 		{
 			for (int32 d = 0; d < 8; ++d)
 			{
-				if ((ix + d < gaps.size() and gaps[ix + d] > 0) or
-					(ix - d >= 0 and gaps[ix - d] > 0))
+				if (ix + d >= gaps.size() or gaps[ix + d] > 0 or
+					ix - d < 0 or gaps[ix - d] > 0)
 				{
-					gop[ix] *= (2 + abs((8 - d) * 2)) / 8.f;
+					gop[ix] *= (2 + ((8 - d) * 2)) / 8.f;
 					break;
 				}
 			}
@@ -874,6 +951,13 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 			else
 				gop[ix] *= (residue_specific_penalty[ix] / seq.size());
 		}
+	}
+
+	if (DEBUG > 2)
+	{
+		foreach (const entry* e, seq)
+			cout << e->m_id << " (" << gop.size() << "; " << e->m_weight << ")" << endl;
+		copy(gop.begin(), gop.end(), ostream_iterator<float>(cout, ";")); cout << endl;
 	}
 }
 
@@ -895,26 +979,33 @@ void align(
 	Iy(1, 0) = 0;
 
 	const substitution_matrix& smat = mat_fam(abs(node->m_d_left + node->m_d_right), true);
+
+	uint32 minLength = dimX, maxLength = dimY;
+	if (minLength > maxLength)
+		swap(minLength, maxLength);
 	
-	// initial gap open cost
-	gop = abs((gop + log(min(dimX, dimY))) * smat.mismatch_average()) / 10;
+	float logmin = 1.0 / log10(minLength);
+	float logdiff = 1.0 + 0.5 * log10(float(minLength) / maxLength);
 	
+	// initial gap open cost, 0.05f is the remaining magical number here...
+	gop = (gop / (logdiff * logmin)) * smat.mismatch_average() * smat.scale_factor() * 0.05f;
+
+	float avg_weight_a = accumulate(a.begin(), a.end(), 0.f, sum_weight()) / a.size();
+	float avg_weight_b = accumulate(b.begin(), b.end(), 0.f, sum_weight()) / b.size();
+
 	// position specific gap open costs
 	// initial gap extend cost is adjusted for difference in sequence lengths
-	vector<float> gop_a(dimX, gop),
-		gep_a(dimX, gep * (1 + abs(log(float(dimX) / dimY))));
+	vector<float> gop_a(dimX, gop * avg_weight_a),
+		gep_a(dimX, gep * (1 + abs(log10(float(dimX) / dimY))) * avg_weight_a);
 	adjust_gp(gop_a, gep_a, a);
 	
-	if (DEBUG > 1)
-	{
-		cout << a.front()->m_id << " (" << gop_a.size() << ")" << endl;
-		copy(gop_a.begin(), gop_a.end(), ostream_iterator<float>(cout, ";")); cout << endl;
-	}
-	
-	vector<float> gop_b(dimY, gop),
-		gep_b(dimY, gep * (1 + abs(log(float(dimY) / dimX))));
+	vector<float> gop_b(dimY, gop * avg_weight_b),
+		gep_b(dimY, gep * (1 + abs(log10(float(dimY) / dimX))) * avg_weight_b);
 	adjust_gp(gop_b, gep_b, b);
-
+	
+	float high = 0;
+	uint32 highX, highY;
+	
 	for (x = 1; x <= dimX; ++x)
 	{
 		for (y = 1; y <= dimY; ++y)
@@ -927,33 +1018,41 @@ void align(
 			if (x > 1 and y > 1)
 				M += B(x - 1, y - 1);
 
+			float s;
 			if (M >= Ix1 and M >= Iy1)
 			{
 				tb(x, y) = 0;
-				B(x, y) = M;
+				B(x, y) = s = M;
 			}
 			else if (Ix1 >= Iy1)
 			{
 				tb(x, y) = 1;
-				B(x, y) = Ix1;
+				B(x, y) = s = Ix1;
 			}
 			else
 			{
 				tb(x, y) = -1;
-				B(x, y) = Iy1;
+				B(x, y) = s = Iy1;
+			}
+			
+			if ((x == dimX or y == dimY) and high <= s)
+			{
+				high = s;
+				highX = x;
+				highY = y;
+			}
+			
+			if (DEBUG > 8)
+			{
+				cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1: " << Iy1
+					 << "; B=> " << B(x, y) << "; tb=> " << int(tb(x, y)) << endl;
 			}
 
-if (DEBUG > 3)
-{
-	cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1: " << Iy1
-		 << "; B=> " << B(x, y) << "; tb=> " << tb(x, y) << endl;
-}
-
 			// (3)
-			Ix(x, y) = max(M - gop_a[x], Ix1 - gep_a[x]);
+			Ix(x, y) = max(M - gop_a[x - 1], Ix1 - gep_a[x - 1]);
 			
 			// (4)
-			Iy(x, y) = max(M - gop_b[y], Iy1 - gep_b[y]);
+			Iy(x, y) = max(M - gop_b[y - 1], Iy1 - gep_b[y - 1]);
 		}
 	}
 	
@@ -964,13 +1063,13 @@ if (DEBUG > 3)
 
 	while (x > 0 or y > 0)
 	{
-		if (x == 0 or tb(x, y) < 0)
+		if (x == 0 or (y > 0 and tb(x, y) < 0) or y > highY)
 		{
 			foreach (entry* e, a)
 				e->m_seq.insert(e->m_seq.begin() + x, char(kSignalGapCode));
 			--y;
 		}
-		else if (y == 0 or tb(x, y) > 0)
+		else if (y == 0 or (x > 0 and tb(x, y) > 0) or x > highX)
 		{
 			foreach (entry* e, b)
 				e->m_seq.insert(e->m_seq.begin() + y, char(kSignalGapCode));
@@ -983,12 +1082,13 @@ if (DEBUG > 3)
 			--y;
 		}
 	}
+	
+	assert(a.front()->m_seq.length() == b.front()->m_seq.length());
 
 	copy(a.begin(), a.end(), back_inserter(c));
 	copy(b.begin(), b.end(), back_inserter(c));
 	
-// debug code:
-	if (DEBUG > 2)
+	if (DEBUG > 7)
 	{
 		foreach (entry* e, c)
 			cout << e->m_id << ": " << decode(e->m_seq) << endl;
@@ -1003,7 +1103,7 @@ if (DEBUG > 3)
 		{
 			cout << setw(6) << y;
 			for (int32 x = 1; x <= dimX; ++x)
-				cout << ' ' << setw(7) << B(x, y) << ' ' << setw(2) << tb(x, y);
+				cout << ' ' << setw(7) << B(x, y) << ' ' << setw(2) << int(tb(x, y));
 			cout << endl;
 		}
 		
@@ -1020,7 +1120,11 @@ void createAlignment(base_node* node, vector<entry*>& alignment,
 		createAlignment(node->left(), a, mat, gop, gep);
 		createAlignment(node->right(), b, mat, gop, gep);
 		
-		align(static_cast<joined_node*>(node), a, b, alignment, mat, gop, gep);
+		align(static_cast<joined_node*>(node), a, b,
+			alignment, mat, gop, gep);
+		
+		if (DEBUG)
+			report(alignment);
 	}
 	else
 	{
@@ -1029,55 +1133,6 @@ void createAlignment(base_node* node, vector<entry*>& alignment,
 			throw my_bad("internal error (not a leaf node)");
 		
 		alignment.push_back(&n->m_entry);
-	}
-}
-
-// --------------------------------------------------------------------
-
-void report(const vector<entry*>& alignment)
-{
-	cout << "CLUSTAL FORMAT for MaartensAlignment" << endl;
-
-	uint32 nseq = alignment.size();
-	uint32 len = alignment[0]->m_seq.length();
-	uint32 offset = 0;
-	while (offset < len)
-	{
-		uint32 n = alignment[0]->m_seq.length() - offset;
-		if (n > 60)
-			n = 60;
-		
-		vector<set<aa> > dist(n);
-		
-		foreach (const entry* e, alignment)
-		{
-			sequence ss = e->m_seq.substr(offset, n);
-			
-			for (uint32 i = 0; i < n; ++i)
-				dist[i].insert(ss[i]);
-
-			string id = e->m_id;
-			if (id.length() > 15)
-				id = id.substr(0, 12) + "...";
-			else if (id.length() < 15)
-				id += string(15 - id.length(), ' ');
-			
-			cout << id << ' ' << decode(ss) << endl;
-		}
-		
-//		string scores(n, '*');
-//		for (uint32 i = 0; i < n; ++i)
-//		{
-//			if (dist[i].size() > 1)
-//			{
-//				
-//			}
-//		}
-//		
-//		cout << string(16, ' ') << scores << endl;
-		
-		offset += n;
-		cout << endl;
 	}
 }
 
@@ -1136,7 +1191,7 @@ int main(int argc, char* argv[])
 			test();
 	
 		// matrix
-		string matrix = "BLOSUM";
+		string matrix = "PAM";
 		if (vm.count("matrix"))
 			matrix = vm["matrix"].as<string>();
 		substitution_matrix_family mat(matrix);

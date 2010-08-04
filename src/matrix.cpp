@@ -9,6 +9,7 @@
 #include <boost/iostreams/stream.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
+#include <boost/bind.hpp>
 
 #include "../matrices/matrices.h"
 
@@ -17,61 +18,22 @@ namespace io = boost::iostreams;
 
 substitution_matrix::substitution_matrix(const string& name)
 	: m_matrix(sizeof(kAA), sizeof(kAA))
+	, m_scale_factor(0.75f)
 {
-	if (name == "BLOSUM80")
-	{
-		io::stream<io::array_source> in(kBLOSUM80, strlen(kBLOSUM80));
-		read(in);
-	}
-	else if (name == "BLOSUM62")
-	{
-		io::stream<io::array_source> in(kBLOSUM62, strlen(kBLOSUM62));
-		read(in);
-	}
-	else if (name == "BLOSUM45")
-	{
-		io::stream<io::array_source> in(kBLOSUM45, strlen(kBLOSUM45));
-		read(in);
-	}
-	else if (name == "BLOSUM30")
-	{
-		io::stream<io::array_source> in(kBLOSUM30, strlen(kBLOSUM30));
-		read(in);
-	}
-
-	else if (name == "PAM20")
-	{
-		io::stream<io::array_source> in(kPAM20, strlen(kPAM20));
-		read(in);
-	}
-	else if (name == "PAM60")
-	{
-		io::stream<io::array_source> in(kPAM60, strlen(kPAM60));
-		read(in);
-	}
-	else if (name == "PAM120")
-	{
-		io::stream<io::array_source> in(kPAM120, strlen(kPAM120));
-		read(in);
-	}
-	else if (name == "PAM350")
-	{
-		io::stream<io::array_source> in(kPAM350, strlen(kPAM350));
-		read(in);
-	}
-
-	else if (name == "GONNET250")
-	{
-		io::stream<io::array_source> in(kGONNET250, strlen(kGONNET250));
-		read(in);
-	}
-	else
-		throw my_bad(boost::format("unsupported matrix %1%") % name);
+	const MatrixInfo* mi = find_if(kMatrices, kMatrices + kMatrixCount,
+		boost::bind(&MatrixInfo::name, _1) == name);
+	
+	if (mi == kMatrices + kMatrixCount)
+		throw my_bad(boost::format("missing matrix %1%") % name);
+	
+	io::stream<io::array_source> in(mi->m_data, strlen(mi->m_data));
+	read(in);
 }
 
 substitution_matrix::substitution_matrix(
 	const substitution_matrix& m, bool positive)
 	: m_matrix(sizeof(kAA), sizeof(kAA))
+	, m_scale_factor(0.75f)
 {
 	int8 min = 0;
 	
