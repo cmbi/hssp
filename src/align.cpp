@@ -21,8 +21,10 @@
 #include <boost/iostreams/stream.hpp>
 #include <boost/bind.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/thread.hpp>
 
 #include "matrix.h"
+#include "buffer.h"
 
 using namespace std;
 using namespace tr1;
@@ -70,6 +72,52 @@ my_bad::my_bad(const string& msg)
 my_bad::my_bad(const boost::format& msg)
 {
 	snprintf(m_msg, sizeof(m_msg), "%s", msg.str().c_str());
+}
+
+// --------------------------------------------------------------------
+
+class progress
+{
+  public:
+					progress(uint32 max);
+
+					~progress()
+					{
+						boost::mutex::scoped_lock lock(m_mutex);
+						m_step = m_max;
+						m_thread.join();
+					}
+
+	void			step()
+					{
+						boost::mutex::scoped_lock lock(m_mutex);
+						++m_step;
+					}
+
+  private:
+	
+	void			run();
+
+	uint32			m_step, m_max;
+	boost::mutex	m_mutex;
+	boost::thread	m_thread;
+};
+
+progress::progress(uint32 max)
+	: m_step(0)
+	, m_max(max)
+	, m_thread(boost::bind(&progress::run, this))
+{
+}
+
+void progress::run()
+{
+	while (m_step < m_max)
+	{
+		sleep(1);
+		cout << '\r' << m_step << " of " << m_max; cout.flush();
+	}
+	cout << endl << "done" << endl;
 }
 
 // --------------------------------------------------------------------
@@ -224,7 +272,10 @@ struct joined_node : public base_node
 	float				m_d_left;
 	float				m_d_right;
 	uint32				m_leaf_count;
+	static uint32		s_count;
 };
+
+uint32 joined_node::s_count;
 
 struct leaf_node : public base_node
 {
@@ -258,6 +309,8 @@ joined_node::joined_node(base_node* left, base_node* right, float d_left, float 
 {
 	m_left->add_weight(d_left / m_left->leaf_count());
 	m_right->add_weight(d_right / m_right->leaf_count());
+	
+	++s_count;
 }
 
 void joined_node::add_weight(float w)
@@ -268,9 +321,28 @@ void joined_node::add_weight(float w)
 
 // --------------------------------------------------------------------
 
-void report(const vector<entry*>& alignment)
+void report_in_fasta(const vector<entry*>& alignment, ostream& os)
 {
-	cout << "CLUSTAL FORMAT for MaartensAlignment" << endl;
+	foreach (const entry* e, alignment)
+	{
+		os << '>' << e->m_id << endl;
+		
+		uint32 o = 0;
+		while (o < e->m_seq.length())
+		{
+			uint32 n = e->m_seq.length() - o;
+			if (n > 72)
+				n = 72;
+			
+			os << decode(e->m_seq.substr(o, n)) << endl;
+			o += n;
+		}
+	}
+}
+
+void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
+{
+	os << "CLUSTAL FORMAT for MaartensAlignment" << endl;
 
 	uint32 nseq = alignment.size();
 	uint32 len = alignment[0]->m_seq.length();
@@ -302,7 +374,7 @@ void report(const vector<entry*>& alignment)
 			else if (id.length() < 15)
 				id += string(15 - id.length(), ' ');
 			
-			cout << id << ' ' << decode(ss) << endl;
+			os << id << ' ' << decode(ss) << endl;
 		}
 		
 		string scores(n, ' ');
@@ -353,11 +425,21 @@ void report(const vector<entry*>& alignment)
 			}
 		}
 		
-		cout << string(16, ' ') << scores << endl;
+		os << string(16, ' ') << scores << endl;
 		
 		offset += n;
-		cout << endl;
+		os << endl;
 	}
+}
+
+void report(const vector<entry*>& alignment, ostream& os, const string& format)
+{
+	if (format == "fasta")
+		report_in_fasta(alignment, os);
+	else if (format == "clustalw")
+		report_in_clustalw(alignment, os);
+	else
+		throw my_bad(boost::format("Unknown output format %1%") % format);
 }
 
 // --------------------------------------------------------------------
@@ -444,6 +526,51 @@ float calculateDistance(const entry& a, const entry& b)
 		cout << (boost::format("Sequences (%1$d:%2$d) Aligned. Score: %3$4.2f") % (a.m_nr + 1) % (b.m_nr + 1) % result) << endl;
 	
 	return result;
+}
+
+// we use as many threads as is useful to do the distance calculation
+// which is quite easy to do using a thread safe queue
+typedef buffer<tr1::tuple<uint32,uint32> > 	distance_queue;
+const tr1::tuple<uint32,uint32>	kSentinel = tr1::make_tuple(numeric_limits<uint32>::max(), numeric_limits<uint32>::max());
+
+void calculateDistance(distance_queue& queue, distance_matrix<float>& d, vector<entry>& data,
+	progress& pr)
+{
+	for (;;)
+	{
+		uint32 a, b;
+		tr1::tie(a, b) = queue.get();
+
+		if (a == numeric_limits<uint32>::max()) // sentinel found, quit loop
+			break;
+	
+		d(a, b) = calculateDistance(data[a], data[b]);
+		pr.step();
+	}
+	
+	queue.put(kSentinel);
+}
+
+void calculateDistanceMatrix(distance_matrix<float>& d, vector<entry>& data)
+{
+	progress pr((data.size() * (data.size() - 1)) / 2);
+	distance_queue queue;
+
+	boost::thread_group t;
+	for (uint32 ti = 0; ti < boost::thread::hardware_concurrency(); ++ti)
+		t.create_thread(boost::bind(&calculateDistance,
+			boost::ref(queue), boost::ref(d), boost::ref(data), boost::ref(pr)));
+	
+	int n = 0;
+	for (uint32 a = 0; a < data.size() - 1; ++a)
+	{
+		for (uint32 b = a + 1; b < data.size(); ++b)
+			queue.put(tr1::make_tuple(a, b));
+	}
+	
+	queue.put(kSentinel);
+	
+	t.join_all();
 }
 
 // --------------------------------------------------------------------
@@ -818,7 +945,7 @@ void useGuideTree(const string& guide, vector<base_node*>& tree)
 
 // --------------------------------------------------------------------
 
-float score(const vector<entry*>& a, const vector<entry*>& b,
+inline float score(const vector<entry*>& a, const vector<entry*>& b,
 	uint32 ix_a, uint32 ix_b, const substitution_matrix& mat)
 {
 	float result = 0;
@@ -839,25 +966,6 @@ float score(const vector<entry*>& a, const vector<entry*>& b,
 	}
 	
 	return result / (a.size() * b.size());
-}
-
-float percentIdentity(const sequence& a, const sequence& b)
-{
-	float result = 0;
-	uint32 count = 0, total;
-	
-	total = min(a.length(), b.length());
-	
-	for (uint32 ix = 0; ix < total; ++ix)
-	{
-		if (a[ix] == b[ix])
-			++count;
-	}
-	
-	if (total > 0)
-		result = 100.0f * count / total;
-	
-	return result;
 }
 
 // don't ask me, but looking at the clustal code, they substract 0.2 from the table
@@ -1117,7 +1225,7 @@ void align(
 	copy(b.begin(), b.end(), back_inserter(c));
 	
 	if (DEBUG == 2)
-		report(c);
+		report(c, cerr, "clustalw");
 	
 	assert(a.front()->m_seq.length() == b.front()->m_seq.length());
 
@@ -1144,49 +1252,32 @@ void align(
 	}
 }
 
-void createAlignment(base_node* node, vector<entry*>& alignment,
-	const substitution_matrix_family& mat, float gop, float gep)
+void createAlignment(joined_node* node, vector<entry*>& alignment,
+	const substitution_matrix_family& mat, float gop, float gep,
+	progress& pr)
 {
-	if (node->left() and node->right())
-	{
-		vector<entry*> a, b;	
-		createAlignment(node->left(), a, mat, gop, gep);
-		createAlignment(node->right(), b, mat, gop, gep);
-		
-		align(static_cast<joined_node*>(node), a, b,
-			alignment, mat, gop, gep);
-		
-		if (DEBUG)
-			report(alignment);
-	}
-	else
-	{
-		leaf_node* n = dynamic_cast<leaf_node*>(node);
-		if (n == 0)
-			throw my_bad("internal error (not a leaf node)");
-		
-		alignment.push_back(&n->m_entry);
-	}
-}
+	vector<entry*> a, b;
+	boost::thread_group t;
 
-void test()
-{
-	vector<entry*> s;
+	if (dynamic_cast<leaf_node*>(node->left()) != NULL)
+		a.push_back(&static_cast<leaf_node*>(node->left())->m_entry);
+	else
+		t.create_thread(boost::bind(&createAlignment,
+			static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep,
+			boost::ref(pr)));
+
+	if (dynamic_cast<leaf_node*>(node->right()) != NULL)
+		b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);
+	else
+		t.create_thread(boost::bind(&createAlignment,
+			static_cast<joined_node*>(node->right()), boost::ref(b), boost::ref(mat), gop, gep,
+			boost::ref(pr)));
 	
-	s.push_back(new entry(1, "1", encode("HLTPEEKSAVTALWGKVN--VDEVGGEALGRLLVVYPWTQRFFESFGDL")));
-	s.push_back(new entry(2, "2", encode("QLSGEEKAAVLALWDKVN--EEEVGGEALGRLLVVYPWTQRFFDSFGDL")));
-	s.push_back(new entry(3, "3", encode("VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLS")));
-	s.push_back(new entry(4, "4", encode("VLSAADKTNVKAAWSKVGGHAGEYGAEALERMFLGFPTTKTYFPHFDLS")));
+	t.join_all();
 	
-	uint32 n = s.front()->m_seq.length();
+	align(node, a, b, alignment, mat, gop, gep);
 	
-	vector<float> gop(n, 10), gep(n, 0.2);
-	
-	adjust_gp(gop, gep, s);
-	
-	copy(gop.begin(), gop.end(), ostream_iterator<float>(cout, "\t"));
-	cout << endl;
-	exit(0);
+	pr.step();
 }
 
 int main(int argc, char* argv[])
@@ -1197,20 +1288,24 @@ int main(int argc, char* argv[])
 		desc.add_options()
 			("help,h", "Display help message")
 			("input,i", po::value<string>(), "Input file")
-			("debug,d", po::value<int>(), "Debug output")
+			("outfile,o", po::value<string>(), "Output file, use 'stdout' to output to screen")
+			("format,f", po::value<string>(), "Output format, can be clustalw (default) or fasta")
+			("debug,d", po::value<int>(), "Debug output level")
 			("verbose,v", "Verbose output")
+			("guide-tree,g", po::value<string>(), "use existing guide tree")
+			("matrix,m", po::value<string>(), "Substitution matrix, default is PAM")
 			("gap-open", po::value<float>(), "Gap open penalty")
 			("gap-extend", po::value<float>(), "Gap extend penalty")
-			("test,t", "run test function and exit")
-			("guide-tree,g", po::value<string>(), "use existing guide tree")
-			("matrix,m", po::value<string>(), "Substitution matrix, default is BLOSUM")
 			;
 	
+		po::positional_options_description p;
+		p.add("input", -1);
+	
 		po::variables_map vm;
-		po::store(po::parse_command_line(argc, argv, desc), vm);
+		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 		po::notify(vm);
 		
-		if (vm.count("help") or (vm.count("input") == 0 and vm.count("test") == 0))
+		if (vm.count("help") or (vm.count("input") == 0))
 		{
 			cout << desc << endl;
 			exit(1);
@@ -1220,17 +1315,14 @@ int main(int argc, char* argv[])
 			DEBUG = vm["debug"].as<int>();
 		VERBOSE = vm.count("verbose");
 
-		if (vm.count("test"))
-			test();
-	
 		// matrix
 		string matrix = "PAM";
 		if (vm.count("matrix"))
 			matrix = vm["matrix"].as<string>();
 		substitution_matrix_family mat(matrix);
 
-		float gop = 10.f;	if (vm.count("gap-open")) gop = vm["gap-open"].as<float>();
-		float gep = 0.2f;	if (vm.count("gap-extend")) gep = vm["gap-extend"].as<float>();
+		float gop = 10.f;	if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
+		float gep = 0.2f;	if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
 
 		fs::path path(vm["input"].as<string>());
 		vector<entry> data;
@@ -1240,7 +1332,7 @@ int main(int argc, char* argv[])
 			throw my_bad("insufficient number of sequences");
 
 		vector<entry*> alignment;
-		base_node* root;
+		joined_node* root;
 		
 		if (data.size() == 2)
 		{
@@ -1265,39 +1357,41 @@ int main(int argc, char* argv[])
 			{
 				// a distance matrix
 				distance_matrix<float> d(data.size());
-				
-				int n = 0;
-				for (uint32 a = 0; a < data.size() - 1; ++a)
-				{
-					for (uint32 b = a + 1; b < data.size(); ++b)
-					{
-						if ((++n % 1000) == 0)
-						{
-							cerr << '.';
-							if ((n % 60000) == 0)
-								cerr << ' ' << n << endl;
-						}
-						
-						d(a, b) = calculateDistance(data[a], data[b]);
-					}
-				}
-				cerr << endl;
-
+				calculateDistanceMatrix(d, data);
 				joinNeighbours(d, tree);
 			}
 			
-			root = tree.front();
+			root = static_cast<joined_node*>(tree.front());
 		}
 		
 		if (VERBOSE)
 			cout << *root << ';' << endl;
 		
-		createAlignment(root, alignment, mat, gop, gep);
+		progress pr(joined_node::s_count);
+		createAlignment(root, alignment, mat, gop, gep, pr);
 
 		sort(alignment.begin(), alignment.end(),
 			boost::bind(&entry::nr, _1) < boost::bind(&entry::nr, _2));
-
-		report(alignment);
+		
+		string format = "clustalw";
+		if (vm.count("format"))
+			format = vm["format"].as<string>();
+		
+		fs::path outfile;
+		if (vm.count("outfile") == 0)
+			outfile = path.parent_path() / (path.stem() + ".aln");
+		else
+			outfile = vm["outfile"].as<string>();
+		
+		if (outfile == "stdout")
+			report(alignment, cout, format);
+		else
+		{
+			fs::ofstream file(outfile);
+			if (not file.is_open())
+				throw my_bad(boost::format("failed to open output file %1%") % vm["outfile"].as<string>());
+			report(alignment, file, format);
+		}
 
 		delete root;
 	}
