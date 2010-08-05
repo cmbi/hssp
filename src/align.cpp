@@ -929,13 +929,13 @@ void align(
 	int32 x, dimX = a.front()->m_seq.length();
 	int32 y, dimY = b.front()->m_seq.length();
 	
-	matrix<float> B(dimX + 1, dimY + 1);
-	matrix<float> Ix(dimX + 1, dimY + 1);
-	matrix<float> Iy(dimX + 1, dimY + 1);
-	matrix<int8> tb(dimX + 1, dimY + 1);
+	matrix<float> B(dimX, dimY);
+	matrix<float> Ix(dimX, dimY);
+	matrix<float> Iy(dimX, dimY);
+	matrix<int8> tb(dimX, dimY);
 	
-	Ix(0, 1) = 0;
-	Iy(1, 0) = 0;
+	Ix(0, 0) = 0;
+	Iy(0, 0) = 0;
 
 	const substitution_matrix& smat = mat_fam(abs(node->m_d_left + node->m_d_right), true);
 
@@ -962,19 +962,19 @@ void align(
 		gep_b(dimY, gep * (1 + abs(log10(float(dimY) / dimX))) * avg_weight_b);
 	adjust_gp(gop_b, gep_b, b);
 	
-	float high = 0;
-	uint32 highX, highY;
+	float high = numeric_limits<float>::min();
+	int32 highX, highY;
 	
-	for (x = 1; x <= dimX; ++x)
+	for (x = 0; x < dimX; ++x)
 	{
-		for (y = 1; y <= dimY; ++y)
+		for (y = 0; y < dimY; ++y)
 		{
-			float Ix1 = Ix(x - 1, y);	if (x == 1) Ix1 = 0;
-			float Iy1 = Iy(x, y - 1);	if (y == 1) Iy1 = 0;
+			float Ix1 = 0; if (x > 0) Ix1 = Ix(x - 1, y);
+			float Iy1 = 0; if (y > 0) Iy1 = Iy(x, y - 1);
 			
 			// (1)
-			float M = score(a, b, x - 1, y - 1, smat);
-			if (x > 1 and y > 1)
+			float M = score(a, b, x, y, smat);
+			if (x > 0 and y > 0)
 				M += B(x - 1, y - 1);
 
 			float s;
@@ -994,7 +994,7 @@ void align(
 				B(x, y) = s = Iy1;
 			}
 			
-			if ((x == dimX or y == dimY) and high <= s)
+			if ((x == dimX - 1 or y == dimY - 1) and high <= s)
 			{
 				high = s;
 				highX = x;
@@ -1008,45 +1008,76 @@ void align(
 			}
 
 			// (3)
-			Ix(x, y) = max(M - gop_a[x - 1], Ix1 - gep_a[x - 1]);
+			Ix(x, y) = max(M - gop_a[x], Ix1 - gep_a[x]);
 			
 			// (4)
-			Iy(x, y) = max(M - gop_b[y - 1], Iy1 - gep_b[y - 1]);
+			Iy(x, y) = max(M - gop_b[y], Iy1 - gep_b[y]);
 		}
 	}
 	
 	// build the final alignment
 	
-	x = dimX;
-	y = dimY;
+	x = dimX - 1;
+	y = dimY - 1;
 
-	while (x > 0 or y > 0)
+	// append end-gaps
+	
+	while (x > highX)
 	{
-		if (x == 0 or (y > 0 and tb(x, y) < 0) or y > highY)
+		foreach (entry* e, b)
+			e->m_seq += kSignalGapCode;
+		--x;
+	}
+
+	while (y > highY)
+	{
+		foreach (entry* e, a)
+			e->m_seq += kSignalGapCode;
+		--y;
+	}
+
+	while (x >= 0 or y >= 0)
+	{
+		if (x == -1)
 		{
 			foreach (entry* e, a)
-				e->m_seq.insert(e->m_seq.begin() + x, char(kSignalGapCode));
+				e->m_seq.insert(e->m_seq.begin(), kSignalGapCode);
 			--y;
 		}
-		else if (y == 0 or (x > 0 and tb(x, y) > 0) or x > highX)
+		else if (y >= 0 and tb(x, y) < 0)
+		{
+			foreach (entry* e, a)
+				e->m_seq.insert(e->m_seq.begin() + x, kSignalGapCode);
+			--y;
+		}
+		else if (y == -1)
 		{
 			foreach (entry* e, b)
-				e->m_seq.insert(e->m_seq.begin() + y, char(kSignalGapCode));
+				e->m_seq.insert(e->m_seq.begin(), kSignalGapCode);
+			--x;
+		}
+		else if (x >= 0 and tb(x, y) > 0)
+		{
+			foreach (entry* e, b)
+				e->m_seq.insert(e->m_seq.begin() + y, kSignalGapCode);
 			--x;
 		}
 		else
 		{
-			assert(x > 0); assert(y > 0);
+			assert(x >= 0); assert(y >= 0);
 			--x;
 			--y;
 		}
 	}
 	
-	assert(a.front()->m_seq.length() == b.front()->m_seq.length());
-
 	copy(a.begin(), a.end(), back_inserter(c));
 	copy(b.begin(), b.end(), back_inserter(c));
 	
+	if (DEBUG == 2)
+		report(c);
+	
+	assert(a.front()->m_seq.length() == b.front()->m_seq.length());
+
 	if (DEBUG > 7)
 	{
 		foreach (entry* e, c)
@@ -1054,14 +1085,14 @@ void align(
 		cout << endl;
 		
 		cout << "      ";
-		for (int32 x = 1; x <= dimX; ++x)
+		for (int32 x = 0; x < dimX; ++x)
 			cout << setw(8) << x << "   ";
 		cout << endl;
 		
-		for (int32 y = 1; y <= dimY; ++y)
+		for (int32 y = 0; y < dimY; ++y)
 		{
 			cout << setw(6) << y;
-			for (int32 x = 1; x <= dimX; ++x)
+			for (int32 x = 0; x < dimX; ++x)
 				cout << ' ' << setw(7) << B(x, y) << ' ' << setw(2) << int(tb(x, y));
 			cout << endl;
 		}
