@@ -35,7 +35,8 @@ VPATH += src
 
 OBJECTS = \
 	obj/align.o \
-	obj/matrix.o
+	obj/matrix.o \
+	obj/utils.o
 
 align: $(OBJECTS)
 	@ echo linking $@

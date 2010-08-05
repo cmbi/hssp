@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include <time.h>
+#include <boost/thread.hpp>
+
 // --------------------------------------------------------------------
 
 class progress

@@ -25,6 +25,7 @@
 
 #include "matrix.h"
 #include "buffer.h"
+#include "utils.h"
 
 using namespace std;
 using namespace tr1;
@@ -33,7 +34,7 @@ namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
-int DEBUG = 0, VERBOSE = 0;
+int DEBUG = 0, VERBOSE = 0, PROGRESS = 0;
 
 // --------------------------------------------------------------------
 
@@ -72,52 +73,6 @@ my_bad::my_bad(const string& msg)
 my_bad::my_bad(const boost::format& msg)
 {
 	snprintf(m_msg, sizeof(m_msg), "%s", msg.str().c_str());
-}
-
-// --------------------------------------------------------------------
-
-class progress
-{
-  public:
-					progress(uint32 max);
-
-					~progress()
-					{
-						boost::mutex::scoped_lock lock(m_mutex);
-						m_step = m_max;
-						m_thread.join();
-					}
-
-	void			step()
-					{
-						boost::mutex::scoped_lock lock(m_mutex);
-						++m_step;
-					}
-
-  private:
-	
-	void			run();
-
-	uint32			m_step, m_max;
-	boost::mutex	m_mutex;
-	boost::thread	m_thread;
-};
-
-progress::progress(uint32 max)
-	: m_step(0)
-	, m_max(max)
-	, m_thread(boost::bind(&progress::run, this))
-{
-}
-
-void progress::run()
-{
-	while (m_step < m_max)
-	{
-		sleep(1);
-		cout << '\r' << m_step << " of " << m_max; cout.flush();
-	}
-	cout << endl << "done" << endl;
 }
 
 // --------------------------------------------------------------------
@@ -553,7 +508,7 @@ void calculateDistance(distance_queue& queue, distance_matrix<float>& d, vector<
 
 void calculateDistanceMatrix(distance_matrix<float>& d, vector<entry>& data)
 {
-	progress pr((data.size() * (data.size() - 1)) / 2);
+	progress pr("calculating guide tree", (data.size() * (data.size() - 1)) / 2);
 	distance_queue queue;
 
 	boost::thread_group t;
@@ -1290,6 +1245,7 @@ int main(int argc, char* argv[])
 			("input,i", po::value<string>(), "Input file")
 			("outfile,o", po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("format,f", po::value<string>(), "Output format, can be clustalw (default) or fasta")
+			("outtree", po::value<string>(), "Write guide tree")
 			("debug,d", po::value<int>(), "Debug output level")
 			("verbose,v", "Verbose output")
 			("guide-tree,g", po::value<string>(), "use existing guide tree")
@@ -1363,11 +1319,24 @@ int main(int argc, char* argv[])
 			
 			root = static_cast<joined_node*>(tree.front());
 		}
+
+		fs::path outfile;
+		if (vm.count("outfile") == 0)
+			outfile = path.parent_path() / (path.stem() + ".aln");
+		else
+			outfile = vm["outfile"].as<string>();
 		
-		if (VERBOSE)
-			cout << *root << ';' << endl;
+//		if (vm.count("outtree"))
+//		{
+//			fs::path treepath = vm["outtree"].as<string>();
+//			treepath = treepath.parent_path() / (treepath.stem() + ".dnd");
+//			fs::ofstream file(treepath);
+//			if (not file.is_open())
+//				throw my_bad(boost::format("Failed to write guide tree %1%") % treepath.string());
+//			file << *root << ';' << endl;
+//		}
 		
-		progress pr(joined_node::s_count);
+		progress pr("calculating alignments", joined_node::s_count);
 		createAlignment(root, alignment, mat, gop, gep, pr);
 
 		sort(alignment.begin(), alignment.end(),
@@ -1376,12 +1345,6 @@ int main(int argc, char* argv[])
 		string format = "clustalw";
 		if (vm.count("format"))
 			format = vm["format"].as<string>();
-		
-		fs::path outfile;
-		if (vm.count("outfile") == 0)
-			outfile = path.parent_path() / (path.stem() + ".aln");
-		else
-			outfile = vm["outfile"].as<string>();
 		
 		if (outfile == "stdout")
 			report(alignment, cout, format);
