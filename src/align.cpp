@@ -281,14 +281,20 @@ void report(const vector<entry*>& alignment)
 		if (n > 60)
 			n = 60;
 		
-		vector<set<aa> > dist(n);
+		struct {
+			uint32		cnt[20];
+		} dist[60] = {};
 		
 		foreach (const entry* e, alignment)
 		{
 			sequence ss = e->m_seq.substr(offset, n);
 			
 			for (uint32 i = 0; i < n; ++i)
-				dist[i].insert(ss[i]);
+			{
+				aa ri = ss[i];
+				if (ri < 20)
+					dist[i].cnt[ri] += 1;
+			}
 
 			string id = e->m_id;
 			if (id.length() > 15)
@@ -299,16 +305,55 @@ void report(const vector<entry*>& alignment)
 			cout << id << ' ' << decode(ss) << endl;
 		}
 		
-//		string scores(n, '*');
-//		for (uint32 i = 0; i < n; ++i)
-//		{
-//			if (dist[i].size() > 1)
-//			{
-//				
-//			}
-//		}
-//		
-//		cout << string(16, ' ') << scores << endl;
+		string scores(n, ' ');
+		for (uint32 i = 0; i < n; ++i)
+		{
+			uint32 strong[9] = {};
+			const char* kStrongGroups[9] = {
+				"STA", "NEQK", "NHQK", "NDEQ", "QHRK", "MILV", "MILF", "HY", "FYW"
+			};
+			
+			uint32 weak[11] = {};
+			const char* kWeakGroups[11] = {
+				"CSA", "ATV", "SAG", "STNK", "STPA", "SGND", "SNDEQK",
+				"NDEQHK", "NEQHRK", "FVLIM", "HFY"
+			};
+			
+			for (uint32 r = 0; r < 20; ++r)
+			{
+				if (dist[i].cnt[r] == alignment.size())
+				{
+					scores[i] = '*';
+					break;
+				}
+				
+				for (uint32 g = 0; g < 9; ++g)
+				{
+					if (strchr(kStrongGroups[g], kAA[r]) != NULL)
+						strong[g] += dist[i].cnt[r];
+				}
+
+				for (uint32 g = 0; g < 11; ++g)
+				{
+					if (strchr(kWeakGroups[g], kAA[r]) != NULL)
+						weak[g] += dist[i].cnt[r];
+				}
+			}
+			
+			for (uint32 g = 0; scores[i] == ' ' and g < 9; ++g)
+			{
+				if (strong[g] == alignment.size())
+					scores[i] = ':';
+			}
+
+			for (uint32 g = 0; scores[i] == ' ' and g < 11; ++g)
+			{
+				if (weak[g] == alignment.size())
+					scores[i] = '.';
+			}
+		}
+		
+		cout << string(16, ' ') << scores << endl;
 		
 		offset += n;
 		cout << endl;
@@ -955,11 +1000,11 @@ void align(
 	// position specific gap open costs
 	// initial gap extend cost is adjusted for difference in sequence lengths
 	vector<float> gop_a(dimX, gop * avg_weight_a),
-		gep_a(dimX, gep * (1 + abs(log10(float(dimX) / dimY))) * avg_weight_a);
+		gep_a(dimX, gep * (1 + log10(float(dimX) / dimY)) * avg_weight_a);
 	adjust_gp(gop_a, gep_a, a);
 	
 	vector<float> gop_b(dimY, gop * avg_weight_b),
-		gep_b(dimY, gep * (1 + abs(log10(float(dimY) / dimX))) * avg_weight_b);
+		gep_b(dimY, gep * (1 + log10(float(dimY) / dimX)) * avg_weight_b);
 	adjust_gp(gop_b, gep_b, b);
 	
 	float high = numeric_limits<float>::min();
@@ -1016,12 +1061,10 @@ void align(
 	}
 	
 	// build the final alignment
-	
 	x = dimX - 1;
 	y = dimY - 1;
 
-	// append end-gaps
-	
+	// first append end-gaps
 	while (x > highX)
 	{
 		foreach (entry* e, b)
