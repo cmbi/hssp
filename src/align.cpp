@@ -316,117 +316,73 @@ void report(const vector<entry*>& alignment)
 }
 
 // --------------------------------------------------------------------
-// compute the distance between two sequences using the
-// Levenshtein algorithm.
-
-//float calculateDistance(const entry& a, const entry& b)
-//{
-//	const sequence& s = a.m_seq;
-//	const sequence& t = b.m_seq;
-//	
-//	uint32 m = s.length();
-//	uint32 n = t.length();
-//	
-//	matrix<uint16> d(m + 1, n + 1);
-//	
-//	for (uint16 i = 0; i <= m; ++i)
-//		d(i, 0) = i;
-//	for (uint16 j = 0; j <= n; ++j)
-//		d(0, j) = j;
-//	
-//	for (uint16 j = 1; j <= n; ++j)
-//	{
-//		for (uint16 i = 1; i <= m; ++i)
-//		{
-//			if (s[i - 1] == t[j - 1])
-//				d(i, j) = d(i - 1, j - 1);
-//			else
-//			{
-//				uint16 v1 = d(i - 1, j) + 1;
-//				uint16 v2 = d(i, j - 1) + 1;
-//				uint16 v3 = d(i - 1, j - 1) + 1;
-//				
-//				if (v1 > v2)
-//					v1 = v2;
-//				if (v1 > v3)
-//					v1 = v3;
-//				
-//				d(i, j) = v1;
-//			}
-//		}
-//	}
-//	
-//	return d(m, n);
-//}
+// distance is calculated as 1 minus the fraction of identical residues
 
 float calculateDistance(const entry& a, const entry& b)
 {
 	int32 x, dimX = a.m_seq.length();
 	int32 y, dimY = b.m_seq.length();
 	
-	matrix<float>	B(dimX + 1, dimY + 1);
-	matrix<float>	Ix(dimX + 1, dimY + 1);
-	matrix<float>	Iy(dimX + 1, dimY + 1);
-	matrix<uint32>	id(dimX + 1, dimY + 1);
+	matrix<float>	B(dimX, dimY);
+	matrix<float>	Ix(dimX, dimY);
+	matrix<float>	Iy(dimX, dimY);
+	matrix<uint16>	id(dimX, dimY);
 	
-	Ix(0, 1) = 0;
-	Iy(1, 0) = 0;
-	id(0, 0) = 0;
-
+	Ix(0, 0) = 0;
+	Iy(0, 0) = 0;
+	
 	static const substitution_matrix smat("GONNET250");
 	static const float gapOpen = 10;
 	static const float gapExtend = 0.2;
 	
 	float high = numeric_limits<float>::min();
-	uint32 highX, highY;
+	uint32 highX, highY, highId;
 
-	for (x = 1; x <= dimX; ++x)
+	for (x = 0; x < dimX; ++x)
 	{
-		for (y = 1; y <= dimY; ++y)
+		for (y = 0; y < dimY; ++y)
 		{
-			float Ix1 = 0; if (x > 1) Ix1 = Ix(x - 1, y);
-			float Iy1 = 0; if (y > 1) Iy1 = Iy(x, y - 1);
+			float Ix1 = 0; if (x > 0) Ix1 = Ix(x - 1, y);
+			float Iy1 = 0; if (y > 0) Iy1 = Iy(x, y - 1);
 
 			// (1)
-			float M = smat(a.m_seq[x - 1], b.m_seq[y - 1]);
-			if (x > 1 and y > 1)
+			float M = smat(a.m_seq[x], b.m_seq[y]);
+			if (x > 0 and y > 0)
 				M += B(x - 1, y - 1);
 
 			float s;
-			uint32 i = 0;
-			if (a.m_seq[x - 1] == b.m_seq[y - 1])
+			uint16 i = 0;
+			if (a.m_seq[x] == b.m_seq[y])
 				i = 1;
 
 			if (M >= Ix1 and M >= Iy1)
 			{
-				if (x > 1 and y > 1)
+				if (x > 0 and y > 0)
 					i += id(x - 1, y - 1);
 				s = M;
 			}
 			else if (Ix1 >= Iy1)
 			{
-				if (x > 1)
+				if (x > 0)
 					i += id(x - 1, y);
 				s = Ix1;
 			}
 			else
 			{
-				if (y > 1)
+				if (y > 0)
 					i += id(x, y - 1);
 				s = Iy1;
 			}
 			
 			B(x, y) = s;
-			
-			assert(i <= min(dimX, dimY));
-			
 			id(x, y) = i;
 			
-			if ((x == dimX or y == dimY) and high < s)
+			if ((x == dimX - 1 or y == dimY - 1) and high < s)
 			{
 				high = s;
 				highX = x;
 				highY = y;
+				highId = i;
 			}
 
 			// (3)
@@ -437,14 +393,10 @@ float calculateDistance(const entry& a, const entry& b)
 		}
 	}
 	
-	float result = 1.0f - float(id(highX, highY)) / max(dimX, dimY);
+	float result = 1.0f - float(highId) / max(dimX, dimY);
 	
 	if (VERBOSE)
-	{
-		cout << "Sequences (" << a.m_nr + 1 << ':' << b.m_nr + 1 << ") Aligned. Score: " << setw(4) << setprecision(2) << result
-//			 << "  score " << int32(B(dimX, dimY))
-			 << endl;
-	}
+		cout << (boost::format("Sequences (%1$d:%2$d) Aligned. Score: %3$4.2f") % (a.m_nr + 1) % (b.m_nr + 1) % result) << endl;
 	
 	return result;
 }
