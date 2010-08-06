@@ -1,4 +1,4 @@
-// align is a reimplementation of Clustal W
+// mas is a reimplementation of Clustal W
 //
 
 #pragma once

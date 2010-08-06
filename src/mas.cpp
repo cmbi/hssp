@@ -1,7 +1,7 @@
-// align.cpp - simple attempt to write a multiple sequence alignment application
+// mas.cpp - simple attempt to write a multiple sequence alignment application
 //
 
-#include "align.h"
+#include "mas.h"
 
 #include <iostream>
 #include <iomanip>
@@ -1239,7 +1239,7 @@ int main(int argc, char* argv[])
 {
 	try
 	{
-		po::options_description desc("align options");
+		po::options_description desc("mas options");
 		desc.add_options()
 			("help,h", "Display help message")
 			("input,i", po::value<string>(), "Input file")

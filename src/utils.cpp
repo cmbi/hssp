@@ -1,6 +1,6 @@
 // utility routines for mas
 
-#include "align.h"
+#include "mas.h"
 
 #include <iomanip>
 #include <iostream>

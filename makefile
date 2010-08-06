@@ -1,4 +1,4 @@
-# Makefile for align
+# Makefile for mas
 #
 #  Copyright Maarten L. Hekkelman, Radboud University 2008-2010.
 # Distributed under the Boost Software License, Version 1.0.
@@ -34,11 +34,11 @@ CFLAGS				+= -O3 -DNDEBUG
 VPATH += src
 
 OBJECTS = \
-	obj/align.o \
+	obj/mas.o \
 	obj/matrix.o \
 	obj/utils.o
 
-align: $(OBJECTS)
+mas: $(OBJECTS)
 	@ echo linking $@
 	@ c++ -o $@ $(OBJECTS) $(LDOPTS)
 
@@ -46,9 +46,14 @@ obj/%.o: %.cpp
 	@ echo compiling $@
 	@ c++ -MD -c -o $@ $< $(CFLAGS)
 
+obj/matrix.o: mtrx/matrices.h
+
+mtrx/matrices.h: mtrx/mkmat_h.pl
+	perl mtrx/mkmat_h.pl mtrx/
+
 include $(OBJECTS:%.o=%.d)
 
 $(OBJECTS:.o=.d):
 
 clean:
-	rm -rf obj/* align
+	rm -rf obj/* mas

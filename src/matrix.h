@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "align.h"
+#include "mas.h"
 
 #include <string>
 #include <istream>
