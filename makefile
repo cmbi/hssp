@@ -34,6 +34,7 @@ CFLAGS				+= -O3 -DNDEBUG
 VPATH += src
 
 OBJECTS = \
+	obj/ioseq.o \
 	obj/mas.o \
 	obj/matrix.o \
 	obj/utils.o

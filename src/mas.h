@@ -25,6 +25,7 @@ typedef unsigned long	uint32;
 #if defined(DEBUG) || ! defined(NDEBUG)
 extern int DEBUG;
 #endif
+extern int VERBOSE;
 
 // --------------------------------------------------------------------
 
@@ -52,73 +53,20 @@ extern aa kAAReverse[256];
 
 // --------------------------------------------------------------------
 
-template<typename T>
-class matrix
+struct entry
 {
-  public:
-	typedef T value_type;
-	
-					matrix(uint32 m, uint32 n)
-						: m_m(m)
-						, m_n(n)
-					{
-						m_data = new value_type[m_m * m_n];
-					}
-					
-	virtual			~matrix()
-					{
-						delete [] m_data;
-					}
-	
-	value_type		operator()(uint32 i, uint32 j) const
-					{
-						assert(i < m_m); assert(j < m_n);
-						return m_data[i + j * m_m];
-					}
-					
-	value_type&		operator()(uint32 i, uint32 j)
-					{
-						assert(i < m_m); assert(j < m_n);
-						return m_data[i + j * m_m];
-					}
+					entry(uint32 nr, const std::string& id, const sequence& seq, float weight = 1.0f)
+						: m_nr(nr)
+						, m_id(id)
+						, m_seq(seq)
+						, m_weight(weight) {}
 
-	void			print(std::ostream& os) const
-					{
-						for (uint32 y = 0; y < m_m; ++y)
-						{
-							os << std::setw(3) << y;
-							for (uint32 x = 0; x < m_n; ++x)
-								os << ' ' << std::setw(5) << int32(m_data[x + y * m_m]);
-							os << std::endl;
-						}
-					}
+	uint32			nr() const						{ return m_nr; }
+	float			weight() const					{ return m_weight; }
 
-  private:
-					matrix(const matrix&);
-	matrix&			operator=(const matrix&);
-
-	value_type*		m_data;
-	uint32			m_m, m_n;
-};
-
-template<typename T>
-std::ostream& operator<<(std::ostream& lhs, matrix<T>& rhs)
-{
-	rhs.print(lhs); return lhs;
-}
-
-// --------------------------------------------------------------------
-
-class my_bad : public std::exception
-{
-  public:
-					my_bad(const std::string& msg);
-					my_bad(const boost::format& msg);
-
-	virtual const char*
-					what() const throw()	{ return m_msg; }
-
-  private:
-	char			m_msg[1024];
+	uint32			m_nr;
+	std::string		m_id;
+	sequence		m_seq;
+	float			m_weight;
 };
 

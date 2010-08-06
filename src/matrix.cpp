@@ -11,7 +11,8 @@
 #define foreach BOOST_FOREACH
 #include <boost/bind.hpp>
 
-#include "../matrices/matrices.h"
+#include "utils.h"
+#include "../mtrx/matrices.h"
 
 using namespace std;
 namespace io = boost::iostreams;
@@ -24,7 +25,7 @@ substitution_matrix::substitution_matrix(const string& name)
 		boost::bind(&MatrixInfo::name, _1) == name);
 	
 	if (mi == kMatrices + kMatrixCount)
-		throw my_bad(boost::format("missing matrix %1%") % name);
+		throw mas_exception(boost::format("missing matrix %1%") % name);
 	
 	io::stream<io::array_source> in(mi->m_data, strlen(mi->m_data));
 	read(in);
@@ -92,7 +93,7 @@ void substitution_matrix::read(istream& is)
 			continue;
 		
 		if (line[0] != ' ')
-			throw my_bad("invalid matrix file");
+			throw mas_exception("invalid matrix file");
 		
 		string h;
 		foreach (char ch, line)
@@ -149,7 +150,7 @@ substitution_matrix_family::substitution_matrix_family(
 	const std::string& name)
 {
 	if (name != "BLOSUM" and name != "PAM")
-		throw my_bad(boost::format("unsuppported matrix %1%") % name);
+		throw mas_exception(boost::format("unsuppported matrix %1%") % name);
 
 	if (name == "BLOSUM")
 	{

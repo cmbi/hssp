@@ -15,14 +15,15 @@
 #include <boost/format.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/foreach.hpp>
-#include <boost/tr1/tuple.hpp>
 #define foreach BOOST_FOREACH
+#include <boost/tr1/tuple.hpp>
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/bind.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
 
+#include "ioseq.h"
 #include "matrix.h"
 #include "buffer.h"
 #include "utils.h"
@@ -40,142 +41,11 @@ int DEBUG = 0, VERBOSE = 0, PROGRESS = 0;
 
 aa kAA_Reverse[256];
 
-struct entry
-{
-					entry(uint32 nr, const string& id, const sequence& seq, float weight = 1.0f)
-						: m_nr(nr)
-						, m_id(id)
-						, m_seq(seq)
-						, m_weight(weight) {}
-
-	uint32			nr() const						{ return m_nr; }
-	float			weight() const					{ return m_weight; }
-
-	uint32			m_nr;
-	string			m_id;
-	sequence		m_seq;
-	float			m_weight;
-};
-
 // ah, too bad those lamda's are not supported yet...
 struct sum_weight
 {
 	float operator()(float sum, const entry* e) const { return sum + e->m_weight; }
 };
-
-// --------------------------------------------------------------------
-
-my_bad::my_bad(const string& msg)
-{
-	snprintf(m_msg, sizeof(m_msg), "%s", msg.c_str());
-}
-
-my_bad::my_bad(const boost::format& msg)
-{
-	snprintf(m_msg, sizeof(m_msg), "%s", msg.str().c_str());
-}
-
-// --------------------------------------------------------------------
-
-template<typename T>
-class distance_matrix
-{
-  public:
-	typedef T value_type;
-	
-					distance_matrix(uint32 n);
-	virtual			~distance_matrix();
-	
-	value_type		operator()(uint32 i, uint32 j) const;
-	value_type&		operator()(uint32 i, uint32 j);
-	
-	// erase two rows, add one at the end (for neighbour joining)
-	void			erase_2(uint32 i, uint32 j);
-
-	void			print(ostream& os) const;
-
-  private:
-	value_type*		m_data;
-	uint32			m_n;
-};
-
-template<typename T>
-distance_matrix<T>::distance_matrix(uint32 n)
-	: m_n(n)
-{
-	m_data = new value_type[(m_n * (m_n - 1)) / 2];
-}
-
-template<typename T>
-distance_matrix<T>::~distance_matrix()
-{
-	delete[] m_data;
-}
-
-template<typename T>
-inline
-T& distance_matrix<T>::operator()(uint32 i, uint32 j)
-{
-	if (i > j)
-		swap(i, j);
-	
-	assert(j < m_n); assert(i != j);
-	return m_data[(j * (j - 1)) / 2 + i];
-}
-
-template<typename T>
-inline
-T distance_matrix<T>::operator()(uint32 i, uint32 j) const
-{
-	if (i > j)
-		swap(i, j);
-	
-	assert(j < m_n); assert(i != j);
-	return m_data[(j * (j - 1)) / 2 + i];
-}
-
-template<typename T>
-void distance_matrix<T>::erase_2(uint32 di, uint32 dj)
-{
-	uint32 s = 0, d = 0;
-	for (uint32 i = 0; i < m_n; ++i)
-	{
-		for (uint32 j = 0; j < i; ++j)
-		{
-			if (i != di and j != dj and i != dj and j != di)
-			{
-				if (s != d)
-					m_data[d] = m_data[s];
-				++d;
-			}
-
-			++s;
-		}
-	}
-	
-	--m_n;
-}
-
-template<typename T>
-void distance_matrix<T>::print(ostream& os) const
-{
-	for (uint32 y = 1; y < m_n; ++y)
-	{
-		cout << setw(5) << y;
-		
-		for (uint32 x = 0; x < y; ++x)
-			cout << (boost::format("  %1.2f") % operator()(x, y));
-		
-		cout << endl;
-	}
-}
-
-template<typename T>
-ostream& operator<<(ostream& lhs, const distance_matrix<T>& rhs)
-{
-	rhs.print(lhs);
-	return lhs;
-}
 
 // --------------------------------------------------------------------
 
@@ -275,129 +145,6 @@ void joined_node::add_weight(float w)
 }
 
 // --------------------------------------------------------------------
-
-void report_in_fasta(const vector<entry*>& alignment, ostream& os)
-{
-	foreach (const entry* e, alignment)
-	{
-		os << '>' << e->m_id << endl;
-		
-		uint32 o = 0;
-		while (o < e->m_seq.length())
-		{
-			uint32 n = e->m_seq.length() - o;
-			if (n > 72)
-				n = 72;
-			
-			os << decode(e->m_seq.substr(o, n)) << endl;
-			o += n;
-		}
-	}
-}
-
-void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
-{
-	os << "CLUSTAL FORMAT for MaartensAlignment" << endl;
-
-	uint32 nseq = alignment.size();
-	uint32 len = alignment[0]->m_seq.length();
-	uint32 offset = 0;
-	while (offset < len)
-	{
-		uint32 n = alignment[0]->m_seq.length() - offset;
-		if (n > 60)
-			n = 60;
-		
-		struct {
-			uint32		cnt[20];
-		} dist[60] = {};
-		
-		foreach (const entry* e, alignment)
-		{
-			sequence ss = e->m_seq.substr(offset, n);
-			
-			for (uint32 i = 0; i < n; ++i)
-			{
-				aa ri = ss[i];
-				if (ri < 20)
-					dist[i].cnt[ri] += 1;
-			}
-
-			string id = e->m_id;
-			if (id.length() > 15)
-				id = id.substr(0, 12) + "...";
-			else if (id.length() < 15)
-				id += string(15 - id.length(), ' ');
-			
-			os << id << ' ' << decode(ss) << endl;
-		}
-		
-		string scores(n, ' ');
-		for (uint32 i = 0; i < n; ++i)
-		{
-			uint32 strong[9] = {};
-			const char* kStrongGroups[9] = {
-				"STA", "NEQK", "NHQK", "NDEQ", "QHRK", "MILV", "MILF", "HY", "FYW"
-			};
-			
-			uint32 weak[11] = {};
-			const char* kWeakGroups[11] = {
-				"CSA", "ATV", "SAG", "STNK", "STPA", "SGND", "SNDEQK",
-				"NDEQHK", "NEQHRK", "FVLIM", "HFY"
-			};
-			
-			for (uint32 r = 0; r < 20; ++r)
-			{
-				if (dist[i].cnt[r] == alignment.size())
-				{
-					scores[i] = '*';
-					break;
-				}
-				
-				for (uint32 g = 0; g < 9; ++g)
-				{
-					if (strchr(kStrongGroups[g], kAA[r]) != NULL)
-						strong[g] += dist[i].cnt[r];
-				}
-
-				for (uint32 g = 0; g < 11; ++g)
-				{
-					if (strchr(kWeakGroups[g], kAA[r]) != NULL)
-						weak[g] += dist[i].cnt[r];
-				}
-			}
-			
-			for (uint32 g = 0; scores[i] == ' ' and g < 9; ++g)
-			{
-				if (strong[g] == alignment.size())
-					scores[i] = ':';
-			}
-
-			for (uint32 g = 0; scores[i] == ' ' and g < 11; ++g)
-			{
-				if (weak[g] == alignment.size())
-					scores[i] = '.';
-			}
-		}
-		
-		os << string(16, ' ') << scores << endl;
-		
-		offset += n;
-		os << endl;
-	}
-}
-
-void report(const vector<entry*>& alignment, ostream& os, const string& format)
-{
-	if (format == "fasta")
-		report_in_fasta(alignment, os);
-	else if (format == "clustalw")
-		report_in_clustalw(alignment, os);
-	else
-		throw my_bad(boost::format("Unknown output format %1%") % format);
-}
-
-// --------------------------------------------------------------------
 // distance is calculated as 1 minus the fraction of identical residues
 
 float calculateDistance(const entry& a, const entry& b)
@@ -488,7 +235,7 @@ float calculateDistance(const entry& a, const entry& b)
 typedef buffer<tr1::tuple<uint32,uint32> > 	distance_queue;
 const tr1::tuple<uint32,uint32>	kSentinel = tr1::make_tuple(numeric_limits<uint32>::max(), numeric_limits<uint32>::max());
 
-void calculateDistance(distance_queue& queue, distance_matrix<float>& d, vector<entry>& data,
+void calculateDistance(distance_queue& queue, symmetric_matrix<float>& d, vector<entry>& data,
 	progress& pr)
 {
 	for (;;)
@@ -506,7 +253,7 @@ void calculateDistance(distance_queue& queue, distance_matrix<float>& d, vector<
 	queue.put(kSentinel);
 }
 
-void calculateDistanceMatrix(distance_matrix<float>& d, vector<entry>& data)
+void calculateDistanceMatrix(symmetric_matrix<float>& d, vector<entry>& data)
 {
 	progress pr("calculating guide tree", (data.size() * (data.size() - 1)) / 2);
 	distance_queue queue;
@@ -568,53 +315,9 @@ sequence encode(const string& s)
 	return result;
 }
 
-void readFasta(fs::path path, vector<entry>& seq)
-{
-	fs::ifstream file(path);
-	if (not file.is_open())
-		throw my_bad(boost::format("input file '%1%' not opened") % path.string());
-	
-	string id, s;
-	
-	for (;;)
-	{
-		string line;
-		getline(file, line);
-		if (line.empty() or line[0] == '>')
-		{
-			if (line.empty() and not file.eof())
-				continue;
-			
-			if (not (id.empty() or s.empty()))
-			{
-				if (VERBOSE)
-					cout << "Sequence " << seq.size() + 1 << ": "
-						 << id << string(20 - id.length(), ' ') << s.length() << " aa" << endl;
-				seq.push_back(entry(seq.size(), id, encode(s)));
-			}
-			id.clear();
-			s.clear();
-			
-			if (line.empty())
-				break;
-			
-			string::size_type w = line.find(' ');
-			if (w != string::npos)
-				id = line.substr(1, w - 1);
-			else
-				id = line.substr(1);
-			
-			s.clear();
-			continue;
-		}
-		
-		s += line;
-	}
-}
-
 // --------------------------------------------------------------------
 
-void joinNeighbours(distance_matrix<float>& d, vector<base_node*>& tree)
+void joinNeighbours(symmetric_matrix<float>& d, vector<base_node*>& tree)
 {
 	uint32 r = tree.size();
 	
@@ -772,7 +475,7 @@ void GuideTreeParser::getNextToken()
 						else if (isalnum(ch) or ch == '_')
 							state = st_ID;
 						else
-							throw my_bad(boost::format("unexpected character '%1%' in guide tree") % ch);
+							throw mas_exception(boost::format("unexpected character '%1%' in guide tree") % ch);
 						break;
 				}
 				break;
@@ -814,7 +517,7 @@ void GuideTreeParser::match(GuideTreeToken token)
 	if (token == m_lookahead)
 		getNextToken();
 	else
-		throw my_bad(boost::format("invalid guide tree, expected %1% but found %2% ('%3%')") %
+		throw mas_exception(boost::format("invalid guide tree, expected %1% but found %2% ('%3%')") %
 			int(token) % int(m_lookahead) % m_token);
 }
 
@@ -829,7 +532,7 @@ tr1::tuple<base_node*,float> GuideTreeParser::parseNode()
 	{
 		n = m_map[m_token];
 		if (n == NULL)
-			throw my_bad(boost::format("guide tree contains unknown id %1%") % m_token);
+			throw mas_exception(boost::format("guide tree contains unknown id %1%") % m_token);
 		match(gtt_ID);
 	}
 	
@@ -874,7 +577,7 @@ base_node* GuideTreeParser::parse()
 	if (m_lookahead == gtt_Open)
 		result = parseGroup();
 	if (m_lookahead != gtt_End)
-		throw my_bad("invalid guide tree file, missing semicolon at end");
+		throw mas_exception("invalid guide tree file, missing semicolon at end");
 	return result;
 }
 
@@ -891,7 +594,7 @@ void useGuideTree(const string& guide, vector<base_node*>& tree)
 	
 	fs::ifstream file(guide);
 	if (not file.is_open())
-		throw my_bad("failed to open guide tree");
+		throw mas_exception("failed to open guide tree");
 	
 	tree.clear();
 	GuideTreeParser parser(file, m);
@@ -1285,7 +988,7 @@ int main(int argc, char* argv[])
 		readFasta(path, data);
 		
 		if (data.size() < 2)
-			throw my_bad("insufficient number of sequences");
+			throw mas_exception("insufficient number of sequences");
 
 		vector<entry*> alignment;
 		joined_node* root;
@@ -1312,7 +1015,7 @@ int main(int argc, char* argv[])
 			else
 			{
 				// a distance matrix
-				distance_matrix<float> d(data.size());
+				symmetric_matrix<float> d(data.size());
 				calculateDistanceMatrix(d, data);
 				joinNeighbours(d, tree);
 			}
@@ -1332,7 +1035,7 @@ int main(int argc, char* argv[])
 //			treepath = treepath.parent_path() / (treepath.stem() + ".dnd");
 //			fs::ofstream file(treepath);
 //			if (not file.is_open())
-//				throw my_bad(boost::format("Failed to write guide tree %1%") % treepath.string());
+//				throw mas_exception(boost::format("Failed to write guide tree %1%") % treepath.string());
 //			file << *root << ';' << endl;
 //		}
 		
@@ -1352,7 +1055,7 @@ int main(int argc, char* argv[])
 		{
 			fs::ofstream file(outfile);
 			if (not file.is_open())
-				throw my_bad(boost::format("failed to open output file %1%") % vm["outfile"].as<string>());
+				throw mas_exception(boost::format("failed to open output file %1%") % vm["outfile"].as<string>());
 			report(alignment, file, format);
 		}
 

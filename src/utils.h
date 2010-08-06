@@ -7,6 +7,21 @@
 
 // --------------------------------------------------------------------
 
+class mas_exception : public std::exception
+{
+  public:
+					mas_exception(const std::string& msg);
+					mas_exception(const boost::format& msg);
+
+	virtual const char*
+					what() const throw()	{ return m_msg; }
+
+  private:
+	char			m_msg[1024];
+};
+
+// --------------------------------------------------------------------
+
 class progress
 {
   public:

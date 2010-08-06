@@ -15,6 +15,18 @@ using namespace std;
 
 // --------------------------------------------------------------------
 
+mas_exception::mas_exception(const string& msg)
+{
+	snprintf(m_msg, sizeof(m_msg), "%s", msg.c_str());
+}
+
+mas_exception::mas_exception(const boost::format& msg)
+{
+	snprintf(m_msg, sizeof(m_msg), "%s", msg.str().c_str());
+}
+
+// --------------------------------------------------------------------
+
 progress::progress(const string& msg, uint32 max)
 	: m_msg(msg)
 	, m_step(0)
