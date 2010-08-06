@@ -220,7 +220,7 @@ float calculateDistance(const entry& a, const entry& b)
 	if (VERBOSE)
 	{
 		static boost::mutex sLockCout;
-		boost::scoped_lock lock(sLockCout);
+		boost::mutex::scoped_lock lock(sLockCout);
 		cout << (boost::format("Sequences (%1$d:%2$d) Aligned. Score: %3$4.2f") % (a.m_nr + 1) % (b.m_nr + 1) % result) << endl;
 	}
 	
