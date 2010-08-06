@@ -307,6 +307,9 @@ sequence encode(const string& s)
 
 	foreach (char r, s)
 	{
+		if (r == '.' or r == '*')
+			r = '-';
+		
 		aa rc = kAA_Reverse[static_cast<uint8>(r)];
 		if (rc < sizeof(kAA))
 			result.push_back(rc);
@@ -620,6 +623,7 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 			
 			if (ra != kSignalGapCode and rb != kSignalGapCode)
 				result += ea->m_weight * eb->m_weight * mat(ra, rb);
+//cout << kAA[ra] << '-' << kAA[rb] << " = " << mat(ra, rb) << endl;
 		}
 	}
 	
@@ -758,7 +762,7 @@ void align(
 	float logdiff = 1.0 + 0.5 * log10(float(minLength) / maxLength);
 	
 	// initial gap open cost, 0.05f is the remaining magical number here...
-	gop = (gop / (logdiff * logmin)) * smat.mismatch_average() * smat.scale_factor() * 0.05f;
+	gop = (gop / (logdiff * logmin)) * abs(smat.mismatch_average()) * smat.scale_factor() * 0.05f;
 
 	float avg_weight_a = accumulate(a.begin(), a.end(), 0.f, sum_weight()) / a.size();
 	float avg_weight_b = accumulate(b.begin(), b.end(), 0.f, sum_weight()) / b.size();
@@ -923,6 +927,9 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 		t.create_thread(boost::bind(&createAlignment,
 			static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep,
 			boost::ref(pr)));
+
+	if (DEBUG)
+		t.join_all();
 
 	if (dynamic_cast<leaf_node*>(node->right()) != NULL)
 		b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);

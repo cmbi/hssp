@@ -29,7 +29,7 @@ LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 CC					?= c++
 CFLAGS				= $(BOOST_INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
 					  -iquote ./ -gdwarf-2 -fPIC -pthread -Wno-multichar -std=c++0x
-CFLAGS				+= -O3 -DNDEBUG
+#CFLAGS				+= -O3 -DNDEBUG
 
 VPATH += src
 
@@ -58,3 +58,7 @@ $(OBJECTS:.o=.d):
 
 clean:
 	rm -rf obj/* mas
+
+install: mas
+	sudo install -m 755 mas $(DESTDIR)bin/mas
+
