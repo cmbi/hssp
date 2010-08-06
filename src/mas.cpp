@@ -1,12 +1,10 @@
 // mas.cpp - simple attempt to write a multiple sequence alignment application
-//
 
 #include "mas.h"
 
 #include <iostream>
 #include <iomanip>
 #include <string>
-#include <sstream>
 #include <limits>
 #include <cmath>
 #include <numeric>
@@ -35,7 +33,7 @@ namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
-int DEBUG = 0, VERBOSE = 0, PROGRESS = 0;
+int DEBUG = 0, VERBOSE = 0;
 
 // --------------------------------------------------------------------
 
@@ -71,7 +69,18 @@ ostream& operator<<(ostream& lhs, base_node& rhs)
 struct joined_node : public base_node
 {
 						joined_node(base_node* left, base_node* right,
-							float d_left, float d_right);
+							float d_left, float d_right)
+							: m_left(left)
+							, m_right(right)
+							, m_d_left(d_left)
+							, m_d_right(d_right)
+							, m_leaf_count(left->leaf_count() + right->leaf_count())
+						{
+							m_left->add_weight(d_left / m_left->leaf_count());
+							m_right->add_weight(d_right / m_right->leaf_count());
+							
+							++s_count;
+						}
 
 	virtual				~joined_node()
 						{
@@ -89,7 +98,12 @@ struct joined_node : public base_node
 	virtual base_node*	left() const		{ return m_left; }
 	virtual base_node*	right() const		{ return m_right; }
 
-	virtual void		add_weight(float w);
+	virtual void		add_weight(float w)
+						{
+							m_left->add_weight(w);
+							m_right->add_weight(w);
+						}
+
 	virtual uint32		leaf_count() const	{ return m_leaf_count; }
 	
 	base_node*			m_left;
@@ -113,8 +127,6 @@ struct leaf_node : public base_node
 	virtual void		print(ostream& s)
 						{
 							s << m_entry.m_id;
-							if (VERBOSE)
-								s << '(' << m_entry.m_weight << ')';
 						}
 
 	virtual void		add_weight(float w)
@@ -124,25 +136,6 @@ struct leaf_node : public base_node
 
 	entry&				m_entry;
 };
-
-joined_node::joined_node(base_node* left, base_node* right, float d_left, float d_right)
-	: m_left(left)
-	, m_right(right)
-	, m_d_left(d_left)
-	, m_d_right(d_right)
-	, m_leaf_count(left->leaf_count() + right->leaf_count())
-{
-	m_left->add_weight(d_left / m_left->leaf_count());
-	m_right->add_weight(d_right / m_right->leaf_count());
-	
-	++s_count;
-}
-
-void joined_node::add_weight(float w)
-{
-	m_left->add_weight(w);
-	m_right->add_weight(w);
-}
 
 // --------------------------------------------------------------------
 // distance is calculated as 1 minus the fraction of identical residues
@@ -225,7 +218,11 @@ float calculateDistance(const entry& a, const entry& b)
 	float result = 1.0f - float(highId) / max(dimX, dimY);
 	
 	if (VERBOSE)
+	{
+		static boost::mutex sLockCout;
+		boost::scoped_lock lock(sLockCout);
 		cout << (boost::format("Sequences (%1$d:%2$d) Aligned. Score: %3$4.2f") % (a.m_nr + 1) % (b.m_nr + 1) % result) << endl;
+	}
 	
 	return result;
 }
@@ -233,7 +230,7 @@ float calculateDistance(const entry& a, const entry& b)
 // we use as many threads as is useful to do the distance calculation
 // which is quite easy to do using a thread safe queue
 typedef buffer<tr1::tuple<uint32,uint32> > 	distance_queue;
-const tr1::tuple<uint32,uint32>	kSentinel = tr1::make_tuple(numeric_limits<uint32>::max(), numeric_limits<uint32>::max());
+const tr1::tuple<uint32,uint32>	kSentinel = tr1::make_tuple(numeric_limits<uint32>::max(), 0);
 
 void calculateDistance(distance_queue& queue, symmetric_matrix<float>& d, vector<entry>& data,
 	progress& pr)
@@ -767,7 +764,7 @@ void align(
 	float avg_weight_a = accumulate(a.begin(), a.end(), 0.f, sum_weight()) / a.size();
 	float avg_weight_b = accumulate(b.begin(), b.end(), 0.f, sum_weight()) / b.size();
 
-	// position specific gap open costs
+	// position specific gap penalties
 	// initial gap extend cost is adjusted for difference in sequence lengths
 	vector<float> gop_a(dimX, gop * avg_weight_a),
 		gep_a(dimX, gep * (1 + log10(float(dimX) / dimY)) * avg_weight_a);
@@ -849,40 +846,46 @@ void align(
 		--y;
 	}
 
-	while (x >= 0 or y >= 0)
+	// then trace back the matrix
+	while (x >= 0 and y >= 0)
 	{
-		if (x == -1)
+		switch (tb(x, y))
 		{
-			foreach (entry* e, a)
-				e->m_seq.insert(e->m_seq.begin(), kSignalGapCode);
-			--y;
-		}
-		else if (y >= 0 and tb(x, y) < 0)
-		{
-			foreach (entry* e, a)
-				e->m_seq.insert(e->m_seq.begin() + x, kSignalGapCode);
-			--y;
-		}
-		else if (y == -1)
-		{
-			foreach (entry* e, b)
-				e->m_seq.insert(e->m_seq.begin(), kSignalGapCode);
-			--x;
-		}
-		else if (x >= 0 and tb(x, y) > 0)
-		{
-			foreach (entry* e, b)
-				e->m_seq.insert(e->m_seq.begin() + y, kSignalGapCode);
-			--x;
-		}
-		else
-		{
-			assert(x >= 0); assert(y >= 0);
-			--x;
-			--y;
+			case -1:
+				foreach (entry* e, a)
+					e->m_seq.insert(e->m_seq.begin() + x, kSignalGapCode);
+				--y;
+				break;
+
+			case 1:
+				foreach (entry* e, b)
+					e->m_seq.insert(e->m_seq.begin() + y, kSignalGapCode);
+				--x;
+				break;
+
+			case 0:
+				--x;
+				--y;
+				break;
 		}
 	}
 	
+	// and finally insert start-gaps
+	while (x >= 0)
+	{
+		foreach (entry* e, b)
+			e->m_seq.insert(e->m_seq.begin(), kSignalGapCode);
+		--x;
+	}
+
+	while (y >= 0)
+	{
+		foreach (entry* e, a)
+			e->m_seq.insert(e->m_seq.begin(), kSignalGapCode);
+		--y;
+	}
+	
+	c.reserve(a.size() + b.size());
 	copy(a.begin(), a.end(), back_inserter(c));
 	copy(b.begin(), b.end(), back_inserter(c));
 	
@@ -928,7 +931,7 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 			static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep,
 			boost::ref(pr)));
 
-	if (DEBUG)
+	if (DEBUG)	// keep the aligning process serial in debug mode
 		t.join_all();
 
 	if (dynamic_cast<leaf_node*>(node->right()) != NULL)
@@ -951,17 +954,17 @@ int main(int argc, char* argv[])
 	{
 		po::options_description desc("mas options");
 		desc.add_options()
-			("help,h", "Display help message")
-			("input,i", po::value<string>(), "Input file")
-			("outfile,o", po::value<string>(), "Output file, use 'stdout' to output to screen")
-			("format,f", po::value<string>(), "Output format, can be clustalw (default) or fasta")
-			("outtree", po::value<string>(), "Write guide tree")
-			("debug,d", po::value<int>(), "Debug output level")
-			("verbose,v", "Verbose output")
-			("guide-tree,g", po::value<string>(), "use existing guide tree")
-			("matrix,m", po::value<string>(), "Substitution matrix, default is PAM")
-			("gap-open", po::value<float>(), "Gap open penalty")
-			("gap-extend", po::value<float>(), "Gap extend penalty")
+			("help,h",							 "Display help message")
+			("input,i",		po::value<string>(), "Input file")
+			("outfile,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
+			("format,f",	po::value<string>(), "Output format, can be clustalw (default) or fasta")
+			("outtree",		po::value<string>(), "Write guide tree")
+			("debug,d",		po::value<int>(),	 "Debug output level")
+			("verbose,v",						 "Verbose output")
+			("guide-tree,g",po::value<string>(), "use existing guide tree")
+			("matrix,m",	po::value<string>(), "Substitution matrix, default is PAM")
+			("gap-open",	po::value<float>(),	 "Gap open penalty")
+			("gap-extend",	po::value<float>(),	 "Gap extend penalty")
 			;
 	
 		po::positional_options_description p;
@@ -1003,7 +1006,6 @@ int main(int argc, char* argv[])
 		if (data.size() == 2)
 		{
 			// no need to do difficult stuff, just align two sequences:
-			
 			float dist = calculateDistance(data[0], data[1]);
 			root = new joined_node(new leaf_node(data[0]), new leaf_node(data[1]), dist / 2, dist / 2);
 		}
@@ -1016,7 +1018,6 @@ int main(int argc, char* argv[])
 				tree.push_back(new leaf_node(e));
 			
 			// calculate guide tree
-			
 			if (vm.count("guide-tree"))
 				useGuideTree(vm["guide-tree"].as<string>(), tree);
 			else
@@ -1067,11 +1068,6 @@ int main(int argc, char* argv[])
 		}
 
 		delete root;
-	}
-	catch (const char* e)
-	{
-		cerr << e << endl;
-		exit(1);
 	}
 	catch (const exception& e)
 	{
