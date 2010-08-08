@@ -6,8 +6,12 @@
 #include <iostream>
 #include <boost/thread.hpp>
 #include <time.h>
+#if defined(_MSC_VER)
+#define TERM_WIDTH 80
+#else
 #include <termios.h>
 #include <sys/ioctl.h>
+#endif
 
 #include "utils.h"
 
@@ -23,6 +27,23 @@ mas_exception::mas_exception(const string& msg)
 mas_exception::mas_exception(const boost::format& msg)
 {
 	snprintf(m_msg, sizeof(m_msg), "%s", msg.str().c_str());
+}
+
+// --------------------------------------------------------------------
+
+uint32 get_terminal_width()
+{
+	uint32 width;
+
+#if defined(_MSC_VER)
+	width = TERM_WIDTH;
+#else
+	struct winsize w;
+	ioctl(0, TIOCGWINSZ, &w);
+	width = w.ws_col;
+#endif
+
+	return width;
 }
 
 // --------------------------------------------------------------------
@@ -54,24 +75,23 @@ void progress::run()
 {
 	bool first = true;
 
+	// first, get the current terminal width
+	uint32 width = get_terminal_width();
+
 	try
 	{
 		for (;;)
 		{
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 
-			// first, get the current terminal width
-		    struct winsize w;
-		    ioctl(0, TIOCGWINSZ, &w);
-
 			string msg;
-			if (m_msg.length() > w.ws_col)
-				msg = m_msg.substr(0, w.ws_col);
+			if (m_msg.length() > width)
+				msg = m_msg.substr(0, width);
 			else
 			{
 				msg = m_msg;
 				
-				if (msg.length() + 10 < w.ws_col)
+				if (msg.length() + 10 < width)
 				{
 					float fraction = float(m_step) / m_max;
 					if (fraction < 0)
@@ -79,13 +99,13 @@ void progress::run()
 					else if (fraction > 1)
 						fraction = 1;
 					
-					uint32 thermometer_width = w.ws_col - msg.length() - 10;
+					uint32 thermometer_width = width - msg.length() - 10;
 					uint32 thermometer_done_width = uint32(fraction * thermometer_width);
 					msg += " [";
 					msg += string(thermometer_done_width, '#');
 					msg += string(thermometer_width - thermometer_done_width, '-');
 					msg += ']';
-					msg += string(w.ws_col - msg.length(), ' ');
+					msg += string(width - msg.length(), ' ');
 				}
 			}
 
@@ -93,12 +113,9 @@ void progress::run()
 			first = false;
 		}
 	}
-	catch (boost::thread_interrupted& e)
+	catch (boost::thread_interrupted&)
 	{
-	    struct winsize w;
-	    ioctl(0, TIOCGWINSZ, &w);
-
 		if (not first)
-			cout << '\r' << m_msg << " done" << string(w.ws_col - m_msg.length() - 5, ' ') << endl;
+			cout << '\r' << m_msg << " done" << string(width - m_msg.length() - 5, ' ') << endl;
 	}
 }

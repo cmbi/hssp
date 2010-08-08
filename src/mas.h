@@ -3,17 +3,19 @@
 
 #pragma once
 
+#if defined(_MSC_VER)
+#include <ciso646>
+#define snprintf _snprintf
+#pragma warning (disable : 4996)
+#pragma warning (disable : 4355)
+#endif
+
 #include <string>
 #include <cassert>
 #include <ostream>
 #include <iomanip>
 
 #include <boost/format.hpp>
-
-#if defined(_MSC_VER)
-#include <ciso646>
-#define snprintf _snprintf
-#endif
 
 typedef char			int8;
 typedef unsigned char	uint8;

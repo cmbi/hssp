@@ -33,7 +33,7 @@ namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
-int DEBUG = 0, VERBOSE = 0;
+int VERBOSE = 0;
 
 // --------------------------------------------------------------------
 
@@ -155,7 +155,7 @@ float calculateDistance(const entry& a, const entry& b)
 	
 	static const substitution_matrix smat("GONNET250");
 	static const float gapOpen = 10;
-	static const float gapExtend = 0.2;
+	static const float gapExtend = 0.2f;
 	
 	float high = numeric_limits<float>::min();
 	uint32 highX, highY, highId;
@@ -256,7 +256,13 @@ void calculateDistanceMatrix(symmetric_matrix<float>& d, vector<entry>& data)
 	distance_queue queue;
 
 	boost::thread_group t;
-	for (uint32 ti = 0; ti < boost::thread::hardware_concurrency(); ++ti)
+
+	uint32 nr_of_threads = boost::thread::hardware_concurrency();
+
+	if (VERBOSE)
+		nr_of_threads = 1;
+
+	for (uint32 ti = 0; ti < nr_of_threads; ++ti)
 		t.create_thread(boost::bind(&calculateDistance,
 			boost::ref(queue), boost::ref(d), boost::ref(data), boost::ref(pr)));
 	
@@ -295,7 +301,7 @@ sequence encode(const string& s)
 		// init global reverse mapping
 		for (uint32 a = 0; a < 256; ++a)
 			kAA_Reverse[a] = 255;
-		for (uint32 a = 0; a < sizeof(kAA); ++a)
+		for (uint8 a = 0; a < sizeof(kAA); ++a)
 			kAA_Reverse[kAA[a]] = a;
 	}
 	
@@ -630,26 +636,26 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 // don't ask me, but looking at the clustal code, they substract 0.2 from the table
 // as mentioned in the article in NAR.
 const float kResidueSpecificPenalty[20] = {
-	1.13 - 0.2,		// A
-	0.72 - 0.2,		// R
-	0.63 - 0.2,		// N
-	0.96 - 0.2,		// D
-	1.13 - 0.2,		// C
-	1.07 - 0.2,		// Q
-	1.31 - 0.2,		// E
-	0.61 - 0.2,		// G
-	1.00 - 0.2,		// H
-	1.32 - 0.2,		// I
-	1.21 - 0.2,		// L
-	0.96 - 0.2,		// K
-	1.29 - 0.2,		// M
-	1.20 - 0.2,		// F
-	0.74 - 0.2,		// P
-	0.76 - 0.2,		// S
-	0.89 - 0.2,		// T
-	1.23 - 0.2,		// W
-	1.00 - 0.2,		// Y
-	1.25 - 0.2		// V
+	1.13f - 0.2f,		// A
+	0.72f - 0.2f,		// R
+	0.63f - 0.2f,		// N
+	0.96f - 0.2f,		// D
+	1.13f - 0.2f,		// C
+	1.07f - 0.2f,		// Q
+	1.31f - 0.2f,		// E
+	0.61f - 0.2f,		// G
+	1.00f - 0.2f,		// H
+	1.32f - 0.2f,		// I
+	1.21f - 0.2f,		// L
+	0.96f - 0.2f,		// K
+	1.29f - 0.2f,		// M
+	1.20f - 0.2f,		// F
+	0.74f - 0.2f,		// P
+	0.76f - 0.2f,		// S
+	0.89f - 0.2f,		// T
+	1.23f - 0.2f,		// W
+	1.00f - 0.2f,		// Y
+	1.25f - 0.2f		// V
 };
 
 void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq)
@@ -709,7 +715,7 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 		{
 			for (int32 d = 0; d < 8; ++d)
 			{
-				if (ix + d >= gaps.size() or gaps[ix + d] > 0 or
+				if (ix + d >= int32(gaps.size()) or gaps[ix + d] > 0 or
 					ix - d < 0 or gaps[ix - d] > 0)
 				{
 					gop[ix] *= (2 + ((8 - d) * 2)) / 8.f;
@@ -724,7 +730,7 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 		}
 	}
 
-	if (DEBUG > 2)
+	if (VERBOSE > 2)
 	{
 		foreach (const entry* e, seq)
 			cout << e->m_id << " (" << gop.size() << "; " << e->m_weight << ")" << endl;
@@ -751,12 +757,12 @@ void align(
 
 	const substitution_matrix& smat = mat_fam(abs(node->m_d_left + node->m_d_right), true);
 
-	uint32 minLength = dimX, maxLength = dimY;
+	float minLength = static_cast<float>(dimX), maxLength = static_cast<float>(dimY);
 	if (minLength > maxLength)
 		swap(minLength, maxLength);
 	
-	float logmin = 1.0 / log10(minLength);
-	float logdiff = 1.0 + 0.5 * log10(float(minLength) / maxLength);
+	float logmin = 1.0f / log10(minLength);
+	float logdiff = 1.0f + 0.5f * log10(minLength / maxLength);
 	
 	// initial gap open cost, 0.05f is the remaining magical number here...
 	gop = (gop / (logdiff * logmin)) * abs(smat.mismatch_average()) * smat.scale_factor() * 0.05f;
@@ -813,7 +819,7 @@ void align(
 				highY = y;
 			}
 			
-			if (DEBUG > 8)
+			if (VERBOSE > 8)
 			{
 				cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1: " << Iy1
 					 << "; B=> " << B(x, y) << "; tb=> " << int(tb(x, y)) << endl;
@@ -889,12 +895,12 @@ void align(
 	copy(a.begin(), a.end(), back_inserter(c));
 	copy(b.begin(), b.end(), back_inserter(c));
 	
-	if (DEBUG == 2)
+	if (VERBOSE == 2)
 		report(c, cerr, "clustalw");
 	
 	assert(a.front()->m_seq.length() == b.front()->m_seq.length());
 
-	if (DEBUG > 7)
+	if (VERBOSE > 7)
 	{
 		foreach (entry* e, c)
 			cout << e->m_id << ": " << decode(e->m_seq) << endl;
@@ -931,7 +937,7 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 			static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep,
 			boost::ref(pr)));
 
-	if (DEBUG)	// keep the aligning process serial in debug mode
+	if (VERBOSE)	// keep the aligning process serial in debug mode
 		t.join_all();
 
 	if (dynamic_cast<leaf_node*>(node->right()) != NULL)
@@ -980,9 +986,9 @@ int main(int argc, char* argv[])
 			exit(1);
 		}
 		
-		if (vm.count("debug"))
-			DEBUG = vm["debug"].as<int>();
 		VERBOSE = vm.count("verbose");
+		if (vm.count("debug"))
+			VERBOSE = vm["debug"].as<int>();
 
 		// matrix
 		string matrix = "PAM";

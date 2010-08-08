@@ -128,7 +128,10 @@ void substitution_matrix::read(istream& is)
 		for (uint32 i = 0; i < ix.length(); ++i)
 		{
 			s >> v;
-			m_matrix(row, ix[i]) = v;
+			if (v < numeric_limits<int8>::min() or v > numeric_limits<int8>::max())
+				throw mas_exception("Invalid matrix, value out of range");
+
+			m_matrix(row, ix[i]) = static_cast<int8>(v);
 		}
 	}
 	

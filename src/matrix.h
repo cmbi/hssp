@@ -178,7 +178,7 @@ class substitution_matrix
 
 	virtual				~substitution_matrix() {}
 
-	int32				operator()(aa a, aa b) const
+	int8				operator()(aa a, aa b) const
 						{
 							return m_matrix(a, b);
 						}
