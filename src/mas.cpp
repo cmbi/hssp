@@ -302,7 +302,10 @@ sequence encode(const string& s)
 		for (uint32 a = 0; a < 256; ++a)
 			kAA_Reverse[a] = 255;
 		for (uint8 a = 0; a < sizeof(kAA); ++a)
-			kAA_Reverse[kAA[a]] = a;
+		{
+			kAA_Reverse[toupper(kAA[a])] = a;
+			kAA_Reverse[tolower(kAA[a])] = a;
+		}
 	}
 	
 	sequence result;
@@ -360,6 +363,9 @@ void joinNeighbours(symmetric_matrix<float>& d, vector<base_node*>& tree)
 			}
 		}
 		
+
+//cerr << "min_i: " << min_i << " min_j: " << min_j << " m: " << m << endl;
+
 		// distance to joined node
 		float d_i, d_j;
 		float half_dij = d(min_i, min_j) / 2;
@@ -614,8 +620,15 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 {
 	float result = 0;
 	
+	int32 pdb_nr = -1;
+	if (ix_a < a.front()->m_pdb_nr.size())
+		pdb_nr = a.front()->m_pdb_nr[ix_a];
+	
 	foreach (const entry* ea, a)
 	{
+		if (pdb_nr != 0 and ix_a < ea->m_pdb_nr.size() and ea->m_pdb_nr[ix_a] != pdb_nr and ea->m_pdb_nr[ix_a] != 0)
+			pdb_nr = -1;
+		
 		foreach (const entry* eb, b)
 		{
 			assert(ix_a < ea->m_seq.length());
@@ -627,10 +640,21 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 			if (ra != kSignalGapCode and rb != kSignalGapCode)
 				result += ea->m_weight * eb->m_weight * mat(ra, rb);
 //cout << kAA[ra] << '-' << kAA[rb] << " = " << mat(ra, rb) << endl;
+
+			if (pdb_nr > 0 and ix_b < eb->m_pdb_nr.size() and eb->m_pdb_nr[ix_b] != pdb_nr and eb->m_pdb_nr[ix_b] != 0)
+				pdb_nr = -1;
 		}
 	}
 	
-	return result / (a.size() * b.size());
+	result /= (a.size() * b.size());
+	
+	// check for identical PDB nrs
+//	if (pdb_nr > 0)
+//		result += 100000;
+//	else if (pdb_nr < 0)
+//		result = 0;
+	
+	return result;
 }
 
 // don't ask me, but looking at the clustal code, they substract 0.2 from the table
@@ -678,7 +702,7 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 				gaps[ix] += 1;
 
 			// residue specific gap penalty
-			if (r < kAACount)
+			if (r < 20)
 				residue_specific_penalty[ix] += kResidueSpecificPenalty[r];
 			else
 				residue_specific_penalty[ix] += 1.0f;
@@ -700,7 +724,7 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 			}
 		}
 	}
-	
+
 	for (int32 ix = 0; ix < static_cast<int32>(gop.size()); ++ix)
 	{
 		// if there is a gap, lower gap open cost
@@ -781,7 +805,7 @@ void align(
 	adjust_gp(gop_b, gep_b, b);
 	
 	float high = numeric_limits<float>::min();
-	int32 highX, highY;
+	int32 highX = dimX, highY = dimY;
 	
 	for (x = 0; x < dimX; ++x)
 	{
@@ -962,6 +986,7 @@ int main(int argc, char* argv[])
 		desc.add_options()
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input file")
+			("chain,c",		po::value<char>(),	 "Chain ID to select (from HSSP input)")
 			("outfile,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("format,f",	po::value<string>(), "Output format, can be clustalw (default) or fasta")
 			("outtree",		po::value<string>(), "Write guide tree")
@@ -1001,7 +1026,15 @@ int main(int argc, char* argv[])
 
 		fs::path path(vm["input"].as<string>());
 		vector<entry> data;
-		readFasta(path, data);
+		
+		char chain = 0;
+		if (vm.count("chain"))
+			chain = vm["chain"].as<char>();
+		
+		if (path.extension() == ".hssp" or chain != 0)
+			readAlignmentFromHsspFile(path, chain, data);
+		else
+			readFasta(path, data);
 		
 		if (data.size() < 2)
 			throw mas_exception("insufficient number of sequences");
@@ -1052,6 +1085,9 @@ int main(int argc, char* argv[])
 //				throw mas_exception(boost::format("Failed to write guide tree %1%") % treepath.string());
 //			file << *root << ';' << endl;
 //		}
+
+		if (VERBOSE)
+			cout << *root << ';' << endl;
 		
 		progress pr("calculating alignments", joined_node::s_count);
 		createAlignment(root, alignment, mat, gop, gep, pr);

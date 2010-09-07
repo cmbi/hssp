@@ -23,6 +23,15 @@ class matrix
 						m_data = new value_type[m_m * m_n];
 					}
 					
+					matrix(uint32 m, uint32 n, const T& v)
+						: m_m(m)
+						, m_n(n)
+					{
+						m_data = new value_type[m_m * m_n];
+						for (uint32 i = 0; i < m_m * m_n; ++i)
+							m_data[i] = v;
+					}
+					
 	virtual			~matrix()
 					{
 						delete [] m_data;

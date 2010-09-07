@@ -18,7 +18,7 @@ using namespace std;
 namespace io = boost::iostreams;
 
 substitution_matrix::substitution_matrix(const string& name)
-	: m_matrix(sizeof(kAA), sizeof(kAA))
+	: m_matrix(sizeof(kAA), sizeof(kAA), 0)
 	, m_scale_factor(0.75f)
 {
 	const MatrixInfo* mi = find_if(kMatrices, kMatrices + kMatrixCount,
@@ -33,7 +33,7 @@ substitution_matrix::substitution_matrix(const string& name)
 
 substitution_matrix::substitution_matrix(
 	const substitution_matrix& m, bool positive)
-	: m_matrix(sizeof(kAA), sizeof(kAA))
+	: m_matrix(sizeof(kAA), sizeof(kAA), 0)
 	, m_scale_factor(0.75f)
 {
 	int8 min = 0;

@@ -69,6 +69,8 @@ struct entry
 	uint32			m_nr;
 	std::string		m_id;
 	sequence		m_seq;
+	std::vector<uint16>
+					m_pdb_nr;
 	float			m_weight;
 };
 

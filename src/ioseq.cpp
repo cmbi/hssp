@@ -10,6 +10,8 @@
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "ioseq.h"
 #include "utils.h"
@@ -17,6 +19,7 @@
 using namespace std;
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
+namespace ba = boost::algorithm;
 
 // --------------------------------------------------------------------
 
@@ -62,6 +65,195 @@ void readFasta(fs::path path, vector<entry>& seq)
 		
 		s += line;
 	}
+}
+
+void readAlignmentFromHsspFile(
+	fs::path		path,
+	char			chainID,
+	vector<entry>&	seq)
+{
+	seq.clear();
+
+	fs::ifstream file(path);
+	if (not file.is_open())
+		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
+	
+	string line;
+	
+	// first line, should be something like "HSSP   bla bla bla"
+	getline(file, line);
+	if (not ba::starts_with(line, "HSSP"))
+		throw mas_exception("file is not an HSSP file, does not start with HSSP");
+	
+	// second line, should contain PDBID
+	getline(file, line);
+	if (not ba::starts_with(line, "PDBID") or line.length() < 13)
+		throw mas_exception("file is not a valid HSSP file, PDBID missing");
+	
+	entry pdb(0, line.substr(11), sequence());
+	seq.push_back(pdb);
+	
+	string header;
+	uint32 seqLength = 0, nchain = 0, nalign = 0, chain = 0;
+	
+	while (not file.eof())
+	{
+		getline(file, line);
+		
+		if (ba::starts_with(line, "## "))
+			break;
+		
+		if (ba::starts_with(line, "HEADER     "))
+			header = line.substr(11);
+		else if (ba::starts_with(line, "SEQLENGTH  "))
+			seqLength = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(11, 4)));
+		else if (ba::starts_with(line, "NCHAIN     "))
+			nchain = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(11, 4)));
+		else if (ba::starts_with(line, "NALIGN     "))
+			nalign = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(11, 4)));
+		else if (ba::starts_with(line, "KCHAIN     "))
+		{
+			vector<string> chains;
+			string l = line.substr(48);
+			ba::split(chains, l, ba::is_any_of(","));
+			
+			if (chains.empty())
+				throw mas_exception("Invalid KCHAIN line in HSSP file");
+			
+			if (chainID == 0)
+				chainID = chains.front()[0];
+			else
+			{
+				for (chain = 0; chain < chains.size(); ++chain)
+				{
+					if (chainID == chains[chain][0])
+						break;
+				}
+				
+				if (chain == chains.size())
+					throw mas_exception(boost::format("Chain %c not found in HSSP file") % chainID);
+			}
+		}
+	}
+	
+	if (nalign < 1)
+		throw mas_exception("invalid HSSP file, number of alignments missing");
+	
+	if (seqLength < 1)
+		throw mas_exception("invalid HSSP file, sequence length missing");
+	
+	if (nchain < 1)
+		throw mas_exception("invalid HSSP file, nchain missing");
+	
+	// second part, collect proteins
+	
+	if (line != "## PROTEINS : EMBL/SWISSPROT identifier and alignment statistics")
+		throw mas_exception("invalid or unsupported HSSP file, ## PROTEINS line does match expected value");
+
+	getline(file, line);
+	if (not ba::starts_with(line, "  NR."))
+		throw mas_exception("invalid HSSP file, expected line starting with NR.");
+	
+	seq.reserve(nalign);
+	
+	for (uint32 nr = 0; file.eof() == false and nr < nalign; ++nr)
+	{
+		getline(file, line);
+		
+		if (line.length() < 92)
+			throw mas_exception("invalid HSSP file, protein line too short");
+		
+		entry e(nr + 1, line.substr(8, 12), sequence());
+		ba::trim(e.m_id);
+		
+		string len = line.substr(74, 4);
+		ba::trim(len);
+		e.m_seq.reserve(boost::lexical_cast<uint32>(len));
+		
+		seq.push_back(e);
+	}
+	
+	assert(seq.size() == nalign + 1);
+	
+	getline(file, line);
+	
+	uint32 alignment = 1;
+	while (file.eof() == false and alignment < nalign)
+	{
+		if (not ba::starts_with(line, "## ALIGNMENTS"))
+			throw mas_exception("invalid HSSP file, missing ## ALIGNMENTS line");
+
+		string a_from = line.substr(14, 4);	ba::trim(a_from);
+		string a_to = line.substr(21, 4); ba::trim(a_to);
+		
+		uint32 a_f = boost::lexical_cast<uint32>(a_from);
+		uint32 a_t = boost::lexical_cast<uint32>(a_to);
+		
+		if (a_f != alignment or a_t < a_f or a_t > nalign)
+			throw mas_exception("Invalid HSSP file, incorrect number of alignments");
+		
+		alignment = a_t + 1;
+		
+		getline(file, line);	// SeqNo line
+		
+		string pdb_seq;
+		vector<string> s(a_t - a_f + 1);
+		vector<uint16> pdbnrs;
+		
+		do {
+			getline(file, line);
+			
+			int32 n = static_cast<int32>(line.length()) - 51;
+
+			if (n >= 0 and (line[12] == chainID or chainID == 0))
+			{
+				string pdbno = line.substr(7, 4);
+				ba::trim(pdbno);
+				uint16 pdbno_value = boost::lexical_cast<uint16>(pdbno);
+				
+				pdbnrs.push_back(pdbno_value);
+				
+				pdb_seq += line[14];
+				
+				for (uint32 i = 0; i < n; ++i)
+				{
+					char a = line[51 + i];
+					if (a != ' ' and a != '.')
+					{
+						s[i] += a;
+						seq[a_f + i].m_pdb_nr.push_back(pdbno_value);
+					}
+				}
+			}
+		}
+		while (not file.eof() and not ba::starts_with(line, "##"));
+		
+		for (uint32 i = 0; i < a_t - a_f + 1; ++i)
+		{
+			seq[a_f + i].m_seq = encode(s[i]);
+			assert(seq[a_f + i].m_seq.length() == seq[a_f + i].m_pdb_nr.size());
+		}
+		
+		if (seq.front().m_seq.empty())
+		{
+			seq.front().m_seq = encode(pdb_seq);
+			seq.front().m_pdb_nr = pdbnrs;
+		}
+		else if (decode(seq.front().m_seq) != pdb_seq)
+			throw mas_exception("Invalid HSSP file, inconsistent PDB sequence");
+	}
+	
+//	foreach (const entry& e, seq)
+//	{
+//		cout << e.m_id << endl
+//			 << decode(e.m_seq) << endl;
+//		
+//		foreach (uint16 p, e.m_pdb_nr)
+//			cout << p % 10;
+//
+//		cout << endl << endl;
+//	}
+	
 }
 
 // --------------------------------------------------------------------
