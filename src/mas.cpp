@@ -47,6 +47,28 @@ struct sum_weight
 
 // --------------------------------------------------------------------
 
+void entry::insert(uint32 pos, aa r)
+{
+	if (pos > m_seq.length())
+	{
+		m_seq += r;
+		m_pdb_nr.push_back(0);
+	}
+	else
+	{
+		m_seq.insert(pos, &r, 1);
+		m_pdb_nr.insert(m_pdb_nr.begin() + pos, 0);
+	}
+}
+
+void entry::append(aa r)
+{
+	m_seq += r;
+	m_pdb_nr.push_back(0);
+}
+
+// --------------------------------------------------------------------
+
 struct base_node
 {
 	virtual				~base_node() {}
@@ -639,20 +661,19 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 			
 			if (ra != kSignalGapCode and rb != kSignalGapCode)
 				result += ea->m_weight * eb->m_weight * mat(ra, rb);
-//cout << kAA[ra] << '-' << kAA[rb] << " = " << mat(ra, rb) << endl;
 
 			if (pdb_nr > 0 and ix_b < eb->m_pdb_nr.size() and eb->m_pdb_nr[ix_b] != pdb_nr and eb->m_pdb_nr[ix_b] != 0)
 				pdb_nr = -1;
 		}
 	}
+
+	// check for identical PDB nrs
+	if (pdb_nr > 0)
+		result += 1000;
+//	else if (pdb_nr < 0)
+//		result -= 1000;
 	
 	result /= (a.size() * b.size());
-	
-	// check for identical PDB nrs
-//	if (pdb_nr > 0)
-//		result += 100000;
-//	else if (pdb_nr < 0)
-//		result = 0;
 	
 	return result;
 }
@@ -865,14 +886,14 @@ void align(
 	while (x > highX)
 	{
 		foreach (entry* e, b)
-			e->m_seq += kSignalGapCode;
+			e->append_gap();
 		--x;
 	}
 
 	while (y > highY)
 	{
 		foreach (entry* e, a)
-			e->m_seq += kSignalGapCode;
+			e->append_gap();
 		--y;
 	}
 
@@ -883,13 +904,13 @@ void align(
 		{
 			case -1:
 				foreach (entry* e, a)
-					e->m_seq.insert(e->m_seq.begin() + x, kSignalGapCode);
+					e->insert_gap(x);
 				--y;
 				break;
 
 			case 1:
 				foreach (entry* e, b)
-					e->m_seq.insert(e->m_seq.begin() + y, kSignalGapCode);
+					e->insert_gap(y);
 				--x;
 				break;
 
@@ -904,14 +925,14 @@ void align(
 	while (x >= 0)
 	{
 		foreach (entry* e, b)
-			e->m_seq.insert(e->m_seq.begin(), kSignalGapCode);
+			e->insert_gap(0);
 		--x;
 	}
 
 	while (y >= 0)
 	{
 		foreach (entry* e, a)
-			e->m_seq.insert(e->m_seq.begin(), kSignalGapCode);
+			e->insert_gap(0);
 		--y;
 	}
 	
@@ -986,7 +1007,6 @@ int main(int argc, char* argv[])
 		desc.add_options()
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input file")
-			("chain,c",		po::value<char>(),	 "Chain ID to select (from HSSP input)")
 			("outfile,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("format,f",	po::value<string>(), "Output format, can be clustalw (default) or fasta")
 			("outtree",		po::value<string>(), "Write guide tree")
@@ -996,6 +1016,8 @@ int main(int argc, char* argv[])
 			("matrix,m",	po::value<string>(), "Substitution matrix, default is PAM")
 			("gap-open",	po::value<float>(),	 "Gap open penalty")
 			("gap-extend",	po::value<float>(),	 "Gap extend penalty")
+			("chain,c",		po::value<char>(),	 "Chain ID to select (from HSSP input)")
+			("ignore-pdb-nr",					 "Do not use PDB nr in scoring when aligning HSSP files")
 			;
 	
 		po::positional_options_description p;
@@ -1072,7 +1094,16 @@ int main(int argc, char* argv[])
 
 		fs::path outfile;
 		if (vm.count("outfile") == 0)
-			outfile = path.parent_path() / (path.stem() + ".aln");
+		{
+			string name = path.stem();
+			if (chain != 0)
+			{
+				name += '-';
+				name += chain;
+			}
+			
+			outfile = path.parent_path() / (name + ".aln");
+		}
 		else
 			outfile = vm["outfile"].as<string>();
 		

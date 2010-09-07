@@ -65,6 +65,13 @@ struct entry
 
 	uint32			nr() const						{ return m_nr; }
 	float			weight() const					{ return m_weight; }
+	uint32			length() const					{ return m_seq.length(); }
+
+	void			insert(uint32 pos, aa residue);
+	void			insert_gap(uint32 pos)			{ insert(pos, kSignalGapCode); }
+
+	void			append(aa residue);
+	void			append_gap()					{ append(kSignalGapCode); }
 
 	uint32			m_nr;
 	std::string		m_id;

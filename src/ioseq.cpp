@@ -69,7 +69,7 @@ void readFasta(fs::path path, vector<entry>& seq)
 
 void readAlignmentFromHsspFile(
 	fs::path		path,
-	char			chainID,
+	char&			chainID,
 	vector<entry>&	seq)
 {
 	seq.clear();
@@ -204,8 +204,11 @@ void readAlignmentFromHsspFile(
 			getline(file, line);
 			
 			int32 n = static_cast<int32>(line.length()) - 51;
+			
+			if (chainID == 0)			// store chain ID
+				chainID = line[12];
 
-			if (n >= 0 and (line[12] == chainID or chainID == 0))
+			if (line[12] == chainID)
 			{
 				string pdbno = line.substr(7, 4);
 				ba::trim(pdbno);
@@ -215,7 +218,7 @@ void readAlignmentFromHsspFile(
 				
 				pdb_seq += line[14];
 				
-				for (uint32 i = 0; i < n; ++i)
+				for (int32 i = 0; i < n; ++i)
 				{
 					char a = line[51 + i];
 					if (a != ' ' and a != '.')
@@ -240,8 +243,18 @@ void readAlignmentFromHsspFile(
 			seq.front().m_pdb_nr = pdbnrs;
 		}
 		else if (decode(seq.front().m_seq) != pdb_seq)
+		{
+			cout << endl << decode(seq.front().m_seq) << endl
+				 << pdb_seq << endl
+				 << endl; 
+			
 			throw mas_exception("Invalid HSSP file, inconsistent PDB sequence");
+		}
 	}
+	
+	seq.erase(
+		remove_if(seq.begin(), seq.end(), boost::bind(&entry::length, _1) == 0),
+		seq.end());
 	
 //	foreach (const entry& e, seq)
 //	{
