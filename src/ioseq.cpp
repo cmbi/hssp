@@ -12,6 +12,7 @@
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/regex.hpp>
 
 #include "ioseq.h"
 #include "utils.h"
@@ -229,7 +230,7 @@ void readAlignmentFromHsspFile(
 				}
 			}
 		}
-		while (not file.eof() and not ba::starts_with(line, "##"));
+		while (not file.eof() and not (ba::starts_with(line, "##") or ba::starts_with(line, "//")));
 		
 		for (uint32 i = 0; i < a_t - a_f + 1; ++i)
 		{
@@ -252,6 +253,22 @@ void readAlignmentFromHsspFile(
 		}
 	}
 	
+	// process ## INSERTION LIST, if any
+	
+	if (ba::starts_with(line, "## INSERTION LIST"))
+	{
+		getline(file, line);
+		
+		while (not (file.eof() or ba::starts_with(line, "//")))
+		{
+			
+			
+			
+			getline(file, line);
+		}
+	}
+	
+	
 	seq.erase(
 		remove_if(seq.begin(), seq.end(), boost::bind(&entry::length, _1) == 0),
 		seq.end());
@@ -267,6 +284,60 @@ void readAlignmentFromHsspFile(
 //		cout << endl << endl;
 //	}
 	
+}
+
+void readWhatifMappingFile(fs::path path, vector<entry>& seq)
+{
+	seq.clear();
+
+	fs::ifstream file(path);
+	if (not file.is_open())
+		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
+	
+	string line;
+	
+	while (not file.eof())
+	{
+		getline(file, line);
+		if (not ba::starts_with(line, "Sequence name: "))
+			continue;
+		break;
+	}
+	
+	while (ba::starts_with(line, "Sequence name: "))
+	{
+		string id = line.substr(15);
+		string s;
+		vector<uint16> pos;
+		
+		// skip the description line
+		getline(file, line);
+		
+		while (not (file.eof() or ba::starts_with(line, "Sequence name: ")))
+		{
+			getline(file, line);
+
+			if (line.length() != 16 or line[4] != ' ' or line[6] != ' ' or line[11] != ' ')
+				continue;
+			
+			s += line[5];
+			
+			string nr = line.substr(12);
+			ba::trim(nr);
+			
+			if (nr == "----")
+				pos.push_back(0);
+			else
+				pos.push_back(boost::lexical_cast<uint16>(nr));
+		}
+		
+		if (not s.empty())
+		{
+			entry e(seq.size(), id, encode(s));
+			e.m_pdb_nr = pos;
+			seq.push_back(e);
+		}
+	}
 }
 
 // --------------------------------------------------------------------
@@ -376,6 +447,18 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 		}
 		
 		os << string(16, ' ') << scores << endl;
+
+		if (not alignment.front()->m_pdb_nr.empty())
+		{
+			string pos_nrs(n, ' ');
+			for (uint32 i = 0; i < n; ++i)
+			{
+				if (alignment.front()->m_pdb_nr[offset + i] != 0)
+					pos_nrs[i] = '!';
+			}
+			
+			os << string(16, ' ') << pos_nrs << endl;
+		}
 		
 		offset += n;
 		os << endl;

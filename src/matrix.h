@@ -51,11 +51,10 @@ class matrix
 
 	void			print(std::ostream& os) const
 					{
-						for (uint32 y = 0; y < m_m; ++y)
+						for (uint32 x = 0; x < m_m; ++x)
 						{
-							os << std::setw(3) << y;
-							for (uint32 x = 0; x < m_n; ++x)
-								os << ' ' << std::setw(5) << int32(m_data[x + y * m_m]);
+							for (uint32 y = 0; y < m_n; ++y)
+								os << double(m_data[x + y * m_m]) << ';';
 							os << std::endl;
 						}
 					}

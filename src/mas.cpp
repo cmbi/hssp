@@ -33,7 +33,7 @@ namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
-int VERBOSE = 0;
+int VERBOSE = 0, MULTI_THREADED = 1;
 
 // --------------------------------------------------------------------
 
@@ -45,6 +45,19 @@ struct sum_weight
 	float operator()(float sum, const entry* e) const { return sum + e->m_weight; }
 };
 
+struct max_pdb_nr
+{
+	uint16 operator()(uint16 a, uint16 b) const
+	{
+		if (not (a == b or a == 0 or b == 0))
+		{
+			cerr << endl << "a: " << a << " b: " << b << endl;
+			exit(1);
+		}
+		return max(a, b);
+	}
+};
+
 // --------------------------------------------------------------------
 
 void entry::insert(uint32 pos, aa r)
@@ -52,19 +65,31 @@ void entry::insert(uint32 pos, aa r)
 	if (pos > m_seq.length())
 	{
 		m_seq += r;
-		m_pdb_nr.push_back(0);
+		if (not m_pdb_nr.empty())
+		{
+			m_pdb_nr.push_back(0);
+			assert(m_pdb_nr.size() == m_seq.length());
+		}
 	}
 	else
 	{
 		m_seq.insert(pos, &r, 1);
-		m_pdb_nr.insert(m_pdb_nr.begin() + pos, 0);
+		if (not m_pdb_nr.empty())
+		{
+			m_pdb_nr.insert(m_pdb_nr.begin() + pos, 0);
+			assert(m_pdb_nr.size() == m_seq.length());
+		}
 	}
 }
 
 void entry::append(aa r)
 {
 	m_seq += r;
-	m_pdb_nr.push_back(0);
+	if (not m_pdb_nr.empty())
+	{
+		m_pdb_nr.push_back(0);
+		assert(m_pdb_nr.size() == m_seq.length());
+	}
 }
 
 // --------------------------------------------------------------------
@@ -281,7 +306,7 @@ void calculateDistanceMatrix(symmetric_matrix<float>& d, vector<entry>& data)
 
 	uint32 nr_of_threads = boost::thread::hardware_concurrency();
 
-	if (VERBOSE)
+	if (not MULTI_THREADED)
 		nr_of_threads = 1;
 
 	for (uint32 ti = 0; ti < nr_of_threads; ++ti)
@@ -642,15 +667,10 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 {
 	float result = 0;
 	
-	int32 pdb_nr = -1;
-	if (ix_a < a.front()->m_pdb_nr.size())
-		pdb_nr = a.front()->m_pdb_nr[ix_a];
-	
+	int32 pdb_nr = 0;
+
 	foreach (const entry* ea, a)
 	{
-		if (pdb_nr != 0 and ix_a < ea->m_pdb_nr.size() and ea->m_pdb_nr[ix_a] != pdb_nr and ea->m_pdb_nr[ix_a] != 0)
-			pdb_nr = -1;
-		
 		foreach (const entry* eb, b)
 		{
 			assert(ix_a < ea->m_seq.length());
@@ -661,18 +681,9 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 			
 			if (ra != kSignalGapCode and rb != kSignalGapCode)
 				result += ea->m_weight * eb->m_weight * mat(ra, rb);
-
-			if (pdb_nr > 0 and ix_b < eb->m_pdb_nr.size() and eb->m_pdb_nr[ix_b] != pdb_nr and eb->m_pdb_nr[ix_b] != 0)
-				pdb_nr = -1;
 		}
 	}
 
-	// check for identical PDB nrs
-	if (pdb_nr > 0)
-		result += 1000;
-//	else if (pdb_nr < 0)
-//		result -= 1000;
-	
 	result /= (a.size() * b.size());
 	
 	return result;
@@ -778,8 +789,8 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 	if (VERBOSE > 2)
 	{
 		foreach (const entry* e, seq)
-			cout << e->m_id << " (" << gop.size() << "; " << e->m_weight << ")" << endl;
-		copy(gop.begin(), gop.end(), ostream_iterator<float>(cout, ";")); cout << endl;
+			cerr << e->m_id << " (" << gop.size() << "; " << e->m_weight << ")" << endl;
+		copy(gop.begin(), gop.end(), ostream_iterator<float>(cerr, ";")); cerr << endl;
 	}
 }
 
@@ -789,8 +800,13 @@ void align(
 	const substitution_matrix_family& mat_fam,
 	float gop, float gep)
 {
-	int32 x, dimX = a.front()->m_seq.length();
-	int32 y, dimY = b.front()->m_seq.length();
+	const float kSentinelValue = -(numeric_limits<float>::max() / 2);
+	
+	const entry* fa = a.front();
+	const entry* fb = b.front();
+
+	int32 x, dimX = fa->m_seq.length();
+	int32 y, dimY = fb->m_seq.length();
 	
 	matrix<float> B(dimX, dimY);
 	matrix<float> Ix(dimX, dimY);
@@ -825,7 +841,12 @@ void align(
 		gep_b(dimY, gep * (1 + log10(float(dimY) / dimX)) * avg_weight_b);
 	adjust_gp(gop_b, gep_b, b);
 	
-	float high = numeric_limits<float>::min();
+	// pdb_nrs, create sets of the known numbers
+	set<uint16> pdb_nrs_a, pdb_nrs_b;
+	foreach (uint16 nr, fa->m_pdb_nr) { pdb_nrs_a.insert(nr); }
+	foreach (uint16 nr, fb->m_pdb_nr) { pdb_nrs_b.insert(nr); }
+	
+	float high = kSentinelValue;
 	int32 highX = dimX, highY = dimY;
 	
 	for (x = 0; x < dimX; ++x)
@@ -835,26 +856,45 @@ void align(
 			float Ix1 = 0; if (x > 0) Ix1 = Ix(x - 1, y);
 			float Iy1 = 0; if (y > 0) Iy1 = Iy(x, y - 1);
 			
-			// (1)
 			float M = score(a, b, x, y, smat);
 			if (x > 0 and y > 0)
 				M += B(x - 1, y - 1);
 
-			float s;
-			if (M >= Ix1 and M >= Iy1)
+			float s = kSentinelValue;
+
+			// pessimistic
+			B(x, y) = s;
+			tb(x, y) = 0;
+
+			if (fa->m_pdb_nr[x] != fb->m_pdb_nr[y] and
+				(pdb_nrs_b.count(fa->m_pdb_nr[x]) or pdb_nrs_a.count(fb->m_pdb_nr[y])))
 			{
 				tb(x, y) = 0;
-				B(x, y) = s = M;
+				B(x, y) = s = kSentinelValue;
+			}
+			else if (M >= Ix1 and M >= Iy1)
+			{
+				if (x == 0 or y == 0 or B(x - 1, y - 1) != kSentinelValue)
+				{
+					tb(x, y) = 0;
+					B(x, y) = s = M;
+				}
 			}
 			else if (Ix1 >= Iy1)
 			{
-				tb(x, y) = 1;
-				B(x, y) = s = Ix1;
+				if (x == 0 or B(x - 1, y) != kSentinelValue)
+				{
+					tb(x, y) = 1;
+					B(x, y) = s = Ix1;
+				}
 			}
-			else
+			else if (Iy1 >= Ix1)
 			{
-				tb(x, y) = -1;
-				B(x, y) = s = Iy1;
+				if (y == 0 or B(x, y - 1) != kSentinelValue)
+				{
+					tb(x, y) = -1;
+					B(x, y) = s = Iy1;
+				}
 			}
 			
 			if ((x == dimX - 1 or y == dimY - 1) and high <= s)
@@ -864,19 +904,45 @@ void align(
 				highY = y;
 			}
 			
-			if (VERBOSE > 8)
-			{
-				cout << "x: " << x << "; y: " << y << "; m: " << M << "; Ix1: " << Ix1 << "; Iy1: " << Iy1
-					 << "; B=> " << B(x, y) << "; tb=> " << int(tb(x, y)) << endl;
-			}
-
-			// (3)
-			Ix(x, y) = max(M - gop_a[x], Ix1 - gep_a[x]);
-			
-			// (4)
-			Iy(x, y) = max(M - gop_b[y], Iy1 - gep_b[y]);
+			Ix(x, y) = max(s - gop_a[x], Ix1 - gep_a[x]);
+			Iy(x, y) = max(s - gop_b[y], Iy1 - gep_b[y]);
 		}
 	}
+
+	if (VERBOSE > 7)
+	{
+		cerr << "score: " << high << endl
+			 << "highX: " << highX << endl
+			 << "highY: " << highY << endl
+			 << endl;
+		
+		foreach (entry* e, c)
+			cerr << e->m_id << ": " << decode(e->m_seq) << endl;
+		cerr << endl;
+		
+		cerr << "      ";
+		for (int32 x = 0; x < dimX; ++x)
+			cerr << setw(8) << x << "   ";
+		cerr << endl;
+		
+		for (int32 y = 0; y < dimY; ++y)
+		{
+			cerr << setw(6) << y;
+			for (int32 x = 0; x < dimX; ++x)
+				cerr << ' ' << setw(7) << B(x, y) << ' ' << setw(2) << int(tb(x, y));
+			cerr << endl;
+		}
+		
+		cerr << endl;
+	}
+
+//	if (VERBOSE == 6)
+//	{
+//		cerr << "high: " << high << endl
+//			 << "B:" << endl << B << endl
+//			 << "Ix:" << endl << Ix << endl
+//			 << "Iy:" << endl << Iy << endl;
+//	}
 	
 	// build the final alignment
 	x = dimX - 1;
@@ -904,13 +970,13 @@ void align(
 		{
 			case -1:
 				foreach (entry* e, a)
-					e->insert_gap(x);
+					e->insert_gap(x + 1);
 				--y;
 				break;
 
 			case 1:
 				foreach (entry* e, b)
-					e->insert_gap(y);
+					e->insert_gap(y + 1);
 				--x;
 				break;
 
@@ -935,37 +1001,45 @@ void align(
 			e->insert_gap(0);
 		--y;
 	}
-	
+
 	c.reserve(a.size() + b.size());
 	copy(a.begin(), a.end(), back_inserter(c));
 	copy(b.begin(), b.end(), back_inserter(c));
 	
+#ifndef NDEBUG
+	report(c, cerr, "clustalw");
+	copy(fa->m_pdb_nr.begin(), fa->m_pdb_nr.end(), ostream_iterator<uint16>(cerr, ", ")); cerr << endl;
+	copy(fb->m_pdb_nr.begin(), fb->m_pdb_nr.end(), ostream_iterator<uint16>(cerr, ", ")); cerr << endl;
+#endif
+	
+	// copy over the pdb_nrs to the first line
+	transform(
+		fb->m_pdb_nr.begin(), fb->m_pdb_nr.end(),
+		fa->m_pdb_nr.begin(),
+		c.front()->m_pdb_nr.begin(),
+		max_pdb_nr());
+
+	assert(c.front()->m_pdb_nr.size() == c.front()->m_seq.length());
+
+#ifndef NDEBUG
+	report(c, cerr, "clustalw");
+	copy(c.front()->m_pdb_nr.begin(), c.front()->m_pdb_nr.end(), ostream_iterator<uint16>(cerr, ", "));
+	cerr << endl;
+
+	vector<uint16> test(c.front()->m_pdb_nr);
+	test.erase(remove(test.begin(), test.end(), 0), test.end());
+	uint32 N = test.size();
+	sort(test.begin(), test.end());
+	test.erase(unique(test.begin(), test.end()), test.end());
+	assert(test.size() == N);
+#endif
+	
 	if (VERBOSE == 2)
 		report(c, cerr, "clustalw");
 	
-	assert(a.front()->m_seq.length() == b.front()->m_seq.length());
-
-	if (VERBOSE > 7)
-	{
-		foreach (entry* e, c)
-			cout << e->m_id << ": " << decode(e->m_seq) << endl;
-		cout << endl;
-		
-		cout << "      ";
-		for (int32 x = 0; x < dimX; ++x)
-			cout << setw(8) << x << "   ";
-		cout << endl;
-		
-		for (int32 y = 0; y < dimY; ++y)
-		{
-			cout << setw(6) << y;
-			for (int32 x = 0; x < dimX; ++x)
-				cout << ' ' << setw(7) << B(x, y) << ' ' << setw(2) << int(tb(x, y));
-			cout << endl;
-		}
-		
-		cout << endl;
-	}
+	assert(fa->m_seq.length() == fb->m_seq.length());
+	assert(fa->m_pdb_nr.size() == fb->m_pdb_nr.size());
+	assert(c.front()->m_pdb_nr.size() == fa->m_pdb_nr.size());
 }
 
 void createAlignment(joined_node* node, vector<entry*>& alignment,
@@ -982,7 +1056,7 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 			static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep,
 			boost::ref(pr)));
 
-	if (VERBOSE)	// keep the aligning process serial in debug mode
+	if (not MULTI_THREADED)	// keep the aligning process serial in debug mode
 		t.join_all();
 
 	if (dynamic_cast<leaf_node*>(node->right()) != NULL)
@@ -1012,12 +1086,13 @@ int main(int argc, char* argv[])
 			("outtree",		po::value<string>(), "Write guide tree")
 			("debug,d",		po::value<int>(),	 "Debug output level")
 			("verbose,v",						 "Verbose output")
+			("no-threads,T",					 "Avoid multi-threading (=debug option)")
 			("guide-tree,g",po::value<string>(), "use existing guide tree")
 			("matrix,m",	po::value<string>(), "Substitution matrix, default is PAM")
 			("gap-open",	po::value<float>(),	 "Gap open penalty")
 			("gap-extend",	po::value<float>(),	 "Gap extend penalty")
 			("chain,c",		po::value<char>(),	 "Chain ID to select (from HSSP input)")
-			("ignore-pdb-nr",					 "Do not use PDB nr in scoring when aligning HSSP files")
+			("ignore-pos-nr",					 "Do not use position/PDB nr in scoring")
 			;
 	
 		po::positional_options_description p;
@@ -1029,13 +1104,16 @@ int main(int argc, char* argv[])
 		
 		if (vm.count("help") or (vm.count("input") == 0))
 		{
-			cout << desc << endl;
+			cerr << desc << endl;
 			exit(1);
 		}
 		
 		VERBOSE = vm.count("verbose");
 		if (vm.count("debug"))
 			VERBOSE = vm["debug"].as<int>();
+
+		if (VERBOSE or vm.count("no-threading"))
+			MULTI_THREADED = 0;
 
 		// matrix
 		string matrix = "PAM";
@@ -1055,8 +1133,13 @@ int main(int argc, char* argv[])
 		
 		if (path.extension() == ".hssp" or chain != 0)
 			readAlignmentFromHsspFile(path, chain, data);
+		else if (path.extension() == ".mapping")
+			readWhatifMappingFile(path, data);
 		else
 			readFasta(path, data);
+		
+		if (vm.count("ignore-pos-nr"))
+			for_each(data.begin(), data.end(), boost::bind(&entry::dump_positions, _1));
 		
 		if (data.size() < 2)
 			throw mas_exception("insufficient number of sequences");
@@ -1118,7 +1201,7 @@ int main(int argc, char* argv[])
 //		}
 
 		if (VERBOSE)
-			cout << *root << ';' << endl;
+			cerr << *root << ';' << endl;
 		
 		progress pr("calculating alignments", joined_node::s_count);
 		createAlignment(root, alignment, mat, gop, gep, pr);

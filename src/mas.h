@@ -72,6 +72,8 @@ struct entry
 
 	void			append(aa residue);
 	void			append_gap()					{ append(kSignalGapCode); }
+	
+	void			dump_positions()				{ m_pdb_nr.clear(); }
 
 	uint32			m_nr;
 	std::string		m_id;
