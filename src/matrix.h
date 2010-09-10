@@ -28,8 +28,7 @@ class matrix
 						, m_n(n)
 					{
 						m_data = new value_type[m_m * m_n];
-						for (uint32 i = 0; i < m_m * m_n; ++i)
-							m_data[i] = v;
+						std::fill(m_data, m_data + (m_m * m_n), v);
 					}
 					
 	virtual			~matrix()

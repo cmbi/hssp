@@ -225,7 +225,7 @@ void readAlignmentFromHsspFile(
 					if (a != ' ' and a != '.')
 					{
 						s[i] += a;
-						seq[a_f + i].m_pdb_nr.push_back(pdbno_value);
+						seq[a_f + i].m_positions.push_back(pdbno_value);
 					}
 				}
 			}
@@ -235,13 +235,13 @@ void readAlignmentFromHsspFile(
 		for (uint32 i = 0; i < a_t - a_f + 1; ++i)
 		{
 			seq[a_f + i].m_seq = encode(s[i]);
-			assert(seq[a_f + i].m_seq.length() == seq[a_f + i].m_pdb_nr.size());
+			assert(seq[a_f + i].m_seq.length() == seq[a_f + i].m_positions.size());
 		}
 		
 		if (seq.front().m_seq.empty())
 		{
 			seq.front().m_seq = encode(pdb_seq);
-			seq.front().m_pdb_nr = pdbnrs;
+			seq.front().m_positions = pdbnrs;
 		}
 		else if (decode(seq.front().m_seq) != pdb_seq)
 		{
@@ -278,7 +278,7 @@ void readAlignmentFromHsspFile(
 //		cout << e.m_id << endl
 //			 << decode(e.m_seq) << endl;
 //		
-//		foreach (uint16 p, e.m_pdb_nr)
+//		foreach (uint16 p, e.m_positions)
 //			cout << p % 10;
 //
 //		cout << endl << endl;
@@ -334,7 +334,7 @@ void readWhatifMappingFile(fs::path path, vector<entry>& seq)
 		if (not s.empty())
 		{
 			entry e(seq.size(), id, encode(s));
-			e.m_pdb_nr = pos;
+			e.m_positions = pos;
 			seq.push_back(e);
 		}
 	}
@@ -448,12 +448,12 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 		
 		os << string(16, ' ') << scores << endl;
 
-		if (not alignment.front()->m_pdb_nr.empty())
+		if (not alignment.front()->m_positions.empty())
 		{
 			string pos_nrs(n, ' ');
 			for (uint32 i = 0; i < n; ++i)
 			{
-				if (alignment.front()->m_pdb_nr[offset + i] != 0)
+				if (alignment.front()->m_positions[offset + i] != 0)
 					pos_nrs[i] = '!';
 			}
 			

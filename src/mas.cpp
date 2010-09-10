@@ -47,49 +47,37 @@ struct sum_weight
 
 struct max_pdb_nr
 {
-	uint16 operator()(uint16 a, uint16 b) const
-	{
-		if (not (a == b or a == 0 or b == 0))
-		{
-			cerr << endl << "a: " << a << " b: " << b << endl;
-			exit(1);
-		}
-		return max(a, b);
-	}
+	uint16 operator()(uint16 a, uint16 b) const { return max(a, b); }
 };
 
 // --------------------------------------------------------------------
 
-void entry::insert(uint32 pos, aa r)
+void entry::insert_gap(uint32 pos)
 {
 	if (pos > m_seq.length())
 	{
-		m_seq += r;
-		if (not m_pdb_nr.empty())
-		{
-			m_pdb_nr.push_back(0);
-			assert(m_pdb_nr.size() == m_seq.length());
-		}
+		m_seq += kSignalGapCode;
+		if (not m_positions.empty())
+			m_positions.push_back(0);
 	}
 	else
 	{
+		aa r = kSignalGapCode;
 		m_seq.insert(pos, &r, 1);
-		if (not m_pdb_nr.empty())
-		{
-			m_pdb_nr.insert(m_pdb_nr.begin() + pos, 0);
-			assert(m_pdb_nr.size() == m_seq.length());
-		}
+		if (not m_positions.empty())
+			m_positions.insert(m_positions.begin() + pos, 0);
 	}
+
+	assert(m_positions.size() == m_seq.length() or m_positions.empty());
 }
 
-void entry::append(aa r)
+void entry::append_gap()
 {
-	m_seq += r;
-	if (not m_pdb_nr.empty())
-	{
-		m_pdb_nr.push_back(0);
-		assert(m_pdb_nr.size() == m_seq.length());
-	}
+	m_seq += kSignalGapCode;
+	if (not m_positions.empty())
+		m_positions.push_back(0);
+
+	assert(m_positions.size() == m_seq.length() or m_positions.empty());
 }
 
 // --------------------------------------------------------------------
@@ -264,7 +252,7 @@ float calculateDistance(const entry& a, const entry& b)
 	
 	float result = 1.0f - float(highId) / max(dimX, dimY);
 	
-	if (VERBOSE)
+	if (VERBOSE == 1)
 	{
 		static boost::mutex sLockCout;
 		boost::mutex::scoped_lock lock(sLockCout);
@@ -786,11 +774,30 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 		}
 	}
 
-	if (VERBOSE > 2)
+//	if (VERBOSE > 2)
+//	{
+//		foreach (const entry* e, seq)
+//			cerr << e->m_id << " (" << gop.size() << "; " << e->m_weight << ")" << endl;
+//		copy(gop.begin(), gop.end(), ostream_iterator<float>(cerr, ";")); cerr << endl;
+//	}
+}
+
+template<>
+void matrix<int8>::print(ostream& os) const
+{
+	for (uint32 x = 0; x < m_m; ++x)
 	{
-		foreach (const entry* e, seq)
-			cerr << e->m_id << " (" << gop.size() << "; " << e->m_weight << ")" << endl;
-		copy(gop.begin(), gop.end(), ostream_iterator<float>(cerr, ";")); cerr << endl;
+		for (uint32 y = 0; y < m_n; ++y)
+		{
+			switch (m_data[x + y * m_m])
+			{
+				case -1:	os << '|'; break;
+				case 0:		os << '\\'; break;
+				case 1:		os << '-'; break;
+				case 2:		os << ' '; break;
+			}
+		}
+		os << std::endl;
 	}
 }
 
@@ -800,22 +807,33 @@ void align(
 	const substitution_matrix_family& mat_fam,
 	float gop, float gep)
 {
+	if (VERBOSE > 2)
+	{
+		cerr << "aligning sets" << endl << "a(" << a.front()->m_seq.length() << "): ";
+		foreach (const entry* e, a)
+			cerr << e->m_id << "; ";
+		cerr << endl << "b(" << b.front()->m_seq.length() << "): ";
+		foreach (const entry* e, b)
+			cerr << e->m_id << "; ";
+		cerr << endl << endl;
+	}
+	
 	const float kSentinelValue = -(numeric_limits<float>::max() / 2);
 	
 	const entry* fa = a.front();
 	const entry* fb = b.front();
+	
+	const vector<uint16>& pa = fa->m_positions;
+	const vector<uint16>& pb = fb->m_positions;
 
-	int32 x, dimX = fa->m_seq.length();
-	int32 y, dimY = fb->m_seq.length();
+	int32 x = 0, dimX = fa->m_seq.length(), endX = 0;
+	int32 y = 0, dimY = fb->m_seq.length(), endY = 0;
 	
 	matrix<float> B(dimX, dimY);
 	matrix<float> Ix(dimX, dimY);
 	matrix<float> Iy(dimX, dimY);
-	matrix<int8> tb(dimX, dimY);
+	matrix<int8> tb(dimX, dimY, 2);
 	
-	Ix(0, 0) = 0;
-	Iy(0, 0) = 0;
-
 	const substitution_matrix& smat = mat_fam(abs(node->m_d_left + node->m_d_right), true);
 
 	float minLength = static_cast<float>(dimX), maxLength = static_cast<float>(dimY);
@@ -840,130 +858,140 @@ void align(
 	vector<float> gop_b(dimY, gop * avg_weight_b),
 		gep_b(dimY, gep * (1 + log10(float(dimY) / dimX)) * avg_weight_b);
 	adjust_gp(gop_b, gep_b, b);
+
+	// normally, startX is 0 and endX is dimX, however, when there are fixed
+	// positions, we only take into account the sub matrices that are allowed
 	
-	// pdb_nrs, create sets of the known numbers
-	set<uint16> pdb_nrs_a, pdb_nrs_b;
-	foreach (uint16 nr, fa->m_pdb_nr) { pdb_nrs_a.insert(nr); }
-	foreach (uint16 nr, fb->m_pdb_nr) { pdb_nrs_b.insert(nr); }
-	
-	float high = kSentinelValue;
-	int32 highX = dimX, highY = dimY;
-	
-	for (x = 0; x < dimX; ++x)
+	if (pa.empty() or pb.empty())
 	{
-		for (y = 0; y < dimY; ++y)
+		endX = dimX;
+		endY = dimY;
+	}
+
+	while (x < dimX and y < dimY)
+	{
+		if (x >= endX or y >= endY)
 		{
-			float Ix1 = 0; if (x > 0) Ix1 = Ix(x - 1, y);
-			float Iy1 = 0; if (y > 0) Iy1 = Iy(x, y - 1);
+			if (pa[x] < pb[y])
+			{
+				tb(x, y) = -1;
+				++x; ++endX;
+				continue;
+			}
+
+			if (pa[x] > pb[y])
+			{
+				tb(x, y) = 1;
+				++y; ++endY;
+				continue;
+			}
 			
-			float M = score(a, b, x, y, smat);
-			if (x > 0 and y > 0)
-				M += B(x - 1, y - 1);
-
-			float s = kSentinelValue;
-
-			// pessimistic
-			B(x, y) = s;
-			tb(x, y) = 0;
-
-			if (fa->m_pdb_nr[x] != fb->m_pdb_nr[y] and
-				(pdb_nrs_b.count(fa->m_pdb_nr[x]) or pdb_nrs_a.count(fb->m_pdb_nr[y])))
+			if (pa[x] == pb[y] and pa[x] != 0)
 			{
 				tb(x, y) = 0;
-				B(x, y) = s = kSentinelValue;
+				++x;	++endX;
+				++y;	++endY;
+				continue;
 			}
-			else if (M >= Ix1 and M >= Iy1)
+			
+			while (endX < dimX or endY < dimY)
 			{
-				if (x == 0 or y == 0 or B(x - 1, y - 1) != kSentinelValue)
+				if (endX < dimX and pa[endX] == 0)
+				{
+					++endX;
+					continue;
+				}
+
+				if (endY < dimY and pb[endY] == 0)
+				{
+					++endY;
+					continue;
+				}
+				
+				assert((endX == dimX and endY == dimY) or pa[endX] != 0 or pb[endY] != 0);
+				break;
+			}
+			
+		}
+		
+		if (endX < dimX or endY < dimY)
+		{
+			assert(endX < dimX);
+			assert(endY < dimY);
+			assert(pa[endX] == pb[endY]);
+		}
+
+		assert(endX > x);
+		assert(endY > y);
+		assert(endX <= dimX);
+		assert(endY <= dimY);
+
+cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << endl;
+
+		Ix(x, y) = 0;
+		Iy(x, y) = 0;
+	
+		float high = kSentinelValue;
+		int32 highX = endX, highY = endY, startX = x, startY = y;
+		
+		for (x = startX; x < endX; ++x)
+		{
+			for (y = startY; y < endY; ++y)
+			{
+				float Ix1 = 0; if (x > startX) Ix1 = Ix(x - 1, y);
+				float Iy1 = 0; if (y > startY) Iy1 = Iy(x, y - 1);
+				
+				float M = score(a, b, x, y, smat);
+				if (x > startX and y > startY)
+					M += B(x - 1, y - 1);
+	
+				float s;
+				if (M >= Ix1 and M >= Iy1)
 				{
 					tb(x, y) = 0;
 					B(x, y) = s = M;
 				}
-			}
-			else if (Ix1 >= Iy1)
-			{
-				if (x == 0 or B(x - 1, y) != kSentinelValue)
+				else if (Ix1 >= Iy1)
 				{
 					tb(x, y) = 1;
 					B(x, y) = s = Ix1;
 				}
-			}
-			else if (Iy1 >= Ix1)
-			{
-				if (y == 0 or B(x, y - 1) != kSentinelValue)
+				else
 				{
 					tb(x, y) = -1;
 					B(x, y) = s = Iy1;
 				}
+				
+				if ((x == endX - 1 or y == endY - 1) and high <= s)
+				{
+					high = s;
+					highX = x;
+					highY = y;
+				}
+				
+				Ix(x, y) = max(s - gop_a[x], Ix1 - gep_a[x]);
+				Iy(x, y) = max(s - gop_b[y], Iy1 - gep_b[y]);
 			}
-			
-			if ((x == dimX - 1 or y == dimY - 1) and high <= s)
-			{
-				high = s;
-				highX = x;
-				highY = y;
-			}
-			
-			Ix(x, y) = max(s - gop_a[x], Ix1 - gep_a[x]);
-			Iy(x, y) = max(s - gop_b[y], Iy1 - gep_b[y]);
 		}
-	}
-
-	if (VERBOSE > 7)
-	{
-		cerr << "score: " << high << endl
-			 << "highX: " << highX << endl
-			 << "highY: " << highY << endl
-			 << endl;
 		
-		foreach (entry* e, c)
-			cerr << e->m_id << ": " << decode(e->m_seq) << endl;
-		cerr << endl;
-		
-		cerr << "      ";
-		for (int32 x = 0; x < dimX; ++x)
-			cerr << setw(8) << x << "   ";
-		cerr << endl;
-		
-		for (int32 y = 0; y < dimY; ++y)
+		while (x < endX)
 		{
-			cerr << setw(6) << y;
-			for (int32 x = 0; x < dimX; ++x)
-				cerr << ' ' << setw(7) << B(x, y) << ' ' << setw(2) << int(tb(x, y));
-			cerr << endl;
+			tb(x, y) = -1;
+			++x;
 		}
 		
-		cerr << endl;
+		while (y < endY)
+		{
+			tb(x, y) = 1;
+			++y;
+		}
 	}
 
-//	if (VERBOSE == 6)
-//	{
-//		cerr << "high: " << high << endl
-//			 << "B:" << endl << B << endl
-//			 << "Ix:" << endl << Ix << endl
-//			 << "Iy:" << endl << Iy << endl;
-//	}
-	
-	// build the final alignment
+	// build the alignment
 	x = dimX - 1;
 	y = dimY - 1;
 
-	// first append end-gaps
-	while (x > highX)
-	{
-		foreach (entry* e, b)
-			e->append_gap();
-		--x;
-	}
-
-	while (y > highY)
-	{
-		foreach (entry* e, a)
-			e->append_gap();
-		--y;
-	}
-
-	// then trace back the matrix
+	// trace back the matrix
 	while (x >= 0 and y >= 0)
 	{
 		switch (tb(x, y))
@@ -984,6 +1012,11 @@ void align(
 				--x;
 				--y;
 				break;
+			
+			default:
+				cerr << tb << endl;
+				assert(false);
+				break;
 		}
 	}
 	
@@ -991,14 +1024,14 @@ void align(
 	while (x >= 0)
 	{
 		foreach (entry* e, b)
-			e->insert_gap(0);
+			e->insert_gap(y + 1);
 		--x;
 	}
 
 	while (y >= 0)
 	{
 		foreach (entry* e, a)
-			e->insert_gap(0);
+			e->insert_gap(x + 1);
 		--y;
 	}
 
@@ -1006,40 +1039,75 @@ void align(
 	copy(a.begin(), a.end(), back_inserter(c));
 	copy(b.begin(), b.end(), back_inserter(c));
 	
-#ifndef NDEBUG
-	report(c, cerr, "clustalw");
-	copy(fa->m_pdb_nr.begin(), fa->m_pdb_nr.end(), ostream_iterator<uint16>(cerr, ", ")); cerr << endl;
-	copy(fb->m_pdb_nr.begin(), fb->m_pdb_nr.end(), ostream_iterator<uint16>(cerr, ", ")); cerr << endl;
-#endif
-	
 	// copy over the pdb_nrs to the first line
-	transform(
-		fb->m_pdb_nr.begin(), fb->m_pdb_nr.end(),
-		fa->m_pdb_nr.begin(),
-		c.front()->m_pdb_nr.begin(),
-		max_pdb_nr());
+	if (not pa.empty())
+	{
+		assert(pa.size() == pb.size());
+		vector<uint16> pc(pa.size());
+		transform(
+			pa.begin(), pa.end(),
+			pb.begin(),
+			pc.begin(),
+			max_pdb_nr());
 
-	assert(c.front()->m_pdb_nr.size() == c.front()->m_seq.length());
+		assert(pc.size() == c.front()->m_seq.length());
 
 #ifndef NDEBUG
-	report(c, cerr, "clustalw");
-	copy(c.front()->m_pdb_nr.begin(), c.front()->m_pdb_nr.end(), ostream_iterator<uint16>(cerr, ", "));
-	cerr << endl;
-
-	vector<uint16> test(c.front()->m_pdb_nr);
-	test.erase(remove(test.begin(), test.end(), 0), test.end());
-	uint32 N = test.size();
-	sort(test.begin(), test.end());
-	test.erase(unique(test.begin(), test.end()), test.end());
-	assert(test.size() == N);
+		for (uint32 i = 0; i < pc.size(); ++i)
+		{
+			if (pc[i])
+			{
+cerr << "i: " << i << " pa[i]: " << pa[i] << " pb[i]: " << pb[i] << " pc[i]: " << pc[i] << endl;
+				
+				assert(pa[i] == pc[i] or pb[i] == pc[i]);
+				assert(pa[i] == pb[i] or pa[i] == 0 or pb[i] == 0);
+			}
+		}
 #endif
+
+	}
 	
 	if (VERBOSE == 2)
 		report(c, cerr, "clustalw");
 	
 	assert(fa->m_seq.length() == fb->m_seq.length());
-	assert(fa->m_pdb_nr.size() == fb->m_pdb_nr.size());
-	assert(c.front()->m_pdb_nr.size() == fa->m_pdb_nr.size());
+	assert(c.front()->m_positions.size() == fa->m_positions.size());
+
+//	if (VERBOSE > 7)
+//	{
+//		cerr << "score: " << high << endl
+//			 << "highX: " << highX << endl
+//			 << "highY: " << highY << endl
+//			 << endl;
+//		
+//		foreach (entry* e, c)
+//			cerr << e->m_id << ": " << decode(e->m_seq) << endl;
+//		cerr << endl;
+//		
+//		cerr << "      ";
+//		for (int32 x = 0; x < dimX; ++x)
+//			cerr << setw(8) << x << "   ";
+//		cerr << endl;
+//		
+//		for (int32 y = 0; y < dimY; ++y)
+//		{
+//			cerr << setw(6) << y;
+//			for (int32 x = 0; x < dimX; ++x)
+//				cerr << ' ' << setw(7) << B(x, y) << ' ' << setw(2) << int(tb(x, y));
+//			cerr << endl;
+//		}
+//		
+//		cerr << endl;
+//	}
+//
+//	if (VERBOSE == 6)
+//	{
+//		cerr << "high: " << high << endl
+//			 << "B:" << endl << B << endl
+//			 << "Ix:" << endl << Ix << endl
+//			 << "Iy:" << endl << Iy << endl;
+//	}
+
 }
 
 void createAlignment(joined_node* node, vector<entry*>& alignment,
@@ -1121,7 +1189,7 @@ int main(int argc, char* argv[])
 			matrix = vm["matrix"].as<string>();
 		substitution_matrix_family mat(matrix);
 
-		float gop = 10.f;	if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
+		float gop = 5.f;	if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
 		float gep = 0.2f;	if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
 
 		fs::path path(vm["input"].as<string>());

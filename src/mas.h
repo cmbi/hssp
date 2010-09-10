@@ -67,19 +67,23 @@ struct entry
 	float			weight() const					{ return m_weight; }
 	uint32			length() const					{ return m_seq.length(); }
 
-	void			insert(uint32 pos, aa residue);
-	void			insert_gap(uint32 pos)			{ insert(pos, kSignalGapCode); }
+	void			insert_gap(uint32 pos);
+	void			append_gap();
 
-	void			append(aa residue);
-	void			append_gap()					{ append(kSignalGapCode); }
-	
-	void			dump_positions()				{ m_pdb_nr.clear(); }
+	void			dump_positions()				{ m_positions.clear(); }
 
 	uint32			m_nr;
 	std::string		m_id;
 	sequence		m_seq;
-	std::vector<uint16>
-					m_pdb_nr;
 	float			m_weight;
+	std::vector<uint16>
+					m_positions;
+};
+
+struct alignment
+{
+	uint32				length() const				{ return m_entries.front()->m_seq.length(); }
+
+	std::vector<entry*>	m_entries;
 };
 
