@@ -991,6 +991,8 @@ cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << e
 	x = dimX - 1;
 	y = dimY - 1;
 
+	cerr << tb << endl;
+
 	// trace back the matrix
 	while (x >= 0 and y >= 0)
 	{
@@ -1014,7 +1016,6 @@ cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << e
 				break;
 			
 			default:
-				cerr << tb << endl;
 				assert(false);
 				break;
 		}
