@@ -973,7 +973,12 @@ cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << e
 				float s;
 				if (M >= Ix1 and M >= Iy1)
 				{
-					tb(x, y) = 0;
+					if (x == startX and y > startY)
+						tb(x, y) = -1;
+					else if (y == startY and x > startX)
+						tb(x, y) = 1;
+					else
+						tb(x, y) = 0;
 					B(x, y) = s = M;
 				}
 				else if (Ix1 >= Iy1)
@@ -1013,7 +1018,10 @@ cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << e
 	x = dimX - 1;
 	y = dimY - 1;
 
-//	print_matrix(cerr, tb, fa->m_seq, fb->m_seq);
+	static int mn = 1;
+	ofstream mf((string("matrix-") + boost::lexical_cast<string>(mn++)).c_str());
+	print_matrix(mf, tb, fa->m_seq, fb->m_seq);
+	mf.close();
 
 	// trace back the matrix
 	while (x >= 0 and y >= 0)
