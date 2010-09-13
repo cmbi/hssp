@@ -926,15 +926,18 @@ void align(
 			
 			if (endX < dimX)
 			{
-				while (endX < dimX and pa[endX] < pb[endY])
+				while (endX < dimX and (endY == dimY or pa[endX] < pb[endY]))
 					++endX;
 			}
 			
 			if (endY < dimY)
 			{
-				while (endY < dimY and pb[endY] < pa[endX])
+				while (endY < dimY and (endX == dimX or pb[endY] < pa[endX]))
 					++endY;
 			}
+			
+			if (endX < dimX and endY < dimY and pa[endX] != pb[endY])
+				continue;
 
 			break;
 		}
