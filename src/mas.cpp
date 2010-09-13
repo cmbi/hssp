@@ -1104,10 +1104,10 @@ void align(
 	x = dimX - 1;
 	y = dimY - 1;
 
-	static int mn = 1;
-	ofstream mf((string("matrix-") + boost::lexical_cast<string>(mn++)).c_str());
-	print_matrix(mf, tb, fa->m_seq, fb->m_seq);
-	mf.close();
+//	static int mn = 1;
+//	ofstream mf((string("matrix-") + boost::lexical_cast<string>(mn++)).c_str());
+//	print_matrix(mf, tb, fa->m_seq, fb->m_seq);
+//	mf.close();
 
 	// trace back the matrix
 	while (x >= 0 and y >= 0)
