@@ -252,7 +252,7 @@ float calculateDistance(const entry& a, const entry& b)
 	
 	float result = 1.0f - float(highId) / max(dimX, dimY);
 	
-	if (VERBOSE == 1)
+	if (VERBOSE)
 	{
 		static boost::mutex sLockCout;
 		boost::mutex::scoped_lock lock(sLockCout);
@@ -398,8 +398,6 @@ void joinNeighbours(symmetric_matrix<float>& d, vector<base_node*>& tree)
 			}
 		}
 		
-
-//cerr << "min_i: " << min_i << " min_j: " << min_j << " m: " << m << endl;
 
 		// distance to joined node
 		float d_i, d_j;
@@ -951,8 +949,6 @@ void align(
 		assert(endX <= dimX);
 		assert(endY <= dimY);
 
-cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << endl;
-
 		Ix(x, y) = 0;
 		Iy(x, y) = 0;
 	
@@ -1106,8 +1102,6 @@ cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << e
 		{
 			if (pc[i])
 			{
-cerr << "i: " << i << " pa[i]: " << pa[i] << " pb[i]: " << pb[i] << " pc[i]: " << pc[i] << endl;
-				
 				assert(pa[i] == pc[i] or pb[i] == pc[i]);
 				assert(pa[i] == pb[i] or pa[i] == 0 or pb[i] == 0);
 			}
@@ -1252,6 +1246,8 @@ int main(int argc, char* argv[])
 			readAlignmentFromHsspFile(path, chain, data);
 		else if (path.extension() == ".mapping")
 			readWhatifMappingFile(path, data);
+		else if (path.extension() == ".ids")
+			readFamilyIdsFile(path, data);
 		else
 			readFasta(path, data);
 		

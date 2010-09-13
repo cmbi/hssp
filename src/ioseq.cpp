@@ -340,6 +340,51 @@ void readWhatifMappingFile(fs::path path, vector<entry>& seq)
 	}
 }
 
+void readFamilyIdsFile(fs::path path, vector<entry>& seq)
+{
+	seq.clear();
+
+	fs::ifstream file(path);
+	if (not file.is_open())
+		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
+	
+	fs::path dir = path.parent_path();
+	
+	while (not file.eof())
+	{
+		string id;
+		getline(file, id);
+		
+		if (id.empty())
+			continue;
+		
+		fs::ifstream data(dir / (id + ".mapping"));
+		if (not data.is_open())
+			throw mas_exception(boost::format("Failed to open mapping file for protein %1%") % id);
+		
+		string line, s;
+		vector<uint16> pos;
+
+		while (not data.eof())
+		{
+			getline(data, line);
+	
+			if (line.length() < 3 or line[1] != '\t')
+				continue;
+			
+			s += line[0];
+			pos.push_back(boost::lexical_cast<uint16>(line.substr(2)));
+		}
+		
+		if (not s.empty())
+		{
+			entry e(seq.size(), id, encode(s));
+			e.m_positions = pos;
+			seq.push_back(e);
+		}
+	}
+}
+
 // --------------------------------------------------------------------
 
 void report_in_fasta(const vector<entry*>& alignment, ostream& os)
