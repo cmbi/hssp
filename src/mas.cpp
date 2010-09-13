@@ -1042,12 +1042,25 @@ void align(
 				float s;
 				if (M >= Ix1 and M >= Iy1)
 				{
+					tb(x, y) = 0;
+
 					if (x == startX and x > 0 and y > startY)
-						tb(x, y) = -1;
+					{
+						for (int32 yi = y - 1; yi >= startY; --yi)
+							tb(x - 1, yi) = -1;
+					}
 					else if (y == startY and y > 0 and x > startX)
-						tb(x, y) = 1;
-					else
-						tb(x, y) = 0;
+					{
+						for (int32 xi = x - 1; xi >= startX; --xi)
+							tb(xi, y - 1) = 1;
+					}
+
+					//if (x == startX and x > 0 and y > startY)
+					//	tb(x, y) = -1;
+					//else if (y == startY and y > 0 and x > startX)
+					//	tb(x, y) = 1;
+					//else
+					//	tb(x, y) = 0;
 					B(x, y) = s = M;
 				}
 				else if (Ix1 >= Iy1)
