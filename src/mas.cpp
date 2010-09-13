@@ -209,7 +209,8 @@ float calculateDistance(const entry& a, const entry& b)
 		{
 			if (pa[x] == pb[y] and pa[x] != 0)
 			{
-				++highId;
+				if (a.m_seq[x] == b.m_seq[y])
+					++highId;
 				++x;	++endX;
 				++y;	++endY;
 				continue;
@@ -1041,9 +1042,9 @@ void align(
 				float s;
 				if (M >= Ix1 and M >= Iy1)
 				{
-					if (x == startX and y > startY)
+					if (x == startX and x > 0 and y > startY)
 						tb(x, y) = -1;
-					else if (y == startY and x > startX)
+					else if (y == startY and y > 0 and x > startX)
 						tb(x, y) = 1;
 					else
 						tb(x, y) = 0;
@@ -1104,10 +1105,8 @@ void align(
 	x = dimX - 1;
 	y = dimY - 1;
 
-//	static int mn = 1;
-//	ofstream mf((string("matrix-") + boost::lexical_cast<string>(mn++)).c_str());
-//	print_matrix(mf, tb, fa->m_seq, fb->m_seq);
-//	mf.close();
+	if (VERBOSE >= 6)
+		print_matrix(cerr, tb, fa->m_seq, fb->m_seq);
 
 	// trace back the matrix
 	while (x >= 0 and y >= 0)
@@ -1182,7 +1181,7 @@ void align(
 
 	}
 	
-	if (VERBOSE == 2)
+	if (VERBOSE >= 2)
 		report(c, cerr, "clustalw");
 	
 	assert(fa->m_seq.length() == fb->m_seq.length());
