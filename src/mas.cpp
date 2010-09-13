@@ -175,10 +175,17 @@ struct leaf_node : public base_node
 // --------------------------------------------------------------------
 // distance is calculated as 1 minus the fraction of identical residues
 
+const substitution_matrix kDistanceMatrix("GONNET250");
+const float kDistanceGapOpen = 10;
+const float kDistanceGapExtend = 0.2f;
+
 float calculateDistance(const entry& a, const entry& b)
 {
-	int32 x, dimX = a.m_seq.length();
-	int32 y, dimY = b.m_seq.length();
+	int32 x = 0, endX = 0, dimX = a.m_seq.length();
+	int32 y = 0, endY = 0, dimY = b.m_seq.length();
+
+	const vector<uint16>& pa = a.m_positions;
+	const vector<uint16>& pb = b.m_positions;
 	
 	matrix<float>	B(dimX, dimY);
 	matrix<float>	Ix(dimX, dimY);
@@ -188,69 +195,128 @@ float calculateDistance(const entry& a, const entry& b)
 	Ix(0, 0) = 0;
 	Iy(0, 0) = 0;
 	
-	static const substitution_matrix smat("GONNET250");
-	static const float gapOpen = 10;
-	static const float gapExtend = 0.2f;
+	int32 highId = 0;
 	
-	float high = numeric_limits<float>::min();
-	uint32 highX, highY, highId;
-
-	for (x = 0; x < dimX; ++x)
+	if (pa.empty() or pb.empty())
 	{
-		for (y = 0; y < dimY; ++y)
+		endX = dimX;
+		endY = dimY;
+	}
+
+	while (x < dimX and y < dimY)
+	{
+		if (x == endX and y == endY)
 		{
-			float Ix1 = 0; if (x > 0) Ix1 = Ix(x - 1, y);
-			float Iy1 = 0; if (y > 0) Iy1 = Iy(x, y - 1);
-
-			// (1)
-			float M = smat(a.m_seq[x], b.m_seq[y]);
-			if (x > 0 and y > 0)
-				M += B(x - 1, y - 1);
-
-			float s;
-			uint16 i = 0;
-			if (a.m_seq[x] == b.m_seq[y])
-				i = 1;
-
-			if (M >= Ix1 and M >= Iy1)
+			if (pa[x] == pb[y] and pa[x] != 0)
 			{
-				if (x > 0 and y > 0)
-					i += id(x - 1, y - 1);
-				s = M;
+				++highId;
+				++x;	++endX;
+				++y;	++endY;
+				continue;
 			}
-			else if (Ix1 >= Iy1)
-			{
-				if (x > 0)
-					i += id(x - 1, y);
-				s = Ix1;
-			}
-			else
-			{
-				if (y > 0)
-					i += id(x, y - 1);
-				s = Iy1;
-			}
-			
-			B(x, y) = s;
-			id(x, y) = i;
-			
-			if ((x == dimX - 1 or y == dimY - 1) and high < s)
-			{
-				high = s;
-				highX = x;
-				highY = y;
-				highId = i;
-			}
-
-			// (3)
-			Ix(x, y) = max(M - gapOpen, Ix1 - gapExtend);
-			
-			// (4)
-			Iy(x, y) = max(M - gapOpen, Iy1 - gapExtend);
 		}
+
+		while (endX < dimX or endY < dimY)
+		{
+			if (endX < dimX and pa[endX] == 0)
+			{
+				++endX;
+				continue;
+			}
+
+			if (endY < dimY and pb[endY] == 0)
+			{
+				++endY;
+				continue;
+			}
+
+			if (endX < dimX and endY < dimY and pa[endX] == pb[endY] and pa[endX] != 0)
+				break;
+			
+			if (endX < dimX)
+			{
+				while (endX < dimX and (endY == dimY or pa[endX] < pb[endY]))
+					++endX;
+			}
+			
+			if (endY < dimY)
+			{
+				while (endY < dimY and (endX == dimX or pb[endY] < pa[endX]))
+					++endY;
+			}
+			
+			if (endX < dimX and endY < dimY and pa[endX] != pb[endY])
+				continue;
+
+			break;
+		}
+
+		Ix(x, y) = 0;
+		Iy(x, y) = 0;
+
+		int32 startX = x, startY = y;
+		float high = -numeric_limits<float>::max();
+
+		for (x = startX; x < endX; ++x)
+		{
+			for (y = startY; y < endY; ++y)
+			{
+				float Ix1 = 0; if (x > startX) Ix1 = Ix(x - 1, y);
+				float Iy1 = 0; if (y > startY) Iy1 = Iy(x, y - 1);
+	
+				// (1)
+				float M = kDistanceMatrix(a.m_seq[x], b.m_seq[y]);
+				if (x > 0 and y > 0)
+					M += B(x - 1, y - 1);
+	
+				float s;
+				uint16 i = 0;
+				if (a.m_seq[x] == b.m_seq[y])
+					i = 1;
+	
+				if (M >= Ix1 and M >= Iy1)
+				{
+					if (x > startX and y > startY)
+						i += id(x - 1, y - 1);
+					s = M;
+				}
+				else if (Ix1 >= Iy1)
+				{
+					if (x > startX)
+						i += id(x - 1, y);
+					s = Ix1;
+				}
+				else
+				{
+					if (y > startY)
+						i += id(x, y - 1);
+					s = Iy1;
+				}
+				
+				B(x, y) = s;
+				id(x, y) = i;
+				
+				if ((x == endX - 1 or y == endY - 1) and high < s)
+				{
+					high = s;
+					highId = i;
+				}
+	
+				// (3)
+				Ix(x, y) = max(M - kDistanceGapOpen, Ix1 - kDistanceGapExtend);
+				
+				// (4)
+				Iy(x, y) = max(M - kDistanceGapOpen, Iy1 - kDistanceGapExtend);
+			}
+		}
+
+		x = endX;
+		y = endY;
 	}
 	
 	float result = 1.0f - float(highId) / max(dimX, dimY);
+
+	assert(result >= 0);
 	
 	if (VERBOSE)
 	{
@@ -352,8 +418,10 @@ sequence encode(const string& s)
 			r = '-';
 		
 		aa rc = kAA_Reverse[static_cast<uint8>(r)];
-		if (rc < sizeof(kAA))
-			result.push_back(rc);
+		if (rc >= sizeof(kAA))
+			throw mas_exception(boost::format("invalid residue in sequence %1%") % r);
+
+		result.push_back(rc);
 	}
 	
 	return result;
@@ -700,6 +768,8 @@ const float kResidueSpecificPenalty[20] = {
 	1.25f - 0.2f		// V
 };
 
+const boost::function<bool(aa)> is_hydrophilic = ba::is_any_of(encode("DEGKNQPRS"));
+
 void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq)
 {
 	assert(gop.size() == seq.front()->m_seq.length());
@@ -727,7 +797,6 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 		}
 		
 		// find a run of 5 hydrophilic residues
-		static const boost::function<bool(aa)> is_hydrophilic = ba::is_any_of(encode("DEGKNQPRS"));
 		
 		for (uint32 si = 0, i = 0; i <= gop.size(); ++i)
 		{
@@ -1161,28 +1230,43 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 	progress& pr)
 {
 	vector<entry*> a, b;
-	boost::thread_group t;
 
-	if (dynamic_cast<leaf_node*>(node->left()) != NULL)
-		a.push_back(&static_cast<leaf_node*>(node->left())->m_entry);
-	else
-		t.create_thread(boost::bind(&createAlignment,
-			static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep,
-			boost::ref(pr)));
+	if (MULTI_THREADED)
+	{
+		boost::thread_group t;
 
-	if (not MULTI_THREADED)	// keep the aligning process serial in debug mode
+		if (dynamic_cast<leaf_node*>(node->left()) != NULL)
+			a.push_back(&static_cast<leaf_node*>(node->left())->m_entry);
+		else
+			t.create_thread(boost::bind(&createAlignment,
+				static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep,
+				boost::ref(pr)));
+
+		if (dynamic_cast<leaf_node*>(node->right()) != NULL)
+			b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);
+		else
+			t.create_thread(boost::bind(&createAlignment,
+				static_cast<joined_node*>(node->right()), boost::ref(b), boost::ref(mat), gop, gep,
+				boost::ref(pr)));
+	
 		t.join_all();
-
-	if (dynamic_cast<leaf_node*>(node->right()) != NULL)
-		b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);
+	
+		align(node, a, b, alignment, mat, gop, gep);
+	}
 	else
-		t.create_thread(boost::bind(&createAlignment,
-			static_cast<joined_node*>(node->right()), boost::ref(b), boost::ref(mat), gop, gep,
-			boost::ref(pr)));
+	{
+		if (dynamic_cast<leaf_node*>(node->left()) != NULL)
+			a.push_back(&static_cast<leaf_node*>(node->left())->m_entry);
+		else
+			createAlignment(static_cast<joined_node*>(node->left()), a, mat, gop, gep, pr);
+
+		if (dynamic_cast<leaf_node*>(node->right()) != NULL)
+			b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);
+		else
+			createAlignment(static_cast<joined_node*>(node->right()), b, mat, gop, gep, pr);
 	
-	t.join_all();
-	
-	align(node, a, b, alignment, mat, gop, gep);
+		align(node, a, b, alignment, mat, gop, gep);
+	}
 	
 	pr.step();
 }
@@ -1226,7 +1310,7 @@ int main(int argc, char* argv[])
 		if (vm.count("debug"))
 			VERBOSE = vm["debug"].as<int>();
 
-		if (VERBOSE or vm.count("no-threading"))
+		if (vm.count("no-threads"))
 			MULTI_THREADED = 0;
 
 		// matrix
@@ -1235,7 +1319,7 @@ int main(int argc, char* argv[])
 			matrix = vm["matrix"].as<string>();
 		substitution_matrix_family mat(matrix);
 
-		float gop = 5.f;	if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
+		float gop = 10.f;	if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
 		float gep = 0.2f;	if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
 
 		fs::path path(vm["input"].as<string>());
