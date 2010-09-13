@@ -801,6 +801,30 @@ void matrix<int8>::print(ostream& os) const
 	}
 }
 
+void print_matrix(ostream& os, const matrix<int8>& tb, const sequence& sx, const sequence& sy)
+{
+	os << ' ';
+	for (uint32 x = 0; x < sx.length(); ++x)
+		os << kAA[sx[x]];
+	os << endl;
+
+	for (uint32 y = 0; y < sy.length(); ++y)
+	{
+		os << kAA[sy[y]];
+		for (uint32 x = 0; x < sx.length(); ++x)
+		{
+			switch (tb(x, y))
+			{
+				case -1:	os << '|'; break;
+				case 0:		os << '\\'; break;
+				case 1:		os << '-'; break;
+				case 2:		os << '.'; break;
+			}
+		}
+		os << endl;
+	}
+}
+
 void align(
 	const joined_node* node,
 	vector<entry*>& a, vector<entry*>& b, vector<entry*>& c,
@@ -868,52 +892,55 @@ void align(
 		endY = dimY;
 	}
 
+	int32 highX = 0, highY = 0;
+
 	while (x < dimX and y < dimY)
 	{
-		if (x >= endX or y >= endY)
+		if (x == endX and y == endY)
 		{
-			if (pa[x] < pb[y])
-			{
-				tb(x, y) = -1;
-				++x; ++endX;
-				continue;
-			}
-
-			if (pa[x] > pb[y])
-			{
-				tb(x, y) = 1;
-				++y; ++endY;
-				continue;
-			}
-			
 			if (pa[x] == pb[y] and pa[x] != 0)
 			{
 				tb(x, y) = 0;
+				highX = x;
+				highY = y;
 				++x;	++endX;
 				++y;	++endY;
 				continue;
 			}
-			
-			while (endX < dimX or endY < dimY)
-			{
-				if (endX < dimX and pa[endX] == 0)
-				{
-					++endX;
-					continue;
-				}
+		}
 
-				if (endY < dimY and pb[endY] == 0)
-				{
-					++endY;
-					continue;
-				}
-				
-				assert((endX == dimX and endY == dimY) or pa[endX] != 0 or pb[endY] != 0);
+		while (endX < dimX or endY < dimY)
+		{
+			if (endX < dimX and pa[endX] == 0)
+			{
+				++endX;
+				continue;
+			}
+
+			if (endY < dimY and pb[endY] == 0)
+			{
+				++endY;
+				continue;
+			}
+
+			if (endX < dimX and endY < dimY and pa[endX] == pb[endY] and pa[endX] != 0)
 				break;
+			
+			if (endX < dimX)
+			{
+				while (endX < dimX and pa[endX] < pb[endY])
+					++endX;
 			}
 			
+			if (endY < dimY)
+			{
+				while (endY < dimY and pb[endY] < pa[endX])
+					++endY;
+			}
+
+			break;
 		}
-		
+
 		if (endX < dimX or endY < dimY)
 		{
 			assert(endX < dimX);
@@ -921,8 +948,6 @@ void align(
 			assert(pa[endX] == pb[endY]);
 		}
 
-		assert(endX > x);
-		assert(endY > y);
 		assert(endX <= dimX);
 		assert(endY <= dimY);
 
@@ -932,7 +957,7 @@ cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << e
 		Iy(x, y) = 0;
 	
 		float high = kSentinelValue;
-		int32 highX = endX, highY = endY, startX = x, startY = y;
+		int32 startX = x, startY = y;
 		
 		for (x = startX; x < endX; ++x)
 		{
@@ -969,29 +994,26 @@ cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << e
 					highY = y;
 				}
 				
-				Ix(x, y) = max(s - gop_a[x], Ix1 - gep_a[x]);
-				Iy(x, y) = max(s - gop_b[y], Iy1 - gep_b[y]);
+				Ix(x, y) = max(s - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
+				Iy(x, y) = max(s - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
 			}
 		}
+
+		for (x = highX + 1; x < endX; ++x)
+			tb(x, endY - 1) = 1;
+
+		for (y = highY + 1; y < endY; ++y)
+			tb(endX - 1, y) = -1;
 		
-		while (x < endX)
-		{
-			tb(x, y) = -1;
-			++x;
-		}
-		
-		while (y < endY)
-		{
-			tb(x, y) = 1;
-			++y;
-		}
+		x = endX;
+		y = endY;
 	}
 
 	// build the alignment
 	x = dimX - 1;
 	y = dimY - 1;
 
-	cerr << tb << endl;
+//	print_matrix(cerr, tb, fa->m_seq, fb->m_seq);
 
 	// trace back the matrix
 	while (x >= 0 and y >= 0)

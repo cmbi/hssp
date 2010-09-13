@@ -73,6 +73,9 @@ void progress::step()
 
 void progress::run()
 {
+	if (VERBOSE)
+		return;
+
 	bool first = true;
 
 	// first, get the current terminal width
