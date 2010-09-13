@@ -1014,6 +1014,12 @@ cerr << "x: " << x << " y: " << y << " endX: " << endX << " endY: " << endY << e
 		y = endY;
 	}
 
+	for (x = highX + 1; x < dimX; ++x)
+		tb(x, endY - 1) = 1;
+
+	for (y = highY + 1; y < dimY; ++y)
+		tb(endX - 1, y) = -1;
+
 	// build the alignment
 	x = dimX - 1;
 	y = dimY - 1;
