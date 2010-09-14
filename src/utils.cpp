@@ -65,10 +65,10 @@ progress::~progress()
 	m_thread.join();
 }
 
-void progress::step()
+void progress::step(uint32 advance)
 {
 	boost::mutex::scoped_lock lock(m_mutex);
-	++m_step;
+	m_step += advance;
 }
 
 void progress::run()

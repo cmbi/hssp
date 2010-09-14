@@ -28,7 +28,7 @@ class progress
 					progress(const std::string& message, uint32 max);
 					~progress();
 
-	void			step();
+	void			step(uint32 advance = 1);
 
   private:
 	

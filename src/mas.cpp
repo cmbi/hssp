@@ -93,6 +93,11 @@ struct base_node
 
 	virtual void		add_weight(float w) = 0;
 	virtual uint32		leaf_count() const	{ return 1; }
+
+	virtual uint32		length() const = 0;
+	virtual uint32		cost() const		{ return 0; }
+	virtual uint32		cumulative_cost() const
+											{ return 0; }
 };
 
 ostream& operator<<(ostream& lhs, base_node& rhs)
@@ -110,11 +115,10 @@ struct joined_node : public base_node
 							, m_d_left(d_left)
 							, m_d_right(d_right)
 							, m_leaf_count(left->leaf_count() + right->leaf_count())
+							, m_length(max(left->length(), right->length()))
 						{
 							m_left->add_weight(d_left / m_left->leaf_count());
 							m_right->add_weight(d_right / m_right->leaf_count());
-							
-							++s_count;
 						}
 
 	virtual				~joined_node()
@@ -140,16 +144,19 @@ struct joined_node : public base_node
 						}
 
 	virtual uint32		leaf_count() const	{ return m_leaf_count; }
+	virtual uint32		length() const		{ return m_length; }
+
+	virtual uint32		cost() const		{ return m_length * m_leaf_count; }
+	virtual uint32		cumulative_cost() const
+											{ return cost() + m_left->cumulative_cost() + m_right->cumulative_cost(); }
 	
 	base_node*			m_left;
 	base_node*			m_right;
 	float				m_d_left;
 	float				m_d_right;
 	uint32				m_leaf_count;
-	static uint32		s_count;
+	uint32				m_length;
 };
-
-uint32 joined_node::s_count;
 
 struct leaf_node : public base_node
 {
@@ -168,6 +175,8 @@ struct leaf_node : public base_node
 						{
 							m_entry.m_weight += w;
 						}
+
+	virtual uint32		length() const		{ return m_entry.m_seq.length(); }
 
 	entry&				m_entry;
 };
@@ -1280,7 +1289,7 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 		align(node, a, b, alignment, mat, gop, gep);
 	}
 	
-	pr.step();
+	pr.step(node->cost());
 }
 
 int main(int argc, char* argv[])
@@ -1415,7 +1424,7 @@ int main(int argc, char* argv[])
 		if (VERBOSE)
 			cerr << *root << ';' << endl;
 		
-		progress pr("calculating alignments", joined_node::s_count);
+		progress pr("calculating alignments", root->cumulative_cost());
 		createAlignment(root, alignment, mat, gop, gep, pr);
 
 		sort(alignment.begin(), alignment.end(),
