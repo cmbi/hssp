@@ -222,11 +222,11 @@ void readAlignmentFromHsspFile(
 				for (int32 i = 0; i < n; ++i)
 				{
 					char a = line[51 + i];
-					if (a != ' ' and a != '.')
-					{
-						s[i] += a;
-						seq[a_f + i].m_positions.push_back(pdbno_value);
-					}
+					if (a == ' ' or a == '.')
+						a = '-';
+
+					s[i] += a;
+					seq[a_f + i].m_positions.push_back(pdbno_value);
 				}
 			}
 		}
@@ -255,19 +255,41 @@ void readAlignmentFromHsspFile(
 	
 	// process ## INSERTION LIST, if any
 	
+	while (not file.eof() and ba::starts_with(line, "## ") and
+		not ba::starts_with(line, "## INSERTION LIST"))
+	{
+		do
+		{
+			getline(file, line);
+		}
+		while (not (file.eof() or ba::starts_with(line, "## ")));
+	}
+	
 	if (ba::starts_with(line, "## INSERTION LIST"))
 	{
 		getline(file, line);
 		
-		while (not (file.eof() or ba::starts_with(line, "//")))
+		for (;;)
 		{
-			
-			
-			
 			getline(file, line);
+			
+			if (file.eof() or ba::starts_with(line, "//"))
+				break;
+
+			uint32 l = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(20, 4)));
+			
+			if (line.length() != 25 + l + 2)
+				throw mas_exception("Invalid HSSP file, incorrect insertion length");
+			
+			sequence ins = encode(line.substr(26, l));
+			
+			uint32 p = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(8, 4))) - 1;
+			uint32 a = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(2, 4)));
+			
+			seq[a].m_seq.insert(p, ins);
+			seq[a].m_positions.insert(seq[a].m_positions.begin() + p, l, 0);
 		}
 	}
-	
 	
 	seq.erase(
 		remove_if(seq.begin(), seq.end(), boost::bind(&entry::length, _1) == 0),

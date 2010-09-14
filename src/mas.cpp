@@ -263,6 +263,8 @@ float calculateDistance(const entry& a, const entry& b)
 
 		Ix(x, y) = 0;
 		Iy(x, y) = 0;
+		if (x > 0 and y > 0)
+			id(x - 1, y - 1) = highId;
 
 		int32 startX = x, startY = y;
 		float high = -numeric_limits<float>::max();
@@ -326,13 +328,14 @@ float calculateDistance(const entry& a, const entry& b)
 	
 	float result = 1.0f - float(highId) / max(dimX, dimY);
 
-	assert(result >= 0);
+	assert(result >= 0.0f);
+	assert(result <= 1.0f);
 	
 	if (VERBOSE)
 	{
 		static boost::mutex sLockCout;
 		boost::mutex::scoped_lock lock(sLockCout);
-		cout << (boost::format("Sequences (%1$d:%2$d) Aligned. Score: %3$4.2f") % (a.m_nr + 1) % (b.m_nr + 1) % result) << endl;
+		cerr << (boost::format("Sequences (%1$d:%2$d) Aligned. Score: %3$4.2f") % (a.m_nr + 1) % (b.m_nr + 1) % result) << endl;
 	}
 	
 	return result;
@@ -933,7 +936,11 @@ void align(
 	matrix<float> B(dimX, dimY);
 	matrix<float> Ix(dimX, dimY);
 	matrix<float> Iy(dimX, dimY);
-	matrix<int8> tb(dimX, dimY, 2);
+	matrix<int8> tb(dimX, dimY
+#ifndef NDEBUG
+								, 2
+#endif
+									);
 	
 	const substitution_matrix& smat = mat_fam(abs(node->m_d_left + node->m_d_right), true);
 
@@ -1175,69 +1182,17 @@ void align(
 	if (not pa.empty())
 	{
 		assert(pa.size() == pb.size());
-		vector<uint16> pc(pa.size());
+		vector<uint16>& pc = c.front()->m_positions;
+		
 		transform(
 			pa.begin(), pa.end(),
 			pb.begin(),
 			pc.begin(),
 			max_pdb_nr());
-
-		assert(pc.size() == c.front()->m_seq.length());
-
-#ifndef NDEBUG
-		for (uint32 i = 0; i < pc.size(); ++i)
-		{
-			if (pc[i])
-			{
-				assert(pa[i] == pc[i] or pb[i] == pc[i]);
-				assert(pa[i] == pb[i] or pa[i] == 0 or pb[i] == 0);
-			}
-		}
-#endif
-
 	}
 	
 	if (VERBOSE >= 2)
 		report(c, cerr, "clustalw");
-	
-	assert(fa->m_seq.length() == fb->m_seq.length());
-	assert(c.front()->m_positions.size() == fa->m_positions.size());
-
-//	if (VERBOSE > 7)
-//	{
-//		cerr << "score: " << high << endl
-//			 << "highX: " << highX << endl
-//			 << "highY: " << highY << endl
-//			 << endl;
-//		
-//		foreach (entry* e, c)
-//			cerr << e->m_id << ": " << decode(e->m_seq) << endl;
-//		cerr << endl;
-//		
-//		cerr << "      ";
-//		for (int32 x = 0; x < dimX; ++x)
-//			cerr << setw(8) << x << "   ";
-//		cerr << endl;
-//		
-//		for (int32 y = 0; y < dimY; ++y)
-//		{
-//			cerr << setw(6) << y;
-//			for (int32 x = 0; x < dimX; ++x)
-//				cerr << ' ' << setw(7) << B(x, y) << ' ' << setw(2) << int(tb(x, y));
-//			cerr << endl;
-//		}
-//		
-//		cerr << endl;
-//	}
-//
-//	if (VERBOSE == 6)
-//	{
-//		cerr << "high: " << high << endl
-//			 << "B:" << endl << B << endl
-//			 << "Ix:" << endl << Ix << endl
-//			 << "Iy:" << endl << Iy << endl;
-//	}
-
 }
 
 void createAlignment(joined_node* node, vector<entry*>& alignment,

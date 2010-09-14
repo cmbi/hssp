@@ -24,9 +24,6 @@ typedef unsigned short	uint16;
 typedef long			int32;
 typedef unsigned long	uint32;
 
-#if defined(DEBUG) || ! defined(NDEBUG)
-extern int DEBUG;
-#endif
 extern int VERBOSE;
 
 // --------------------------------------------------------------------
