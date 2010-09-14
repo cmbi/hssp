@@ -276,7 +276,7 @@ float calculateDistance(const entry& a, const entry& b)
 	
 				// (1)
 				float M = kDistanceMatrix(a.m_seq[x], b.m_seq[y]);
-				if (x > 0 and y > 0)
+				if (x > startX and y > startY)
 					M += B(x - 1, y - 1);
 	
 				float s;
@@ -424,7 +424,7 @@ sequence encode(const string& s)
 
 	foreach (char r, s)
 	{
-		if (r == '.' or r == '*')
+		if (r == '.' or r == '*' or r == '~')
 			r = '-';
 		
 		aa rc = kAA_Reverse[static_cast<uint8>(r)];
@@ -1036,6 +1036,18 @@ void align(
 	
 		float high = kSentinelValue;
 		int32 startX = x, startY = y;
+
+		if (y > 0)
+		{
+			for (int32 ix = x; ix < endX; ++ix)
+				tb(ix, y - 1) = 1;
+		}
+
+		if (x > 0)
+		{
+			for (int32 iy = y; iy < endY; ++iy)
+				tb(x - 1, iy) = -1;
+		}
 		
 		for (x = startX; x < endX; ++x)
 		{
@@ -1052,24 +1064,6 @@ void align(
 				if (M >= Ix1 and M >= Iy1)
 				{
 					tb(x, y) = 0;
-
-					if (x == startX and x > 0 and y > startY)
-					{
-						for (int32 yi = y - 1; yi >= startY; --yi)
-							tb(x - 1, yi) = -1;
-					}
-					else if (y == startY and y > 0 and x > startX)
-					{
-						for (int32 xi = x - 1; xi >= startX; --xi)
-							tb(xi, y - 1) = 1;
-					}
-
-					//if (x == startX and x > 0 and y > startY)
-					//	tb(x, y) = -1;
-					//else if (y == startY and y > 0 and x > startX)
-					//	tb(x, y) = 1;
-					//else
-					//	tb(x, y) = 0;
 					B(x, y) = s = M;
 				}
 				else if (Ix1 >= Iy1)
@@ -1090,8 +1084,8 @@ void align(
 					highY = y;
 				}
 				
-				Ix(x, y) = max(s - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
-				Iy(x, y) = max(s - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
+				Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
+				Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
 			}
 		}
 
