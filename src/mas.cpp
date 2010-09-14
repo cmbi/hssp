@@ -204,7 +204,7 @@ float calculateDistance(const entry& a, const entry& b)
 	Ix(0, 0) = 0;
 	Iy(0, 0) = 0;
 	
-	int32 highId = 0;
+	uint16 highId = 0;
 	
 	if (pa.empty() or pb.empty())
 	{
@@ -268,6 +268,7 @@ float calculateDistance(const entry& a, const entry& b)
 
 		int32 startX = x, startY = y;
 		float high = -numeric_limits<float>::max();
+		uint16 highIdSub = 0;
 
 		for (x = startX; x < endX; ++x)
 		{
@@ -311,7 +312,7 @@ float calculateDistance(const entry& a, const entry& b)
 				if ((x == endX - 1 or y == endY - 1) and high < s)
 				{
 					high = s;
-					highId = i;
+					highIdSub = i;
 				}
 	
 				// (3)
@@ -321,6 +322,8 @@ float calculateDistance(const entry& a, const entry& b)
 				Iy(x, y) = max(M - kDistanceGapOpen, Iy1 - kDistanceGapExtend);
 			}
 		}
+
+		highId += highIdSub;
 
 		x = endX;
 		y = endY;
