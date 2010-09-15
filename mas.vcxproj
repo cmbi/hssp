@@ -79,6 +79,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\buffer.h" />
+    <ClInclude Include="src\guide.h" />
     <ClInclude Include="src\ioseq.h" />
     <ClInclude Include="src\mas.h" />
     <ClInclude Include="src\matrix.h" />
@@ -86,6 +87,7 @@
     <ClInclude Include="src\utils.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\guide.cpp" />
     <ClCompile Include="src\ioseq.cpp" />
     <ClCompile Include="src\mas.cpp" />
     <ClCompile Include="src\matrix.cpp" />

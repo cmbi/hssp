@@ -690,7 +690,6 @@ float align(
 	}
 
 	int32 highX = 0, highY = 0;
-	float result = 0;
 
 	while (x < dimX and y < dimY)
 	{
@@ -698,11 +697,6 @@ float align(
 		{
 			if (pa[x] == pb[y] and pa[x] != 0)
 			{
-				float M = score(a, b, x, y, smat);
-				if (x > 0 and y > 0)
-					M += B(x, y);
-				B(x, y) = M;
-				
 				tb(x, y) = 0;
 				highX = x;
 				highY = y;
@@ -750,7 +744,7 @@ float align(
 		Ix(x, y) = 0;
 		Iy(x, y) = 0;
 	
-		float high = kSentinelValue;
+		float high = 0;
 		int32 startX = x, startY = y;
 
 		if (y > 0)
@@ -805,38 +799,22 @@ float align(
 			}
 		}
 
-		if (endY > 0 and highX + 1 < endX)
+		if (endY > 0)
 		{
-			high -= gop_a[highX + 1];
-			tb(x, endY - 1) = 1;
-			for (x = highX + 2; x < endX; ++x)
-			{
-				high -= gep_a[x];
+			for (x = highX + 1; x < endX; ++x)
 				tb(x, endY - 1) = 1;
-			}
 		}
 
-		if (endX > 0 and highY + 1 < endY)
+		if (endX > 0)
 		{
-			high -= gop_b[highY + 1];
-			for (y = highY + 2; y < endY; ++y)
-			{
-				high -= gep_b[y];
+			for (y = highY + 1; y < endY; ++y)
 				tb(endX - 1, y) = -1;
-			}
 		}
 		
 		x = endX;
 		y = endY;
-		
-		if (startX > 0 and startY > 0)
-			high += B(startX - 1, startY - 1);
-		B(x - 1, y - 1) = high;
 	}
 	
-	result = B(dimX - 1, dimY - 1);
-	cerr << "alignment score: " << result << endl;
-
 	if (endY > 0)
 	{
 		for (x = highX + 1; x < dimX; ++x)
@@ -856,7 +834,8 @@ float align(
 	if (VERBOSE >= 6)
 		print_matrix(cerr, tb, fa->m_seq, fb->m_seq);
 
-	// trace back the matrix
+	// trace back the matrix and calculate a score for this alignment
+	float result = 0;
 	while (x >= 0 and y >= 0)
 	{
 		switch (tb(x, y))
@@ -874,6 +853,7 @@ float align(
 				break;
 
 			case 0:
+				result += score(a, b, x, y, smat);
 				--x;
 				--y;
 				break;
@@ -961,7 +941,7 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 			createAlignment(static_cast<joined_node*>(node->right()), b, mat, gop, gep, magic, pr);
 	}
 
-	align(node, a, b, alignment, mat, gop, gep, magic);
+	float score = align(node, a, b, alignment, mat, gop, gep, magic);
 	
 	pr.step(node->cost());
 }
