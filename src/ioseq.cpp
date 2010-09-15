@@ -13,6 +13,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/regex.hpp>
+#include <boost/date_time/local_time/local_time.hpp>
 
 #include "ioseq.h"
 #include "utils.h"
@@ -305,7 +306,6 @@ void readAlignmentFromHsspFile(
 //
 //		cout << endl << endl;
 //	}
-	
 }
 
 void readWhatifMappingFile(fs::path path, vector<entry>& seq)
@@ -532,12 +532,86 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 	}
 }
 
+uint32 gcg_checksum(const sequence& seq)
+{
+	uint32 result = 0, i = 0;
+	
+	foreach (aa r, seq)
+		result += ((i++ % 57) + 1) * kAA[r];
+
+	return result % 10000;
+}
+
+void report_in_msf(const vector<entry*>& alignment, ostream& os)
+{
+	using namespace boost::posix_time;
+
+	uint32 nseq = alignment.size();
+	uint32 len = alignment.front()->m_seq.length();
+	
+	os << "!!AA_MULTIPLE_ALIGNMENT 1.0" << endl
+	   << endl
+	   << " Mas MSF: " << len
+	   << " Type: P " << second_clock::local_time()
+	   << " Check: 0" << endl
+	   << endl;
+
+	foreach (const entry* e, alignment)
+	{
+		os << "Name: " << e->m_id << ' '
+		   << "Len: " << e->m_seq.length() << ' '
+		   << "Check: " << gcg_checksum(e->m_seq) << ' '
+		   << "Weight: " << e->m_weight
+		   << endl;
+	}
+	
+	os << endl
+	   << "//" << endl
+	   << endl;
+
+	uint32 offset = 0;
+	while (offset < len)
+	{
+		uint32 n = len - offset;
+		if (n > 50)
+			n = 50;
+		
+		string l1 = boost::lexical_cast<string>(offset + 1);
+		string l2 = boost::lexical_cast<string>(offset + 50);
+		
+		os << string(22, ' ') << l1 << string(54 - l1.length() - l2.length(), ' ') << l2 << endl;
+		
+		foreach (const entry* e, alignment)
+		{
+			string ss = decode(e->m_seq.substr(offset, n));
+			for (uint32 i = 4; i > 0; --i)
+			{
+				if (ss.length() > i * 10)
+					ss.insert(ss.begin() + i * 10, ' ');
+			}
+			
+			string id = e->m_id;
+			if (id.length() > 21)
+				id = id.substr(0, 18) + "...";
+			else if (id.length() < 21)
+				id += string(21 - id.length(), ' ');
+			
+			os << id << ' ' << ss << endl;
+		}
+		
+		offset += n;
+		os << endl;
+	}
+}
+
 void report(const vector<entry*>& alignment, ostream& os, const string& format)
 {
 	if (format == "fasta")
 		report_in_fasta(alignment, os);
 	else if (format == "clustalw")
 		report_in_clustalw(alignment, os);
+	else if (format == "msf")
+		report_in_msf(alignment, os);
 	else
 		throw mas_exception(boost::format("Unknown output format %1%") % format);
 }

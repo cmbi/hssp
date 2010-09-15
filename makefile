@@ -38,6 +38,7 @@ CFLAGS				+= $(OPT)
 VPATH += src
 
 OBJECTS = \
+	obj/guide.o \
 	obj/ioseq.o \
 	obj/mas.o \
 	obj/matrix.o \

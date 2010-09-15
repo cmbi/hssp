@@ -1,5 +1,5 @@
-// mas is a reimplementation of Clustal W
-//
+// mas is a reimplementation of Clustal W with support for
+// predefined blocks of aligned positions in the input sequence.
 
 #pragma once
 
@@ -77,10 +77,78 @@ struct entry
 					m_positions;
 };
 
-struct alignment
-{
-	uint32				length() const				{ return m_entries.front()->m_seq.length(); }
+// --------------------------------------------------------------------
 
-	std::vector<entry*>	m_entries;
+struct base_node
+{
+	virtual				~base_node() {}
+
+	virtual void		print(std::ostream& s) = 0;	
+
+	virtual base_node*	left() const		{ return 0; }
+	virtual base_node*	right() const		{ return 0; }
+
+	virtual void		add_weight(float w) = 0;
+	virtual uint32		leaf_count() const	{ return 1; }
+
+	virtual uint32		length() const = 0;
+	virtual uint32		cost() const		{ return 0; }
+	virtual uint32		cumulative_cost() const
+											{ return 0; }
+};
+
+std::ostream& operator<<(std::ostream& lhs, base_node& rhs);
+
+struct joined_node : public base_node
+{
+						joined_node(base_node* left, base_node* right,
+							float d_left, float d_right);
+
+	virtual				~joined_node();
+
+	virtual void		print(std::ostream& s);
+
+	virtual base_node*	left() const		{ return m_left; }
+	virtual base_node*	right() const		{ return m_right; }
+
+	virtual void		add_weight(float w)
+						{
+							m_left->add_weight(w);
+							m_right->add_weight(w);
+						}
+
+	virtual uint32		leaf_count() const	{ return m_leaf_count; }
+	virtual uint32		length() const		{ return m_length; }
+
+	virtual uint32		cost() const		{ return m_length * m_leaf_count; }
+	virtual uint32		cumulative_cost() const
+											{ return cost() + m_left->cumulative_cost() + m_right->cumulative_cost(); }
+	
+	base_node*			m_left;
+	base_node*			m_right;
+	float				m_d_left;
+	float				m_d_right;
+	uint32				m_leaf_count;
+	uint32				m_length;
+};
+
+struct leaf_node : public base_node
+{
+						leaf_node(entry& e)
+							: m_entry(e)
+						{
+							m_entry.m_weight = 0;
+						}
+
+	virtual void		print(std::ostream& s);
+
+	virtual void		add_weight(float w)
+						{
+							m_entry.m_weight += w;
+						}
+
+	virtual uint32		length() const		{ return m_entry.m_seq.length(); }
+
+	entry&				m_entry;
 };
 

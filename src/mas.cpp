@@ -25,6 +25,7 @@
 #include "matrix.h"
 #include "buffer.h"
 #include "utils.h"
+#include "guide.h"
 
 using namespace std;
 using namespace tr1;
@@ -82,104 +83,42 @@ void entry::append_gap()
 
 // --------------------------------------------------------------------
 
-struct base_node
-{
-	virtual				~base_node() {}
-
-	virtual void		print(ostream& s) = 0;	
-
-	virtual base_node*	left() const		{ return 0; }
-	virtual base_node*	right() const		{ return 0; }
-
-	virtual void		add_weight(float w) = 0;
-	virtual uint32		leaf_count() const	{ return 1; }
-
-	virtual uint32		length() const = 0;
-	virtual uint32		cost() const		{ return 0; }
-	virtual uint32		cumulative_cost() const
-											{ return 0; }
-};
-
 ostream& operator<<(ostream& lhs, base_node& rhs)
 {
 	rhs.print(lhs);
 	return lhs;
 }
 
-struct joined_node : public base_node
+joined_node::joined_node(base_node* left, base_node* right,
+	float d_left, float d_right)
+	: m_left(left)
+	, m_right(right)
+	, m_d_left(d_left)
+	, m_d_right(d_right)
+	, m_leaf_count(left->leaf_count() + right->leaf_count())
+	, m_length(max(left->length(), right->length()))
 {
-						joined_node(base_node* left, base_node* right,
-							float d_left, float d_right)
-							: m_left(left)
-							, m_right(right)
-							, m_d_left(d_left)
-							, m_d_right(d_right)
-							, m_leaf_count(left->leaf_count() + right->leaf_count())
-							, m_length(max(left->length(), right->length()))
-						{
-							m_left->add_weight(d_left / m_left->leaf_count());
-							m_right->add_weight(d_right / m_right->leaf_count());
-						}
+	m_left->add_weight(d_left / m_left->leaf_count());
+	m_right->add_weight(d_right / m_right->leaf_count());
+}
 
-	virtual				~joined_node()
-						{
-							delete m_left;
-							delete m_right;
-						}
-
-	virtual void		print(ostream& s)
-						{
-							s << '(' << endl
-							  << *m_left << (boost::format(":%1.4f") % m_d_left) << ',' << endl
-							  << *m_right << (boost::format(":%1.4f") % m_d_right) << ')' << endl;
-						}
-
-	virtual base_node*	left() const		{ return m_left; }
-	virtual base_node*	right() const		{ return m_right; }
-
-	virtual void		add_weight(float w)
-						{
-							m_left->add_weight(w);
-							m_right->add_weight(w);
-						}
-
-	virtual uint32		leaf_count() const	{ return m_leaf_count; }
-	virtual uint32		length() const		{ return m_length; }
-
-	virtual uint32		cost() const		{ return m_length * m_leaf_count; }
-	virtual uint32		cumulative_cost() const
-											{ return cost() + m_left->cumulative_cost() + m_right->cumulative_cost(); }
-	
-	base_node*			m_left;
-	base_node*			m_right;
-	float				m_d_left;
-	float				m_d_right;
-	uint32				m_leaf_count;
-	uint32				m_length;
-};
-
-struct leaf_node : public base_node
+joined_node::~joined_node()
 {
-						leaf_node(entry& e)
-							: m_entry(e)
-						{
-							m_entry.m_weight = 0;
-						}
+	delete m_left;
+	delete m_right;
+}
 
-	virtual void		print(ostream& s)
-						{
-							s << m_entry.m_id;
-						}
+void joined_node::print(ostream& s)
+{
+	s << '(' << endl
+	  << *m_left << (boost::format(":%1.4f") % m_d_left) << ',' << endl
+	  << *m_right << (boost::format(":%1.4f") % m_d_right) << ')' << endl;
+}
 
-	virtual void		add_weight(float w)
-						{
-							m_entry.m_weight += w;
-						}
-
-	virtual uint32		length() const		{ return m_entry.m_seq.length(); }
-
-	entry&				m_entry;
-};
+void leaf_node::print(ostream& s)
+{
+	s << m_entry.m_id;
+}
 
 // --------------------------------------------------------------------
 // distance is calculated as 1 minus the fraction of identical residues
@@ -339,6 +278,8 @@ float calculateDistance(const entry& a, const entry& b)
 		static boost::mutex sLockCout;
 		boost::mutex::scoped_lock lock(sLockCout);
 		cerr << (boost::format("Sequences (%1$d:%2$d) Aligned. Score: %3$4.2f") % (a.m_nr + 1) % (b.m_nr + 1) % result) << endl;
+		if (VERBOSE >= 2)
+			cerr << "  " << a.m_id << ':' << b.m_id << endl;
 	}
 	
 	return result;
@@ -524,214 +465,6 @@ void joinNeighbours(symmetric_matrix<float>& d, vector<base_node*>& tree)
 
 // --------------------------------------------------------------------
 
-class GuideTreeParser
-{
-  public:
-						GuideTreeParser(istream& data, map<string,leaf_node*>& m)
-							: m_data(data)
-							, m_map(m)
-						{
-							getNextToken();
-						}
-	
-	base_node*			parse();
-
-  private:
-
-	enum GuideTreeToken {
-		gtt_Undef,
-		gtt_Open,
-		gtt_Close,
-		gtt_End,
-		gtt_ID,
-		gtt_Colon,
-		gtt_Comma,
-		gtt_Weight
-	};
-	
-	void				getNextToken();
-	void				match(GuideTreeToken token);
-	
-	tr1::tuple<base_node*,float>
-						parseNode();
-	base_node*			parseGroup();
-	
-	istream&			m_data;
-	map<string,leaf_node*>&
-						m_map;
-	float				m_value;
-	string				m_token;
-	GuideTreeToken		m_lookahead;
-};
-
-void GuideTreeParser::getNextToken()
-{
-	m_lookahead = gtt_Undef;
-	m_token.clear();
-	m_value = 0;
-	
-	enum State {
-		st_Start,
-		st_ID,
-		st_Number,
-		st_Fraction
-	} state = st_Start, start = st_Start;
-	
-	while (m_lookahead == gtt_Undef)
-	{
-		char ch = 0;
-		m_data.get(ch);
-		
-		m_token += ch;
-		
-		switch (state)
-		{
-			case st_Start:
-				switch (ch)
-				{
-					case ' ':
-					case '\r':
-					case '\n':
-					case '\t':	m_token.clear();			break;
-					case '(':	m_lookahead = gtt_Open;		break;
-					case ')':	m_lookahead = gtt_Close;	break;
-					case ':':	m_lookahead = gtt_Colon;	break;
-					case ',':	m_lookahead = gtt_Comma;	break;
-					case ';':	m_lookahead = gtt_End;		break;
-					default:
-						if (isdigit(ch) or ch == '-')
-							state = st_Number;
-						else if (isalnum(ch) or ch == '_')
-							state = st_ID;
-						else
-							throw mas_exception(boost::format("unexpected character '%1%' in guide tree") % ch);
-						break;
-				}
-				break;
-			
-			case st_Number:
-				if (ch == '.')
-					state = st_Fraction;
-				else if (not isdigit(ch))
-				{
-					m_data.unget();
-					m_token.erase(m_token.end() - 1);
-					m_lookahead = gtt_Weight;
-				}
-				break;
-			
-			case st_Fraction:
-				if (not isdigit(ch))
-				{
-					m_data.unget();
-					m_token.erase(m_token.end() - 1);
-					m_lookahead = gtt_Weight;
-				}
-				break;
-			
-			case st_ID:
-				if (not isalnum(ch) and ch != '_')
-				{
-					m_data.unget();
-					m_token.erase(m_token.end() - 1);
-					m_lookahead = gtt_ID;
-				}
-				break;
-		}
-	}
-}
-
-void GuideTreeParser::match(GuideTreeToken token)
-{
-	if (token == m_lookahead)
-		getNextToken();
-	else
-		throw mas_exception(boost::format("invalid guide tree, expected %1% but found %2% ('%3%')") %
-			int(token) % int(m_lookahead) % m_token);
-}
-
-tr1::tuple<base_node*,float> GuideTreeParser::parseNode()
-{
-	base_node* n = NULL;
-	float w = 0;
-	
-	if (m_lookahead == gtt_Open)
-		n = parseGroup();
-	else
-	{
-		n = m_map[m_token];
-		if (n == NULL)
-			throw mas_exception(boost::format("guide tree contains unknown id %1%") % m_token);
-		match(gtt_ID);
-	}
-	
-	if (m_lookahead == gtt_Colon)
-	{
-		match(gtt_Colon);
-		w = boost::lexical_cast<float>(m_token);
-		match(gtt_Weight);
-	}
-	
-	return tr1::make_tuple(n, w);
-}
-
-base_node* GuideTreeParser::parseGroup()
-{
-	base_node* na = NULL;
-	base_node* nb = NULL;
-	float wa = 0, wb = 0;
-	
-	match(gtt_Open);
-	
-	tr1::tie(na, wa) = parseNode();
-	
-	while (m_lookahead == gtt_Comma)
-	{
-		match(gtt_Comma);
-		
-		tr1::tie(nb, wb) = parseNode();
-		
-		na = new joined_node(na, nb, wa, wb);
-		wa = wb;
-	}
-	
-	match(gtt_Close);
-	
-	return na;
-}
-
-base_node* GuideTreeParser::parse()
-{
-	base_node* result = NULL;
-	if (m_lookahead == gtt_Open)
-		result = parseGroup();
-	if (m_lookahead != gtt_End)
-		throw mas_exception("invalid guide tree file, missing semicolon at end");
-	return result;
-}
-
-void useGuideTree(const string& guide, vector<base_node*>& tree)
-{
-	uint32 r = tree.size();
-	
-	map<string,leaf_node*> m;
-	foreach (base_node* n, tree)
-	{
-		leaf_node* leaf = static_cast<leaf_node*>(n);
-		m[leaf->m_entry.m_id] = leaf;
-	}
-	
-	fs::ifstream file(guide);
-	if (not file.is_open())
-		throw mas_exception("failed to open guide tree");
-	
-	tree.clear();
-	GuideTreeParser parser(file, m);
-	tree.push_back(parser.parse());
-}
-
-// --------------------------------------------------------------------
-
 inline float score(const vector<entry*>& a, const vector<entry*>& b,
 	uint32 ix_a, uint32 ix_b, const substitution_matrix& mat)
 {
@@ -856,32 +589,6 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 				gop[ix] *= (residue_specific_penalty[ix] / seq.size());
 		}
 	}
-
-//	if (VERBOSE > 2)
-//	{
-//		foreach (const entry* e, seq)
-//			cerr << e->m_id << " (" << gop.size() << "; " << e->m_weight << ")" << endl;
-//		copy(gop.begin(), gop.end(), ostream_iterator<float>(cerr, ";")); cerr << endl;
-//	}
-}
-
-template<>
-void matrix<int8>::print(ostream& os) const
-{
-	for (uint32 x = 0; x < m_m; ++x)
-	{
-		for (uint32 y = 0; y < m_n; ++y)
-		{
-			switch (m_data[x + y * m_m])
-			{
-				case -1:	os << '|'; break;
-				case 0:		os << '\\'; break;
-				case 1:		os << '-'; break;
-				case 2:		os << ' '; break;
-			}
-		}
-		os << std::endl;
-	}
 }
 
 void print_matrix(ostream& os, const matrix<int8>& tb, const sequence& sx, const sequence& sy)
@@ -912,7 +619,7 @@ void align(
 	const joined_node* node,
 	vector<entry*>& a, vector<entry*>& b, vector<entry*>& c,
 	const substitution_matrix_family& mat_fam,
-	float gop, float gep)
+	float gop, float gep, float magic)
 {
 	if (VERBOSE > 2)
 	{
@@ -955,7 +662,7 @@ void align(
 	float logdiff = 1.0f + 0.5f * log10(minLength / maxLength);
 	
 	// initial gap open cost, 0.05f is the remaining magical number here...
-	gop = (gop / (logdiff * logmin)) * abs(smat.mismatch_average()) * smat.scale_factor() * 0.05f;
+	gop = (gop / (logdiff * logmin)) * abs(smat.mismatch_average()) * smat.scale_factor() * magic;
 
 	float avg_weight_a = accumulate(a.begin(), a.end(), 0.f, sum_weight()) / a.size();
 	float avg_weight_b = accumulate(b.begin(), b.end(), 0.f, sum_weight()) / b.size();
@@ -1199,7 +906,7 @@ void align(
 }
 
 void createAlignment(joined_node* node, vector<entry*>& alignment,
-	const substitution_matrix_family& mat, float gop, float gep,
+	const substitution_matrix_family& mat, float gop, float gep, float magic,
 	progress& pr)
 {
 	vector<entry*> a, b;
@@ -1212,34 +919,32 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 			a.push_back(&static_cast<leaf_node*>(node->left())->m_entry);
 		else
 			t.create_thread(boost::bind(&createAlignment,
-				static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep,
+				static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep, magic, 
 				boost::ref(pr)));
 
 		if (dynamic_cast<leaf_node*>(node->right()) != NULL)
 			b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);
 		else
 			t.create_thread(boost::bind(&createAlignment,
-				static_cast<joined_node*>(node->right()), boost::ref(b), boost::ref(mat), gop, gep,
+				static_cast<joined_node*>(node->right()), boost::ref(b), boost::ref(mat), gop, gep, magic, 
 				boost::ref(pr)));
 	
 		t.join_all();
-	
-		align(node, a, b, alignment, mat, gop, gep);
 	}
 	else
 	{
 		if (dynamic_cast<leaf_node*>(node->left()) != NULL)
 			a.push_back(&static_cast<leaf_node*>(node->left())->m_entry);
 		else
-			createAlignment(static_cast<joined_node*>(node->left()), a, mat, gop, gep, pr);
+			createAlignment(static_cast<joined_node*>(node->left()), a, mat, gop, gep, magic, pr);
 
 		if (dynamic_cast<leaf_node*>(node->right()) != NULL)
 			b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);
 		else
-			createAlignment(static_cast<joined_node*>(node->right()), b, mat, gop, gep, pr);
-	
-		align(node, a, b, alignment, mat, gop, gep);
+			createAlignment(static_cast<joined_node*>(node->right()), b, mat, gop, gep, magic, pr);
 	}
+
+	align(node, a, b, alignment, mat, gop, gep, magic);
 	
 	pr.step(node->cost());
 }
@@ -1262,6 +967,7 @@ int main(int argc, char* argv[])
 			("matrix,m",	po::value<string>(), "Substitution matrix, default is PAM")
 			("gap-open",	po::value<float>(),	 "Gap open penalty")
 			("gap-extend",	po::value<float>(),	 "Gap extend penalty")
+			("magic",		po::value<float>(),	 "Magical number")
 			("chain,c",		po::value<char>(),	 "Chain ID to select (from HSSP input)")
 			("ignore-pos-nr",					 "Do not use position/PDB nr in scoring")
 			;
@@ -1292,8 +998,9 @@ int main(int argc, char* argv[])
 			matrix = vm["matrix"].as<string>();
 		substitution_matrix_family mat(matrix);
 
-		float gop = 10.f;	if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
-		float gep = 0.2f;	if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
+		float gop = 10.f;	 if (vm.count("gap-open"))		gop = vm["gap-open"].as<float>();
+		float gep = 0.2f;	 if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
+		float magic = 0.05f; if (vm.count("magic"))			magic = vm["magic"].as<float>();
 
 		fs::path path(vm["input"].as<string>());
 		vector<entry> data;
@@ -1377,7 +1084,7 @@ int main(int argc, char* argv[])
 			cerr << *root << ';' << endl;
 		
 		progress pr("calculating alignments", root->cumulative_cost());
-		createAlignment(root, alignment, mat, gop, gep, pr);
+		createAlignment(root, alignment, mat, gop, gep, magic, pr);
 
 		sort(alignment.begin(), alignment.end(),
 			boost::bind(&entry::nr, _1) < boost::bind(&entry::nr, _2));
