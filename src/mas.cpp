@@ -81,6 +81,14 @@ void entry::append_gap()
 	assert(m_positions.size() == m_seq.length() or m_positions.empty());
 }
 
+void entry::remove_gaps()
+{
+	if (m_seq.length() == m_positions.size())
+		assert(false);
+	else
+		m_seq.erase(remove(m_seq.begin(), m_seq.end(), kSignalGapCode), m_seq.end());
+}
+
 // --------------------------------------------------------------------
 
 ostream& operator<<(ostream& lhs, base_node& rhs)
@@ -470,8 +478,6 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 {
 	float result = 0;
 	
-	int32 pdb_nr = 0;
-
 	foreach (const entry* ea, a)
 	{
 		foreach (const entry* eb, b)
@@ -546,7 +552,6 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 		}
 		
 		// find a run of 5 hydrophilic residues
-		
 		for (uint32 si = 0, i = 0; i <= gop.size(); ++i)
 		{
 			if (i == gop.size() or is_hydrophilic(s[i]) == false)
@@ -615,7 +620,7 @@ void print_matrix(ostream& os, const matrix<int8>& tb, const sequence& sx, const
 	}
 }
 
-float align(
+void align(
 	const joined_node* node,
 	vector<entry*>& a, vector<entry*>& b, vector<entry*>& c,
 	const substitution_matrix_family& mat_fam,
@@ -834,8 +839,7 @@ float align(
 	if (VERBOSE >= 6)
 		print_matrix(cerr, tb, fa->m_seq, fb->m_seq);
 
-	// trace back the matrix and calculate a score for this alignment
-	float result = 0;
+	// trace back the matrix
 	while (x >= 0 and y >= 0)
 	{
 		switch (tb(x, y))
@@ -853,7 +857,6 @@ float align(
 				break;
 
 			case 0:
-				result += score(a, b, x, y, smat);
 				--x;
 				--y;
 				break;
@@ -898,8 +901,6 @@ float align(
 	
 	if (VERBOSE >= 2)
 		report(c, cerr, "clustalw");
-
-	return result;
 }
 
 void createAlignment(joined_node* node, vector<entry*>& alignment,
@@ -941,7 +942,7 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 			createAlignment(static_cast<joined_node*>(node->right()), b, mat, gop, gep, magic, pr);
 	}
 
-	float score = align(node, a, b, alignment, mat, gop, gep, magic);
+	align(node, a, b, alignment, mat, gop, gep, magic);
 	
 	pr.step(node->cost());
 }
@@ -990,14 +991,14 @@ int main(int argc, char* argv[])
 			MULTI_THREADED = 0;
 
 		// matrix
-		string matrix = "PAM";
+		string matrix = "BLOSUM";
 		if (vm.count("matrix"))
 			matrix = vm["matrix"].as<string>();
 		substitution_matrix_family mat(matrix);
 
-		float gop = 10.f;	 if (vm.count("gap-open"))		gop = vm["gap-open"].as<float>();
-		float gep = 0.2f;	 if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
-		float magic = 0.05f; if (vm.count("magic"))			magic = vm["magic"].as<float>();
+		float gop = 10.f;	if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
+		float gep = 0.2f;	if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
+		float magic = 0.1f; if (vm.count("magic"))		magic = vm["magic"].as<float>();
 
 		fs::path path(vm["input"].as<string>());
 		vector<entry> data;
@@ -1082,7 +1083,7 @@ int main(int argc, char* argv[])
 		
 		progress pr("calculating alignments", root->cumulative_cost());
 		createAlignment(root, alignment, mat, gop, gep, magic, pr);
-
+		
 		sort(alignment.begin(), alignment.end(),
 			boost::bind(&entry::nr, _1) < boost::bind(&entry::nr, _2));
 		

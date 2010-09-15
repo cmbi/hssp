@@ -54,6 +54,15 @@ extern aa kAAReverse[256];
 
 struct entry
 {
+					entry(const entry& e)
+						: m_nr(e.m_nr)
+						, m_id(e.m_id)
+						, m_seq(e.m_seq)
+						, m_weight(e.m_weight)
+						, m_positions(e.m_positions)
+					{
+					}
+
 					entry(uint32 nr, const std::string& id, const sequence& seq, float weight = 1.0f)
 						: m_nr(nr)
 						, m_id(id)
@@ -64,9 +73,12 @@ struct entry
 	float			weight() const					{ return m_weight; }
 	uint32			length() const					{ return m_seq.length(); }
 
+	bool			has_gaps() const				{ return std::find(m_seq.begin(), m_seq.end(), kSignalGapCode) != m_seq.end(); }
+
 	void			insert_gap(uint32 pos);
 	void			append_gap();
-
+	
+	void			remove_gaps();
 	void			dump_positions()				{ m_positions.clear(); }
 
 	uint32			m_nr;
