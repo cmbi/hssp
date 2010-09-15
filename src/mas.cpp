@@ -615,7 +615,7 @@ void print_matrix(ostream& os, const matrix<int8>& tb, const sequence& sx, const
 	}
 }
 
-void align(
+float align(
 	const joined_node* node,
 	vector<entry*>& a, vector<entry*>& b, vector<entry*>& c,
 	const substitution_matrix_family& mat_fam,
@@ -643,14 +643,17 @@ void align(
 	int32 x = 0, dimX = fa->m_seq.length(), endX = 0;
 	int32 y = 0, dimY = fb->m_seq.length(), endY = 0;
 	
+#ifdef NDEBUG
 	matrix<float> B(dimX, dimY);
 	matrix<float> Ix(dimX, dimY);
 	matrix<float> Iy(dimX, dimY);
-	matrix<int8> tb(dimX, dimY
-#ifndef NDEBUG
-								, 2
+	matrix<int8> tb(dimX, dimY);
+#else
+	matrix<float> B(dimX, dimY, kSentinelValue);
+	matrix<float> Ix(dimX, dimY);
+	matrix<float> Iy(dimX, dimY);
+	matrix<int8> tb(dimX, dimY, 2);
 #endif
-									);
 	
 	const substitution_matrix& smat = mat_fam(abs(node->m_d_left + node->m_d_right), true);
 
@@ -687,6 +690,7 @@ void align(
 	}
 
 	int32 highX = 0, highY = 0;
+	float result = 0;
 
 	while (x < dimX and y < dimY)
 	{
@@ -694,6 +698,11 @@ void align(
 		{
 			if (pa[x] == pb[y] and pa[x] != 0)
 			{
+				float M = score(a, b, x, y, smat);
+				if (x > 0 and y > 0)
+					M += B(x, y);
+				B(x, y) = M;
+				
 				tb(x, y) = 0;
 				highX = x;
 				highY = y;
@@ -737,16 +746,6 @@ void align(
 
 			break;
 		}
-
-		if (endX < dimX or endY < dimY)
-		{
-			assert(endX < dimX);
-			assert(endY < dimY);
-			assert(pa[endX] == pb[endY]);
-		}
-
-		assert(endX <= dimX);
-		assert(endY <= dimY);
 
 		Ix(x, y) = 0;
 		Iy(x, y) = 0;
@@ -806,21 +805,37 @@ void align(
 			}
 		}
 
-		if (endY > 0)
+		if (endY > 0 and highX + 1 < endX)
 		{
-			for (x = highX + 1; x < endX; ++x)
+			high -= gop_a[highX + 1];
+			tb(x, endY - 1) = 1;
+			for (x = highX + 2; x < endX; ++x)
+			{
+				high -= gep_a[x];
 				tb(x, endY - 1) = 1;
+			}
 		}
 
-		if (endX > 0)
+		if (endX > 0 and highY + 1 < endY)
 		{
-			for (y = highY + 1; y < endY; ++y)
+			high -= gop_b[highY + 1];
+			for (y = highY + 2; y < endY; ++y)
+			{
+				high -= gep_b[y];
 				tb(endX - 1, y) = -1;
+			}
 		}
 		
 		x = endX;
 		y = endY;
+		
+		if (startX > 0 and startY > 0)
+			high += B(startX - 1, startY - 1);
+		B(x - 1, y - 1) = high;
 	}
+	
+	result = B(dimX - 1, dimY - 1);
+	cerr << "alignment score: " << result << endl;
 
 	if (endY > 0)
 	{
@@ -903,6 +918,8 @@ void align(
 	
 	if (VERBOSE >= 2)
 		report(c, cerr, "clustalw");
+
+	return result;
 }
 
 void createAlignment(joined_node* node, vector<entry*>& alignment,
