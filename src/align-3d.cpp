@@ -108,12 +108,17 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 		string line;
 		getline(is, line);
 		
-		ba::starts_with(line, "HEADER")
+		if (ba::starts_with(line, "HEADER"))
 		{
 			prot.mID = line.substr(63, 4);
 		}
 		
-		
+		if (ba::starts_with(line, "ATOM  "))
+		{
+			if (cAlhpaOnly and line.substr(13, 4) != " CA ")
+				continue;
+cerr << "calpha:" << endl << line << endl;
+		}
 	}
 }
 
