@@ -48,6 +48,10 @@ mas: $(OBJECTS)
 	@ echo linking $@
 	@ c++ -o $@ $(OBJECTS) $(LDOPTS)
 
+align-3d: obj/align-3d.o
+	@ echo linking $@
+	@ c++ -o $@ $^ $(LDOPTS)
+
 obj/%.o: %.cpp
 	@ echo compiling $@
 	@ c++ -MD -c -o $@ $< $(CFLAGS)

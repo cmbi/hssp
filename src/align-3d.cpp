@@ -1,6 +1,6 @@
 // 3d dingen
 
-//#include "mas.h"
+#include "mas.h"
 
 #include <iostream>
 #include <iomanip>
@@ -9,6 +9,7 @@
 #include <cmath>
 #include <numeric>
 #include <vector>
+#include <map>
 
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
@@ -32,7 +33,7 @@ struct MResidue;
 
 enum MAtomType
 {
-	kUnknown,
+	kUnknownAtom,
 	kHydrogen,
 	// ...
 	kCarbon,
@@ -57,34 +58,65 @@ struct MAtom
 
 enum MResidueType
 {
-	kUnknown,
+	kUnknownResidue,
 	
 	//
-	kAlanine,				// A
-	kArginine,				// R
-	kAsparagine,			// N
-	kAsparticAcid,			// D
-	kCysteine,				// C
-	kGlutamicAcid,			// E
-	kGlutamine,				// Q
-	kGlycine,				// G
-	kHistidine,				// H
-	kIsoleucine,			// I
-	kLeucine,				// L
-	kLysine,				// K
-	kMethionine,			// M
-	kPhenylalanine,			// F
-	kProline,				// P
-	kSerine,				// S
-	kThreonine,				// T
-	kTryptophan,			// W
-	kTyrosine,				// Y
-	kValine					// V
+	kAlanine,				// A	ala
+	kArginine,				// R	arg
+	kAsparagine,			// N	asn
+	kAsparticAcid,			// D	asp
+	kCysteine,				// C	cys
+	kGlutamicAcid,			// E	glu
+	kGlutamine,				// Q	gln
+	kGlycine,				// G	gly
+	kHistidine,				// H	his
+	kIsoleucine,			// I	ile
+	kLeucine,				// L	leu
+	kLysine,				// K	lys
+	kMethionine,			// M	met
+	kPhenylalanine,			// F	phe
+	kProline,				// P	pro
+	kSerine,				// S	ser
+	kThreonine,				// T	thr
+	kTryptophan,			// W	trp
+	kTyrosine,				// Y	tyr
+	kValine,				// V	val
+	
+	kResidueTypeCount
+};
+
+struct MResidueInfo
+{
+	MResidueType		type;
+	char				code;
+	char				name[4];
+} kResidueInfo[] = {
+	{ kUnknownResidue,	'U', "UNK" },
+	{ kAlanine,			'A', "ALA" },
+	{ kArginine,		'R', "ARG" },
+	{ kAsparagine,		'N', "ASN" },
+	{ kAsparticAcid,	'D', "ASP" },
+	{ kCysteine,		'C', "CYS" },
+	{ kGlutamicAcid,	'E', "GLU" },
+	{ kGlutamine,		'Q', "GLN" },
+	{ kGlycine,			'G', "GLY" },
+	{ kHistidine,		'H', "HIS" },
+	{ kIsoleucine,		'I', "ILE" },
+	{ kLeucine,			'L', "LEU" },
+	{ kLysine,			'K', "LYS" },
+	{ kMethionine,		'M', "MET" },
+	{ kPhenylalanine,	'F', "PHE" },
+	{ kProline,			'P', "PRO" },
+	{ kSerine,			'S', "SER" },
+	{ kThreonine,		'T', "THR" },
+	{ kTryptophan,		'W', "TRP" },
+	{ kTyrosine,		'Y', "TYR" },
+	{ kValine,			'V', "VAL" }
 };
 
 struct MResidue
 {
-	uint32				mNumber;
+	int32				mNumber;
 	MResidueType		mType;
 	vector<MAtom>		mAtoms;
 };
@@ -98,8 +130,52 @@ struct MChain
 struct MProtein
 {
 	string				mID;
-	vector<MChain>		mChains;
+	map<char,MChain>	mChains;
 };
+
+ostream& operator<<(ostream& os, const MProtein& prot)
+{
+	os << "ID: " << prot.mID << endl;
+	
+	for (map<char,MChain>::const_iterator c = prot.mChains.begin(); c != prot.mChains.end(); ++c)
+	{
+		const MChain& chain = c->second;
+		os << "Chain: " << chain.mChainID << endl << endl;
+		
+		foreach (const MResidue& res, chain.mResidues)
+		{
+			os << "Residue: " << res.mNumber << ' ' << kResidueInfo[res.mType].code << ' ' << kResidueInfo[res.mType].name << endl;
+			
+			foreach (const MAtom& atom, res.mAtoms)
+			{
+				os << "Atom: " << atom.mX << ", " << atom.mY << ", " << atom.mZ << endl;
+			}
+		}
+	}
+
+	return os;	
+}
+
+inline float ParseFloat(const string& s)
+{
+	return boost::lexical_cast<float>(ba::trim_copy(s));
+}
+
+MResidueType MapResidueName(const string& n)
+{
+	MResidueType result = kUnknownResidue;
+	
+	for (uint32 i = 0; i < kResidueTypeCount; ++i)
+	{
+		if (n == kResidueInfo[i].name)
+		{
+			result = kResidueInfo[i].type;
+			break;
+		}
+	}
+	
+	return result;
+}
 
 void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 {
@@ -115,9 +191,24 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 		
 		if (ba::starts_with(line, "ATOM  "))
 		{
-			if (cAlhpaOnly and line.substr(13, 4) != " CA ")
+			if (cAlhpaOnly and line.substr(12, 4) != " CA ")
 				continue;
-cerr << "calpha:" << endl << line << endl;
+			
+			MAtom atom;
+			atom.mType = kCarbon;
+			atom.mX = ParseFloat(line.substr(30, 8));
+			atom.mY = ParseFloat(line.substr(38, 8));
+			atom.mZ = ParseFloat(line.substr(46, 8));
+			
+			MResidue residue = {};
+			residue.mType = MapResidueName(line.substr(17, 3));
+			residue.mNumber = boost::lexical_cast<int32>(ba::trim_copy(line.substr(22, 4)));
+			residue.mAtoms.push_back(atom);
+			
+			char chainID = line[21];
+			MChain& chain = prot.mChains[chainID];
+			chain.mChainID = chainID;
+			chain.mResidues.push_back(residue);
 		}
 	}
 }
@@ -144,6 +235,13 @@ int main(int argc, char* argv[])
 			cerr << desc << endl;
 			exit(1);
 		}
+		
+		fs::ifstream file(vm["input"].as<string>());
+		MProtein prot;
+		
+		ParsePDB(file, prot, true);
+		
+		cout << prot << endl;
 	}
 	catch (const exception& e)
 	{
