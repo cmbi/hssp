@@ -22,16 +22,22 @@
 #include <boost/bind.hpp>
 #include <boost/algorithm/string.hpp>
 
+#include <boost/array.hpp>
+
 #include <boost/numeric/ublas/lu.hpp>
+#include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/io.hpp>
+#include <boost/lambda/lambda.hpp>
 
 using namespace std;
 using namespace tr1;
+
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 namespace bu = boost::numeric::ublas;
+namespace bl = boost::lambda;
 
 // --------------------------------------------------------------------
 
@@ -55,43 +61,19 @@ struct point
 	float		m_x, m_y, m_z;
 };
 
-//      /** General matrix inversion routine. 
-//       * It uses lu_factorize and lu_substitute in uBLAS to invert a matrix 
-//       */ 
-//      template<class M1, class M2> 
-//      void lu_inv(M1 const& m, M2& inv) { 
-//        JFR_PRECOND(m.size1() == m.size2(), 
-//                    "ublasExtra::lu_inv(): input matrix must be squared"); 
-//        JFR_PRECOND(inv.size1() == m.size1() && inv.size1() == m.size2(), 
-//                    "ublasExtra::lu_inv(): invalid size for inverse matrix"); 
-//
-//        using namespace boost::numeric::ublas; 
-//        // create a working copy of the input 
-//        mat mLu(m); 
-//
-//        // perform LU-factorization 
-//        lu_factorize(mLu); 
-//
-//        // create identity matrix of "inverse" 
-//        inv.assign(identity_mat(m.size1())); 
-//
-//        // backsubstitute to get the inverse 
-//        lu_substitute<mat const, M2 >(mLu, inv); 
-//      } 
-
-/** General matrix determinant. 
+/** General matrix determinant.
  * It uses lu_factorize in uBLAS. 
  */ 
 template<class M> 
-float lu_det(const M& m)
+typename M::value_type lu_det(const M& m)
 {
 	// create a working copy of the input 
-	bu::matrix<float> mLu(m);
+	M mLu(m);
 	bu::permutation_matrix<uint32> pivots(m.size1());
 
 	bu::lu_factorize(mLu, pivots);
 
-	float det = 1.0;
+	typename M::value_type det = 1.0;
 	for (uint32 i = 0; i < pivots.size(); ++i)
 	{
 		if (pivots(i) != i)
@@ -101,11 +83,56 @@ float lu_det(const M& m)
 	return det; 
 }
 
-//template<class M>
-//float cofactor(const M& m, uint32 x, uint32 y)
-//{
-//	
-//}
+template<class M>
+void cofactors(const M& m, M& cf)
+{
+	const uint32 ixs[4][3] =
+	{
+		{ 1, 2, 3 },
+		{ 0, 2, 3 },
+		{ 0, 1, 3 },
+		{ 0, 1, 2 }
+	};
+
+	for (uint32 x = 0; x < 4; ++x)
+	{
+		const uint32* ix = ixs[x];
+		
+		for (uint32 y = 0; y < 4; ++y)
+		{
+			const uint32* iy = ixs[y];
+			
+			cf(x, y) =
+				m(ix[0], iy[0]) * m(ix[1], iy[1]) * m(ix[2], iy[2]) +
+				m(ix[0], iy[1]) * m(ix[1], iy[2]) * m(ix[2], iy[0]) +
+				m(ix[0], iy[2]) * m(ix[1], iy[0]) * m(ix[2], iy[1]) -
+				m(ix[0], iy[2]) * m(ix[1], iy[1]) * m(ix[2], iy[0]) -
+				m(ix[0], iy[1]) * m(ix[1], iy[0]) * m(ix[2], iy[2]) -
+				m(ix[0], iy[0]) * m(ix[1], iy[2]) * m(ix[2], iy[1]);
+		}
+	}
+}
+
+template<class M> 
+typename M::value_type scale_matrix(M& m)
+{
+	double s = 1.0;
+	
+	for (uint32 x = 0; x < m.size1(); ++x)
+	{
+		for (uint32 y = 0; y < m.size2(); ++y)
+		{
+			if (s < abs(m(x, y)))
+				s = abs(m(x, y));
+		}
+	}
+
+	for (uint32 x = 0; x < m.size1(); ++x)
+	{
+		for (uint32 y = 0; y < m.size2(); ++y)
+			m(x, y) /= s;
+	}
+}
 
 point center_points(vector<point>& points)
 {
@@ -339,55 +366,46 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 	}
 }
 
-float largest_quartic_solution(float A, float B, float C, float D, float E)
+// The next function returns the largest solution for a quartic equation
+// based on Ferrari's algorithm.
+// A depressed quartic is of the form:
+//
+//   x^4 + ax^2 + bx + c = 0
+//
+double largest_depressed_quartic_solution(double a, double b, double c)
 {
-	// See http://en.wikipedia.org/wiki/Quartic_function#Solving_a_quartic_equation
-	float alpha = -3 * (B * B) / 8 * A * A + C / A;
-//	float alpha = C;		// since B == 0 and A == 1.0
+	complex<double> P = - (a * a) / 12 - c;
+	complex<double> Q = - (a * a * a) / 108 + (a * c) / 3 - (b * b) / 8;
+	complex<double> R = - Q / 2.0 + sqrt((Q * Q) / 4.0 + (P * P * P) / 27.0);
 	
-	float beta = B * B * B / 8 * A * A * A - B * C / 2 * A * A + D / A;
-//	float beta = D;
+	complex<double> U = pow(R, 1 / 3.0f);
 	
-	float gamma = -3 * B * B * B * B / 256 * A * A * A * A + C * B * B / 16 * A * A * A -
-					B * D / 4 * A * A + E / A;
-//	float gamma = E;
-	cout << "alpha: " << alpha << ", beta: " << beta << ", gamma: " << gamma << endl;
-
-	float P = - (alpha * alpha) / 12 - gamma;
-	float Q = - (alpha * alpha * alpha) / 108 + (alpha * gamma) / 3 - (beta * beta) / 8;
-	float R = - Q / 2 + sqrt((Q * Q) / 4 + (P * P * P) / 27);
-	
-	float U = pow(R, 1 / 3.0f);
-	
-	cout << "P: " << P << ", Q: " << Q << ", R: " << R << ", U: " << U << endl;
-	
-	float y;
-	if (U == 0)
-		y = -5 * alpha / 6 + U - pow(Q, 1 / 3.0f);
+	complex<double> y;
+	if (U == 0.0)
+		y = -5.0 * a / 6.0 + U - pow(Q, 1.0 / 3.0);
 	else
-		y = -5 * alpha / 6 + U - P / (3 * U);
+		y = -5.0 * a / 6.0 + U - P / (3.0 * U);
 
-	cout << "y: " << y << endl;
+	complex<double> W = sqrt(a + 2.0 * y);
 	
-	float W = sqrt(alpha + 2 * y);
-	cout << "W: " << W << endl;
+	// And to get the final result:
+	// result = (±W + sqrt(-(3 * alpha + 2 * y ± 2 * beta / W))) / 2;
+	// We want the largest result, so:
+
+	complex<double> t[4] =
+	{
+		( W + sqrt(-(3.0 * a + 2.0 * y + 2.0 * b / W))) / 2.0,
+		( W + sqrt(-(3.0 * a + 2.0 * y - 2.0 * b / W))) / 2.0,
+		(-W + sqrt(-(3.0 * a + 2.0 * y + 2.0 * b / W))) / 2.0,
+		(-W + sqrt(-(3.0 * a + 2.0 * y - 2.0 * b / W))) / 2.0
+	};
 	
-	float result;
+	cout << "0: " << t[0] << endl
+		 << "1: " << t[1] << endl
+		 << "2: " << t[2] << endl
+		 << "3: " << t[3] << endl;
 
-	float x = (W + sqrt(-(3 * alpha + 2 * y + 2 * beta / W))) / 2;
-	result = x;
-
-	x = (W - sqrt(-(3 * alpha + 2 * y + 2 * beta / W))) / 2;
-	if (result < x or isnan(result))
-		result = x;
-
-	x = (-W + sqrt(-(3 * alpha + 2 * y - 2 * beta / W))) / 2;
-	if (result < x or isnan(result))
-		result = x;
-
-	x = (-W - sqrt(-(3 * alpha + 2 * y - 2 * beta / W))) / 2;
-	if (result < x or isnan(result))
-		result = x;
+	return t[0].real();
 }
 
 void align_proteins(MProtein& a, MProtein& b)
@@ -403,32 +421,39 @@ void align_proteins(MProtein& a, MProtein& b)
 	
 	point translationB = center_points(cAlphaB);
 	cout << "translation to centroid for B: " << translationB.m_x << "," << translationB.m_y << "," << translationB.m_z << endl;
+
+	if (cAlphaA.size() != cAlphaB.size())
+		throw logic_error("Protein A and B should have the same number of c-alhpa");
 	
 	// First calculate M, a 3x3 matrix containing the sums of products of the coordinates of A and B
 	
-	bu::matrix<float> M(3, 3);
-	
-	foreach (point& a, cAlphaA)
-	{
-		foreach (point& b, cAlphaB)
-		{
-			M(0, 0) = a.m_x * b.m_x;
-			M(0, 1) = a.m_x * b.m_y;
-			M(0, 2) = a.m_x * b.m_z;
-			M(1, 0) = a.m_y * b.m_x;
-			M(1, 1) = a.m_y * b.m_y;
-			M(1, 2) = a.m_y * b.m_z;
-			M(2, 0) = a.m_z * b.m_x;
-			M(2, 1) = a.m_z * b.m_y;
-			M(2, 2) = a.m_z * b.m_z;
-		}
-	}
-	
-	cout << "M: " << endl << M << endl << endl;
+	bu::matrix<double> M(3, 3, 0);
 
+	for (uint32 i = 0; i < cAlphaB.size(); ++i)
+	{
+		point& a = cAlphaA[i];
+		point& b = cAlphaB[i];
+		
+		M(0, 0) += a.m_x * b.m_x;
+		M(0, 1) += a.m_x * b.m_y;
+		M(0, 2) += a.m_x * b.m_z;
+		M(1, 0) += a.m_y * b.m_x;
+		M(1, 1) += a.m_y * b.m_y;
+		M(1, 2) += a.m_y * b.m_z;
+		M(2, 0) += a.m_z * b.m_x;
+		M(2, 1) += a.m_z * b.m_y;
+		M(2, 2) += a.m_z * b.m_z;
+	}
+
+//	cout << "M: " << M << endl;
+//	
+//	scale_matrix(M);
+	
+	cout << "M: " << M << endl;
+	
 	// Now calculate N, a 4x4 matrix
 	
-	bu::matrix<float> N(4, 4);
+	bu::matrix<double> N(4, 4);
 	
 	N(0, 0)				= M(0, 0) + M(1, 1) + M(2, 2);
 	N(0, 1)	= N(1, 0)	= M(1, 2) - M(2, 1);
@@ -444,7 +469,7 @@ void align_proteins(MProtein& a, MProtein& b)
 	
 	N(3, 3)				= -M(0, 0) - M(1, 1) + M(2, 2);
 
-	cout << "N: " << endl << N << endl << endl;
+	cout << "N: " << N << endl;
 	
 	// det(N - λI) = 0
 	// find the largest λ (λm)
@@ -455,43 +480,53 @@ void align_proteins(MProtein& a, MProtein& b)
 	// and so this is a so-called depressed quartic
 	// solve it using Ferrari's algorithm
 	
-	float A = 1;
-	
-	float B = 0;
-	
-	float C = -2 * (
+	double C = -2 * (
 		M(0, 0) * M(0, 0) + M(0, 1) * M(0, 1) + M(0, 2) * M(0, 2) +
 		M(1, 0) * M(1, 0) + M(1, 1) * M(1, 1) + M(1, 2) * M(1, 2) +
 		M(2, 0) * M(2, 0) + M(2, 1) * M(2, 1) + M(2, 2) * M(2, 2));
 	
-	float D = 8 * (M(0, 0) * M(1, 2) * M(2, 1) +
+	double D = 8 * (M(0, 0) * M(1, 2) * M(2, 1) +
 					M(1, 1) * M(2, 0) * M(0, 2) +
 					M(2, 2) * M(0, 1) * M(1, 0)) -
 			   8 * (M(0, 0) * M(1, 1) * M(2, 2) +
 					M(1, 2) * M(2, 0) * M(0, 1) +
 					M(2, 1) * M(1, 0) * M(0, 2));
 	
-	float E = lu_det(N);
+	double E = lu_det(N);
+	
+	cout << "C: " << C << ", D: " << D << ", E: " << E << endl;
 	
 	// solve quartic
+	double lm = largest_depressed_quartic_solution(C, D, E);
 	
-	float lm = largest_quartic_solution(A, B, C, D, E);
+	cout << "lm: " << lm << endl;
 	
-	bu::matrix<float> li(4, 4);
+	bu::matrix<double> li(4, 4);
 	
-	li = bu::identity_matrix<float>(4) * lm;
-	bu::matrix<float> t = N - li;
+	li = bu::identity_matrix<double>(4) * lm;
+	bu::matrix<double> t = N - li;
 	
 	// We're looking for em for which is said:
 	// (N - lm I) em = 0
 	// take em.0 = 1 so:
 	
-	
-}
+	// another approach, calculate a matrix of cofactors for t
 
-float solve_cubic(float A, float B, float C)
-{
+	cout << t << endl;
+
+	long unsigned int ixs[4][3] =
+	{
+		{ 1, 2, 3 },
+		{ 0, 2, 3 },
+		{ 0, 1, 3 },
+		{ 0, 1, 2 }
+	};
 	
+	bu::matrix<double> cf(4, 4);
+	
+	cofactors(t, cf);
+	
+	cout << "cf: " << cf << endl;
 }
 
 int main(int argc, char* argv[])
@@ -506,6 +541,8 @@ int main(int argc, char* argv[])
 	
 		po::positional_options_description p;
 		p.add("input", -1);
+	
+		cout << "ferrari test: " << largest_depressed_quartic_solution(6, -60, 36) << endl;
 	
 		po::variables_map vm;
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
