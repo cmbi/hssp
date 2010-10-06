@@ -27,7 +27,7 @@
 #include <boost/numeric/ublas/lu.hpp>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/io.hpp>
-#include <boost/lambda/lambda.hpp>
+#include <boost/math/quaternion.hpp>
 
 using namespace std;
 using namespace tr1;
@@ -37,17 +37,20 @@ namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 namespace bu = boost::numeric::ublas;
-namespace bl = boost::lambda;
+namespace bm = boost::math;
+
+const double kPI = 4 * std::atan(1);
 
 // --------------------------------------------------------------------
 
 struct point
 {
+				point(double x, double y, double z) : m_x(x), m_y(y), m_z(z) {}
+
+				point() : m_x(0), m_y(0), m_z(0) {}
 
 				point(const point& rhs)
 					: m_x(rhs.m_x), m_y(rhs.m_y), m_z(rhs.m_z) {}
-
-				point() : m_x(0), m_y(0), m_z(0) {}
 
 	point&		operator=(const point& rhs)
 				{
@@ -58,8 +61,51 @@ struct point
 					return *this;
 				}
 
-	float		m_x, m_y, m_z;
+	point&		operator+=(const point& rhs)
+				{
+					m_x += rhs.m_x;
+					m_y += rhs.m_y;
+					m_z += rhs.m_z;
+					
+					return *this;
+				}
+
+	void		rotate(bm::quaternion<double>& q)
+				{
+					bm::quaternion<double> pq(0, m_x, m_y, m_z);
+					bm::quaternion<double> t = q * pq;
+					pq = t * bm::conj(q);
+					m_x = pq.R_component_2();
+					m_y = pq.R_component_3();
+					m_z = pq.R_component_4();
+				}
+
+	double		m_x, m_y, m_z;
 };
+
+point operator-(const point& lhs, const point& rhs)
+{
+	return point(lhs.m_x - rhs.m_x, lhs.m_y - rhs.m_y, lhs.m_z - rhs.m_z);
+}
+
+ostream& operator<<(ostream& os, const point& pt)
+{
+	os << '(' << pt.m_x << ',' << pt.m_y << ',' << pt.m_z << ')';
+	return os;
+}
+
+ostream& operator<<(ostream& os, const vector<point>& pts)
+{
+	uint32 n = pts.size();
+	os << '[' << n << ']';
+	
+	foreach (const point& pt, pts)
+	{
+		os << pt;
+		if (n-- > 1)
+			os << ',';
+	}
+}
 
 /** General matrix determinant.
  * It uses lu_factorize in uBLAS. 
@@ -180,13 +226,76 @@ enum MAtomType
 	kCalcium,
 	kZinc,
 	kSelenium,
+	
+	kAtomTypeCount
 };
 
 struct MAtom
 {
+	uint32				mSerial;
+	char				mName[5];
+	char				mAltLoc;
+	char				mResName[5];
+	char				mChainID;
+	uint32				mResSeq;
+	char				mICode;
 	MAtomType			mType;
 	point				mLoc;
+	double				mOccupancy;
+	double				mTempFactor;
+	char				mElement[3];
+	int					mCharge;
+
+	void				SetChainID(char inID)
+						{
+							mChainID = inID;
+						}
+
+	void				Translate(const point& inTranslation)
+						{
+							mLoc += inTranslation;
+						}
+						
+	void				Rotate(bm::quaternion<double>& inRotation)
+						{
+							mLoc.rotate(inRotation);
+						}
+
+	void				WritePDB(ostream& os);
 };
+
+void MAtom::WritePDB(ostream& os)
+{
+	//	1 - 6	Record name "ATOM "
+	//	7 - 11	Integer serial Atom serial number.
+	//	13 - 16	Atom name Atom name.
+	//	17		Character altLoc Alternate location indicator.
+	//	18 - 20	Residue name resName Residue name.
+	//	22		Character chainID Chain identifier.
+	//	23 - 26	Integer resSeq Residue sequence number.
+	//	27		AChar iCode Code for insertion of residues.
+	//	31 - 38	Real(8.3) x Orthogonal coordinates for X in Angstroms.
+	//	39 - 46	Real(8.3) y Orthogonal coordinates for Y in Angstroms.
+	//	47 - 54	Real(8.3) z Orthogonal coordinates for Z in Angstroms.
+	//	55 - 60	Real(6.2) occupancy Occupancy.
+	//	61 - 66	Real(6.2) tempFactor Temperature factor.
+	//	77 - 78	LString(2) element Element symbol, right-justified.
+	//	79 - 80	LString(2) charge Charge on the atom.
+	boost::format atom("ATOM  %5.5d %4.4s%c%3.3s %c%4.4d%c   %8.3f%8.3f%8.3f%6.2f%6.2f          %2.2s%2.2s");
+
+	string charge;
+	if (mCharge != 0)
+	{
+		charge += boost::lexical_cast<string>(abs(mCharge));
+		if (mCharge > 0)
+			charge += '+';
+		else
+			charge += '-';
+	}
+	
+	os << (atom % mSerial % mName % mAltLoc % mResName % mChainID % mResSeq % mICode %
+		   mLoc.m_x % mLoc.m_y % mLoc.m_z % mOccupancy % mTempFactor % mElement % charge) << endl;
+}
 
 enum MResidueType
 {
@@ -251,12 +360,59 @@ struct MResidue
 	int32				mNumber;
 	MResidueType		mType;
 	vector<MAtom>		mAtoms;
+
+	void				SetChainID(char inID)
+						{
+							for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::SetChainID, _1, inID));
+						}
+
+	void				Translate(const point& inTranslation)
+						{
+							for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::Translate, _1, inTranslation));
+						}
+						
+	void				Rotate(bm::quaternion<double>& inRotation)
+						{
+							for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::Rotate, _1, inRotation));
+						}
+
+	void				WritePDB(ostream& os)
+						{
+							for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::WritePDB, _1, ref(os)));
+						}
 };
 
 struct MChain
 {
 	char				mChainID;
 	vector<MResidue>	mResidues;
+
+	void				SetChainID(char inID)
+						{
+							mChainID = inID;
+							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::SetChainID, _1, inID));
+						}
+
+	void				Translate(const point& inTranslation)
+						{
+							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::Translate, _1, inTranslation));
+						}
+						
+	void				Rotate(bm::quaternion<double>& inRotation)
+						{
+							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::Rotate, _1, inRotation));
+						}
+
+	void				WritePDB(ostream& os)
+						{
+							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::WritePDB, _1, ref(os)));
+							
+							boost::format ter("TER    %4.4d      %3.3s %c%4.4d%c");
+							
+							MResidue& last = mResidues.back();
+							
+							os << (ter % (last.mAtoms.back().mSerial + 1) % kResidueInfo[last.mType].name % mChainID % last.mNumber % ' ') << endl;
+						}
 };
 
 struct MProtein
@@ -265,6 +421,20 @@ struct MProtein
 	map<char,MChain>	mChains;
 	
 	void				GetCAlphaLocations(char inChain, vector<point>& outPoints) const;
+
+	void				Translate(const point& inTranslation)
+						{
+							for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+								chain->second.Translate(inTranslation);
+						}
+						
+	void				Rotate(bm::quaternion<double>& inRotation)
+						{
+							for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+								chain->second.Rotate(inRotation);
+						}
+
+	void				WritePDB(ostream& os);
 };
 
 void MProtein::GetCAlphaLocations(char inChain, vector<point>& outPoints) const
@@ -279,10 +449,16 @@ void MProtein::GetCAlphaLocations(char inChain, vector<point>& outPoints) const
 	{
 		foreach (const MAtom& a, r.mAtoms)
 		{
-			if (a.mType == kCarbon)
+			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
 				outPoints.push_back(a.mLoc);
 		}
 	}
+}
+
+void MProtein::WritePDB(ostream& os)
+{
+	for (map<char,MChain>::iterator c = mChains.begin(); c != mChains.end(); ++c)
+		c->second.WritePDB(os);
 }
 
 ostream& operator<<(ostream& os, const MProtein& prot)
@@ -308,9 +484,9 @@ ostream& operator<<(ostream& os, const MProtein& prot)
 	return os;	
 }
 
-inline float ParseFloat(const string& s)
+inline double ParseFloat(const string& s)
 {
-	return boost::lexical_cast<float>(ba::trim_copy(s));
+	return boost::lexical_cast<double>(ba::trim_copy(s));
 }
 
 MResidueType MapResidueName(const string& n)
@@ -347,11 +523,55 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 			if (cAlhpaOnly and line.substr(12, 4) != " CA ")
 				continue;
 			
-			MAtom atom;
+			MAtom atom = {};
+
+//	uint32				mSerial;
+//	char				mName[5];
+//	char				mAltLoc;
+//	char				mResName[5];
+//	char				mChainID;
+//	uint32				mResSeq;
+//	char				mICode;
+//	MAtomType			mType;
+//	point				mLoc;
+//	double				mOccupancy;
+//	double				mTempFactor;
+//	char				mElement[3];
+//	int					mCharge;
+
+	//	1 - 6	Record name "ATOM "
+	//	7 - 11	Integer serial Atom serial number.
+	//	13 - 16	Atom name Atom name.
+	//	17		Character altLoc Alternate location indicator.
+	//	18 - 20	Residue name resName Residue name.
+	//	22		Character chainID Chain identifier.
+	//	23 - 26	Integer resSeq Residue sequence number.
+	//	27		AChar iCode Code for insertion of residues.
+	//	31 - 38	Real(8.3) x Orthogonal coordinates for X in Angstroms.
+	//	39 - 46	Real(8.3) y Orthogonal coordinates for Y in Angstroms.
+	//	47 - 54	Real(8.3) z Orthogonal coordinates for Z in Angstroms.
+	//	55 - 60	Real(6.2) occupancy Occupancy.
+	//	61 - 66	Real(6.2) tempFactor Temperature factor.
+	//	77 - 78	LString(2) element Element symbol, right-justified.
+	//	79 - 80	LString(2) charge Charge on the atom.
+
+
+			atom.mSerial = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(6, 5)));
+			line.copy(atom.mName, 4, 12);
+			atom.mAltLoc = line[16];
+			line.copy(atom.mResName, 4, 17);
+			atom.mChainID = line[21];
+			atom.mResSeq = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(22, 4)));
+			atom.mICode = line[26];
+
 			atom.mType = kCarbon;
 			atom.mLoc.m_x = ParseFloat(line.substr(30, 8));
 			atom.mLoc.m_y = ParseFloat(line.substr(38, 8));
 			atom.mLoc.m_z = ParseFloat(line.substr(46, 8));
+			atom.mOccupancy = ParseFloat(line.substr(54, 6));
+			atom.mTempFactor = ParseFloat(line.substr(60, 6));
+			line.copy(atom.mElement, 2, 76);
+			atom.mCharge = 0;
 			
 			MResidue residue = {};
 			residue.mType = MapResidueName(line.substr(17, 3));
@@ -399,60 +619,49 @@ double largest_depressed_quartic_solution(double a, double b, double c)
 		(-W + sqrt(-(3.0 * a + 2.0 * y + 2.0 * b / W))) / 2.0,
 		(-W + sqrt(-(3.0 * a + 2.0 * y - 2.0 * b / W))) / 2.0
 	};
-	
-	cout << "0: " << t[0] << endl
-		 << "1: " << t[1] << endl
-		 << "2: " << t[2] << endl
-		 << "3: " << t[3] << endl;
 
-	return t[0].real();
+	cerr << "t[0] = " << t[0] << endl
+		 << "t[1] = " << t[1] << endl
+		 << "t[2] = " << t[2] << endl
+		 << "t[3] = " << t[3] << endl;
+
+	// take the largest
+	uint32 li = 0;
+	double lr = t[0].real();
+	for (uint32 i = 1; i < 4; ++i)
+	{
+		if (lr < t[i].real())
+		{
+			li = i;
+			lr = t[i].real();
+		}
+	}
+	
+	cerr << "lr: " << lr << endl;
+	
+	return lr;
 }
 
-void align_proteins(MProtein& a, MProtein& b)
+bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>& pb)
 {
-	vector<point> cAlphaA;
-	a.GetCAlphaLocations(0, cAlphaA);
-	
-	point translationA = center_points(cAlphaA);
-	cout << "translation to centroid for A: " << translationA.m_x << "," << translationA.m_y << "," << translationA.m_z << endl;
-	
-	vector<point> cAlphaB;
-	b.GetCAlphaLocations(0, cAlphaB);
-	
-	point translationB = center_points(cAlphaB);
-	cout << "translation to centroid for B: " << translationB.m_x << "," << translationB.m_y << "," << translationB.m_z << endl;
-
-	if (cAlphaA.size() != cAlphaB.size())
-		throw logic_error("Protein A and B should have the same number of c-alhpa");
-	
 	// First calculate M, a 3x3 matrix containing the sums of products of the coordinates of A and B
 	
 	bu::matrix<double> M(3, 3, 0);
 
-	for (uint32 i = 0; i < cAlphaB.size(); ++i)
+	for (uint32 i = 0; i < pa.size(); ++i)
 	{
-		point& a = cAlphaA[i];
-		point& b = cAlphaB[i];
+		const point& a = pa[i];
+		const point& b = pb[i];
 		
-		M(0, 0) += a.m_x * b.m_x;
-		M(0, 1) += a.m_x * b.m_y;
-		M(0, 2) += a.m_x * b.m_z;
-		M(1, 0) += a.m_y * b.m_x;
-		M(1, 1) += a.m_y * b.m_y;
-		M(1, 2) += a.m_y * b.m_z;
-		M(2, 0) += a.m_z * b.m_x;
-		M(2, 1) += a.m_z * b.m_y;
-		M(2, 2) += a.m_z * b.m_z;
+		M(0, 0) += a.m_x * b.m_x;	M(0, 1) += a.m_x * b.m_y;	M(0, 2) += a.m_x * b.m_z;
+		M(1, 0) += a.m_y * b.m_x;	M(1, 1) += a.m_y * b.m_y;	M(1, 2) += a.m_y * b.m_z;
+		M(2, 0) += a.m_z * b.m_x;	M(2, 1) += a.m_z * b.m_y;	M(2, 2) += a.m_z * b.m_z;
 	}
 
-//	cout << "M: " << M << endl;
-//	
-//	scale_matrix(M);
-	
-	cout << "M: " << M << endl;
+	// keep the values sensible
+	scale_matrix(M);
 	
 	// Now calculate N, a 4x4 matrix
-	
 	bu::matrix<double> N(4, 4);
 	
 	N(0, 0)				= M(0, 0) + M(1, 1) + M(2, 2);
@@ -469,8 +678,6 @@ void align_proteins(MProtein& a, MProtein& b)
 	
 	N(3, 3)				= -M(0, 0) - M(1, 1) + M(2, 2);
 
-	cout << "N: " << N << endl;
-	
 	// det(N - λI) = 0
 	// find the largest λ (λm)
 	//
@@ -494,39 +701,95 @@ void align_proteins(MProtein& a, MProtein& b)
 	
 	double E = lu_det(N);
 	
-	cout << "C: " << C << ", D: " << D << ", E: " << E << endl;
-	
 	// solve quartic
 	double lm = largest_depressed_quartic_solution(C, D, E);
-	
-	cout << "lm: " << lm << endl;
 	
 	bu::matrix<double> li(4, 4);
 	
 	li = bu::identity_matrix<double>(4) * lm;
 	bu::matrix<double> t = N - li;
 	
-	// We're looking for em for which is said:
-	// (N - lm I) em = 0
-	// take em.0 = 1 so:
-	
-	// another approach, calculate a matrix of cofactors for t
-
-	cout << t << endl;
-
-	long unsigned int ixs[4][3] =
-	{
-		{ 1, 2, 3 },
-		{ 0, 2, 3 },
-		{ 0, 1, 3 },
-		{ 0, 1, 2 }
-	};
-	
+	// calculate a matrix of cofactors for t
 	bu::matrix<double> cf(4, 4);
-	
 	cofactors(t, cf);
+
+	cerr << "cf: " << cf << endl;
 	
-	cout << "cf: " << cf << endl;
+	// take largest row from this matrix as the quaternion
+	double sr = cf(0, 0) + cf(0, 1) + cf(0, 2) + cf(0, 3);
+	uint32 lr = 0;
+//	for (uint32 ri = 1; ri < 4; ++ri)
+//	{
+//		double s = cf(ri, 0) + cf(ri, 1) + cf(ri, 2) + cf(ri, 3);
+//		if (sr < s)
+//		{
+//			lr = ri;
+//			sr = s;
+//		}
+//	}
+	
+	bm::quaternion<double> q(cf(lr, 0), cf(lr, 1), cf(lr, 2), cf(lr, 3));
+
+	cerr << "q: " << q << endl;
+
+	double length = sqrt(cf(lr, 0) * cf(lr, 0) + cf(lr, 1) * cf(lr, 1) + cf(lr, 2) * cf(lr, 2) + cf(lr, 3) * cf(lr, 3));
+	q /= length;
+
+	cerr << "q: " << q << endl;
+	
+	double angle = 2 * acos(q.R_component_1());
+	angle = (angle * 360) / (2 * kPI);
+	if (angle >= 360)
+		angle -= 360;
+	
+	cerr << "angle: " << angle << endl;
+	
+	// axis:
+	double s = sqrt(1 - q.R_component_1() * q.R_component_1());
+	if (s < 0.001)
+		s = 1;
+	
+	cerr << "axis: " << q.R_component_2() / s << ','
+					 << q.R_component_3() / s << ','
+					 << q.R_component_4() / s << endl;
+	
+	return q;
+}
+
+tr1::tuple<bm::quaternion<double>,point> align_proteins(MProtein& a, MProtein& b)
+{
+	vector<point> cAlphaA;
+	a.GetCAlphaLocations(0, cAlphaA);
+	
+	point translationA = center_points(cAlphaA);
+	
+	vector<point> cAlphaB;
+	b.GetCAlphaLocations(0, cAlphaB);
+	
+	point translationB = center_points(cAlphaB);
+
+	if (cAlphaA.size() != cAlphaB.size())
+		throw logic_error("Protein A and B should have the same number of c-alhpa atoms");
+	
+	if (cAlphaA.size() < 3)
+		throw logic_error("Protein A and B should have at least 3 of c-alpha atoms");
+	
+	return tr1::make_tuple(align_points(cAlphaA, cAlphaB), translationA - translationB);
+}
+
+void test()
+{
+	vector<point> a, b;
+	
+	b.push_back(point(1, 0, 0));
+	b.push_back(point(0, 1, 0));
+	b.push_back(point(-1, 0, 0));
+
+	a.push_back(point(0, 1, 0));
+	a.push_back(point(-1, 0, 0));
+	a.push_back(point(0, -1, 0));
+	
+	align_points(a, b);
 }
 
 int main(int argc, char* argv[])
@@ -536,17 +799,22 @@ int main(int argc, char* argv[])
 		po::options_description desc("align-3d options");
 		desc.add_options()
 			("help,h",							 			"Display help message")
+			("test,t",										"Simply run test routine")
 			("input,i",		po::value<vector<string> >(),	"Input files")
 			;
 	
 		po::positional_options_description p;
 		p.add("input", -1);
 	
-		cout << "ferrari test: " << largest_depressed_quartic_solution(6, -60, 36) << endl;
-	
 		po::variables_map vm;
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 		po::notify(vm);
+		
+		if (vm.count("test"))
+		{
+			test();
+			exit(0);
+		}
 		
 		if (vm.count("help") or vm.count("input") == 0 or vm["input"].as<vector<string> >().size() != 2)
 		{
@@ -557,12 +825,26 @@ int main(int argc, char* argv[])
 		MProtein a, b;
 		
 		fs::ifstream file_a(vm["input"].as<vector<string> >()[0]);
-		ParsePDB(file_a, a, true);
-
-		fs::ifstream file_b(vm["input"].as<vector<string> >()[1]);
-		ParsePDB(file_b, b, true);
+		ParsePDB(file_a, a, false);
 		
-		align_proteins(a, b);
+		fs::ifstream file_b(vm["input"].as<vector<string> >()[1]);
+		ParsePDB(file_b, b, false);
+
+		bm::quaternion<double> rotation;
+		point translation;
+		
+		tr1::tie(rotation, translation) = align_proteins(a, b);
+		
+		b.Translate(translation);
+		a.Rotate(rotation);
+		
+		MProtein c;
+
+		c.mChains['A'] = a.mChains.begin()->second;
+		c.mChains['B'] = b.mChains.begin()->second;
+		c.mChains['B'].SetChainID('B');
+		
+		c.WritePDB(cout);
 	}
 	catch (const exception& e)
 	{
