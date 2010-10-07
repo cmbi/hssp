@@ -25,8 +25,7 @@
 
 #include <boost/array.hpp>
 
-#include <boost/numeric/ublas/lu.hpp>
-#include <boost/numeric/ublas/matrix_proxy.hpp>
+#include <boost/numeric/ublas/symmetric.hpp>
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/math/quaternion.hpp>
 
@@ -43,6 +42,8 @@ namespace bm = boost::math;
 const double kPI = 4 * std::atan(1);
 
 // --------------------------------------------------------------------
+
+typedef bm::quaternion<double> quaternion;
 
 struct point
 {
@@ -71,9 +72,9 @@ struct point
 					return *this;
 				}
 
-	void		rotate(bm::quaternion<double>& q)
+	void		rotate(quaternion& q)
 				{
-					bm::quaternion<double> p(0, m_x, m_y, m_z);
+					quaternion p(0, m_x, m_y, m_z);
 					
 					p = q * p * conj(q);
 
@@ -109,7 +110,7 @@ ostream& operator<<(ostream& os, const vector<point>& pts)
 	}
 }
 
-bm::quaternion<double> normalize(bm::quaternion<double> q)
+quaternion normalize(quaternion q)
 {
 	valarray<double> t(4);
 	
@@ -125,7 +126,7 @@ bm::quaternion<double> normalize(bm::quaternion<double> q)
 	return q / length;
 }
 
-tr1::tuple<double,point> quaternion_to_angle_axis(bm::quaternion<double> q)
+tr1::tuple<double,point> quaternion_to_angle_axis(quaternion q)
 {
 	if (q.R_component_1() > 1)
 		q = normalize(q);
@@ -142,79 +143,6 @@ tr1::tuple<double,point> quaternion_to_angle_axis(bm::quaternion<double> q)
 	point axis(q.R_component_2() / s, q.R_component_3() / s, q.R_component_4() / s);
 
 	return tr1::make_tuple(angle, axis);
-}
-
-/** General matrix determinant.
- * It uses lu_factorize in uBLAS. 
- */ 
-template<class M> 
-typename M::value_type lu_det(const M& m)
-{
-	// create a working copy of the input 
-	M mLu(m);
-	bu::permutation_matrix<uint32> pivots(m.size1());
-
-	bu::lu_factorize(mLu, pivots);
-
-	typename M::value_type det = 1.0;
-	for (uint32 i = 0; i < pivots.size(); ++i)
-	{
-		if (pivots(i) != i)
-			det *= -1.0;
-		det *= mLu(i,i);
-	} 
-	return det; 
-}
-
-template<class M>
-void cofactors(const M& m, M& cf)
-{
-	const uint32 ixs[4][3] =
-	{
-		{ 1, 2, 3 },
-		{ 0, 2, 3 },
-		{ 0, 1, 3 },
-		{ 0, 1, 2 }
-	};
-
-	for (uint32 x = 0; x < 4; ++x)
-	{
-		const uint32* ix = ixs[x];
-		
-		for (uint32 y = 0; y < 4; ++y)
-		{
-			const uint32* iy = ixs[y];
-
-			cf(x, y) =
-				m(ix[0], iy[0]) * m(ix[1], iy[1]) * m(ix[2], iy[2]) +
-				m(ix[0], iy[1]) * m(ix[1], iy[2]) * m(ix[2], iy[0]) +
-				m(ix[0], iy[2]) * m(ix[1], iy[0]) * m(ix[2], iy[1]) -
-				m(ix[0], iy[2]) * m(ix[1], iy[1]) * m(ix[2], iy[0]) -
-				m(ix[0], iy[1]) * m(ix[1], iy[0]) * m(ix[2], iy[2]) -
-				m(ix[0], iy[0]) * m(ix[1], iy[2]) * m(ix[2], iy[1]);
-		}
-	}
-}
-
-template<class M> 
-typename M::value_type scale_matrix(M& m)
-{
-	double s = 1.0;
-	
-	for (uint32 x = 0; x < m.size1(); ++x)
-	{
-		for (uint32 y = 0; y < m.size2(); ++y)
-		{
-			if (s < abs(m(x, y)))
-				s = abs(m(x, y));
-		}
-	}
-
-	for (uint32 x = 0; x < m.size1(); ++x)
-	{
-		for (uint32 y = 0; y < m.size2(); ++y)
-			m(x, y) /= s;
-	}
 }
 
 point center_points(vector<point>& points)
@@ -312,7 +240,7 @@ struct MAtom
 							mLoc += inTranslation;
 						}
 						
-	void				Rotate(bm::quaternion<double>& inRotation)
+	void				Rotate(quaternion& inRotation)
 						{
 							mLoc.rotate(inRotation);
 						}
@@ -427,7 +355,7 @@ struct MResidue
 							for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::Translate, _1, inTranslation));
 						}
 						
-	void				Rotate(bm::quaternion<double>& inRotation)
+	void				Rotate(quaternion& inRotation)
 						{
 							for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::Rotate, _1, inRotation));
 						}
@@ -454,7 +382,7 @@ struct MChain
 							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::Translate, _1, inTranslation));
 						}
 						
-	void				Rotate(bm::quaternion<double>& inRotation)
+	void				Rotate(quaternion& inRotation)
 						{
 							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::Rotate, _1, inRotation));
 						}
@@ -479,6 +407,8 @@ struct MProtein
 	void				GetCAlphaLocations(char inChain, vector<point>& outPoints) const;
 
 	void				Center();
+	
+//	point				Centroid() const;
 
 	void				Translate(const point& inTranslation)
 						{
@@ -486,7 +416,7 @@ struct MProtein
 								chain->second.Translate(inTranslation);
 						}
 						
-	void				Rotate(bm::quaternion<double>& inRotation)
+	void				Rotate(quaternion& inRotation)
 						{
 							for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
 								chain->second.Rotate(inRotation);
@@ -514,8 +444,6 @@ void MProtein::Center()
 	
 	point t = center_points(p);
 	
-//	cerr << "center: " << t << endl;
-
 	Translate(point(-t.m_x, -t.m_y, -t.m_z));
 }
 
@@ -552,29 +480,6 @@ double CalculateRMSD(const MProtein& a, const MProtein& b)
 	b.GetPoints(pb);
 	
 	return rmsd(pa, pb);
-}
-
-ostream& operator<<(ostream& os, const MProtein& prot)
-{
-	os << "ID: " << prot.mID << endl;
-	
-	for (map<char,MChain>::const_iterator c = prot.mChains.begin(); c != prot.mChains.end(); ++c)
-	{
-		const MChain& chain = c->second;
-		os << "Chain: " << chain.mChainID << endl << endl;
-		
-		foreach (const MResidue& res, chain.mResidues)
-		{
-			os << "Residue: " << res.mNumber << ' ' << kResidueInfo[res.mType].code << ' ' << kResidueInfo[res.mType].name << endl;
-			
-			foreach (const MAtom& atom, res.mAtoms)
-			{
-				os << "Atom: " << atom.mLoc.m_x << ", " << atom.mLoc.m_y << ", " << atom.mLoc.m_z << endl;
-			}
-		}
-	}
-
-	return os;	
 }
 
 inline double ParseFloat(const string& s)
@@ -670,6 +575,9 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 //
 //   x^4 + ax^2 + bx + c = 0
 //
+// (since I'm too lazy to find out a better way, I've implemented the
+//  routine using complex values to avoid nan's as a result of taking
+//  sqrt of a negative number)
 double largest_depressed_quartic_solution(double a, double b, double c)
 {
 	complex<double> P = - (a * a) / 12 - c;
@@ -690,37 +598,17 @@ double largest_depressed_quartic_solution(double a, double b, double c)
 	// result = (±W + sqrt(-(3 * alpha + 2 * y ± 2 * beta / W))) / 2;
 	// We want the largest result, so:
 
-	complex<double> t[4] =
-	{
-		( W + sqrt(-(3.0 * a + 2.0 * y + 2.0 * b / W))) / 2.0,
-		( W + sqrt(-(3.0 * a + 2.0 * y - 2.0 * b / W))) / 2.0,
-		(-W + sqrt(-(3.0 * a + 2.0 * y + 2.0 * b / W))) / 2.0,
-		(-W + sqrt(-(3.0 * a + 2.0 * y - 2.0 * b / W))) / 2.0
-	};
+	valarray<double> t(4);
 
-//	cerr << "t[0] = " << t[0] << endl
-//		 << "t[1] = " << t[1] << endl
-//		 << "t[2] = " << t[2] << endl
-//		 << "t[3] = " << t[3] << endl;
+	t[0] = (( W + sqrt(-(3.0 * a + 2.0 * y + 2.0 * b / W))) / 2.0).real();
+	t[1] = (( W + sqrt(-(3.0 * a + 2.0 * y - 2.0 * b / W))) / 2.0).real();
+	t[2] = ((-W + sqrt(-(3.0 * a + 2.0 * y + 2.0 * b / W))) / 2.0).real();
+	t[3] = ((-W + sqrt(-(3.0 * a + 2.0 * y - 2.0 * b / W))) / 2.0).real();
 
-	// take the largest
-	uint32 li = 0;
-	double lr = t[0].real();
-	for (uint32 i = 1; i < 4; ++i)
-	{
-		if (lr < t[i].real())
-		{
-			li = i;
-			lr = t[i].real();
-		}
-	}
-	
-	cerr << "lr: " << lr << endl;
-	
-	return lr;
+	return t.max();
 }
 
-bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>& pb)
+quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 {
 	// First calculate M, a 3x3 matrix containing the sums of products of the coordinates of A and B
 	
@@ -736,27 +624,24 @@ bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>
 		M(2, 0) += a.m_z * b.m_x;	M(2, 1) += a.m_z * b.m_y;	M(2, 2) += a.m_z * b.m_z;
 	}
 
-	// keep the values sensible
-	scale_matrix(M);
-	
 	cerr << "M: " << M << endl;
 	
-	// Now calculate N, a 4x4 matrix
-	bu::matrix<double> N(4, 4);
+	// Now calculate N, a symmetric 4x4 matrix
+	bu::symmetric_matrix<double> N(4, 4);
 	
-	N(0, 0)				= M(0, 0) + M(1, 1) + M(2, 2);
-	N(0, 1)	= N(1, 0)	= M(1, 2) - M(2, 1);
-	N(0, 2) = N(2, 0)	= M(2, 0) - M(0, 2);
-	N(0, 3) = N(3, 0)	= M(0, 1) - M(1, 0);
+	N(0, 0) = M(0, 0) + M(1, 1) + M(2, 2);
+	N(0, 1) = M(1, 2) - M(2, 1);
+	N(0, 2) = M(2, 0) - M(0, 2);
+	N(0, 3) = M(0, 1) - M(1, 0);
 	
-	N(1, 1)				= M(0, 0) - M(1, 1) - M(2, 2);
-	N(1, 2) = N(2, 1)	= M(0, 1) + M(1, 0);
-	N(1, 3) = N(3, 1)	= M(0, 2) + M(2, 0);
+	N(1, 1) = M(0, 0) - M(1, 1) - M(2, 2);
+	N(1, 2) = M(0, 1) + M(1, 0);
+	N(1, 3) = M(0, 2) + M(2, 0);
 	
-	N(2, 2)				= -M(0, 0) + M(1, 1) - M(2, 2);
-	N(2, 3) = N(3, 2)	= M(1, 2) + M(2, 1);
+	N(2, 2) = -M(0, 0) + M(1, 1) - M(2, 2);
+	N(2, 3) = M(1, 2) + M(2, 1);
 	
-	N(3, 3)				= -M(0, 0) - M(1, 1) + M(2, 2);
+	N(3, 3) = -M(0, 0) - M(1, 1) + M(2, 2);
 
 	cerr << "N: " << N << endl;
 
@@ -781,7 +666,13 @@ bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>
 					M(1, 2) * M(2, 0) * M(0, 1) +
 					M(2, 1) * M(1, 0) * M(0, 2));
 	
-	double E = lu_det(N);
+	double E = 
+		(N(0,0) * N(1,1) - N(0,1) * N(0,1)) * (N(2,2) * N(3,3) - N(2,3) * N(2,3)) +
+		(N(0,1) * N(0,2) - N(0,0) * N(2,1)) * (N(2,1) * N(3,3) - N(2,3) * N(1,3)) +
+		(N(0,0) * N(1,3) - N(0,1) * N(0,3)) * (N(2,1) * N(2,3) - N(2,2) * N(1,3)) +
+		(N(0,1) * N(2,1) - N(1,1) * N(0,2)) * (N(0,2) * N(3,3) - N(2,3) * N(0,3)) +
+		(N(1,1) * N(0,3) - N(0,1) * N(1,3)) * (N(0,2) * N(2,3) - N(2,2) * N(0,3)) +
+		(N(0,2) * N(1,3) - N(2,1) * N(0,3)) * (N(0,2) * N(1,3) - N(2,1) * N(0,3));
 	
 	// solve quartic
 	double lm = largest_depressed_quartic_solution(C, D, E);
@@ -793,7 +684,32 @@ bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>
 	
 	// calculate a matrix of cofactors for t
 	bu::matrix<double> cf(4, 4);
-	cofactors(t, cf);
+
+	const uint32 ixs[4][3] =
+	{
+		{ 1, 2, 3 },
+		{ 0, 2, 3 },
+		{ 0, 1, 3 },
+		{ 0, 1, 2 }
+	};
+
+	for (uint32 x = 0; x < 4; ++x)
+	{
+		const uint32* ix = ixs[x];
+		
+		for (uint32 y = 0; y < 4; ++y)
+		{
+			const uint32* iy = ixs[y];
+
+			cf(x, y) =
+				t(ix[0], iy[0]) * t(ix[1], iy[1]) * t(ix[2], iy[2]) +
+				t(ix[0], iy[1]) * t(ix[1], iy[2]) * t(ix[2], iy[0]) +
+				t(ix[0], iy[2]) * t(ix[1], iy[0]) * t(ix[2], iy[1]) -
+				t(ix[0], iy[2]) * t(ix[1], iy[1]) * t(ix[2], iy[0]) -
+				t(ix[0], iy[1]) * t(ix[1], iy[0]) * t(ix[2], iy[2]) -
+				t(ix[0], iy[0]) * t(ix[1], iy[2]) * t(ix[2], iy[1]);
+		}
+	}
 
 	cerr << "cf: " << cf << endl;
 	
@@ -811,30 +727,23 @@ bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>
 	}
 	
 	// NOTE the negation of the y here, why?
-	bm::quaternion<double> q(cf(lr, 0), cf(lr, 1), -cf(lr, 2), cf(lr, 3));
+	quaternion q(cf(lr, 0), cf(lr, 1), -cf(lr, 2), cf(lr, 3));
 	q = normalize(q);
 	
 	return q;
 }
 
-bm::quaternion<double> align_proteins(MProtein& a, MProtein& b)
+quaternion align_proteins(MProtein& a, MProtein& b)
 {
 	a.Center();
 	
 	vector<point> cAlphaA;
 	a.GetCAlphaLocations(0, cAlphaA);
-	
-//	point translationA = center_points(cAlphaA);
 
 	b.Center();
 
 	vector<point> cAlphaB;
 	b.GetCAlphaLocations(0, cAlphaB);
-	
-//	point translationB = center_points(cAlphaB);
-
-//	cerr << "translate A: " << translationA << endl
-//		 << "translate B: " << translationB << endl;
 
 	if (cAlphaA.size() != cAlphaB.size())
 		throw logic_error("Protein A and B should have the same number of c-alhpa atoms");
@@ -842,7 +751,6 @@ bm::quaternion<double> align_proteins(MProtein& a, MProtein& b)
 	if (cAlphaA.size() < 3)
 		throw logic_error("Protein A and B should have at least 3 of c-alpha atoms");
 	
-//	return tr1::make_tuple(align_points(cAlphaA, cAlphaB), translationA - translationB);
 	return align_points(cAlphaA, cAlphaB);
 }
 
@@ -859,7 +767,7 @@ void test(double angle)
 
 	angle = kPI * angle / 180.0;
 	double s = sin(angle / 2);
-	bm::quaternion<double> q1(cos(angle/2), x * s, y * s, z * s);
+	quaternion q1(cos(angle/2), x * s, y * s, z * s);
 	
 	point axis;
 	tr1::tie(angle, axis) = quaternion_to_angle_axis(q1);
@@ -867,9 +775,7 @@ void test(double angle)
 
 	b.Rotate(q1);
 	
-	bm::quaternion<double>q2;
-	
-	q2 = align_proteins(a, b);
+	quaternion q2 = align_proteins(a, b);
 	
 	tr1::tie(angle, axis) = quaternion_to_angle_axis(q2);
 	cerr << "q2" << q2 << " is a " << angle << " degrees rotation around axis" << axis << endl;
@@ -881,16 +787,6 @@ void test(double angle)
 	b.GetCAlphaLocations(0, cab);
 	
 	cerr << "rmsd: " << rmsd(caa, cab) << endl;
-
-
-//	
-//	MProtein c;
-//
-//	c.mChains['A'] = a.mChains.begin()->second;
-//	c.mChains['B'] = b.mChains.begin()->second;
-//	c.mChains['B'].SetChainID('B');
-//	
-//	c.WritePDB(cout);
 }
 
 int main(int argc, char* argv[])
@@ -932,7 +828,7 @@ int main(int argc, char* argv[])
 		fs::ifstream file_b(vm["input"].as<vector<string> >()[1]);
 		ParsePDB(file_b, b, false);
 
-		bm::quaternion<double> rotation = align_proteins(a, b);
+		quaternion rotation = align_proteins(a, b);
 
 		double angle;
 		point axis;
