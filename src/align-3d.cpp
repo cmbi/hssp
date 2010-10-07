@@ -10,6 +10,7 @@
 #include <numeric>
 #include <vector>
 #include <map>
+#include <valarray>
 
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
@@ -72,12 +73,13 @@ struct point
 
 	void		rotate(bm::quaternion<double>& q)
 				{
-					bm::quaternion<double> pq(0, m_x, m_y, m_z);
-					bm::quaternion<double> t = q * pq;
-					pq = t * bm::conj(q);
-					m_x = pq.R_component_2();
-					m_y = pq.R_component_3();
-					m_z = pq.R_component_4();
+					bm::quaternion<double> p(0, m_x, m_y, m_z);
+					
+					p = q * p * conj(q);
+
+					m_x = p.R_component_2();
+					m_y = p.R_component_3();
+					m_z = p.R_component_4();
 				}
 
 	double		m_x, m_y, m_z;
@@ -105,6 +107,41 @@ ostream& operator<<(ostream& os, const vector<point>& pts)
 		if (n-- > 1)
 			os << ',';
 	}
+}
+
+bm::quaternion<double> normalize(bm::quaternion<double> q)
+{
+	valarray<double> t(4);
+	
+	t[0] = q.R_component_1();
+	t[1] = q.R_component_2();
+	t[2] = q.R_component_3();
+	t[3] = q.R_component_4();
+	
+	t *= t;
+	
+	double length = sqrt(t.sum());
+	
+	return q / length;
+}
+
+tr1::tuple<double,point> quaternion_to_angle_axis(bm::quaternion<double> q)
+{
+	if (q.R_component_1() > 1)
+		q = normalize(q);
+
+	// angle:
+	double angle = 2 * acos(q.R_component_1());
+	angle = angle * 180 / kPI;
+
+	// axis:
+	double s = sqrt(1 - q.R_component_1() * q.R_component_1());
+	if (s < 0.001)
+		s = 1;
+	
+	point axis(q.R_component_2() / s, q.R_component_3() / s, q.R_component_4() / s);
+
+	return tr1::make_tuple(angle, axis);
 }
 
 /** General matrix determinant.
@@ -147,7 +184,7 @@ void cofactors(const M& m, M& cf)
 		for (uint32 y = 0; y < 4; ++y)
 		{
 			const uint32* iy = ixs[y];
-			
+
 			cf(x, y) =
 				m(ix[0], iy[0]) * m(ix[1], iy[1]) * m(ix[2], iy[2]) +
 				m(ix[0], iy[1]) * m(ix[1], iy[2]) * m(ix[2], iy[0]) +
@@ -203,6 +240,25 @@ point center_points(vector<point>& points)
 	}
 	
 	return t;
+}
+
+double rmsd(const vector<point>& a, const vector<point>& b)
+{
+	double sum = 0;
+	for (uint32 i = 0; i < a.size(); ++i)
+	{
+		valarray<double> d(3);
+		
+		d[0] = b[i].m_x - a[i].m_x;
+		d[1] = b[i].m_y - a[i].m_y;
+		d[2] = b[i].m_z - a[i].m_z;
+		
+		d *= d;
+		
+		sum += sqrt(d.sum());
+	}
+	
+	return sqrt(sum / a.size());
 }
 
 // --------------------------------------------------------------------
@@ -422,6 +478,8 @@ struct MProtein
 	
 	void				GetCAlphaLocations(char inChain, vector<point>& outPoints) const;
 
+	void				Center();
+
 	void				Translate(const point& inTranslation)
 						{
 							for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
@@ -435,7 +493,31 @@ struct MProtein
 						}
 
 	void				WritePDB(ostream& os);
+	
+	void				GetPoints(vector<point>& outPoints) const
+						{
+							for (map<char,MChain>::const_iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+							{
+								foreach (const MResidue& r, chain->second.mResidues)
+								{
+									foreach (const MAtom& a, r.mAtoms)
+										outPoints.push_back(a.mLoc);
+								}
+							}
+						}
 };
+
+void MProtein::Center()
+{
+	vector<point> p;
+	GetPoints(p);
+	
+	point t = center_points(p);
+	
+//	cerr << "center: " << t << endl;
+
+	Translate(point(-t.m_x, -t.m_y, -t.m_z));
+}
 
 void MProtein::GetCAlphaLocations(char inChain, vector<point>& outPoints) const
 {
@@ -459,6 +541,17 @@ void MProtein::WritePDB(ostream& os)
 {
 	for (map<char,MChain>::iterator c = mChains.begin(); c != mChains.end(); ++c)
 		c->second.WritePDB(os);
+}
+
+double CalculateRMSD(const MProtein& a, const MProtein& b)
+{
+	vector<point> pa;
+	a.GetPoints(pa);
+	
+	vector<point> pb;
+	b.GetPoints(pb);
+	
+	return rmsd(pa, pb);
 }
 
 ostream& operator<<(ostream& os, const MProtein& prot)
@@ -524,54 +617,39 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 				continue;
 			
 			MAtom atom = {};
-
-//	uint32				mSerial;
-//	char				mName[5];
-//	char				mAltLoc;
-//	char				mResName[5];
-//	char				mChainID;
-//	uint32				mResSeq;
-//	char				mICode;
-//	MAtomType			mType;
-//	point				mLoc;
-//	double				mOccupancy;
-//	double				mTempFactor;
-//	char				mElement[3];
-//	int					mCharge;
-
-	//	1 - 6	Record name "ATOM "
-	//	7 - 11	Integer serial Atom serial number.
-	//	13 - 16	Atom name Atom name.
-	//	17		Character altLoc Alternate location indicator.
-	//	18 - 20	Residue name resName Residue name.
-	//	22		Character chainID Chain identifier.
-	//	23 - 26	Integer resSeq Residue sequence number.
-	//	27		AChar iCode Code for insertion of residues.
-	//	31 - 38	Real(8.3) x Orthogonal coordinates for X in Angstroms.
-	//	39 - 46	Real(8.3) y Orthogonal coordinates for Y in Angstroms.
-	//	47 - 54	Real(8.3) z Orthogonal coordinates for Z in Angstroms.
-	//	55 - 60	Real(6.2) occupancy Occupancy.
-	//	61 - 66	Real(6.2) tempFactor Temperature factor.
-	//	77 - 78	LString(2) element Element symbol, right-justified.
-	//	79 - 80	LString(2) charge Charge on the atom.
-
-
-			atom.mSerial = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(6, 5)));
-			line.copy(atom.mName, 4, 12);
-			atom.mAltLoc = line[16];
-			line.copy(atom.mResName, 4, 17);
-			atom.mChainID = line[21];
-			atom.mResSeq = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(22, 4)));
-			atom.mICode = line[26];
+			//	1 - 6	Record name "ATOM "
 
 			atom.mType = kCarbon;
+
+			atom.mSerial = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(6, 5)));
+			//	7 - 11	Integer serial Atom serial number.
+			line.copy(atom.mName, 4, 12);
+			//	13 - 16	Atom name Atom name.
+			atom.mAltLoc = line[16];
+			//	17		Character altLoc Alternate location indicator.
+			line.copy(atom.mResName, 4, 17);
+			//	18 - 20	Residue name resName Residue name.
+			atom.mChainID = line[21];
+			//	22		Character chainID Chain identifier.
+			atom.mResSeq = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(22, 4)));
+			//	23 - 26	Integer resSeq Residue sequence number.
+			atom.mICode = line[26];
+			//	27		AChar iCode Code for insertion of residues.
+
 			atom.mLoc.m_x = ParseFloat(line.substr(30, 8));
+			//	31 - 38	Real(8.3) x Orthogonal coordinates for X in Angstroms.
 			atom.mLoc.m_y = ParseFloat(line.substr(38, 8));
+			//	39 - 46	Real(8.3) y Orthogonal coordinates for Y in Angstroms.
 			atom.mLoc.m_z = ParseFloat(line.substr(46, 8));
+			//	47 - 54	Real(8.3) z Orthogonal coordinates for Z in Angstroms.
 			atom.mOccupancy = ParseFloat(line.substr(54, 6));
+			//	55 - 60	Real(6.2) occupancy Occupancy.
 			atom.mTempFactor = ParseFloat(line.substr(60, 6));
+			//	61 - 66	Real(6.2) tempFactor Temperature factor.
 			line.copy(atom.mElement, 2, 76);
+			//	77 - 78	LString(2) element Element symbol, right-justified.
 			atom.mCharge = 0;
+			//	79 - 80	LString(2) charge Charge on the atom.
 			
 			MResidue residue = {};
 			residue.mType = MapResidueName(line.substr(17, 3));
@@ -598,7 +676,7 @@ double largest_depressed_quartic_solution(double a, double b, double c)
 	complex<double> Q = - (a * a * a) / 108 + (a * c) / 3 - (b * b) / 8;
 	complex<double> R = - Q / 2.0 + sqrt((Q * Q) / 4.0 + (P * P * P) / 27.0);
 	
-	complex<double> U = pow(R, 1 / 3.0f);
+	complex<double> U = pow(R, 1 / 3.0);
 	
 	complex<double> y;
 	if (U == 0.0)
@@ -620,10 +698,10 @@ double largest_depressed_quartic_solution(double a, double b, double c)
 		(-W + sqrt(-(3.0 * a + 2.0 * y - 2.0 * b / W))) / 2.0
 	};
 
-	cerr << "t[0] = " << t[0] << endl
-		 << "t[1] = " << t[1] << endl
-		 << "t[2] = " << t[2] << endl
-		 << "t[3] = " << t[3] << endl;
+//	cerr << "t[0] = " << t[0] << endl
+//		 << "t[1] = " << t[1] << endl
+//		 << "t[2] = " << t[2] << endl
+//		 << "t[3] = " << t[3] << endl;
 
 	// take the largest
 	uint32 li = 0;
@@ -661,6 +739,8 @@ bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>
 	// keep the values sensible
 	scale_matrix(M);
 	
+	cerr << "M: " << M << endl;
+	
 	// Now calculate N, a 4x4 matrix
 	bu::matrix<double> N(4, 4);
 	
@@ -677,6 +757,8 @@ bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>
 	N(2, 3) = N(3, 2)	= M(1, 2) + M(2, 1);
 	
 	N(3, 3)				= -M(0, 0) - M(1, 1) + M(2, 2);
+
+	cerr << "N: " << N << endl;
 
 	// det(N - λI) = 0
 	// find the largest λ (λm)
@@ -704,10 +786,10 @@ bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>
 	// solve quartic
 	double lm = largest_depressed_quartic_solution(C, D, E);
 	
-	bu::matrix<double> li(4, 4);
-	
-	li = bu::identity_matrix<double>(4) * lm;
+	bu::matrix<double> li = bu::identity_matrix<double>(4) * lm;
 	bu::matrix<double> t = N - li;
+	
+	cerr << "t: " << t << endl;
 	
 	// calculate a matrix of cofactors for t
 	bu::matrix<double> cf(4, 4);
@@ -716,57 +798,43 @@ bm::quaternion<double> align_points(const vector<point>& pa, const vector<point>
 	cerr << "cf: " << cf << endl;
 	
 	// take largest row from this matrix as the quaternion
-	double sr = cf(0, 0) + cf(0, 1) + cf(0, 2) + cf(0, 3);
+	double sr = abs(cf(0, 0));
 	uint32 lr = 0;
-//	for (uint32 ri = 1; ri < 4; ++ri)
-//	{
-//		double s = cf(ri, 0) + cf(ri, 1) + cf(ri, 2) + cf(ri, 3);
-//		if (sr < s)
-//		{
-//			lr = ri;
-//			sr = s;
-//		}
-//	}
+	for (uint32 ri = 1; ri < 4; ++ri)
+	{
+		double s = abs(cf(ri, 0));
+		if (sr < s)
+		{
+			lr = ri;
+			sr = s;
+		}
+	}
 	
-	bm::quaternion<double> q(cf(lr, 0), cf(lr, 1), cf(lr, 2), cf(lr, 3));
-
-	cerr << "q: " << q << endl;
-
-	double length = sqrt(cf(lr, 0) * cf(lr, 0) + cf(lr, 1) * cf(lr, 1) + cf(lr, 2) * cf(lr, 2) + cf(lr, 3) * cf(lr, 3));
-	q /= length;
-
-	cerr << "q: " << q << endl;
-	
-	double angle = 2 * acos(q.R_component_1());
-	angle = (angle * 360) / (2 * kPI);
-	if (angle >= 360)
-		angle -= 360;
-	
-	cerr << "angle: " << angle << endl;
-	
-	// axis:
-	double s = sqrt(1 - q.R_component_1() * q.R_component_1());
-	if (s < 0.001)
-		s = 1;
-	
-	cerr << "axis: " << q.R_component_2() / s << ','
-					 << q.R_component_3() / s << ','
-					 << q.R_component_4() / s << endl;
+	// NOTE the negation of the y here, why?
+	bm::quaternion<double> q(cf(lr, 0), cf(lr, 1), -cf(lr, 2), cf(lr, 3));
+	q = normalize(q);
 	
 	return q;
 }
 
-tr1::tuple<bm::quaternion<double>,point> align_proteins(MProtein& a, MProtein& b)
+bm::quaternion<double> align_proteins(MProtein& a, MProtein& b)
 {
+	a.Center();
+	
 	vector<point> cAlphaA;
 	a.GetCAlphaLocations(0, cAlphaA);
 	
-	point translationA = center_points(cAlphaA);
-	
+//	point translationA = center_points(cAlphaA);
+
+	b.Center();
+
 	vector<point> cAlphaB;
 	b.GetCAlphaLocations(0, cAlphaB);
 	
-	point translationB = center_points(cAlphaB);
+//	point translationB = center_points(cAlphaB);
+
+//	cerr << "translate A: " << translationA << endl
+//		 << "translate B: " << translationB << endl;
 
 	if (cAlphaA.size() != cAlphaB.size())
 		throw logic_error("Protein A and B should have the same number of c-alhpa atoms");
@@ -774,22 +842,55 @@ tr1::tuple<bm::quaternion<double>,point> align_proteins(MProtein& a, MProtein& b
 	if (cAlphaA.size() < 3)
 		throw logic_error("Protein A and B should have at least 3 of c-alpha atoms");
 	
-	return tr1::make_tuple(align_points(cAlphaA, cAlphaB), translationA - translationB);
+//	return tr1::make_tuple(align_points(cAlphaA, cAlphaB), translationA - translationB);
+	return align_points(cAlphaA, cAlphaB);
 }
 
-void test()
+void test(double angle)
 {
-	vector<point> a, b;
+	MProtein a, b;
 	
-	b.push_back(point(1, 0, 0));
-	b.push_back(point(0, 1, 0));
-	b.push_back(point(-1, 0, 0));
+	fs::ifstream file("1crn0.pdb");
+	ParsePDB(file, a, false);
+	b = a;
+	
+//	double x = -0.0584427, y = -0.997915, z = -0.0273782;
+	double x = 0, y = 0.707107, z = 0.707107;
 
-	a.push_back(point(0, 1, 0));
-	a.push_back(point(-1, 0, 0));
-	a.push_back(point(0, -1, 0));
+	angle = kPI * angle / 180.0;
+	double s = sin(angle / 2);
+	bm::quaternion<double> q1(cos(angle/2), x * s, y * s, z * s);
 	
-	align_points(a, b);
+	point axis;
+	tr1::tie(angle, axis) = quaternion_to_angle_axis(q1);
+	cerr << "q1" << q1 << " is a " << angle << " degrees rotation around axis" << axis << endl;
+
+	b.Rotate(q1);
+	
+	bm::quaternion<double>q2;
+	
+	q2 = align_proteins(a, b);
+	
+	tr1::tie(angle, axis) = quaternion_to_angle_axis(q2);
+	cerr << "q2" << q2 << " is a " << angle << " degrees rotation around axis" << axis << endl;
+	
+	b.Rotate(q2);
+	
+	vector<point> caa, cab;
+	a.GetCAlphaLocations(0, caa);
+	b.GetCAlphaLocations(0, cab);
+	
+	cerr << "rmsd: " << rmsd(caa, cab) << endl;
+
+
+//	
+//	MProtein c;
+//
+//	c.mChains['A'] = a.mChains.begin()->second;
+//	c.mChains['B'] = b.mChains.begin()->second;
+//	c.mChains['B'].SetChainID('B');
+//	
+//	c.WritePDB(cout);
 }
 
 int main(int argc, char* argv[])
@@ -800,6 +901,7 @@ int main(int argc, char* argv[])
 		desc.add_options()
 			("help,h",							 			"Display help message")
 			("test,t",										"Simply run test routine")
+			("test-angle,a", po::value<double>(),			"Rotate 1crn around this test angle")
 			("input,i",		po::value<vector<string> >(),	"Input files")
 			;
 	
@@ -810,9 +912,9 @@ int main(int argc, char* argv[])
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 		po::notify(vm);
 		
-		if (vm.count("test"))
+		if (vm.count("test-angle"))
 		{
-			test();
+			test(vm["test-angle"].as<double>());
 			exit(0);
 		}
 		
@@ -830,13 +932,16 @@ int main(int argc, char* argv[])
 		fs::ifstream file_b(vm["input"].as<vector<string> >()[1]);
 		ParsePDB(file_b, b, false);
 
-		bm::quaternion<double> rotation;
-		point translation;
+		bm::quaternion<double> rotation = align_proteins(a, b);
+
+		double angle;
+		point axis;
+		tr1::tie(angle, axis) = quaternion_to_angle_axis(rotation);
+		cerr << "rotation" << rotation << " is a " << angle << " degrees rotation around axis" << axis << endl;
 		
-		tr1::tie(rotation, translation) = align_proteins(a, b);
-		
-		b.Translate(translation);
-		a.Rotate(rotation);
+		b.Rotate(rotation);
+
+		cerr << "RMSD: " << CalculateRMSD(a, b) << endl;
 		
 		MProtein c;
 
