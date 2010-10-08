@@ -9,127 +9,196 @@
 #include <cassert>
 
 // --------------------------------------------------------------------
+// uBlas compatible matrix types
+// matrix is m x n, addressing i,j is 0 <= i < m and 0 <= j < n
+// element m i,j is mapped to [i * n + j] and thus storage is row major
 
 template<typename T>
-class matrix
+class matrix_base
 {
   public:
+
 	typedef T value_type;
+
+	virtual				~matrix_base() {}
+
+	virtual uint32		dim_m() const = 0;
+	virtual uint32		dim_n() const = 0;
+
+	virtual value_type&	operator()(uint32 i, uint32 j) = 0;
+	virtual value_type	operator()(uint32 i, uint32 j) const = 0;
 	
-					matrix(uint32 m, uint32 n)
-						: m_m(m)
-						, m_n(n)
-					{
-						m_data = new value_type[m_m * m_n];
-					}
-					
-					matrix(uint32 m, uint32 n, const T& v)
-						: m_m(m)
-						, m_n(n)
-					{
-						m_data = new value_type[m_m * m_n];
-						std::fill(m_data, m_data + (m_m * m_n), v);
-					}
-					
-	virtual			~matrix()
-					{
-						delete [] m_data;
-					}
-	
-	value_type		operator()(uint32 i, uint32 j) const
-					{
-						assert(i < m_m); assert(j < m_n);
-						return m_data[i + j * m_m];
-					}
-					
-	value_type&		operator()(uint32 i, uint32 j)
-					{
-						assert(i < m_m); assert(j < m_n);
-						return m_data[i + j * m_m];
-					}
+	matrix_base&		operator*=(const value_type& rhs);
 
-	void			print(std::ostream& os) const
-					{
-						for (uint32 x = 0; x < m_m; ++x)
-						{
-							for (uint32 y = 0; y < m_n; ++y)
-								os << double(m_data[x + y * m_m]) << ';';
-							os << std::endl;
-						}
-					}
-
-  private:
-					matrix(const matrix&);
-	matrix&			operator=(const matrix&);
-
-	value_type*		m_data;
-	uint32			m_m, m_n;
+	matrix_base&		operator-=(const value_type& rhs);
 };
 
 template<typename T>
-std::ostream& operator<<(std::ostream& lhs, matrix<T>& rhs)
+matrix_base<T>& matrix_base<T>::operator*=(const T& rhs)
 {
-	rhs.print(lhs); return lhs;
+	for (uint32 i = 0; i < dim_m(); ++i)
+	{
+		for (uint32 j = 0; j < dim_n(); ++j)
+		{
+			operator()(i, j) *= rhs;
+		}
+	}
+	
+	return *this;
 }
+
+template<typename T>
+matrix_base<T>& matrix_base<T>::operator-=(const T& rhs)
+{
+	for (uint32 i = 0; i < dim_m(); ++i)
+	{
+		for (uint32 j = 0; j < dim_n(); ++j)
+		{
+			operator()(i, j) -= rhs;
+		}
+	}
+	
+	return *this;
+}
+
+template<typename T>
+std::ostream& operator<<(std::ostream& lhs, const matrix_base<T>& rhs)
+{
+	lhs << '[' << rhs.dim_m() << ',' << rhs.dim_n() << ']' << '(';
+	for (uint32 i = 0; i < rhs.dim_m(); ++i)
+	{
+		lhs << '(';
+		for (uint32 j = 0; j < rhs.dim_n(); ++j)
+		{
+			if (j > 0)
+				lhs << ',';
+			lhs << rhs(i,j);
+		}
+		lhs << ')';
+	}
+	lhs << ')';
+	
+	return lhs;
+}
+
+template<typename T>
+class matrix : public matrix_base<T>
+{
+  public:
+	typedef T value_type;
+
+						template<typename T2>
+						matrix(const matrix_base<T2>& m)
+							: m_m(m.dim_m())
+							, m_n(m.dim_n())
+						{
+							m_data = new value_type[m_m * m_n];
+							for (uint32 i = 0; i < m_m; ++i)
+							{
+								for (uint32 j = 0; j < m_n; ++j)
+									operator()(i, j) = m(i, j);
+							}
+						}
+
+						matrix(const matrix& m)
+							: m_m(m.m_m)
+							, m_n(m.m_n)
+						{
+							m_data = new value_type[m_m * m_n];
+							std::copy(m.m_data, m.m_data + (m_m * m_n), m_data);
+						}
+
+	matrix&				operator=(const matrix& m)
+						{
+							value_type t = new value_type[m.m_m * m.m_n];
+							std::copy(m.m_data, m.m_data + (m_m * m_n), t);
+							
+							delete[] m_data;
+							m_data = t;
+							m_m = m.m_m;
+							m_n = m.m_n;
+							
+							return *this;
+						}
+	
+						matrix(uint32 m, uint32 n, T v = T())
+							: m_m(m)
+							, m_n(n)
+						{
+							m_data = new value_type[m_m * m_n];
+							std::fill(m_data, m_data + (m_m * m_n), v);
+						}
+						
+	virtual				~matrix()
+						{
+							delete [] m_data;
+						}
+	
+	virtual uint32		dim_m() const 					{ return m_m; }
+	virtual uint32		dim_n() const					{ return m_n; }
+
+	virtual value_type	operator()(uint32 i, uint32 j) const
+						{
+							assert(i < m_m); assert(j < m_n);
+							return m_data[i * m_n + j];
+						}
+					
+	virtual value_type&	operator()(uint32 i, uint32 j)
+						{
+							assert(i < m_m); assert(j < m_n);
+							return m_data[i * m_n + j];
+						}
+
+  private:
+	value_type*			m_data;
+	uint32				m_m, m_n;
+};
 
 // --------------------------------------------------------------------
 
 template<typename T>
-class symmetric_matrix
+class symmetric_matrix : public matrix_base<T>
 {
   public:
-	typedef T value_type;
+	typedef typename matrix_base<T>::value_type value_type;
+
+						symmetric_matrix(uint32 n)
+							: m_n(n)
+						{
+							m_data = new value_type[(m_n * (m_n + 1)) / 2];
+						}
+
+	virtual				~symmetric_matrix()
+						{
+							delete[] m_data;
+						}
 	
-					symmetric_matrix(uint32 n);
-	virtual			~symmetric_matrix();
-	
-	value_type		operator()(uint32 i, uint32 j) const;
-	value_type&		operator()(uint32 i, uint32 j);
+	virtual uint32		dim_m() const					{ return m_n; }
+	virtual uint32		dim_n() const					{ return m_n; }
+
+	value_type			operator()(uint32 i, uint32 j) const
+						{
+							if (i > j)
+								std::swap(i, j);
+							assert(j < m_n);
+							return m_data[(j * (j + 1)) / 2 + i];
+						}
+
+	virtual value_type&	operator()(uint32 i, uint32 j)
+						{
+							if (i > j)
+								std::swap(i, j);
+							assert(j < m_n);
+							return m_data[(j * (j + 1)) / 2 + i];
+						}
 	
 	// erase two rows, add one at the end (for neighbour joining)
-	void			erase_2(uint32 i, uint32 j);
-
-	void			print(std::ostream& os) const;
+	void				erase_2(uint32 i, uint32 j);
 
   private:
-	value_type*		m_data;
-	uint32			m_n;
+	value_type*			m_data;
+	uint32				m_n;
 };
-
-template<typename T>
-symmetric_matrix<T>::symmetric_matrix(uint32 n)
-	: m_n(n)
-{
-	m_data = new value_type[(m_n * (m_n - 1)) / 2];
-}
-
-template<typename T>
-symmetric_matrix<T>::~symmetric_matrix()
-{
-	delete[] m_data;
-}
-
-template<typename T>
-inline
-T& symmetric_matrix<T>::operator()(uint32 i, uint32 j)
-{
-	if (i > j)
-		std::swap(i, j);
-	
-	assert(j < m_n); assert(i != j);
-	return m_data[(j * (j - 1)) / 2 + i];
-}
-
-template<typename T>
-inline
-T symmetric_matrix<T>::operator()(uint32 i, uint32 j) const
-{
-	if (i > j)
-		std::swap(i, j);
-	
-	assert(j < m_n); assert(i != j);
-	return m_data[(j * (j - 1)) / 2 + i];
-}
 
 template<typename T>
 void symmetric_matrix<T>::erase_2(uint32 di, uint32 dj)
@@ -154,24 +223,83 @@ void symmetric_matrix<T>::erase_2(uint32 di, uint32 dj)
 }
 
 template<typename T>
-void symmetric_matrix<T>::print(std::ostream& os) const
+class identity_matrix : public matrix_base<T>
 {
-	for (uint32 y = 1; y < m_n; ++y)
+  public:
+	typedef typename matrix_base<T>::value_type value_type;
+
+						identity_matrix(uint32 n)
+							: m_n(n)
+						{
+						}
+
+	virtual uint32		dim_m() const					{ return m_n; }
+	virtual uint32		dim_n() const					{ return m_n; }
+
+	virtual value_type&	operator()(uint32 i, uint32 j)	{ assert(false); }
+	virtual value_type	operator()(uint32 i, uint32 j) const
+						{
+							value_type result = 0;
+							if (i == j)
+								result = 1;
+							return result;
+						}
+
+  private:
+	uint32				m_n;
+};
+
+// --------------------------------------------------------------------
+// matrix functions
+
+template<typename T>
+matrix<T> operator*(const matrix_base<T>& lhs, const matrix_base<T>& rhs)
+{
+	matrix<T> result(min(lhs.dim_m(), rhs.dim_m()), min(lhs.dim_n(), rhs.dim_n()));
+	
+	for (uint32 i = 0; i < result.dim_m(); ++i)
 	{
-		os << std::setw(5) << y;
-		
-		for (uint32 x = 0; x < y; ++x)
-			os << (boost::format("  %1.2f") % operator()(x, y));
-		
-		os << std::endl;
+		for (uint32 j = 0; j < result.dim_n(); ++j)
+		{
+			for (uint32 li = 0, rj = 0; li < lhs.dim_m() and rj < rhs.dim_n(); ++li, ++rj)
+				result(i, j) += lhs(li, j) * rhs(i, rj);
+		}
 	}
+	
+	return result;
 }
 
 template<typename T>
-std::ostream& operator<<(std::ostream& lhs, const symmetric_matrix<T>& rhs)
+matrix<T> operator*(const matrix_base<T>& lhs, T rhs)
 {
-	rhs.print(lhs);
-	return lhs;
+	matrix<T> result(lhs);
+	result *= rhs;
+
+	return result;
+}
+
+template<typename T>
+matrix<T> operator-(const matrix_base<T>& lhs, const matrix_base<T>& rhs)
+{
+	matrix<T> result(min(lhs.dim_m(), rhs.dim_m()), min(lhs.dim_n(), rhs.dim_n()));
+	
+	for (uint32 i = 0; i < result.dim_m(); ++i)
+	{
+		for (uint32 j = 0; j < result.dim_n(); ++j)
+		{
+			result(i, j) = lhs(i, j) - rhs(i, j);
+		}
+	}
+	
+	return result;
+}
+
+template<typename T>
+matrix<T> operator-(const matrix_base<T>& lhs, T rhs)
+{
+	matrix<T> result(lhs.dim_m(), lhs.dim_n());
+	result -= rhs;
+	return result;
 }
 
 // --------------------------------------------------------------------

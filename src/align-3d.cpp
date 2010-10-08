@@ -12,6 +12,8 @@
 #include <map>
 #include <valarray>
 
+#include "matrix.h"
+
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -23,10 +25,6 @@
 #include <boost/bind.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include <boost/array.hpp>
-
-#include <boost/numeric/ublas/symmetric.hpp>
-#include <boost/numeric/ublas/io.hpp>
 #include <boost/math/quaternion.hpp>
 
 using namespace std;
@@ -36,7 +34,6 @@ namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
-namespace bu = boost::numeric::ublas;
 namespace bm = boost::math;
 
 const double kPI = 4 * std::atan(1);
@@ -611,8 +608,7 @@ double largest_depressed_quartic_solution(double a, double b, double c)
 quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 {
 	// First calculate M, a 3x3 matrix containing the sums of products of the coordinates of A and B
-	
-	bu::matrix<double> M(3, 3, 0);
+	matrix<double> M(3, 3, 0);
 
 	for (uint32 i = 0; i < pa.size(); ++i)
 	{
@@ -623,23 +619,23 @@ quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 		M(1, 0) += a.m_y * b.m_x;	M(1, 1) += a.m_y * b.m_y;	M(1, 2) += a.m_y * b.m_z;
 		M(2, 0) += a.m_z * b.m_x;	M(2, 1) += a.m_z * b.m_y;	M(2, 2) += a.m_z * b.m_z;
 	}
-
+	
 	cerr << "M: " << M << endl;
-	
+
 	// Now calculate N, a symmetric 4x4 matrix
-	bu::symmetric_matrix<double> N(4, 4);
+	symmetric_matrix<double> N(4);
 	
-	N(0, 0) = M(0, 0) + M(1, 1) + M(2, 2);
-	N(0, 1) = M(1, 2) - M(2, 1);
-	N(0, 2) = M(2, 0) - M(0, 2);
-	N(0, 3) = M(0, 1) - M(1, 0);
+	N(0, 0) =  M(0, 0) + M(1, 1) + M(2, 2);
+	N(0, 1) =  M(1, 2) - M(2, 1);
+	N(0, 2) =  M(2, 0) - M(0, 2);
+	N(0, 3) =  M(0, 1) - M(1, 0);
 	
-	N(1, 1) = M(0, 0) - M(1, 1) - M(2, 2);
-	N(1, 2) = M(0, 1) + M(1, 0);
-	N(1, 3) = M(0, 2) + M(2, 0);
+	N(1, 1) =  M(0, 0) - M(1, 1) - M(2, 2);
+	N(1, 2) =  M(0, 1) + M(1, 0);
+	N(1, 3) =  M(0, 2) + M(2, 0);
 	
 	N(2, 2) = -M(0, 0) + M(1, 1) - M(2, 2);
-	N(2, 3) = M(1, 2) + M(2, 1);
+	N(2, 3) =  M(1, 2) + M(2, 1);
 	
 	N(3, 3) = -M(0, 0) - M(1, 1) + M(2, 2);
 
@@ -648,8 +644,8 @@ quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 	// det(N - λI) = 0
 	// find the largest λ (λm)
 	//
-	// λ4 + c3λ3 + c2λ2 + c1λ + c0 = 0
 	// Aλ4 + Bλ3 + Cλ2 + Dλ + E = 0
+	// A = 1
 	// B = 0
 	// and so this is a so-called depressed quartic
 	// solve it using Ferrari's algorithm
@@ -677,13 +673,16 @@ quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 	// solve quartic
 	double lm = largest_depressed_quartic_solution(C, D, E);
 	
-	bu::matrix<double> li = bu::identity_matrix<double>(4) * lm;
-	bu::matrix<double> t = N - li;
-	
+	matrix<double> li = identity_matrix<double>(4) * lm;
+
+	cerr << "li: " << li << endl;
+
+	matrix<double> t = N - li;
+
 	cerr << "t: " << t << endl;
 	
 	// calculate a matrix of cofactors for t
-	bu::matrix<double> cf(4, 4);
+	matrix<double> cf(4, 4);
 
 	const uint32 ixs[4][3] =
 	{
@@ -693,41 +692,32 @@ quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 		{ 0, 1, 2 }
 	};
 
-	for (uint32 x = 0; x < 4; ++x)
+	uint32 maxR = 0;
+	for (uint32 r = 0; r < 4; ++r)
 	{
-		const uint32* ix = ixs[x];
+		const uint32* ir = ixs[r];
 		
-		for (uint32 y = 0; y < 4; ++y)
+		for (uint32 c = 0; c < 4; ++c)
 		{
-			const uint32* iy = ixs[y];
+			const uint32* ic = ixs[c];
 
-			cf(x, y) =
-				t(ix[0], iy[0]) * t(ix[1], iy[1]) * t(ix[2], iy[2]) +
-				t(ix[0], iy[1]) * t(ix[1], iy[2]) * t(ix[2], iy[0]) +
-				t(ix[0], iy[2]) * t(ix[1], iy[0]) * t(ix[2], iy[1]) -
-				t(ix[0], iy[2]) * t(ix[1], iy[1]) * t(ix[2], iy[0]) -
-				t(ix[0], iy[1]) * t(ix[1], iy[0]) * t(ix[2], iy[2]) -
-				t(ix[0], iy[0]) * t(ix[1], iy[2]) * t(ix[2], iy[1]);
+			cf(r, c) =
+				t(ir[0], ic[0]) * t(ir[1], ic[1]) * t(ir[2], ic[2]) +
+				t(ir[0], ic[1]) * t(ir[1], ic[2]) * t(ir[2], ic[0]) +
+				t(ir[0], ic[2]) * t(ir[1], ic[0]) * t(ir[2], ic[1]) -
+				t(ir[0], ic[2]) * t(ir[1], ic[1]) * t(ir[2], ic[0]) -
+				t(ir[0], ic[1]) * t(ir[1], ic[0]) * t(ir[2], ic[2]) -
+				t(ir[0], ic[0]) * t(ir[1], ic[2]) * t(ir[2], ic[1]);
 		}
+		
+		if (r > maxR and cf(r, 0) > cf(maxR, 0))
+			maxR = r;
 	}
-
+	
 	cerr << "cf: " << cf << endl;
-	
-	// take largest row from this matrix as the quaternion
-	double sr = abs(cf(0, 0));
-	uint32 lr = 0;
-	for (uint32 ri = 1; ri < 4; ++ri)
-	{
-		double s = abs(cf(ri, 0));
-		if (sr < s)
-		{
-			lr = ri;
-			sr = s;
-		}
-	}
-	
+
 	// NOTE the negation of the y here, why?
-	quaternion q(cf(lr, 0), cf(lr, 1), -cf(lr, 2), cf(lr, 3));
+	quaternion q(cf(maxR, 0), cf(maxR, 1), -cf(maxR, 2), cf(maxR, 3));
 	q = normalize(q);
 	
 	return q;
