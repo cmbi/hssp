@@ -26,6 +26,7 @@
 #include "buffer.h"
 #include "utils.h"
 #include "guide.h"
+#include "align-3d.h"
 
 using namespace std;
 using namespace tr1;
@@ -34,7 +35,8 @@ namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
-int VERBOSE = 0, MULTI_THREADED = 1;
+int //VERBOSE = 0,
+	MULTI_THREADED = 1;
 
 // --------------------------------------------------------------------
 
@@ -48,7 +50,7 @@ struct sum_weight
 
 struct max_pdb_nr
 {
-	uint16 operator()(uint16 a, uint16 b) const { return max(a, b); }
+	int16 operator()(int16 a, int16 b) const { return max(a, b); }
 };
 
 // --------------------------------------------------------------------
@@ -140,8 +142,8 @@ float calculateDistance(const entry& a, const entry& b)
 	int32 x = 0, endX = 0, dimX = a.m_seq.length();
 	int32 y = 0, endY = 0, dimY = b.m_seq.length();
 
-	const vector<uint16>& pa = a.m_positions;
-	const vector<uint16>& pb = b.m_positions;
+	const vector<int16>& pa = a.m_positions;
+	const vector<int16>& pb = b.m_positions;
 	
 	matrix<float>	B(dimX, dimY);
 	matrix<float>	Ix(dimX, dimY);
@@ -624,7 +626,8 @@ void align(
 	const joined_node* node,
 	vector<entry*>& a, vector<entry*>& b, vector<entry*>& c,
 	const substitution_matrix_family& mat_fam,
-	float gop, float gep, float magic)
+	float gop, float gep, float magic,
+	bool ignorePositions)
 {
 	if (VERBOSE > 2)
 	{
@@ -642,8 +645,8 @@ void align(
 	const entry* fa = a.front();
 	const entry* fb = b.front();
 	
-	const vector<uint16>& pa = fa->m_positions;
-	const vector<uint16>& pb = fb->m_positions;
+	const vector<int16>& pa = fa->m_positions;
+	const vector<int16>& pb = fb->m_positions;
 
 	int32 x = 0, dimX = fa->m_seq.length(), endX = 0;
 	int32 y = 0, dimY = fb->m_seq.length(), endY = 0;
@@ -688,7 +691,7 @@ void align(
 	// normally, startX is 0 and endX is dimX, however, when there are fixed
 	// positions, we only take into account the sub matrices that are allowed
 	
-	if (pa.empty() or pb.empty())
+	if (ignorePositions or pa.empty() or pb.empty())
 	{
 		endX = dimX;
 		endY = dimY;
@@ -887,10 +890,10 @@ void align(
 	copy(b.begin(), b.end(), back_inserter(c));
 	
 	// copy over the pdb_nrs to the first line
-	if (not pa.empty())
+	if (not ignorePositions and not pa.empty())
 	{
 		assert(pa.size() == pb.size());
-		vector<uint16>& pc = c.front()->m_positions;
+		vector<int16>& pc = c.front()->m_positions;
 		
 		transform(
 			pa.begin(), pa.end(),
@@ -942,7 +945,7 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 			createAlignment(static_cast<joined_node*>(node->right()), b, mat, gop, gep, magic, pr);
 	}
 
-	align(node, a, b, alignment, mat, gop, gep, magic);
+	align(node, a, b, alignment, mat, gop, gep, magic, false);
 	
 	pr.step(node->cost());
 }
@@ -968,6 +971,8 @@ int main(int argc, char* argv[])
 			("magic",		po::value<float>(),	 "Magical number")
 			("chain,c",		po::value<char>(),	 "Chain ID to select (from HSSP input)")
 			("ignore-pos-nr",					 "Do not use position/PDB nr in scoring")
+			("3d-a",		po::value<string>(), "Align-3d file A")
+			("3d-b",		po::value<string>(), "Align-3d file B")
 			;
 	
 		po::positional_options_description p;
@@ -977,7 +982,7 @@ int main(int argc, char* argv[])
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 		po::notify(vm);
 		
-		if (vm.count("help") or (vm.count("input") == 0))
+		if (vm.count("help") or (vm.count("input") == 0 and vm.count("3d-a") == 0))
 		{
 			cerr << desc << endl;
 			exit(1);
@@ -1000,21 +1005,38 @@ int main(int argc, char* argv[])
 		float gep = 0.2f;	if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
 		float magic = 0.1f; if (vm.count("magic"))		magic = vm["magic"].as<float>();
 
-		fs::path path(vm["input"].as<string>());
+		fs::path path;
 		vector<entry> data;
 		
 		char chain = 0;
 		if (vm.count("chain"))
 			chain = vm["chain"].as<char>();
-		
-		if (path.extension() == ".hssp" or chain != 0)
-			readAlignmentFromHsspFile(path, chain, data);
-		else if (path.extension() == ".mapping")
-			readWhatifMappingFile(path, data);
-		else if (path.extension() == ".ids")
-			readFamilyIdsFile(path, data);
+
+		if (vm.count("3d-a") and vm.count("3d-b"))
+		{
+//			if (vm.count("3d-a") != vm.count("3d-b"))
+//			{
+//				cerr << desc << endl;
+//				exit(1);
+//			}
+			
+			align_structures(vm["3d-a"].as<string>(), vm["3d-b"].as<string>(),
+				mat, gop, gep, magic);
+			return 0;
+		}
 		else
-			readFasta(path, data);
+		{
+			path = vm["input"].as<string>();
+
+			if (path.extension() == ".hssp" or chain != 0)
+				readAlignmentFromHsspFile(path, chain, data);
+			else if (path.extension() == ".mapping")
+				readWhatifMappingFile(path, data);
+			else if (path.extension() == ".ids")
+				readFamilyIdsFile(path, data);
+			else
+				readFasta(path, data);
+		}
 		
 		if (vm.count("ignore-pos-nr"))
 			for_each(data.begin(), data.end(), boost::bind(&entry::dump_positions, _1));

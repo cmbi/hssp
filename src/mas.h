@@ -21,8 +21,8 @@ typedef char				int8;
 typedef unsigned char		uint8;
 typedef short				int16;
 typedef unsigned short		uint16;
-typedef long				int32;
-typedef unsigned long		uint32;
+typedef int					int32;
+typedef unsigned int		uint32;
 typedef long long			int64;
 typedef unsigned long long	uint64;
 
@@ -43,14 +43,14 @@ const uint8 kAA[] = {
 	'-'
 };
 
+#ifndef CSEQUENCE_H
 const uint32
 	kAACount = sizeof(kAA),
 	kFilteredCode = 22,
 	kUnknownCode = 23,
 	kSignalGapCode = 24,
 	kSentinalScore = kSignalGapCode;
-
-extern aa kAAReverse[256];
+#endif
 
 // --------------------------------------------------------------------
 
@@ -65,7 +65,7 @@ struct entry
 					{
 					}
 
-					entry(uint32 nr, const std::string& id, const sequence& seq, float weight = 1.0f)
+					entry(uint32 nr, const std::string& id, const sequence& seq = sequence(), float weight = 1.0f)
 						: m_nr(nr)
 						, m_id(id)
 						, m_seq(seq)
@@ -87,7 +87,7 @@ struct entry
 	std::string		m_id;
 	sequence		m_seq;
 	float			m_weight;
-	std::vector<uint16>
+	std::vector<int16>
 					m_positions;
 };
 
@@ -166,3 +166,18 @@ struct leaf_node : public base_node
 	entry&				m_entry;
 };
 
+class substitution_matrix_family;
+
+template<typename T>
+class matrix;
+
+// prototype
+void align(
+	const joined_node* node,
+	std::vector<entry*>& a, std::vector<entry*>& b, std::vector<entry*>& c,
+	const substitution_matrix_family& mat_fam,
+	float gop, float gep, float magic,
+	bool ignorePositions);
+
+void print_matrix(std::ostream& os,
+	const matrix<int8>& tb, const sequence& sx, const sequence& sy);

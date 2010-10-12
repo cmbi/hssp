@@ -11,29 +11,29 @@
 #BOOST_LIB_SUFFIX	= -mt				# Works for Ubuntu
 BOOST_LIB_DIR		= $(HOME)/projects/boost/lib
 BOOST_INC_DIR		= $(HOME)/projects/boost/include
-#ZEEP_DIR			= $(HOME)/projects/libzeep/
-#MRS_LIB_DIR			= $(HOME)/projects/mrs/lib
+ZEEP_DIR			= $(HOME)/projects/libzeep/
 
-DESTDIR				?= /usr/local/
-LIBDIR				= $(DESTDIR)lib
-INCDIR				= $(DESTDIR)include
-MANDIR				= $(DESTDIR)man/man3
+DEST_DIR			?= /usr/local/
+LIB_DIR				= $(DEST_DIR)lib $(HOME)/projects/mrs/lib \
+					  $(ZEEP_DIR) $(BOOST_LIB_DIR)
+INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
+					  $(ZEEP_DIR)
+MAN_DIR				= $(DEST_DIR)man/man3
 
 BOOST_LIBS			= system thread regex filesystem program_options
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
-#LIBS				= zeep mrs $(BOOST_LIBS) z bz2 uuid 
-LIBS				= $(BOOST_LIBS)
-LDOPTS				= $(BOOST_LIB_DIR:%=-L%) # -L$(MRS_LIB_DIR) -L$(ZEEP_DIR)
+LIBS				= zeep mrsd $(BOOST_LIBS) z bz2 uuid 
+LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
 CC					?= c++
-CFLAGS				= $(BOOST_INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
+CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
 					  -iquote ./ -gdwarf-2 -fPIC -pthread -Wno-multichar -std=c++0x
 # OPT					= -O3 -DNDEBUG
 
 include make.config
 
-CFLAGS				+= $(OPT) -g
+CFLAGS				+= $(OPT) -g -DLINUX
 
 VPATH += src
 
@@ -48,10 +48,6 @@ OBJECTS = \
 mas: $(OBJECTS)
 	@ echo linking $@
 	@ c++ -o $@ $(OBJECTS) $(LDOPTS)
-
-align-3d: obj/align-3d.o
-	@ echo linking $@
-	@ c++ -o $@ $^ $(LDOPTS)
 
 obj/%.o: %.cpp
 	@ echo compiling $@
@@ -70,7 +66,7 @@ clean:
 	rm -rf obj/* mas
 
 install: mas
-	sudo install -m 755 mas $(DESTDIR)bin/mas
+	sudo install -m 755 mas $(DEST_DIR)bin/mas
 
 make.config:
 	@echo "creating empty make.config file"

@@ -200,7 +200,7 @@ void readAlignmentFromHsspFile(
 		
 		string pdb_seq;
 		vector<string> s(a_t - a_f + 1);
-		vector<uint16> pdbnrs;
+		vector<int16> pdbnrs;
 		
 		do {
 			getline(file, line);
@@ -214,7 +214,7 @@ void readAlignmentFromHsspFile(
 			{
 				string pdbno = line.substr(7, 4);
 				ba::trim(pdbno);
-				uint16 pdbno_value = boost::lexical_cast<uint16>(pdbno);
+				int16 pdbno_value = boost::lexical_cast<int16>(pdbno);
 				
 				pdbnrs.push_back(pdbno_value);
 				
@@ -330,7 +330,7 @@ void readWhatifMappingFile(fs::path path, vector<entry>& seq)
 	{
 		string id = line.substr(15);
 		string s;
-		vector<uint16> pos;
+		vector<int16> pos;
 		
 		// skip the description line
 		getline(file, line);
@@ -350,7 +350,7 @@ void readWhatifMappingFile(fs::path path, vector<entry>& seq)
 			if (nr == "----")
 				pos.push_back(0);
 			else
-				pos.push_back(boost::lexical_cast<uint16>(nr));
+				pos.push_back(boost::lexical_cast<int16>(nr));
 		}
 		
 		if (not s.empty())
@@ -385,7 +385,7 @@ void readFamilyIdsFile(fs::path path, vector<entry>& seq)
 			throw mas_exception(boost::format("Failed to open mapping file for protein %1%") % id);
 		
 		string line, s;
-		vector<uint16> pos;
+		vector<int16> pos;
 
 		while (not data.eof())
 		{
@@ -395,7 +395,7 @@ void readFamilyIdsFile(fs::path path, vector<entry>& seq)
 				continue;
 			
 			s += line[0];
-			pos.push_back(boost::lexical_cast<uint16>(line.substr(2)));
+			pos.push_back(boost::lexical_cast<int16>(line.substr(2)));
 		}
 		
 		if (not s.empty())

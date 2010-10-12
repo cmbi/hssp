@@ -1,5 +1,8 @@
 // 3d dingen
 
+#include "MRS.h"
+#include "CSequence.h"
+
 #include "mas.h"
 
 #include <iostream>
@@ -13,6 +16,11 @@
 #include <valarray>
 
 #include "matrix.h"
+#include "ioseq.h"
+#include "utils.h"
+
+#include "CDatabank.h"
+#include "CDatabankTable.h"
 
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
@@ -69,7 +77,25 @@ struct point
 					return *this;
 				}
 
-	void		rotate(quaternion& q)
+	point&		operator-=(const point& rhs)
+				{
+					m_x -= rhs.m_x;
+					m_y -= rhs.m_y;
+					m_z -= rhs.m_z;
+					
+					return *this;
+				}
+
+	point&		operator /=(double f)
+				{
+					m_x /= f;
+					m_y /= f;
+					m_z /= f;
+
+					return *this;
+				}
+
+	void		rotate(const quaternion& q)
 				{
 					quaternion p(0, m_x, m_y, m_z);
 					
@@ -86,6 +112,23 @@ struct point
 point operator-(const point& lhs, const point& rhs)
 {
 	return point(lhs.m_x - rhs.m_x, lhs.m_y - rhs.m_y, lhs.m_z - rhs.m_z);
+}
+
+point operator-(const point& pt)
+{
+	return point(-pt.m_x, -pt.m_y, -pt.m_z);
+}
+
+double Distance(const point& a, const point& b)
+{
+	valarray<double> d(3);
+	d[0] = a.m_x - b.m_x;
+	d[1] = a.m_y - b.m_y;
+	d[2] = a.m_z - b.m_z;
+	
+	d *= d;
+	
+	return sqrt(d.sum());
 }
 
 ostream& operator<<(ostream& os, const point& pt)
@@ -167,6 +210,18 @@ point center_points(vector<point>& points)
 	return t;
 }
 
+point centroid(vector<point>& points)
+{
+	point result;
+	
+	foreach (point& pt, points)
+		result += pt;
+	
+	result /= points.size();
+	
+	return result;
+}
+
 double rmsd(const vector<point>& a, const vector<point>& b)
 {
 	double sum = 0;
@@ -218,7 +273,7 @@ struct MAtom
 	char				mAltLoc;
 	char				mResName[5];
 	char				mChainID;
-	uint32				mResSeq;
+	int16				mResSeq;
 	char				mICode;
 	MAtomType			mType;
 	point				mLoc;
@@ -237,7 +292,7 @@ struct MAtom
 							mLoc += inTranslation;
 						}
 						
-	void				Rotate(quaternion& inRotation)
+	void				Rotate(const quaternion& inRotation)
 						{
 							mLoc.rotate(inRotation);
 						}
@@ -312,6 +367,9 @@ struct MResidueInfo
 	MResidueType		type;
 	char				code;
 	char				name[4];
+
+	static char MapThreeLetterCode(const string& inThreeLetterCode);
+
 } kResidueInfo[] = {
 	{ kUnknownResidue,	'U', "UNK" },
 	{ kAlanine,			'A', "ALA" },
@@ -336,6 +394,23 @@ struct MResidueInfo
 	{ kValine,			'V', "VAL" }
 };
 
+char MResidueInfo::MapThreeLetterCode(const string& inThreeLetterCode)
+{
+	char result = 'U';
+
+	for (uint32 i = 1; i < kResidueTypeCount; ++i)
+	{
+		if (inThreeLetterCode == kResidueInfo[i].name)
+		{
+cerr << "map " << inThreeLetterCode << " to " << kResidueInfo[i].code << endl;
+			result = kResidueInfo[i].code;
+			break;
+		}
+	}
+	
+	return result;
+}
+
 struct MResidue
 {
 	int32				mNumber;
@@ -352,7 +427,7 @@ struct MResidue
 							for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::Translate, _1, inTranslation));
 						}
 						
-	void				Rotate(quaternion& inRotation)
+	void				Rotate(const quaternion& inRotation)
 						{
 							for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::Rotate, _1, inRotation));
 						}
@@ -379,7 +454,7 @@ struct MChain
 							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::Translate, _1, inTranslation));
 						}
 						
-	void				Rotate(quaternion& inRotation)
+	void				Rotate(const quaternion& inRotation)
 						{
 							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::Rotate, _1, inRotation));
 						}
@@ -403,17 +478,21 @@ struct MProtein
 	
 	void				GetCAlphaLocations(char inChain, vector<point>& outPoints) const;
 
+	point				GetCAlphaPosition(char inChain, int16 inPDBResSeq) const;
+	
+	void				GetSequence(char inChain, entry& outEntry) const;
+
+	void				GetSequence(char inChain, sequence& outSequence) const;
+
 	void				Center();
 	
-//	point				Centroid() const;
-
 	void				Translate(const point& inTranslation)
 						{
 							for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
 								chain->second.Translate(inTranslation);
 						}
 						
-	void				Rotate(quaternion& inRotation)
+	void				Rotate(const quaternion& inRotation)
 						{
 							for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
 								chain->second.Rotate(inRotation);
@@ -462,6 +541,94 @@ void MProtein::GetCAlphaLocations(char inChain, vector<point>& outPoints) const
 	}
 }
 
+point MProtein::GetCAlphaPosition(char inChain, int16 inPDBResSeq) const
+{
+	if (inChain == 0)
+		inChain = mChains.begin()->first;
+	
+	map<char,MChain>::const_iterator chain = mChains.find(inChain);
+	assert(chain != mChains.end());
+	
+	point result;
+	bool found = false;
+	
+	foreach (const MResidue& r, chain->second.mResidues)
+	{
+		if (r.mNumber != inPDBResSeq)
+			continue;
+		
+		foreach (const MAtom& a, r.mAtoms)
+		{
+			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
+			{
+				found = true;
+				result = a.mLoc;
+				break;
+			}
+		}
+	}
+	
+	if (not found)
+		throw mas_exception(boost::format("residue %1% not found in chain %2%") % inPDBResSeq % inChain);
+	
+	return result;
+}
+
+void MProtein::GetSequence(char inChain, entry& outEntry) const
+{
+	if (inChain == 0)
+		inChain = mChains.begin()->first;
+	
+	map<char,MChain>::const_iterator chain = mChains.find(inChain);
+	assert(chain != mChains.end());
+	
+	string seq;
+	
+	foreach (const MResidue& r, chain->second.mResidues)
+	{
+		foreach (const MAtom& a, r.mAtoms)
+		{
+			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
+			{
+				string residueName(a.mResName);
+				ba::trim(residueName);
+				
+				seq += MResidueInfo::MapThreeLetterCode(residueName);
+				outEntry.m_positions.push_back(a.mResSeq);
+			}
+		}
+	}
+	
+	outEntry.m_seq = encode(seq);
+}
+
+void MProtein::GetSequence(char inChain, sequence& outSequence) const
+{
+	if (inChain == 0)
+		inChain = mChains.begin()->first;
+	
+	map<char,MChain>::const_iterator chain = mChains.find(inChain);
+	assert(chain != mChains.end());
+	
+	string seq;
+	
+	foreach (const MResidue& r, chain->second.mResidues)
+	{
+		foreach (const MAtom& a, r.mAtoms)
+		{
+			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
+			{
+				string residueName(a.mResName);
+				ba::trim(residueName);
+				
+				seq += MResidueInfo::MapThreeLetterCode(residueName);
+			}
+		}
+	}
+	
+	outSequence = encode(seq);
+}
+
 void MProtein::WritePDB(ostream& os)
 {
 	for (map<char,MChain>::iterator c = mChains.begin(); c != mChains.end(); ++c)
@@ -502,6 +669,8 @@ MResidueType MapResidueName(const string& n)
 
 void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 {
+	bool model = false;
+	
 	while (not is.eof())
 	{
 		string line;
@@ -509,9 +678,19 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 		
 		if (ba::starts_with(line, "HEADER"))
 		{
-			prot.mID = line.substr(63, 4);
+			prot.mID = line.substr(62, 4);
 			continue;
 		}
+		
+		// brain dead support for only the first model in the file
+		if (ba::starts_with(line, "MODEL"))
+		{
+			model = true;
+			continue;
+		}
+		
+		if (ba::starts_with(line, "ENDMDL") and model == true)
+			break;
 		
 		if (ba::starts_with(line, "ATOM  "))
 		{
@@ -533,7 +712,7 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 			//	18 - 20	Residue name resName Residue name.
 			atom.mChainID = line[21];
 			//	22		Character chainID Chain identifier.
-			atom.mResSeq = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(22, 4)));
+			atom.mResSeq = boost::lexical_cast<int16>(ba::trim_copy(line.substr(22, 4)));
 			//	23 - 26	Integer resSeq Residue sequence number.
 			atom.mICode = line[26];
 			//	27		AChar iCode Code for insertion of residues.
@@ -548,7 +727,8 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 			//	55 - 60	Real(6.2) occupancy Occupancy.
 			atom.mTempFactor = ParseFloat(line.substr(60, 6));
 			//	61 - 66	Real(6.2) tempFactor Temperature factor.
-			line.copy(atom.mElement, 2, 76);
+			if (line.length() > 76)
+				line.copy(atom.mElement, 2, 76);
 			//	77 - 78	LString(2) element Element symbol, right-justified.
 			atom.mCharge = 0;
 			//	79 - 80	LString(2) charge Charge on the atom.
@@ -620,8 +800,6 @@ quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 		M(2, 0) += a.m_z * b.m_x;	M(2, 1) += a.m_z * b.m_y;	M(2, 2) += a.m_z * b.m_z;
 	}
 	
-	cerr << "M: " << M << endl;
-
 	// Now calculate N, a symmetric 4x4 matrix
 	symmetric_matrix<double> N(4);
 	
@@ -638,8 +816,6 @@ quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 	N(2, 3) =  M(1, 2) + M(2, 1);
 	
 	N(3, 3) = -M(0, 0) - M(1, 1) + M(2, 2);
-
-	cerr << "N: " << N << endl;
 
 	// det(N - λI) = 0
 	// find the largest λ (λm)
@@ -673,13 +849,9 @@ quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 	// solve quartic
 	double lm = largest_depressed_quartic_solution(C, D, E);
 	
+	// calculate t = (N - λI)
 	matrix<double> li = identity_matrix<double>(4) * lm;
-
-	cerr << "li: " << li << endl;
-
 	matrix<double> t = N - li;
-
-	cerr << "t: " << t << endl;
 	
 	// calculate a matrix of cofactors for t
 	matrix<double> cf(4, 4);
@@ -714,134 +886,637 @@ quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 			maxR = r;
 	}
 	
-	cerr << "cf: " << cf << endl;
+//	cerr << "cf: " << cf << endl;
 
-	// NOTE the negation of the y here, why?
+	// NOTE the negation of the y here, why? Maybe I swapped r/c above?
 	quaternion q(cf(maxR, 0), cf(maxR, 1), -cf(maxR, 2), cf(maxR, 3));
 	q = normalize(q);
 	
 	return q;
 }
 
-quaternion align_proteins(MProtein& a, MProtein& b)
+void align_points_iterative(
+	MProtein& a, MProtein& b,
+	const sequence& sa, const sequence& sb,
+	vector<point>& cAlphaA, vector<point>& cAlphaB,
+	point& outTranslationA, point& outTranslationB, quaternion& outRotation)
 {
-	a.Center();
+	if (cAlphaA.size() != cAlphaB.size())
+		throw logic_error("Protein A and B should have the same number of c-alhpa atoms");
 	
-	vector<point> cAlphaA;
-	a.GetCAlphaLocations(0, cAlphaA);
+	if (cAlphaA.size() < 3)
+		throw logic_error("Protein A and B should have at least 3 of c-alpha atoms");
 
-	b.Center();
+	outTranslationA = centroid(cAlphaA);
+	foreach (point& pt, cAlphaA)
+		pt -= outTranslationA;
+	
+	outTranslationB = centroid(cAlphaB);
+	foreach (point& pt, cAlphaB)
+		pt -= outTranslationB;
+	
+	outRotation = align_points(cAlphaA, cAlphaB);
+	foreach (point& pt, cAlphaB)
+		pt.rotate(outRotation);
 
-	vector<point> cAlphaB;
-	b.GetCAlphaLocations(0, cAlphaB);
+	double angle; point axis;
+	tr1::tie(angle, axis) = quaternion_to_angle_axis(outRotation);
+	cerr << "before iterating, rotation: " << angle << " degrees rotation around axis " << axis << endl;
+//
+//	double rmsd_current = rmsd(cAlphaA, cAlphaB);
+//	cerr << "new RMSd " << rmsd_current << endl;
+//	
+//	for (int iteration = 0; iteration < 5; ++iteration)
+//	{
+//		uint32 N = cAlphaA.size();
+//		matrix<int32> B(N, N, 0);
+//		matrix<int8> traceback(N, N, 2);
+//		int32 high = 0, highA, highB;
+//		
+//		for (uint32 ai = 0; ai < cAlphaA.size(); ++ai)
+//		{
+//			for (uint32 bi = 0; bi < cAlphaB.size(); ++bi)
+//			{
+//				float d = Distance(cAlphaA[ai], cAlphaB[bi]);
+//
+//				int32 v = 0;
+//				if (d < 3.5)
+//					v = 1;
+//	
+//				if (ai > 0 and bi > 0)
+//					v += B(ai - 1, bi - 1);
+//				
+//				int32 ga = -1;
+//				if (ai > 0)
+//					ga = B(ai - 1, bi) - 1;
+//				
+//				int32 gb = -1;
+//				if (bi > 0)
+//					gb = B(ai, bi - 1) - 1;
+//				
+////cerr << "d(" << ai << ',' << bi << ") = " << d << " ga: " << ga << " gb: " << gb << " v: " << v << endl;
+//	
+//				if (v >= ga and v >= gb)
+//				{
+//					B(ai, bi) = v;
+//					traceback(ai, bi) = 0;
+//				}
+//				else if (ga > gb)
+//				{
+//					B(ai, bi) = ga;
+//					traceback(ai, bi) = 1;
+//				}
+//				else
+//				{
+//					B(ai, bi) = gb;
+//					traceback(ai, bi) = -1;
+//				}
+//				
+//				if (B(ai, bi) > high)
+//				{
+//					high = B(ai, bi);
+//					highA = ai;
+//					highB = bi;
+//				}
+//			}
+//		}
+//		
+////		print_matrix(cerr, traceback, sa, sb);
+//		
+//		vector<point> newCAlphaA, newCAlphaB;
+//		
+//		int32 ai = highA, bi = highB;
+//		
+//		while (ai > 0 and bi > 0)
+//		{
+//			switch (traceback(ai, bi))
+//			{
+//				case 0:
+////cerr << "map " << ai << '(' << kAA[sa[ai]] << ") to " << bi << '(' << kAA[sb[bi]] << ')' << endl;
+//
+//					newCAlphaA.push_back(cAlphaA[ai]);
+//					newCAlphaB.push_back(cAlphaB[bi]);
+//					--ai;
+//					--bi;
+//					break;
+//				
+//				case 1:
+//					--ai;
+//					break;
+//				
+//				case -1:
+//					--bi;
+//					break;
+//				
+//				default:
+//					assert(false);
+//					break;
+//			}
+//		}
+//
+//		point ta = centroid(newCAlphaA);
+//		foreach (point& pt, newCAlphaA)
+//			pt -= ta;
+//		
+//		point tb = centroid(newCAlphaB);
+//		foreach (point& pt, newCAlphaB)
+//			pt -= tb;
+//		
+//		quaternion q = align_points(newCAlphaA, newCAlphaB);
+//
+//		tr1::tie(angle, axis) = quaternion_to_angle_axis(q);
+//		cerr << "iteration " << iteration << ": " << endl
+//			 << "  translation: " << ta << " and " << tb << endl
+//			 << "  rotation: " << angle << " degrees around axis " << axis << endl;
+//
+//		// now see if this made an improvement
+//		if (rmsd(newCAlphaA, newCAlphaB) < rmsd_current)
+//		{
+//			outTranslationA -= ta;
+//			foreach (point& pt, cAlphaA)
+//				pt -= ta;
+//			
+//			outTranslationB -= tb;
+//			foreach (point& pt, cAlphaB)
+//				pt -= tb;
+//			
+//			outRotation *= q;
+//			foreach(point pt, cAlphaB)
+//				pt.rotate(q);
+//
+//			tr1::tie(angle, axis) = quaternion_to_angle_axis(outRotation);
+//			cerr << "translation: " << outTranslationA << " and " << outTranslationB << endl
+//				 << "rotation: " << angle << " degrees around axis " << axis << endl;
+//			
+//			rmsd_current = rmsd(cAlphaA, cAlphaB);
+//			cerr << "new RMSd " << rmsd_current << endl;
+//		}
+//	}
+}
 
+void align_proteins2(MProtein& a, MProtein& b, char chainA, char chainB)
+{
+	sequence sa, sb;
+	
+	a.GetSequence(chainA, sa);
+	cerr << endl;
+	b.GetSequence(chainB, sb);
+	cerr << endl;
+
+	vector<point> cAlphaA, cAlphaB;
+	
+	a.GetCAlphaLocations(chainA, cAlphaA);
+	b.GetCAlphaLocations(chainB, cAlphaB);
+
+	uint32 N = cAlphaA.size();
+	uint32 M = cAlphaB.size();
+	
+	matrix<int32> B(N, M, 0);
+	matrix<int8> traceback(N, M, 2);
+	int32 high = 0, highA, highB;
+	
+	for (uint32 ai = 0; ai < cAlphaA.size(); ++ai)
+	{
+		for (uint32 bi = 0; bi < cAlphaB.size(); ++bi)
+		{
+			float d = Distance(cAlphaA[ai], cAlphaB[bi]);
+
+			int32 v = 0;
+			if (d < 3.5)
+				v = 1;
+
+			if (ai > 0 and bi > 0)
+				v += B(ai - 1, bi - 1);
+			
+			int32 ga = -1;
+			if (ai > 0)
+				ga = B(ai - 1, bi) - 1;
+			
+			int32 gb = -1;
+			if (bi > 0)
+				gb = B(ai, bi - 1) - 1;
+			
+//cerr << "d(" << ai << ',' << bi << ") = " << d << " ga: " << ga << " gb: " << gb << " v: " << v << endl;
+
+			if (v >= ga and v >= gb)
+			{
+				B(ai, bi) = v;
+				traceback(ai, bi) = 0;
+			}
+			else if (ga > gb)
+			{
+				B(ai, bi) = ga;
+				traceback(ai, bi) = 1;
+			}
+			else
+			{
+				B(ai, bi) = gb;
+				traceback(ai, bi) = -1;
+			}
+			
+			if (B(ai, bi) > high)
+			{
+				high = B(ai, bi);
+				highA = ai;
+				highB = bi;
+			}
+		}
+	}
+	
+	print_matrix(cerr, traceback, sa, sb);
+	
+	vector<point> newCAlphaA, newCAlphaB;
+	
+	int32 ai = highA, bi = highB;
+	
+	while (ai > 0 and bi > 0)
+	{
+		switch (traceback(ai, bi))
+		{
+			case 0:
+cerr << "map " << ai << '(' << kAA[sa[ai]] << ") to " << bi << '(' << kAA[sb[bi]] << ')' << endl;
+				newCAlphaA.push_back(cAlphaA[ai]);
+				newCAlphaB.push_back(cAlphaB[bi]);
+				--ai;
+				--bi;
+				break;
+			
+			case 1:
+				--ai;
+				break;
+			
+			case -1:
+				--bi;
+				break;
+			
+			default:
+				assert(false);
+				break;
+		}
+	}
+
+	point ta = centroid(newCAlphaA);
+	foreach (point& pt, newCAlphaA)
+		pt -= ta;
+	
+	point tb = centroid(newCAlphaB);
+	foreach (point& pt, newCAlphaB)
+		pt -= tb;
+	
+	quaternion q = align_points(newCAlphaA, newCAlphaB);
+
+	a.Translate(-ta);
+	b.Translate(-tb);
+	b.Rotate(q);
+
+	double angle;
+	point axis;
+
+	tr1::tie(angle, axis) = quaternion_to_angle_axis(q);
+	cerr << "  translation: " << ta << " and " << tb << endl
+		 << "  rotation: " << angle << " degrees around axis " << axis << endl;
+}
+
+void align_proteins(MProtein& a, char chainA, MProtein& b, char chainB,
+	substitution_matrix_family& mat, float gop, float gep, float magic)
+{
+	vector<point> cAlphaA, cAlphaB;
+
+	// fetch sequences
+	entry ea(1, a.mID), eb(2, b.mID);
+	a.GetSequence(chainA, ea);
+	b.GetSequence(chainB, eb);
+	
+	vector<entry*> aa; aa.push_back(&ea);
+	vector<entry*> ab; ab.push_back(&eb);
+
+	vector<entry*> ac;
+	joined_node n(new leaf_node(ea), new leaf_node(eb), 0.1, 0.1);
+
+	align(&n, aa, ab, ac, mat, gop, gep, magic, true);
+
+	cerr << endl;
+
+	report(ac, cerr, "clustalw");
+	
+	// now based on this alignment, select c-alpha's that we try to align
+	assert(ac.size() == 2);
+	assert(ac.front()->m_seq.length() == ac.back()->m_seq.length());
+	
+	const sequence& sa = ac.front()->m_seq;
+	const sequence& sb = ac.back()->m_seq;
+	
+	const vector<int16>& pa = ac.front()->m_positions;
+	const vector<int16>& pb = ac.back()->m_positions;
+
+	sequence nsa, nsb;
+	
+	for (uint32 i = 0; i < sa.length(); ++i)
+	{
+		if (sa[i] == kSignalGapCode or sb[i] == kSignalGapCode)
+			continue;
+
+		nsa.push_back(sa[i]);
+		cAlphaA.push_back(a.GetCAlphaPosition(chainA, pa[i]));
+
+		nsb.push_back(sb[i]);
+		cAlphaB.push_back(b.GetCAlphaPosition(chainB, pb[i]));
+	}
+	
 	if (cAlphaA.size() != cAlphaB.size())
 		throw logic_error("Protein A and B should have the same number of c-alhpa atoms");
 	
 	if (cAlphaA.size() < 3)
 		throw logic_error("Protein A and B should have at least 3 of c-alpha atoms");
 	
-	return align_points(cAlphaA, cAlphaB);
+	point ta, tb;
+	quaternion rotation;
+	
+	vector<point> cab(cAlphaA), cbb(cAlphaB);
+	
+	align_points_iterative(a, b, nsa, nsb, cAlphaA, cAlphaB, ta, tb, rotation);
+
+	// 
+	a.Translate(centroid(cAlphaA) - centroid(cab));
+	a.Rotate(align_points(cAlphaA, cab));
+	
+	b.Translate(centroid(cAlphaB) - centroid(cbb));
+	b.Rotate(align_points(cAlphaB, cbb));
+
+	cerr << "RMSd: " << CalculateRMSD(a, b) << endl;
+
+	align_proteins2(a, b, chainA, chainB);
+	cerr << "RMSd (1): " << CalculateRMSD(a, b) << endl;
+	align_proteins2(a, b, chainA, chainB);
+	cerr << "RMSd (2): " << CalculateRMSD(a, b) << endl;
+	align_proteins2(a, b, chainA, chainB);
+	cerr << "RMSd (3): " << CalculateRMSD(a, b) << endl;
+	align_proteins2(a, b, chainA, chainB);
+	cerr << "RMSd (4): " << CalculateRMSD(a, b) << endl;
+	
+
+//	a.Translate(-ta);
+//	b.Translate(-tb);
+//	b.Rotate(rotation);
+	
+//	quaternion q = align_points(cAlphaA, cAlphaB);
+//	b.Rotate(q);
+//	foreach (point& pt, cAlphaB)
+//		pt.rotate(q);
+//
+//	// just one iteration for now:
+//	
+//	uint32 N = cAlphaA.size();
+//	matrix<int32> B(N, N, 0);
+//	matrix<int8> traceback(N, N, 2);
+//	int32 high = 0, highA, highB;
+//	
+//	for (uint32 ai = 0; ai < cAlphaA.size(); ++ai)
+//	{
+//		for (uint32 bi = 0; bi < cAlphaB.size(); ++bi)
+//		{
+//			float d = Distance(cAlphaA[ai], cAlphaB[bi]);
+//
+//			uint32 v = 0;
+//			if (d < 3.5)
+//				v = 1;
+//
+//			if (ai > 0 and bi > 0)
+//				v += B(ai - 1, bi - 1);
+//			
+//			uint32 ga = 0;
+//			if (ai > 0)
+//				ga = B(ai - 1, bi);
+//			
+//			uint32 gb = 0;
+//			if (bi > 0)
+//				gb = B(ai, bi - 1);
+//			
+//			if (v > ga and v > gb)
+//			{
+//				B(ai, bi) = v;
+//				traceback(ai, bi) = 0;
+//			}
+//			else if (ga > gb)
+//			{
+//				B(ai, bi) = ga;
+//				traceback(ai, bi) = 1;
+//			}
+//			else
+//			{
+//				B(ai, bi) = gb;
+//				traceback(ai, bi) = -1;
+//			}
+//			
+//			if (B(ai, bi) > high)
+//			{
+//				high = B(ai, bi);
+//				highA = ai;
+//				highB = bi;
+//			}
+//		}
+//	}
+//	
+//	vector<point> newCAlphaA, newCAlphaB;
+//	
+//	int32 ai = highA, bi = highB;
+//	
+//	while (ai > 0 and bi > 0)
+//	{
+//		switch (traceback(ai, bi))
+//		{
+//			case 0:
+//				newCAlphaA.push_back(cAlphaA[ai]);
+//				newCAlphaB.push_back(cAlphaB[bi]);
+//				--ai;
+//				--bi;
+//				break;
+//			
+//			case 1:
+//				--ai;
+//				break;
+//			
+//			case -1:
+//				--bi;
+//				break;
+//			
+//			default:
+//				assert(false);
+//				break;
+//		}
+//	}
+//	
+//	ta = centroid(newCAlphaA);
+//	a.Translate(point(-ta.m_x, -ta.m_y, -ta.m_z));
+//	foreach (point& pt, newCAlphaA)
+//		pt -= ta;
+//	
+//	tb = centroid(newCAlphaB);
+//	b.Translate(point(-tb.m_x, -tb.m_y, -tb.m_z));
+//	foreach (point& pt, newCAlphaB)
+//		pt -= tb;
+//	
+//	return align_points(newCAlphaA, newCAlphaB);
 }
 
-void test(double angle)
+//void test(double angle)
+//{
+//	MProtein a, b;
+//	
+//	fs::ifstream file("1crn0.pdb");
+//	ParsePDB(file, a, false);
+//	b = a;
+//	
+////	double x = -0.0584427, y = -0.997915, z = -0.0273782;
+//	double x = 0, y = 0.707107, z = 0.707107;
+//
+//	angle = kPI * angle / 180.0;
+//	double s = sin(angle / 2);
+//	quaternion q1(cos(angle/2), x * s, y * s, z * s);
+//	
+//	point axis;
+//	tr1::tie(angle, axis) = quaternion_to_angle_axis(q1);
+//	cerr << "q1" << q1 << " is a " << angle << " degrees rotation around axis" << axis << endl;
+//
+//	b.Rotate(q1);
+//	
+//	quaternion q2 = align_proteins(a, b);
+//	
+//	tr1::tie(angle, axis) = quaternion_to_angle_axis(q2);
+//	cerr << "q2" << q2 << " is a " << angle << " degrees rotation around axis" << axis << endl;
+//	
+//	b.Rotate(q2);
+//	
+//	vector<point> caa, cab;
+//	a.GetCAlphaLocations(0, caa);
+//	b.GetCAlphaLocations(0, cab);
+//	
+//	cerr << "rmsd: " << rmsd(caa, cab) << endl;
+//}
+
+CDatabankPtr LoadDatabank(
+	const string&		inDB)
+{
+	static CDatabankTable sDBTable;
+	return sDBTable.Load(inDB);
+}
+
+void align_structures(const string& structureA, const string& structureB,
+	substitution_matrix_family& mat, float gop, float gep, float magic)
 {
 	MProtein a, b;
+	char chainA = 0, chainB = 0;
 	
-	fs::ifstream file("1crn0.pdb");
-	ParsePDB(file, a, false);
-	b = a;
+	CDatabankPtr pdb = LoadDatabank("pdb");
 	
-//	double x = -0.0584427, y = -0.997915, z = -0.0273782;
-	double x = 0, y = 0.707107, z = 0.707107;
+	string pdbid_a = structureA;
+	if (pdbid_a.length() == 5)
+	{
+		chainA = pdbid_a[4];
+		pdbid_a.erase(4, 5);
+	}
+	else if (pdbid_a.length() != 4)
+		throw mas_exception("Please specify a PDB ID in 4 letter code");
 
-	angle = kPI * angle / 180.0;
-	double s = sin(angle / 2);
-	quaternion q1(cos(angle/2), x * s, y * s, z * s);
-	
-	point axis;
-	tr1::tie(angle, axis) = quaternion_to_angle_axis(q1);
-	cerr << "q1" << q1 << " is a " << angle << " degrees rotation around axis" << axis << endl;
+	string pdbid_b = structureB;
+	if (pdbid_b.length() == 5)
+	{
+		chainB = pdbid_b[4];
+		pdbid_b.erase(4, 5);
+	}
+	else if (pdbid_b.length() != 4)
+		throw mas_exception("Please specify a PDB ID in 4 letter code");
 
-	b.Rotate(q1);
+	stringstream file_a(pdb->GetDocument(pdbid_a));
+	ParsePDB(file_a, a, false);
+
+	stringstream file_b(pdb->GetDocument(pdbid_b));
+	ParsePDB(file_b, b, false);
+
+//	quaternion rotation = 
+	align_proteins(a, chainA, b, chainB, mat, gop, gep, magic);
+
+//	double angle;
+//	point axis;
+//	tr1::tie(angle, axis) = quaternion_to_angle_axis(rotation);
+//	cerr << "rotation" << rotation << " is a " << angle << " degrees rotation around axis" << axis << endl;
+//	
+//	b.Rotate(rotation);
+
+	cerr << "RMSD: " << CalculateRMSD(a, b) << endl;
 	
-	quaternion q2 = align_proteins(a, b);
+	MProtein c;
+
+	c.mChains['A'] = a.mChains[chainA];
+	c.mChains['B'] = b.mChains[chainB];
+	c.mChains['B'].SetChainID('B');
 	
-	tr1::tie(angle, axis) = quaternion_to_angle_axis(q2);
-	cerr << "q2" << q2 << " is a " << angle << " degrees rotation around axis" << axis << endl;
-	
-	b.Rotate(q2);
-	
-	vector<point> caa, cab;
-	a.GetCAlphaLocations(0, caa);
-	b.GetCAlphaLocations(0, cab);
-	
-	cerr << "rmsd: " << rmsd(caa, cab) << endl;
+	c.WritePDB(cout);
 }
 
-int main(int argc, char* argv[])
-{
-	try
-	{
-		po::options_description desc("align-3d options");
-		desc.add_options()
-			("help,h",							 			"Display help message")
-			("test,t",										"Simply run test routine")
-			("test-angle,a", po::value<double>(),			"Rotate 1crn around this test angle")
-			("input,i",		po::value<vector<string> >(),	"Input files")
-			;
-	
-		po::positional_options_description p;
-		p.add("input", -1);
-	
-		po::variables_map vm;
-		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
-		po::notify(vm);
-		
-		if (vm.count("test-angle"))
-		{
-			test(vm["test-angle"].as<double>());
-			exit(0);
-		}
-		
-		if (vm.count("help") or vm.count("input") == 0 or vm["input"].as<vector<string> >().size() != 2)
-		{
-			cerr << desc << endl;
-			exit(1);
-		}
-		
-		MProtein a, b;
-		
-		fs::ifstream file_a(vm["input"].as<vector<string> >()[0]);
-		ParsePDB(file_a, a, false);
-		
-		fs::ifstream file_b(vm["input"].as<vector<string> >()[1]);
-		ParsePDB(file_b, b, false);
-
-		quaternion rotation = align_proteins(a, b);
-
-		double angle;
-		point axis;
-		tr1::tie(angle, axis) = quaternion_to_angle_axis(rotation);
-		cerr << "rotation" << rotation << " is a " << angle << " degrees rotation around axis" << axis << endl;
-		
-		b.Rotate(rotation);
-
-		cerr << "RMSD: " << CalculateRMSD(a, b) << endl;
-		
-		MProtein c;
-
-		c.mChains['A'] = a.mChains.begin()->second;
-		c.mChains['B'] = b.mChains.begin()->second;
-		c.mChains['B'].SetChainID('B');
-		
-		c.WritePDB(cout);
-	}
-	catch (const exception& e)
-	{
-		cerr << e.what() << endl;
-		exit(1);
-	}
-	
-	return 0;
-}
+//int main(int argc, char* argv[])
+//{
+//	try
+//	{
+//		po::options_description desc("align-3d options");
+//		desc.add_options()
+//			("help,h",							 			"Display help message")
+//			("test,t",										"Simply run test routine")
+//			("test-angle,a", po::value<double>(),			"Rotate 1crn around this test angle")
+//			("input,i",		po::value<vector<string> >(),	"Input files")
+//			;
+//	
+//		po::positional_options_description p;
+//		p.add("input", -1);
+//	
+//		po::variables_map vm;
+//		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+//		po::notify(vm);
+//		
+//		if (vm.count("test-angle"))
+//		{
+//			test(vm["test-angle"].as<double>());
+//			exit(0);
+//		}
+//		
+//		if (vm.count("help") or vm.count("input") == 0 or vm["input"].as<vector<string> >().size() != 2)
+//		{
+//			cerr << desc << endl;
+//			exit(1);
+//		}
+//		
+//		MProtein a, b;
+//		
+//		fs::ifstream file_a(vm["input"].as<vector<string> >()[0]);
+//		ParsePDB(file_a, a, false);
+//		
+//		fs::ifstream file_b(vm["input"].as<vector<string> >()[1]);
+//		ParsePDB(file_b, b, false);
+//
+//		quaternion rotation = align_proteins(a, b);
+//
+//		double angle;
+//		point axis;
+//		tr1::tie(angle, axis) = quaternion_to_angle_axis(rotation);
+//		cerr << "rotation" << rotation << " is a " << angle << " degrees rotation around axis" << axis << endl;
+//		
+//		b.Rotate(rotation);
+//
+//		cerr << "RMSD: " << CalculateRMSD(a, b) << endl;
+//		
+//		MProtein c;
+//
+//		c.mChains['A'] = a.mChains.begin()->second;
+//		c.mChains['B'] = b.mChains.begin()->second;
+//		c.mChains['B'].SetChainID('B');
+//		
+//		c.WritePDB(cout);
+//	}
+//	catch (const exception& e)
+//	{
+//		cerr << e.what() << endl;
+//		exit(1);
+//	}
+//	
+//	return 0;
+//}
