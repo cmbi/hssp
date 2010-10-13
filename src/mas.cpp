@@ -334,7 +334,6 @@ void calculateDistanceMatrix(symmetric_matrix<float>& d, vector<entry>& data)
 		t.create_thread(boost::bind(&calculateDistance,
 			boost::ref(queue), boost::ref(d), boost::ref(data), boost::ref(pr)));
 	
-	int n = 0;
 	for (uint32 a = 0; a < data.size() - 1; ++a)
 	{
 		for (uint32 b = a + 1; b < data.size(); ++b)
@@ -973,6 +972,7 @@ int main(int argc, char* argv[])
 			("ignore-pos-nr",					 "Do not use position/PDB nr in scoring")
 			("3d-a",		po::value<string>(), "Align-3d file A")
 			("3d-b",		po::value<string>(), "Align-3d file B")
+			("iterations,I",po::value<uint32>(), "Number of iterations in 3d alignment")
 			;
 	
 		po::positional_options_description p;
@@ -1020,8 +1020,12 @@ int main(int argc, char* argv[])
 //				exit(1);
 //			}
 			
+			uint32 iterations = 5;
+			if (vm.count("iterations"))
+				iterations = vm["iterations"].as<uint32>();
+			
 			align_structures(vm["3d-a"].as<string>(), vm["3d-b"].as<string>(),
-				mat, gop, gep, magic);
+				iterations, mat, gop, gep, magic);
 			return 0;
 		}
 		else
