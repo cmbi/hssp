@@ -165,12 +165,10 @@ quaternion normalize(quaternion q)
 	
 	double length = sqrt(t.sum());
 
-cerr << "q: " << q << " has length " << length << endl;
-	
 	if (length > 0.001)
 		q /= length;
 	else
-		q = quaternion(0.707107, 0.707107, 0, 0);
+		q = quaternion(1, 0, 0, 0);
 
 	return q;
 }
