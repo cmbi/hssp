@@ -148,6 +148,8 @@ ostream& operator<<(ostream& os, const vector<point>& pts)
 		if (n-- > 1)
 			os << ',';
 	}
+	
+	return os;
 }
 
 quaternion normalize(quaternion q)
@@ -168,7 +170,7 @@ cerr << "q: " << q << " has length " << length << endl;
 	if (length > 0.001)
 		q /= length;
 	else
-		q = quaternion(1, 1, 0, 0);
+		q = quaternion(0.707107, 0.707107, 0, 0);
 
 	return q;
 }
@@ -1053,7 +1055,7 @@ cerr << "map " << ai << '(' << kAA[sa[ai]] << ") to " << bi << '(' << kAA[sb[bi]
 	cerr << "  translation: " << ta << " and " << tb << endl
 		 << "  rotation: " << angle << " degrees around axis " << axis << endl;
 
-	if (axis > 0.01)
+	if (angle > 0.01)
 	{
 		a.Translate(-ta);
 		b.Translate(-tb);
