@@ -162,8 +162,15 @@ quaternion normalize(quaternion q)
 	t *= t;
 	
 	double length = sqrt(t.sum());
+
+cerr << "q: " << q << " has length " << length << endl;
 	
-	return q / length;
+	if (length > 0.001)
+		q /= length;
+	else
+		q = quaternion(1, 1, 0, 0);
+
+	return q;
 }
 
 tr1::tuple<double,point> quaternion_to_angle_axis(quaternion q)
@@ -402,7 +409,7 @@ char MResidueInfo::MapThreeLetterCode(const string& inThreeLetterCode)
 	{
 		if (inThreeLetterCode == kResidueInfo[i].name)
 		{
-cerr << "map " << inThreeLetterCode << " to " << kResidueInfo[i].code << endl;
+//cerr << "map " << inThreeLetterCode << " to " << kResidueInfo[i].code << endl;
 			result = kResidueInfo[i].code;
 			break;
 		}
@@ -886,10 +893,13 @@ quaternion align_points(const vector<point>& pa, const vector<point>& pb)
 			maxR = r;
 	}
 	
-//	cerr << "cf: " << cf << endl;
+cerr << "cf: " << cf << endl;
 
 	// NOTE the negation of the y here, why? Maybe I swapped r/c above?
 	quaternion q(cf(maxR, 0), cf(maxR, 1), -cf(maxR, 2), cf(maxR, 3));
+
+cerr << "q: " << q << endl;
+
 	q = normalize(q);
 	
 	return q;
@@ -922,139 +932,9 @@ void align_points_iterative(
 	double angle; point axis;
 	tr1::tie(angle, axis) = quaternion_to_angle_axis(outRotation);
 	cerr << "before iterating, rotation: " << angle << " degrees rotation around axis " << axis << endl;
-//
-//	double rmsd_current = rmsd(cAlphaA, cAlphaB);
-//	cerr << "new RMSd " << rmsd_current << endl;
-//	
-//	for (int iteration = 0; iteration < 5; ++iteration)
-//	{
-//		uint32 N = cAlphaA.size();
-//		matrix<int32> B(N, N, 0);
-//		matrix<int8> traceback(N, N, 2);
-//		int32 high = 0, highA, highB;
-//		
-//		for (uint32 ai = 0; ai < cAlphaA.size(); ++ai)
-//		{
-//			for (uint32 bi = 0; bi < cAlphaB.size(); ++bi)
-//			{
-//				float d = Distance(cAlphaA[ai], cAlphaB[bi]);
-//
-//				int32 v = 0;
-//				if (d < 3.5)
-//					v = 1;
-//	
-//				if (ai > 0 and bi > 0)
-//					v += B(ai - 1, bi - 1);
-//				
-//				int32 ga = -1;
-//				if (ai > 0)
-//					ga = B(ai - 1, bi) - 1;
-//				
-//				int32 gb = -1;
-//				if (bi > 0)
-//					gb = B(ai, bi - 1) - 1;
-//				
-////cerr << "d(" << ai << ',' << bi << ") = " << d << " ga: " << ga << " gb: " << gb << " v: " << v << endl;
-//	
-//				if (v >= ga and v >= gb)
-//				{
-//					B(ai, bi) = v;
-//					traceback(ai, bi) = 0;
-//				}
-//				else if (ga > gb)
-//				{
-//					B(ai, bi) = ga;
-//					traceback(ai, bi) = 1;
-//				}
-//				else
-//				{
-//					B(ai, bi) = gb;
-//					traceback(ai, bi) = -1;
-//				}
-//				
-//				if (B(ai, bi) > high)
-//				{
-//					high = B(ai, bi);
-//					highA = ai;
-//					highB = bi;
-//				}
-//			}
-//		}
-//		
-////		print_matrix(cerr, traceback, sa, sb);
-//		
-//		vector<point> newCAlphaA, newCAlphaB;
-//		
-//		int32 ai = highA, bi = highB;
-//		
-//		while (ai > 0 and bi > 0)
-//		{
-//			switch (traceback(ai, bi))
-//			{
-//				case 0:
-////cerr << "map " << ai << '(' << kAA[sa[ai]] << ") to " << bi << '(' << kAA[sb[bi]] << ')' << endl;
-//
-//					newCAlphaA.push_back(cAlphaA[ai]);
-//					newCAlphaB.push_back(cAlphaB[bi]);
-//					--ai;
-//					--bi;
-//					break;
-//				
-//				case 1:
-//					--ai;
-//					break;
-//				
-//				case -1:
-//					--bi;
-//					break;
-//				
-//				default:
-//					assert(false);
-//					break;
-//			}
-//		}
-//
-//		point ta = centroid(newCAlphaA);
-//		foreach (point& pt, newCAlphaA)
-//			pt -= ta;
-//		
-//		point tb = centroid(newCAlphaB);
-//		foreach (point& pt, newCAlphaB)
-//			pt -= tb;
-//		
-//		quaternion q = align_points(newCAlphaA, newCAlphaB);
-//
-//		tr1::tie(angle, axis) = quaternion_to_angle_axis(q);
-//		cerr << "iteration " << iteration << ": " << endl
-//			 << "  translation: " << ta << " and " << tb << endl
-//			 << "  rotation: " << angle << " degrees around axis " << axis << endl;
-//
-//		// now see if this made an improvement
-//		if (rmsd(newCAlphaA, newCAlphaB) < rmsd_current)
-//		{
-//			outTranslationA -= ta;
-//			foreach (point& pt, cAlphaA)
-//				pt -= ta;
-//			
-//			outTranslationB -= tb;
-//			foreach (point& pt, cAlphaB)
-//				pt -= tb;
-//			
-//			outRotation *= q;
-//			foreach(point pt, cAlphaB)
-//				pt.rotate(q);
-//
-//			tr1::tie(angle, axis) = quaternion_to_angle_axis(outRotation);
-//			cerr << "translation: " << outTranslationA << " and " << outTranslationB << endl
-//				 << "rotation: " << angle << " degrees around axis " << axis << endl;
-//			
-//			rmsd_current = rmsd(cAlphaA, cAlphaB);
-//			cerr << "new RMSd " << rmsd_current << endl;
-//		}
-//	}
 }
 
-void align_proteins2(MProtein& a, MProtein& b, char chainA, char chainB)
+bool align_proteins2(MProtein& a, MProtein& b, char chainA, char chainB)
 {
 	sequence sa, sb;
 	
@@ -1123,7 +1003,7 @@ void align_proteins2(MProtein& a, MProtein& b, char chainA, char chainB)
 		}
 	}
 	
-	print_matrix(cerr, traceback, sa, sb);
+//	print_matrix(cerr, traceback, sa, sb);
 	
 	vector<point> newCAlphaA, newCAlphaB;
 	
@@ -1165,16 +1045,24 @@ cerr << "map " << ai << '(' << kAA[sa[ai]] << ") to " << bi << '(' << kAA[sb[bi]
 	
 	quaternion q = align_points(newCAlphaA, newCAlphaB);
 
-	a.Translate(-ta);
-	b.Translate(-tb);
-	b.Rotate(q);
-
 	double angle;
 	point axis;
+	bool result = false;
 
 	tr1::tie(angle, axis) = quaternion_to_angle_axis(q);
 	cerr << "  translation: " << ta << " and " << tb << endl
 		 << "  rotation: " << angle << " degrees around axis " << axis << endl;
+
+	if (axis > 0.01)
+	{
+		a.Translate(-ta);
+		b.Translate(-tb);
+		b.Rotate(q);
+		
+		result = true;
+	}
+	
+	return result;
 }
 
 void align_proteins(MProtein& a, char chainA, MProtein& b, char chainB,
@@ -1232,16 +1120,46 @@ void align_proteins(MProtein& a, char chainA, MProtein& b, char chainB,
 	point ta, tb;
 	quaternion rotation;
 	
-	vector<point> cab(cAlphaA), cbb(cAlphaB);
-	
-	align_points_iterative(a, b, nsa, nsb, cAlphaA, cAlphaB, ta, tb, rotation);
-
 	// 
-	a.Translate(centroid(cAlphaA) - centroid(cab));
-	a.Rotate(align_points(cAlphaA, cab));
 	
-	b.Translate(centroid(cAlphaB) - centroid(cbb));
-	b.Rotate(align_points(cAlphaB, cbb));
+	if (cAlphaA.size() != cAlphaB.size())
+		throw logic_error("Protein A and B should have the same number of c-alhpa atoms");
+	
+	if (cAlphaA.size() < 3)
+		throw logic_error("Protein A and B should have at least 3 of c-alpha atoms");
+
+	//
+
+	ta = centroid(cAlphaA);
+	foreach (point& pt, cAlphaA)
+		pt -= ta;
+	
+	tb = centroid(cAlphaB);
+	foreach (point& pt, cAlphaB)
+		pt -= tb;
+	
+	rotation = align_points(cAlphaA, cAlphaB);
+	foreach (point& pt, cAlphaB)
+		pt.rotate(rotation);
+
+	double angle; point axis;
+	tr1::tie(angle, axis) = quaternion_to_angle_axis(rotation);
+	cerr << "before iterating, rotation: " << angle << " degrees rotation around axis " << axis << endl;
+
+	a.Translate(-ta);
+	b.Translate(-tb);
+	b.Rotate(rotation);
+
+//	vector<point> cab(cAlphaA), cbb(cAlphaB);
+//	
+//	align_points_iterative(a, b, nsa, nsb, cAlphaA, cAlphaB, ta, tb, rotation);
+//
+//	// 
+//	a.Translate(centroid(cAlphaA) - centroid(cab));
+//	a.Rotate(align_points(cAlphaA, cab));
+//	
+//	b.Translate(centroid(cAlphaB) - centroid(cbb));
+//	b.Rotate(align_points(cAlphaB, cbb));
 
 	cerr << "RMSd: " << CalculateRMSD(a, b) << endl;
 
@@ -1448,6 +1366,8 @@ void align_structures(const string& structureA, const string& structureB,
 	MProtein c;
 
 	c.mChains['A'] = a.mChains[chainA];
+	c.mChains['A'].SetChainID('A');
+
 	c.mChains['B'] = b.mChains[chainB];
 	c.mChains['B'].SetChainID('B');
 	
