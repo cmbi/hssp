@@ -293,7 +293,7 @@ void readAlignmentFromHsspFile(
 	}
 	
 	seq.erase(
-		remove_if(seq.begin(), seq.end(), boost::bind(&entry::length, _1) == 0),
+		remove_if(seq.begin(), seq.end(), boost::bind(&entry::length, _1) == 0UL),
 		seq.end());
 	
 //	foreach (const entry& e, seq)
@@ -407,6 +407,31 @@ void readFamilyIdsFile(fs::path path, vector<entry>& seq)
 	}
 }
 
+void readSecStruct(std::vector<entry>& seq)
+{
+	foreach (entry& e, seq)
+	{
+		fs::path ssfile(e.m_id + ".ss");
+		if (fs::exists(ssfile))
+		{
+			fs::ifstream ssdata(ssfile);
+			
+			if (ssdata.is_open())
+			{
+				string line;
+				getline(ssdata, line);
+				
+				if (encode(line) == e.m_seq)
+				{
+					getline(ssdata, line);
+					if (line.length() == e.m_seq.length())
+						e.m_ss = line;
+				}
+			}
+		}
+	}
+}
+
 // --------------------------------------------------------------------
 
 void report_in_fasta(const vector<entry*>& alignment, ostream& os)
@@ -432,36 +457,35 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 {
 	os << "CLUSTAL FORMAT for MaartensAlignment" << endl;
 
-	uint32 nseq = alignment.size();
 	uint32 len = alignment[0]->m_seq.length();
 	uint32 offset = 0;
 	
-	if (alignment.size() == 2)
-	{
-		// first strip off leading and trailing unaligned seqs
-		
-		if (alignment.front()->m_seq[0] == kSignalGapCode)
-		{
-			do ++offset;
-			while (offset < len and alignment.front()->m_seq[offset] == kSignalGapCode);
-		}
-		else if (alignment.back()->m_seq[0] == kSignalGapCode)
-		{
-			do ++offset;
-			while (offset < len and alignment.back()->m_seq[offset] == kSignalGapCode);
-		}
-
-		if (*(alignment.front()->m_seq.begin() + len - 1) == kSignalGapCode)
-		{
-			do --len;
-			while (len > offset and *(alignment.front()->m_seq.begin() + len - 1) == kSignalGapCode);
-		}
-		else if (*(alignment.back()->m_seq.begin() + len - 1) == kSignalGapCode)
-		{
-			do --len;
-			while (len > offset and *(alignment.back()->m_seq.begin() + len - 1) == kSignalGapCode);
-		}
-	}
+//	if (alignment.size() == 2)
+//	{
+//		// first strip off leading and trailing unaligned seqs
+//		
+//		if (alignment.front()->m_seq[0] == kSignalGapCode)
+//		{
+//			do ++offset;
+//			while (offset < len and alignment.front()->m_seq[offset] == kSignalGapCode);
+//		}
+//		else if (alignment.back()->m_seq[0] == kSignalGapCode)
+//		{
+//			do ++offset;
+//			while (offset < len and alignment.back()->m_seq[offset] == kSignalGapCode);
+//		}
+//
+//		if (*(alignment.front()->m_seq.begin() + len - 1) == kSignalGapCode)
+//		{
+//			do --len;
+//			while (len > offset and *(alignment.front()->m_seq.begin() + len - 1) == kSignalGapCode);
+//		}
+//		else if (*(alignment.back()->m_seq.begin() + len - 1) == kSignalGapCode)
+//		{
+//			do --len;
+//			while (len > offset and *(alignment.back()->m_seq.begin() + len - 1) == kSignalGapCode);
+//		}
+//	}
 	
 	while (offset < len)
 	{
@@ -543,17 +567,17 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 		
 		os << string(16, ' ') << scores << endl;
 
-		if (not alignment.front()->m_positions.empty())
-		{
-			string pos_nrs(n, ' ');
-			for (uint32 i = 0; i < n; ++i)
-			{
-				if (alignment.front()->m_positions[offset + i] != 0)
-					pos_nrs[i] = '!';
-			}
-			
-			os << string(16, ' ') << pos_nrs << endl;
-		}
+//		if (not alignment.front()->m_positions.empty())
+//		{
+//			string pos_nrs(n, ' ');
+//			for (uint32 i = 0; i < n; ++i)
+//			{
+//				if (alignment.front()->m_positions[offset + i] != 0)
+//					pos_nrs[i] = '!';
+//			}
+//			
+//			os << string(16, ' ') << pos_nrs << endl;
+//		}
 		
 		offset += n;
 		os << endl;
@@ -574,7 +598,6 @@ void report_in_msf(const vector<entry*>& alignment, ostream& os)
 {
 	using namespace boost::posix_time;
 
-	uint32 nseq = alignment.size();
 	uint32 len = alignment.front()->m_seq.length();
 	
 	os << "!!AA_MULTIPLE_ALIGNMENT 1.0" << endl

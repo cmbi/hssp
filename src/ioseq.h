@@ -15,6 +15,7 @@ void readWhatifMappingFile(boost::filesystem::path path,
 	std::vector<entry>& seq);
 void readFamilyIdsFile(boost::filesystem::path path,
 	std::vector<entry>& seq);
+void readSecStruct(std::vector<entry>& seq);
 
 void report(const std::vector<entry*>& alignment,
 	std::ostream& os, const std::string& format);

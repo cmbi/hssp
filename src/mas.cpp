@@ -537,6 +537,7 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 	foreach (const entry* e, seq)
 	{
 		const sequence& s = e->m_seq;
+		const string& ss = e->m_ss;
 		
 		for (uint32 ix = 0; ix < gop.size(); ++ix)
 		{
@@ -546,7 +547,39 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 				gaps[ix] += 1;
 
 			// residue specific gap penalty
-			if (r < 20)
+			if (ix < ss.length())
+			{
+				// The output of DSSP is explained extensively under 'explanation'. The very short summary of the output is: 
+				// H = alpha helix 
+				// B = residue in isolated beta-bridge 
+				// E = extended strand, participates in beta ladder 
+				// G = 3-helix (3/10 helix) 
+				// I = 5 helix (pi helix) 
+				// T = hydrogen bonded turn 
+				// S = bend
+
+				switch (ss[ix])
+				{
+					case 'H':
+					case 'G':
+					case 'I':
+						residue_specific_penalty[ix] += 3.0f;
+						break;
+
+					case 'B':
+						residue_specific_penalty[ix] += 2.0f;
+						break;
+
+					case 'E':
+						residue_specific_penalty[ix] += 1.5f;
+						break;
+
+					default:
+						residue_specific_penalty[ix] += 1.0f;
+						break;
+				}
+			}
+			else if (r < 20)
 				residue_specific_penalty[ix] += kResidueSpecificPenalty[r];
 			else
 				residue_specific_penalty[ix] += 1.0f;
@@ -973,6 +1006,7 @@ int main(int argc, char* argv[])
 			("3d-a",		po::value<string>(), "Align-3d file A")
 			("3d-b",		po::value<string>(), "Align-3d file B")
 			("iterations,I",po::value<uint32>(), "Number of iterations in 3d alignment")
+			("ss",								 "Read secondary structure files")
 			;
 	
 		po::positional_options_description p;
@@ -1057,6 +1091,9 @@ int main(int argc, char* argv[])
 				readFamilyIdsFile(path, data);
 			else
 				readFasta(path, data);
+			
+			if (vm.count("ss"))
+				readSecStruct(data);
 		}
 		
 		if (vm.count("ignore-pos-nr"))

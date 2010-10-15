@@ -1165,6 +1165,107 @@ CDatabankPtr LoadDatabank(
 	return sDBTable.Load(inDB);
 }
 
+void create_entries(MProtein& a, MProtein& b, char chainA, char chainB,
+	entry& ea, entry& eb)
+{
+	a.GetSequence(chainA, ea.m_seq);
+	b.GetSequence(chainB, eb.m_seq);
+	
+	ea.m_positions = vector<int16>(ea.m_seq.length());
+	eb.m_positions = vector<int16>(eb.m_seq.length());
+
+	vector<point> cAlphaA, cAlphaB;
+	
+	a.GetCAlphaLocations(chainA, cAlphaA);
+	b.GetCAlphaLocations(chainB, cAlphaB);
+
+	uint32 N = cAlphaA.size();
+	uint32 M = cAlphaB.size();
+	
+	matrix<int32> B(N, M, 0);
+	matrix<int8> traceback(N, M, 2);
+	int32 high = 0, highA, highB;
+	
+	for (uint32 ai = 0; ai < cAlphaA.size(); ++ai)
+	{
+		for (uint32 bi = 0; bi < cAlphaB.size(); ++bi)
+		{
+			float d = Distance(cAlphaA[ai], cAlphaB[bi]);
+
+			int32 v = 0;
+			if (d < 3.5)
+				v = 1;
+
+			if (ai > 0 and bi > 0)
+				v += B(ai - 1, bi - 1);
+			
+			int32 ga = -1;
+			if (ai > 0)
+				ga = B(ai - 1, bi) - 1;
+			
+			int32 gb = -1;
+			if (bi > 0)
+				gb = B(ai, bi - 1) - 1;
+			
+			if (v >= ga and v >= gb)
+			{
+				B(ai, bi) = v;
+				traceback(ai, bi) = 0;
+			}
+			else if (ga > gb)
+			{
+				B(ai, bi) = ga;
+				traceback(ai, bi) = 1;
+			}
+			else
+			{
+				B(ai, bi) = gb;
+				traceback(ai, bi) = -1;
+			}
+			
+			if (B(ai, bi) > high)
+			{
+				high = B(ai, bi);
+				highA = ai;
+				highB = bi;
+			}
+		}
+	}
+
+	int32 ai = highA, bi = highB;
+	int16 posNr = max(N, M) + 1;
+	
+	while (ai > 0 and bi > 0)
+	{
+		switch (traceback(ai, bi))
+		{
+			case 0:
+				if (Distance(cAlphaA[ai], cAlphaB[bi]) < 3.5)
+				{
+					assert(posNr > 0);
+					ea.m_positions[ai] = posNr;
+					eb.m_positions[bi] = posNr;
+					--posNr;
+				}
+				--ai;
+				--bi;
+				break;
+			
+			case 1:
+				--ai;
+				break;
+			
+			case -1:
+				--bi;
+				break;
+			
+			default:
+				assert(false);
+				break;
+		}
+	}
+}
+
 void align_structures(const string& structureA, const string& structureB,
 	uint32 iterations,
 	substitution_matrix_family& mat, float gop, float gep, float magic)
@@ -1205,9 +1306,20 @@ void align_structures(const string& structureA, const string& structureB,
 		chainB = b.mChains.begin()->first;
 
 	align_proteins(a, chainA, b, chainB, iterations, mat, gop, gep, magic);
-
+	
 	if (VERBOSE)
 		cerr << "RMSD: " << CalculateRMSD(a, b, chainA, chainB) << endl;
+
+	entry ea(1, a.mID), eb(2, b.mID);
+	create_entries(a, b, chainA, chainB, ea, eb);
+	
+	vector<entry*> aa, ab, ac;
+	aa.push_back(&ea);
+	ab.push_back(&eb);
+	joined_node n(new leaf_node(ea), new leaf_node(eb), 0.1, 0.1);
+
+	align(&n, aa, ab, ac, mat, gop, gep, magic, false);
+	report(ac, cout, "clustalw");
 	
 	MProtein c;
 

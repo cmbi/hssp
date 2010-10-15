@@ -27,7 +27,7 @@ void GuideTreeParser::getNextToken()
 		st_ID,
 		st_Number,
 		st_Fraction
-	} state = st_Start, start = st_Start;
+	} state = st_Start;
 	
 	while (m_lookahead == gtt_Undef)
 	{
@@ -166,8 +166,6 @@ base_node* GuideTreeParser::parse()
 
 void useGuideTree(const string& guide, vector<base_node*>& tree)
 {
-	uint32 r = tree.size();
-	
 	map<string,leaf_node*> m;
 	foreach (base_node* n, tree)
 	{

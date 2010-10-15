@@ -89,6 +89,7 @@ struct entry
 	float			m_weight;
 	std::vector<int16>
 					m_positions;
+	std::string		m_ss;
 };
 
 // --------------------------------------------------------------------
