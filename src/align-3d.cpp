@@ -1080,9 +1080,6 @@ void align_proteins(MProtein& a, char chainA, MProtein& b, char chainB,
 
 	align(&n, aa, ab, ac, mat, gop, gep, magic, true);
 
-	if (VERBOSE)
-		report(ac, cerr, "clustalw");
-	
 	// now based on this alignment, select c-alpha's that we try to align
 	assert(ac.size() == 2);
 	assert(ac.front()->m_seq.length() == ac.back()->m_seq.length());

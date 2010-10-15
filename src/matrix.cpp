@@ -152,7 +152,7 @@ void substitution_matrix::read(istream& is)
 substitution_matrix_family::substitution_matrix_family(
 	const std::string& name)
 {
-	if (name != "BLOSUM" and name != "PAM")
+	if (name != "BLOSUM" and name != "PAM" and name != "GONNET")
 		throw mas_exception(boost::format("unsuppported matrix %1%") % name);
 
 	if (name == "BLOSUM")
@@ -166,7 +166,7 @@ substitution_matrix_family::substitution_matrix_family(
 		m_cutoff[0] = 0;
 		m_smat[3] = new substitution_matrix(name + "30");
 	}
-	else
+	else if (name == "PAM")
 	{
 		m_cutoff[0] = 0.8f;
 		m_smat[0] = new substitution_matrix(name + "20");
@@ -177,11 +177,29 @@ substitution_matrix_family::substitution_matrix_family(
 		m_cutoff[0] = 0;
 		m_smat[3] = new substitution_matrix(name + "350");
 	}
+	else //if (name == "GONNET")
+	{
+		m_cutoff[0] = 0.0f;
+		m_smat[0] = new substitution_matrix(name + "250");
+		m_smat[3] = m_smat[2] = m_smat[1] = NULL;
+	}
 
 	m_pos_smat[0] = new substitution_matrix(*m_smat[0], true);
-	m_pos_smat[1] = new substitution_matrix(*m_smat[1], true);
-	m_pos_smat[2] = new substitution_matrix(*m_smat[2], true);
-	m_pos_smat[3] = new substitution_matrix(*m_smat[3], true);
+	
+	if (m_smat[1] != NULL)
+		m_pos_smat[1] = new substitution_matrix(*m_smat[1], true);
+	else
+		m_pos_smat[1] = NULL;
+
+	if (m_smat[2] != NULL)
+		m_pos_smat[2] = new substitution_matrix(*m_smat[2], true);
+	else
+		m_pos_smat[2] = NULL;
+
+	if (m_smat[3] != NULL)
+		m_pos_smat[3] = new substitution_matrix(*m_smat[3], true);
+	else
+		m_pos_smat[3] = NULL;
 }
 
 substitution_matrix_family::~substitution_matrix_family()

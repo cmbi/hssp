@@ -996,14 +996,31 @@ int main(int argc, char* argv[])
 			MULTI_THREADED = 0;
 
 		// matrix
-		string matrix = "BLOSUM";
+		string matrix;
+		float gop, gep, magic;
+		
+		if (vm.count("input"))		// regular alignments
+		{
+			matrix = "BLOSUM";
+			gop = 10;
+			gep = 0.2;
+			magic = 0.1;
+		}
+		else						// 3d alignments
+		{
+			matrix = "GONNET";
+			gop = 2;
+			gep = 0.02;
+			magic = 0.1;
+		}
+
 		if (vm.count("matrix"))
 			matrix = vm["matrix"].as<string>();
 		substitution_matrix_family mat(matrix);
 
-		float gop = 10.f;	if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
-		float gep = 0.2f;	if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
-		float magic = 0.1f; if (vm.count("magic"))		magic = vm["magic"].as<float>();
+		if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
+		if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
+		if (vm.count("magic"))		magic = vm["magic"].as<float>();
 
 		fs::path path;
 		vector<entry> data;

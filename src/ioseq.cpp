@@ -435,9 +435,37 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 	uint32 nseq = alignment.size();
 	uint32 len = alignment[0]->m_seq.length();
 	uint32 offset = 0;
+	
+	if (alignment.size() == 2)
+	{
+		// first strip off leading and trailing unaligned seqs
+		
+		if (alignment.front()->m_seq[0] == kSignalGapCode)
+		{
+			do ++offset;
+			while (offset < len and alignment.front()->m_seq[offset] == kSignalGapCode);
+		}
+		else if (alignment.back()->m_seq[0] == kSignalGapCode)
+		{
+			do ++offset;
+			while (offset < len and alignment.back()->m_seq[offset] == kSignalGapCode);
+		}
+
+		if (*(alignment.front()->m_seq.begin() + len - 1) == kSignalGapCode)
+		{
+			do --len;
+			while (len > offset and *(alignment.front()->m_seq.begin() + len - 1) == kSignalGapCode);
+		}
+		else if (*(alignment.back()->m_seq.begin() + len - 1) == kSignalGapCode)
+		{
+			do --len;
+			while (len > offset and *(alignment.back()->m_seq.begin() + len - 1) == kSignalGapCode);
+		}
+	}
+	
 	while (offset < len)
 	{
-		uint32 n = alignment[0]->m_seq.length() - offset;
+		uint32 n = len - offset;
 		if (n > 60)
 			n = 60;
 		
