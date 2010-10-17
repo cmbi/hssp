@@ -28,7 +28,7 @@ LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
 CC					?= c++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
-					  -iquote ./ -gdwarf-2 -fPIC -pthread -Wno-multichar -std=c++0x
+					  -iquote ./ -gdwarf-2 -fPIC -pthread -Wall -Wno-multichar -std=c++0x
 # OPT					= -O3 -DNDEBUG
 
 include make.config
@@ -48,6 +48,7 @@ OBJECTS = \
 mas: $(OBJECTS)
 	@ echo linking $@
 	@ c++ -o $@ $(OBJECTS) $(LDOPTS)
+	@ echo OK
 
 obj/%.o: %.cpp
 	@ echo compiling $@

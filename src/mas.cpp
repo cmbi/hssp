@@ -1007,6 +1007,7 @@ int main(int argc, char* argv[])
 			("3d-b",		po::value<string>(), "Align-3d file B")
 			("iterations,I",po::value<uint32>(), "Number of iterations in 3d alignment")
 			("ss",								 "Read secondary structure files")
+			("dssp",		po::value<string>(), "Create DSSP for <pdbid>")
 			;
 	
 		po::positional_options_description p;
@@ -1015,6 +1016,12 @@ int main(int argc, char* argv[])
 		po::variables_map vm;
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 		po::notify(vm);
+		
+		if (vm.count("dssp"))
+		{
+			test_ss(vm["dssp"].as<string>());
+			exit(0);
+		}
 		
 		if (vm.count("help") or (vm.count("input") == 0 and vm.count("3d-a") == 0))
 		{

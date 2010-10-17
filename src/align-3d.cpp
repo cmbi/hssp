@@ -152,6 +152,51 @@ ostream& operator<<(ostream& os, const vector<point>& pts)
 	return os;
 }
 
+// --------------------------------------------------------------------
+// some 3d functions
+//
+// DihedralAngle
+
+double DotProduct(const point& p1, const point& p2)
+{
+	return p1.m_x * p2.m_x + p1.m_y * p2.m_y + p1.m_z * p2.m_z;
+}
+
+point CrossProduct(const point& p1, const point& p2)
+{
+	return point(p1.m_y * p2.m_z - p2.m_y * p1.m_z,
+				 p1.m_z * p2.m_x - p2.m_z * p1.m_x,
+				 p1.m_x * p2.m_y - p2.m_x * p1.m_y);
+}
+
+double DihedralAngle(const point& p1, const point& p2, const point& p3, const point& p4)
+{
+	point v12 = p1 - p2;	// vector from p2 to p1
+	point v43 = p4 - p3;	// vector from p3 to p4
+	
+	point z = p2 - p3;		// vector from p3 to p2
+	
+	point p = CrossProduct(z, v12);
+	point x = CrossProduct(z, v43);
+	point y = CrossProduct(z, x);
+	
+	double u = DotProduct(x, x);
+	double v = DotProduct(y, y);
+	
+	double result = 360;
+	if (u > 0 and v > 0)
+	{
+		u = DotProduct(p, x) / sqrt(u);
+		v = DotProduct(p, y) / sqrt(v);
+		if (u != 0 or v != 0)
+			result = atan2(v, u) * 180 / kPI;
+	}
+	
+	return result;
+}
+
+// --------------------------------------------------------------------
+
 quaternion normalize(quaternion q)
 {
 	valarray<double> t(4);
@@ -255,8 +300,6 @@ double rmsd(const vector<point>& a, const vector<point>& b)
 
 // --------------------------------------------------------------------
 
-struct MResidue;
-
 enum MAtomType
 {
 	kUnknownAtom,
@@ -299,6 +342,11 @@ struct MAtom
 							mChainID = inID;
 						}
 
+	string				GetName() const
+						{
+							return mName;
+						}
+
 	void				Translate(const point& inTranslation)
 						{
 							mLoc += inTranslation;
@@ -310,6 +358,16 @@ struct MAtom
 						}
 
 	void				WritePDB(ostream& os);
+
+						operator const point&() const
+						{
+							return mLoc;
+						}
+
+						operator point&()
+						{
+							return mLoc;
+						}
 };
 
 void MAtom::WritePDB(ostream& os)
@@ -422,11 +480,26 @@ char MResidueInfo::MapThreeLetterCode(const string& inThreeLetterCode)
 	return result;
 }
 
-struct MResidue
+class MChain;
+
+class MResidue
 {
-	int32				mNumber;
-	MResidueType		mType;
-	vector<MAtom>		mAtoms;
+  public:
+						MResidue(MChain& chain)
+							: mChain(chain)
+							, mNumber(0)
+							, mType(kUnknownResidue) {}
+
+	const MAtom&		GetCAlpha() const;
+	const MAtom&		GetC() const;
+	const MAtom&		GetN() const;
+	const MAtom&		GetO() const;
+
+	double				Phi() const;
+	double				Psi() const;
+
+	const MResidue*		Next() const;
+	const MResidue*		Previous() const;
 
 	void				SetChainID(char inID)
 						{
@@ -447,12 +520,20 @@ struct MResidue
 						{
 							for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::WritePDB, _1, ref(os)));
 						}
+
+	void				WriteDSSP(ostream& os);
+
+//  protected:
+	MChain&				mChain;
+	int32				mNumber;
+	MResidueType		mType;
+	vector<MAtom>		mAtoms;
 };
 
 struct MChain
 {
 	char				mChainID;
-	vector<MResidue>	mResidues;
+	vector<MResidue*>	mResidues;
 
 	void				SetChainID(char inID)
 						{
@@ -476,10 +557,19 @@ struct MChain
 							
 							boost::format ter("TER    %4.4d      %3.3s %c%4.4d%c");
 							
-							MResidue& last = mResidues.back();
+							MResidue& last = *mResidues.back();
 							
 							os << (ter % (last.mAtoms.back().mSerial + 1) % kResidueInfo[last.mType].name % mChainID % last.mNumber % ' ') << endl;
 						}
+
+	void				WriteDSSP(ostream& os)
+						{
+							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::WriteDSSP, _1, ref(os)));
+						}
+
+	const MResidue*		Next(const MResidue* res) const;
+	const MResidue*		Previous(const MResidue* res) const;
+
 };
 
 struct MProtein
@@ -510,19 +600,126 @@ struct MProtein
 						}
 
 	void				WritePDB(ostream& os);
+
+	void				WriteDSSP(ostream& os);
 	
 	void				GetPoints(vector<point>& outPoints) const
 						{
 							for (map<char,MChain>::const_iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
 							{
-								foreach (const MResidue& r, chain->second.mResidues)
+								foreach (const MResidue* r, chain->second.mResidues)
 								{
-									foreach (const MAtom& a, r.mAtoms)
+									foreach (const MAtom& a, r->mAtoms)
 										outPoints.push_back(a.mLoc);
 								}
 							}
 						}
 };
+
+// --------------------------------------------------------------------
+
+const MAtom& MResidue::GetCAlpha() const
+{
+	vector<MAtom>::const_iterator atom = find_if(mAtoms.begin(), mAtoms.end(),
+		boost::bind(&MAtom::GetName, _1) == " CA ");
+	if (atom == mAtoms.end())
+		throw mas_exception(boost::format("Residue %d has no C-alpha atom") % mNumber);
+	return *atom;
+}
+
+const MAtom& MResidue::GetC() const
+{
+	vector<MAtom>::const_iterator atom = find_if(mAtoms.begin(), mAtoms.end(),
+		boost::bind(&MAtom::GetName, _1) == " C  ");
+	if (atom == mAtoms.end())
+		throw mas_exception(boost::format("Residue %d has no c atom") % mNumber);
+	return *atom;
+}
+
+const MAtom& MResidue::GetN() const
+{
+	vector<MAtom>::const_iterator atom = find_if(mAtoms.begin(), mAtoms.end(),
+		boost::bind(&MAtom::GetName, _1) == " N  ");
+	if (atom == mAtoms.end())
+		throw mas_exception(boost::format("Residue %d has no N atom") % mNumber);
+	return *atom;
+}
+
+const MAtom& MResidue::GetO() const
+{
+	vector<MAtom>::const_iterator atom = find_if(mAtoms.begin(), mAtoms.end(),
+		boost::bind(&MAtom::GetName, _1) == " O  ");
+	if (atom == mAtoms.end())
+		throw mas_exception(boost::format("Residue %d has no O atom") % mNumber);
+	return *atom;
+}
+
+const MResidue* MResidue::Next() const
+{
+	return mChain.Next(this);
+}
+
+const MResidue* MResidue::Previous() const
+{
+	return mChain.Previous(this);
+}
+
+double MResidue::Phi() const
+{
+	double result = 360;
+	const MResidue* prev = Previous();
+	if (prev != nil)
+		result = DihedralAngle(prev->GetC(), GetN(), GetCAlpha(), GetC());
+	return result;
+}
+
+double MResidue::Psi() const
+{
+	double result = 360;
+	const MResidue* next = Next();
+	if (next != nil)
+		result = DihedralAngle(GetN(), GetCAlpha(), GetC(), next->GetN());
+	return result;
+}
+
+void MResidue::WriteDSSP(ostream& os)
+{
+	boost::format kDSSPResidueLine("%5.5d%5.5d %c        %6.1f%6.1f");  
+	
+	cout << (kDSSPResidueLine % mNumber % mNumber % kResidueInfo[mType].code % Phi() % Psi()) << endl;
+}
+
+// --------------------------------------------------------------------
+
+const MResidue* MChain::Next(const MResidue* res) const
+{
+	const MResidue* result = nil;
+	for (uint32 i = 0; i < mResidues.size() - 1; ++i)
+	{
+		if (mResidues[i] == res)
+		{
+			result = mResidues[i + 1];
+			break;
+		}
+	}
+	return result;
+}
+
+const MResidue* MChain::Previous(const MResidue* res) const
+{
+	const MResidue* result = nil;
+	for (uint32 i = 1; i < mResidues.size(); ++i)
+	{
+		if (mResidues[i] == res)
+		{
+			result = mResidues[i - 1];
+			break;
+		}
+	}
+	return result;
+}
+
+// --------------------------------------------------------------------
 
 void MProtein::Center()
 {
@@ -542,14 +739,8 @@ void MProtein::GetCAlphaLocations(char inChain, vector<point>& outPoints) const
 	map<char,MChain>::const_iterator chain = mChains.find(inChain);
 	assert(chain != mChains.end());
 	
-	foreach (const MResidue& r, chain->second.mResidues)
-	{
-		foreach (const MAtom& a, r.mAtoms)
-		{
-			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
-				outPoints.push_back(a.mLoc);
-		}
-	}
+	foreach (const MResidue* r, chain->second.mResidues)
+		outPoints.push_back(r->GetCAlpha());
 }
 
 point MProtein::GetCAlphaPosition(char inChain, int16 inPDBResSeq) const
@@ -561,26 +752,14 @@ point MProtein::GetCAlphaPosition(char inChain, int16 inPDBResSeq) const
 	assert(chain != mChains.end());
 	
 	point result;
-	bool found = false;
 	
-	foreach (const MResidue& r, chain->second.mResidues)
+	foreach (const MResidue* r, chain->second.mResidues)
 	{
-		if (r.mNumber != inPDBResSeq)
+		if (r->mNumber != inPDBResSeq)
 			continue;
 		
-		foreach (const MAtom& a, r.mAtoms)
-		{
-			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
-			{
-				found = true;
-				result = a.mLoc;
-				break;
-			}
-		}
+		result = r->GetCAlpha();
 	}
-	
-	if (not found)
-		throw mas_exception(boost::format("residue %1% not found in chain %2%") % inPDBResSeq % inChain);
 	
 	return result;
 }
@@ -595,9 +774,9 @@ void MProtein::GetSequence(char inChain, entry& outEntry) const
 	
 	string seq;
 	
-	foreach (const MResidue& r, chain->second.mResidues)
+	foreach (const MResidue* r, chain->second.mResidues)
 	{
-		foreach (const MAtom& a, r.mAtoms)
+		foreach (const MAtom& a, r->mAtoms)
 		{
 			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
 			{
@@ -623,9 +802,9 @@ void MProtein::GetSequence(char inChain, sequence& outSequence) const
 	
 	string seq;
 	
-	foreach (const MResidue& r, chain->second.mResidues)
+	foreach (const MResidue* r, chain->second.mResidues)
 	{
-		foreach (const MAtom& a, r.mAtoms)
+		foreach (const MAtom& a, r->mAtoms)
 		{
 			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
 			{
@@ -645,6 +824,14 @@ void MProtein::WritePDB(ostream& os)
 	for (map<char,MChain>::iterator c = mChains.begin(); c != mChains.end(); ++c)
 		c->second.WritePDB(os);
 }
+
+void MProtein::WriteDSSP(ostream& os)
+{
+	for (map<char,MChain>::iterator c = mChains.begin(); c != mChains.end(); ++c)
+		c->second.WriteDSSP(os);
+}
+
+// --------------------------------------------------------------------
 
 double CalculateRMSD(const MProtein& a, const MProtein& b, char chainA, char chainB)
 {
@@ -683,6 +870,7 @@ MResidueType MapResidueName(const string& n)
 void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 {
 	bool model = false;
+	MResidue* residue = NULL;
 	
 	while (not is.eof())
 	{
@@ -715,46 +903,52 @@ void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
 
 			atom.mType = kCarbon;
 
-			atom.mSerial = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(6, 5)));
 			//	7 - 11	Integer serial Atom serial number.
-			line.copy(atom.mName, 4, 12);
+			atom.mSerial = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(6, 5)));
 			//	13 - 16	Atom name Atom name.
-			atom.mAltLoc = line[16];
+			line.copy(atom.mName, 4, 12);
 			//	17		Character altLoc Alternate location indicator.
-			line.copy(atom.mResName, 4, 17);
+			atom.mAltLoc = line[16];
 			//	18 - 20	Residue name resName Residue name.
-			atom.mChainID = line[21];
+			line.copy(atom.mResName, 4, 17);
 			//	22		Character chainID Chain identifier.
-			atom.mResSeq = boost::lexical_cast<int16>(ba::trim_copy(line.substr(22, 4)));
+			atom.mChainID = line[21];
 			//	23 - 26	Integer resSeq Residue sequence number.
-			atom.mICode = line[26];
+			atom.mResSeq = boost::lexical_cast<int16>(ba::trim_copy(line.substr(22, 4)));
 			//	27		AChar iCode Code for insertion of residues.
+			atom.mICode = line[26];
 
-			atom.mLoc.m_x = ParseFloat(line.substr(30, 8));
 			//	31 - 38	Real(8.3) x Orthogonal coordinates for X in Angstroms.
-			atom.mLoc.m_y = ParseFloat(line.substr(38, 8));
+			atom.mLoc.m_x = ParseFloat(line.substr(30, 8));
 			//	39 - 46	Real(8.3) y Orthogonal coordinates for Y in Angstroms.
-			atom.mLoc.m_z = ParseFloat(line.substr(46, 8));
+			atom.mLoc.m_y = ParseFloat(line.substr(38, 8));
 			//	47 - 54	Real(8.3) z Orthogonal coordinates for Z in Angstroms.
-			atom.mOccupancy = ParseFloat(line.substr(54, 6));
+			atom.mLoc.m_z = ParseFloat(line.substr(46, 8));
 			//	55 - 60	Real(6.2) occupancy Occupancy.
-			atom.mTempFactor = ParseFloat(line.substr(60, 6));
+			atom.mOccupancy = ParseFloat(line.substr(54, 6));
 			//	61 - 66	Real(6.2) tempFactor Temperature factor.
+			atom.mTempFactor = ParseFloat(line.substr(60, 6));
+			//	77 - 78	LString(2) element Element symbol, right-justified.
 			if (line.length() > 76)
 				line.copy(atom.mElement, 2, 76);
-			//	77 - 78	LString(2) element Element symbol, right-justified.
-			atom.mCharge = 0;
 			//	79 - 80	LString(2) charge Charge on the atom.
-			
-			MResidue residue = {};
-			residue.mType = MapResidueName(line.substr(17, 3));
-			residue.mNumber = boost::lexical_cast<int32>(ba::trim_copy(line.substr(22, 4)));
-			residue.mAtoms.push_back(atom);
+			atom.mCharge = 0;
 			
 			char chainID = line[21];
 			MChain& chain = prot.mChains[chainID];
 			chain.mChainID = chainID;
-			chain.mResidues.push_back(residue);
+
+			if (residue == NULL or residue->mNumber != atom.mResSeq)
+			{
+				residue = new MResidue(chain);
+
+				residue->mType = MapResidueName(line.substr(17, 3));
+				residue->mNumber = boost::lexical_cast<int32>(ba::trim_copy(line.substr(22, 4)));
+
+				chain.mResidues.push_back(residue);
+			}
+				
+			residue->mAtoms.push_back(atom);
 		}
 	}
 }
@@ -1331,4 +1525,19 @@ void align_structures(const string& structureA, const string& structureB,
 	
 	ofstream file_o(pdbid_a + chainA + '-' + pdbid_b + chainB + ".pdb");
 	c.WritePDB(file_o);
+}
+
+// --------------------------------------------------------------------
+
+void test_ss(const string& inID)
+{
+	CDatabankPtr pdb = LoadDatabank("pdb");
+	
+	stringstream file(pdb->GetDocument(inID));
+	
+	MProtein a;
+	ParsePDB(file, a, false);
+	
+	a.WritePDB(cout);
+	a.WriteDSSP(cout);
 }
