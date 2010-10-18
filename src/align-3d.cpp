@@ -44,9 +44,22 @@ namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 namespace bm = boost::math;
 
-const double kPI = 4 * std::atan(1);
+const double
+	kPI = 4 * std::atan(1),
+	kSSBridgeDistance = 3.0,
+	kMinimalDistance = 0.5,
+	kMinimalCADistance = 9.0,
+	kMinHBondEnergy = -9.9,
+	kMaxHBondEnergy = -0.5,
+	kCouplingConstant = -332 * 0.42 * 0.2,
+	kMaxPeptideBondLength = 2.5;
 
 // --------------------------------------------------------------------
+
+inline double ParseFloat(const string& s)
+{
+	return boost::lexical_cast<double>(ba::trim_copy(s));
+}
 
 typedef bm::quaternion<double> quaternion;
 
@@ -195,6 +208,20 @@ double DihedralAngle(const point& p1, const point& p2, const point& p3, const po
 	return result;
 }
 
+double CosinusAngle(const point& p1, const point& p2, const point& p3, const point& p4)
+{
+	point v12 = p1 - p2;
+	point v34 = p3 - p4;
+	
+	double result = 0;
+	
+	double x = DotProduct(v12, v12) * DotProduct(v34, v34);
+	if (x > 0)
+		result = DotProduct(v12, v34) / sqrt(x);
+	
+	return result;
+}
+
 // --------------------------------------------------------------------
 
 quaternion normalize(quaternion q)
@@ -288,11 +315,6 @@ double rmsd(const vector<point>& a, const vector<point>& b)
 		d *= d;
 		
 		sum += d.sum();
-
-//cerr << i << ": "
-//	 << a[i] << " - " << b[i] << " => "
-//	 << d[0] << ',' << d[1] << ',' << d[2]
-//	 << " sum " << sum << endl;
 	}
 	
 	return sqrt(sum / a.size());
@@ -320,6 +342,38 @@ enum MAtomType
 	
 	kAtomTypeCount
 };
+
+MAtomType MapElement(const string& inElement)
+{
+	MAtomType result = kUnknownAtom;
+	if (inElement == "H")
+		result = kHydrogen;
+	else if (inElement == "C")
+		result = kCarbon;
+	else if (inElement == "N")
+		result = kNitrogen;
+	else if (inElement == "O")
+		result = kOxygen;
+	else if (inElement == "F")
+		result = kFluorine;
+	else if (inElement == "P")
+		result = kPhosphorus;
+	else if (inElement == "S")
+		result = kSulfur;
+	else if (inElement == "Cl")
+		result = kChlorine;
+	else if (inElement == "K")
+		result = kPotassium;
+	else if (inElement == "Ca")
+		result = kCalcium;
+	else if (inElement == "Zn")
+		result = kZinc;
+	else if (inElement == "Se")
+		result = kSelenium;
+	else
+		throw mas_exception(boost::format("Unsupported element %s") % inElement);
+	return result;
+}
 
 struct MAtom
 {
@@ -481,25 +535,93 @@ char MResidueInfo::MapThreeLetterCode(const string& inThreeLetterCode)
 }
 
 class MChain;
+class MResidue;
+
+struct MResidueID
+{
+	char			chain;
+	uint16			seqNumber;
+	
+	bool			operator<(const MResidueID& o) const		{ return chain < o.chain or (chain == o.chain and seqNumber < o.seqNumber); }
+};
+
+struct HBond
+{
+	MResidue*		residue;
+	double			energy;
+};
+
+enum MBridgeType
+{
+	nobridge, parallel, antiparallel
+};
+
+struct MBridge
+{
+	char			sheet, ladder;
+	MBridgeType		type;
+	set<uint16>		link;
+	uint16			ib, ie, jb, je, from, to;
+};
 
 class MResidue
 {
   public:
-						MResidue(MChain& chain)
-							: mChain(chain)
-							, mNumber(0)
-							, mType(kUnknownResidue) {}
+						MResidue(MChain& chain, uint32 inSeqNumber, uint32 inNumber);
 
 	const MAtom&		GetCAlpha() const;
 	const MAtom&		GetC() const;
 	const MAtom&		GetN() const;
 	const MAtom&		GetO() const;
+	const MAtom&		GetH() const				{ return mH; }
 
 	double				Phi() const;
 	double				Psi() const;
-
+	tr1::tuple<double,char>
+						Alpha() const;
+	double				Kappa() const;
+	double				TCO() const;
+	
 	const MResidue*		Next() const;
-	const MResidue*		Previous() const;
+	const MResidue*		Prev() const;
+
+	void				CheckResidue(MResidue* inPrevious);
+
+	void				SetSSBridgeNr(uint8 inBridgeNr);
+	uint8				GetSSBridgeNr() const;
+
+	void				AddAtom(MAtom& inAtom);
+	
+	HBond*				Donor()						{ return mHBondDonor; }
+	HBond*				Acceptor()					{ return mHBondAcceptor; }
+
+	bool				ValidDistance(const MResidue& inNext)
+						{
+							return Distance(GetC(), inNext.GetN()) <= kMaxPeptideBondLength;
+						}
+
+	static bool			TestBond(const MResidue* a, const MResidue* b)
+						{
+							return a->TestBond(b);
+						}
+
+	bool				TestBond(const MResidue* other) const
+						{
+							return
+								(mHBondAcceptor[0].residue == other and mHBondAcceptor[0].energy < kMaxHBondEnergy) or
+								(mHBondAcceptor[1].residue == other and mHBondAcceptor[1].energy < kMaxHBondEnergy);
+						}
+
+	// bridge functions
+	MBridgeType			TestBridge(MResidue* inResidue) const;
+	void				ExtendLadder(vector<MBridge>& inBridges);
+	void				Sheet(vector<MBridge>& inBridges);
+	void				Markstrands(vector<MBridge>& inBridges);
+
+	uint16				GetSeqNumber() const
+						{
+							return mSeqNumber;
+						}
 
 	void				SetChainID(char inID)
 						{
@@ -523,10 +645,15 @@ class MResidue
 
 	void				WriteDSSP(ostream& os);
 
+	static double		CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor);
+
 //  protected:
 	MChain&				mChain;
-	int32				mNumber;
+	int32				mSeqNumber, mNumber;
 	MResidueType		mType;
+	uint8				mSSBridgeNr;
+	MAtom				mH;
+	HBond				mHBondDonor[2], mHBondAcceptor[2];
 	vector<MAtom>		mAtoms;
 };
 
@@ -540,6 +667,17 @@ struct MChain
 							mChainID = inID;
 							for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::SetChainID, _1, inID));
 						}
+
+	void				CheckResidues()
+						{
+							if (not mResidues.empty())
+								mResidues.front()->CheckResidue(nil);
+
+							for (uint32 i = 1; i < mResidues.size(); ++i)
+								mResidues[i]->CheckResidue(mResidues[i - 1]);
+						}
+						
+	MResidue&			GetResidueBySeqNumber(uint16 inSeqNumber);
 
 	void				Translate(const point& inTranslation)
 						{
@@ -568,14 +706,17 @@ struct MChain
 						}
 
 	const MResidue*		Next(const MResidue* res) const;
-	const MResidue*		Previous(const MResidue* res) const;
+	const MResidue*		Prev(const MResidue* res) const;
 
 };
 
 struct MProtein
 {
-	string				mID;
-	map<char,MChain>	mChains;
+						MProtein() {}
+						
+						MProtein(istream& is, bool inCAlphaOnly = false);
+
+	void				CalculateSecondaryStructure();
 	
 	void				GetCAlphaLocations(char inChain, vector<point>& outPoints) const;
 
@@ -584,6 +725,8 @@ struct MProtein
 	void				GetSequence(char inChain, entry& outEntry) const;
 
 	void				GetSequence(char inChain, sequence& outSequence) const;
+	
+	void				CalculateSSBridges();
 
 	void				Center();
 	
@@ -614,9 +757,56 @@ struct MProtein
 								}
 							}
 						}
+
+	MResidue&			GetResidue(char inChainID, uint16 inSeqNumber);
+
+//  private:
+
+	string				mID;
+	map<char,MChain>	mChains;
+	
+	vector<pair<MResidueID,MResidueID>>
+						mSSBonds;
 };
 
 // --------------------------------------------------------------------
+
+MResidue::MResidue(MChain& chain, uint32 inSeqNumber, uint32 inNumber)
+	: mChain(chain)
+	, mSeqNumber(inSeqNumber)
+	, mNumber(inNumber)
+	, mType(kUnknownResidue)
+	, mSSBridgeNr(0)
+{
+	mHBondDonor[0].energy = mHBondDonor[1].energy = mHBondAcceptor[0].energy = mHBondAcceptor[1].energy = 0;
+	mHBondDonor[0].residue = mHBondDonor[1].residue = mHBondAcceptor[0].residue = mHBondAcceptor[1].residue = nil;
+}
+
+void MResidue::CheckResidue(MResidue* inPrevious)
+{
+	mH = GetN();
+	
+	if (mType != kProline and inPrevious != nil)
+	{
+		const MAtom& pc = inPrevious->GetC();
+		const MAtom& po = inPrevious->GetO();
+		
+		double CODistance = Distance(pc, po);
+		
+		mH.mLoc.m_x += (pc.mLoc.m_x - po.mLoc.m_x) / CODistance; 
+		mH.mLoc.m_y += (pc.mLoc.m_y - po.mLoc.m_y) / CODistance; 
+		mH.mLoc.m_z += (pc.mLoc.m_z - po.mLoc.m_z) / CODistance; 
+	}
+}
+
+void MResidue::AddAtom(MAtom& inAtom)
+{
+	if (inAtom.mType == kHydrogen)
+	{
+	}
+	else
+		mAtoms.push_back(inAtom);
+}
 
 const MAtom& MResidue::GetCAlpha() const
 {
@@ -659,15 +849,15 @@ const MResidue* MResidue::Next() const
 	return mChain.Next(this);
 }
 
-const MResidue* MResidue::Previous() const
+const MResidue* MResidue::Prev() const
 {
-	return mChain.Previous(this);
+	return mChain.Prev(this);
 }
 
 double MResidue::Phi() const
 {
 	double result = 360;
-	const MResidue* prev = Previous();
+	const MResidue* prev = Prev();
 	if (prev != nil)
 		result = DihedralAngle(prev->GetC(), GetN(), GetCAlpha(), GetC());
 	return result;
@@ -682,14 +872,209 @@ double MResidue::Psi() const
 	return result;
 }
 
+tr1::tuple<double,char> MResidue::Alpha() const
+{
+	double alhpa = 360;
+	char chirality = ' ';
+	
+	const MResidue* prev = Prev();
+	const MResidue* next = Next();
+	const MResidue* nextNext = next ? next->Next() : nil;
+	if (prev != nil and nextNext != nil)
+	{
+		alhpa = DihedralAngle(prev->GetCAlpha(), GetCAlpha(), next->GetCAlpha(), nextNext->GetCAlpha());
+		if (alhpa < 0)
+			chirality = '-';
+		else
+			chirality = '+';
+	}
+	return tr1::make_tuple(alhpa, chirality);
+}
+
+double MResidue::Kappa() const
+{
+	double result = 360;
+	const MResidue* prev = Prev();
+	const MResidue* prevPrev = prev ? prev->Prev() : nil;
+	const MResidue* next = Next();
+	const MResidue* nextNext = next ? next->Next() : nil;
+	if (prevPrev != nil and nextNext != nil)
+	{
+		double ckap = CosinusAngle(GetCAlpha(), prevPrev->GetCAlpha(), nextNext->GetCAlpha(), GetCAlpha());
+		double skap = sqrt(1 - ckap * ckap);
+		result = atan2(skap, ckap) * 180 / kPI;
+	}
+	return result;
+}
+
+double MResidue::TCO() const
+{
+	double result = 0;
+	const MResidue* prev = Prev();
+	if (prev != nil)
+		result = CosinusAngle(GetC(), GetO(), prev->GetC(), prev->GetO());
+	return result;
+}
+
+void MResidue::SetSSBridgeNr(uint8 inBridgeNr)
+{
+	if (mType != kCysteine)
+		throw mas_exception("Only cysteine residues can form sulphur bridges");
+	mSSBridgeNr = inBridgeNr;
+}
+
+uint8 MResidue::GetSSBridgeNr() const
+{
+	if (mType != kCysteine)
+		throw mas_exception("Only cysteine residues can form sulphur bridges");
+	return mSSBridgeNr;
+}
+
+double MResidue::CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor)
+{
+	double result = 0;
+	
+	if (inDonor.mType != kProline)
+	{
+		double distanceHO = Distance(inDonor.GetH(), inAcceptor.GetO());
+		double distanceHC = Distance(inDonor.GetH(), inAcceptor.GetC());
+		double distanceNC = Distance(inDonor.GetN(), inAcceptor.GetC());
+		double distanceNO = Distance(inDonor.GetN(), inAcceptor.GetO());
+		
+		if (distanceHO < kMinimalDistance or distanceHC < kMinimalDistance or distanceNC < kMinimalDistance or distanceNO < kMinimalDistance)
+			result = kMinHBondEnergy;
+		else
+			result = kCouplingConstant / distanceHO - kCouplingConstant / distanceHC + kCouplingConstant / distanceNC - kCouplingConstant / distanceNO;
+
+		if (result < kMinHBondEnergy)
+			result = kMinHBondEnergy;
+	}
+
+	// update donor
+	if (result < inDonor.mHBondAcceptor[0].energy)
+	{
+		inDonor.mHBondAcceptor[1] = inDonor.mHBondAcceptor[0];
+		inDonor.mHBondAcceptor[0].residue = &inAcceptor;
+		inDonor.mHBondAcceptor[0].energy = result;
+	}
+	else if (result < inDonor.mHBondAcceptor[1].energy)
+	{
+		inDonor.mHBondAcceptor[1].residue = &inAcceptor;
+		inDonor.mHBondAcceptor[1].energy = result;
+	}		
+
+	// and acceptor
+	if (result < inAcceptor.mHBondDonor[0].energy)
+	{
+		inAcceptor.mHBondDonor[1] = inAcceptor.mHBondDonor[0];
+		inAcceptor.mHBondDonor[0].residue = &inDonor;
+		inAcceptor.mHBondDonor[0].energy = result;
+	}
+	else if (result < inAcceptor.mHBondDonor[1].energy)
+	{
+		inAcceptor.mHBondDonor[1].residue = &inDonor;
+		inAcceptor.mHBondDonor[1].energy = result;
+	}		
+	
+	return result;
+}
+
+MBridgeType MResidue::TestBridge(MResidue* test) const
+{
+	const MResidue* i0 = Prev();
+	const MResidue* i1 = this;
+	const MResidue* i2 = Next();
+	const MResidue* j0 = test->Prev();
+	const MResidue* j1 = test;
+	const MResidue* j2 = test->Next();
+	
+	MBridgeType result = nobridge;
+	if (i0 and i2 and j0 and j2)
+	{
+		if ((TestBond(i2, j1) and TestBond(j1, i0)) or (TestBond(j2, i1) and TestBond(i1, j0)))
+			result = parallel;
+		else if ((TestBond(i2, j0) and TestBond(j2, i0)) or (TestBond(j1, i1) and TestBond(i1, j1)))
+			result = antiparallel;
+	}
+	
+	return result;
+}
+
+void MResidue::ExtendLadder(vector<MBridge>& inBridges)
+{
+}
+
+void MResidue::Sheet(vector<MBridge>& inBridges)
+{
+}
+
+void MResidue::Markstrands(vector<MBridge>& inBridges)
+{
+}
+
 void MResidue::WriteDSSP(ostream& os)
 {
-	boost::format kDSSPResidueLine("%5.5d%5.5d %c        %6.1f%6.1f");  
+/*   
+  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA 
+ */
+	boost::format kDSSPResidueLine(
+	"%5.5d%5.5d %c %c  %c.....%c.....           %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
 	
-	cout << (kDSSPResidueLine % mNumber % mNumber % kResidueInfo[mType].code % Phi() % Psi()) << endl;
+	const MAtom& ca = GetCAlpha();
+	
+	char code = kResidueInfo[mType].code;
+	if (mType == kCysteine and GetSSBridgeNr() != 0)
+		code = 'a' - 1 + (GetSSBridgeNr() % 26);
+
+	double alpha;
+	char chirality;
+	tr1::tie(alpha,chirality) = Alpha();
+	
+	string NHO1 = "0, 0.0", NHO2 = "0, 0.0", ONH1 = "0, 0.0", ONH2 = "0, 0.0";
+	
+	MResidue* acceptor = mHBondAcceptor[0].residue;
+	if (acceptor != nil)
+	{
+		int32 d = acceptor->mNumber - mNumber;
+		NHO1 = (boost::format("%d,%3.1f") % d % mHBondAcceptor[0].energy).str();
+	}
+	
+	acceptor = mHBondAcceptor[1].residue;
+	if (acceptor != nil)
+	{
+		int32 d = acceptor->mNumber - mNumber;
+		NHO2 = (boost::format("%d,%3.1f") % d % mHBondAcceptor[1].energy).str();
+	}
+
+	MResidue* donor = mHBondDonor[0].residue;
+	if (donor != nil)
+	{
+		int32 d = donor->mNumber - mNumber;
+		ONH1 = (boost::format("%d,%3.1f") % d % mHBondDonor[0].energy).str();
+	}
+	
+	donor = mHBondDonor[1].residue;
+	if (donor != nil)
+	{
+		int32 d = donor->mNumber - mNumber;
+		ONH2 = (boost::format("%d,%3.1f") % d % mHBondDonor[1].energy).str();
+	}
+		
+	cout << (kDSSPResidueLine % mNumber % ca.mResSeq % ca.mChainID % code % ' ' % chirality % 
+		NHO1 % ONH1 % NHO2 % ONH2 %
+		TCO() % Kappa() % alpha % Phi() % Psi() % ca.mLoc.m_x % ca.mLoc.m_y % ca.mLoc.m_z) << endl;
 }
 
 // --------------------------------------------------------------------
+
+MResidue& MChain::GetResidueBySeqNumber(uint16 inSeqNumber)
+{
+	vector<MResidue*>::iterator r = find_if(mResidues.begin(), mResidues.end(),
+		boost::bind(&MResidue::GetSeqNumber, _1) == inSeqNumber);
+	if (r == mResidues.end())
+		throw mas_exception(boost::format("Residue %d not found") % inSeqNumber);
+	return **r;
+}
 
 const MResidue* MChain::Next(const MResidue* res) const
 {
@@ -705,7 +1090,7 @@ const MResidue* MChain::Next(const MResidue* res) const
 	return result;
 }
 
-const MResidue* MChain::Previous(const MResidue* res) const
+const MResidue* MChain::Prev(const MResidue* res) const
 {
 	const MResidue* result = nil;
 	for (uint32 i = 1; i < mResidues.size(); ++i)
@@ -719,7 +1104,340 @@ const MResidue* MChain::Previous(const MResidue* res) const
 	return result;
 }
 
+MResidueType MapResidueName(const string& n)
+{
+	MResidueType result = kUnknownResidue;
+	
+	for (uint32 i = 0; i < kResidueTypeCount; ++i)
+	{
+		if (n == kResidueInfo[i].name)
+		{
+			result = kResidueInfo[i].type;
+			break;
+		}
+	}
+	
+	return result;
+}
+
 // --------------------------------------------------------------------
+
+MProtein::MProtein(istream& is, bool cAlphaOnly)
+{
+	bool model = false;
+	MResidue* residue = NULL;
+	uint32 resNumber = 0;
+	
+	while (not is.eof())
+	{
+		string line;
+		getline(is, line);
+		
+		if (ba::starts_with(line, "HEADER"))
+		{
+			mID = line.substr(62, 4);
+			continue;
+		}
+		
+		// brain dead support for only the first model in the file
+		if (ba::starts_with(line, "MODEL"))
+		{
+			model = true;
+			continue;
+		}
+		
+		if (ba::starts_with(line, "ENDMDL") and model == true)
+			break;
+		
+		if (ba::starts_with(line, "SSBOND"))
+		{
+			//SSBOND   1 CYS A    6    CYS A   11                          1555   1555  2.03  
+			pair<MResidueID,MResidueID> ssbond;
+			ssbond.first.chain = line[15];
+			ssbond.first.seqNumber = boost::lexical_cast<uint16>(ba::trim_copy(line.substr(16, 5)));
+			ssbond.second.chain = line[29];
+			ssbond.second.seqNumber = boost::lexical_cast<uint16>(ba::trim_copy(line.substr(30, 5)));
+
+			mSSBonds.push_back(ssbond);
+			continue;
+		}
+		
+		if (ba::starts_with(line, "ATOM  "))
+		{
+			if (cAlphaOnly and line.substr(12, 4) != " CA ")
+				continue;
+			
+			MAtom atom = {};
+			//	1 - 6	Record name "ATOM "
+
+			//	7 - 11	Integer serial Atom serial number.
+			atom.mSerial = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(6, 5)));
+			//	13 - 16	Atom name Atom name.
+			line.copy(atom.mName, 4, 12);
+			//	17		Character altLoc Alternate location indicator.
+			atom.mAltLoc = line[16];
+			//	18 - 20	Residue name resName Residue name.
+			line.copy(atom.mResName, 4, 17);
+			//	22		Character chainID Chain identifier.
+			atom.mChainID = line[21];
+			//	23 - 26	Integer resSeq Residue sequence number.
+			atom.mResSeq = boost::lexical_cast<int16>(ba::trim_copy(line.substr(22, 4)));
+			//	27		AChar iCode Code for insertion of residues.
+			atom.mICode = line[26];
+
+			//	31 - 38	Real(8.3) x Orthogonal coordinates for X in Angstroms.
+			atom.mLoc.m_x = ParseFloat(line.substr(30, 8));
+			//	39 - 46	Real(8.3) y Orthogonal coordinates for Y in Angstroms.
+			atom.mLoc.m_y = ParseFloat(line.substr(38, 8));
+			//	47 - 54	Real(8.3) z Orthogonal coordinates for Z in Angstroms.
+			atom.mLoc.m_z = ParseFloat(line.substr(46, 8));
+			//	55 - 60	Real(6.2) occupancy Occupancy.
+			atom.mOccupancy = ParseFloat(line.substr(54, 6));
+			//	61 - 66	Real(6.2) tempFactor Temperature factor.
+			atom.mTempFactor = ParseFloat(line.substr(60, 6));
+			//	77 - 78	LString(2) element Element symbol, right-justified.
+			if (line.length() > 76)
+				line.copy(atom.mElement, 2, 76);
+			//	79 - 80	LString(2) charge Charge on the atom.
+			atom.mCharge = 0;
+			
+			atom.mType = MapElement(ba::trim_copy(line.substr(77, 2)));
+			
+			char chainID = line[21];
+			MChain& chain = mChains[chainID];
+			chain.mChainID = chainID;
+
+			if (residue == NULL or residue->mSeqNumber != atom.mResSeq)
+			{
+				if (chain.mResidues.empty())
+					++resNumber;
+				
+				residue = new MResidue(chain, atom.mResSeq, resNumber);
+				++resNumber;
+
+				residue->mType = MapResidueName(line.substr(17, 3));
+
+				chain.mResidues.push_back(residue);
+			}
+				
+			residue->AddAtom(atom);
+		}
+	}
+}
+
+void MProtein::CalculateSecondaryStructure()
+{
+	// validate all residues and calculate the location of the backbone Hydrogen
+	for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+		chain->second.CheckResidues();
+	
+	// map the sulfur bridges
+	sort(mSSBonds.begin(), mSSBonds.end());
+	
+	typedef pair<MResidueID,MResidueID> SSBond;
+	
+	uint32 ssbondNr = 1;
+	foreach (const SSBond& ssbond, mSSBonds)
+	{
+		MResidue& first = GetResidue(ssbond.first.chain, ssbond.first.seqNumber);
+		MResidue& second = GetResidue(ssbond.second.chain, ssbond.second.seqNumber);
+		
+		first.SetSSBridgeNr(ssbondNr);
+		second.SetSSBridgeNr(ssbondNr);
+		++ssbondNr;
+	}
+	
+	// Calculate the HBond energies
+	vector<MResidueID> residues;
+	for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+	{
+		MResidueID id = { chain->first };
+		foreach (const MResidue* r, chain->second.mResidues)
+		{
+			id.seqNumber = r->mSeqNumber;
+			residues.push_back(id);
+		}
+	}
+	
+	for (uint32 i = 0; i < residues.size() - 1; ++i)
+	{
+		MResidue& ri = GetResidue(residues[i].chain, residues[i].seqNumber);
+		
+		for (uint32 j = i + 1; j < residues.size(); ++j)
+		{
+			MResidue& rj = GetResidue(residues[j].chain, residues[j].seqNumber);
+			
+			if (Distance(ri.GetCAlpha(), rj.GetCAlpha()) < kMinimalCADistance)
+			{
+				MResidue::CalculateHBondEnergy(ri, rj);
+				if (j != i + 1)
+					MResidue::CalculateHBondEnergy(rj, ri);
+			}
+		}
+	}
+	
+	// Calculate Bridges
+	vector<MBridge> bridges;
+	for (uint32 i = 1; i < residues.size() - 4; ++i)
+	{
+		MResidue& ir = GetResidue(residues[i].chain, residues[i].seqNumber);
+		
+		for (uint32 j = i + 3; j < residues.size() - 1; ++j)
+		{
+			MResidue& jr = GetResidue(residues[j].chain, residues[j].seqNumber);
+			
+			MBridgeType type = ir.TestBridge(&jr);
+			if (type != nobridge)
+			{
+				bool found = false;
+				foreach (MBridge& bridge, bridges)
+				{
+					if (type == parallel and bridge.type == parallel and
+						bridge.ie + 1 == i and bridge.je + 1 == j and
+						residues[i - 1].chain == residues[i].chain and
+						residues[j - 1].chain == residues[j].chain)
+					{
+						++bridge.ie;
+						++bridge.je;
+						found = true;
+						break;
+					}
+
+					if (type == antiparallel and bridge.type == antiparallel and
+						bridge.ie + 1 == i and bridge.jb - 1 == j and
+						residues[i - 1].chain == residues[i].chain and
+						residues[j + 1].chain == residues[j].chain)
+					{
+						++bridge.ie;
+						--bridge.jb;
+						found = true;
+						break;
+					}
+				}
+				
+				if (not found)
+				{
+					MBridge bridge = {};
+					
+					bridge.ib = bridge.ie = i;
+					bridge.jb = bridge.je = j;
+					bridges.push_back(bridge);
+				}
+			}
+		}
+	}
+
+	if (not bridges.empty())
+	{
+		// extend ladders
+		for (uint32 i = 0; i < bridges.size(); ++i)
+		{
+			MBridge& bridge = bridges[i];
+			
+			for (uint32 j = i + 1; j < bridges.size() and bridge.to == 0; ++j)
+			{
+				uint32 ib1 = bridges[j].ib;
+				uint32 jb1 = bridges[j].jb;
+				uint32 je1 = bridges[j].je;
+
+				bool bulge = residues[bridge.ie].chain == residues[ib1].chain and
+					ib1 - bridge.ie < 6 and
+					bridges[j].type == bridge.type and
+					bridges[j].from == 0;
+
+				if (bulge)
+				{
+					if (bridge.type == parallel)
+						bulge = ((jb1 - bridge.je < 6 and ib1 - bridge.ie < 3) or jb1 - bridge.je < 3) and
+							residues[bridge.je].chain == residues[jb1].chain;
+					else
+						bulge = ((bridge.jb - je1 < 6 and ib1 - bridge.ie < 3) or bridge.jb - je1 < 3) and
+							residues[je1].chain == residues[bridge.jb].chain;
+				}
+				
+				if (bulge)
+				{
+					bridge.to = j;
+					bridges[j].from = i;
+				}
+			}
+		}
+		
+		for (uint32 i = 0; i < bridges.size(); ++i)
+		{
+			MBridge& bridge = bridges[i];
+			if (bridge.from == 0)
+			{
+				for (uint32 j = i; j != 0; j = bridges[j].to)
+					bridge.link.insert(j);
+				for (uint32 j = bridge.to; j != 0; j = bridges[j].to)
+					bridges[j].link = bridge.link;
+			}
+		}
+		
+		// Sheet
+		
+		set<uint16> sheetset, ladderset;
+		for (uint32 i = 0; i < bridges.size(); ++i)
+			ladderset.insert(i);
+		
+		char sheetname = 'A' - 1;
+		char laddername = 'a';
+		
+		while (not ladderset.empty())
+		{
+			++sheetname;
+			
+			sheetset = bridges[*ladderset.begin()].link;
+			bool done = false;
+			while (not done)
+			{
+				done = true;
+				for (uint32 l1 = 1; l1 < bridges.size(); ++l1)
+				{
+					foreach (uint32 l2, ladderset)
+					{
+						if ((bridges[l1].ie >= bridges[l2].ib and bridges[l1].ib <= bridges[l2].ie) or
+							(bridges[l1].ie >= bridges[l2].jb and bridges[l1].ib <= bridges[l2].je) or
+							(bridges[l1].je >= bridges[l2].ib and bridges[l1].jb <= bridges[l2].ie) or
+							(bridges[l1].je >= bridges[l2].jb and bridges[l1].jb <= bridges[l2].je))
+						{
+							sheetset.insert(bridges[l2].link.begin(), bridges[l2].link.end());
+							foreach (uint16 l, bridges[l2].link)
+								ladderset.erase(l);
+							done = false;
+						}
+					}
+				}
+			}
+			
+			for (uint32 i = 0; i < bridges.size(); ++i)
+			{
+				MBridge& bridge = bridges[i];
+				if (sheetset.count(i) and bridge.from == 0)
+				{
+					if (++laddername > 'z')
+						laddername = 'a';
+					if (bridge.type == parallel)
+						bridge.ladder = laddername;
+					else
+						bridge.ladder = toupper(laddername);
+					bridge.sheet = sheetname;
+					bridge.link = sheetset;
+					for (uint32 j = bridge.to; j != 0; j = bridges[j].to)
+					{
+						bridges[j].ladder = laddername;
+						bridges[j].sheet = sheetname;
+						bridges[j].link = sheetset;
+					}
+				}
+			}
+		}
+		
+//		MResidue::Sheet(bridges);
+//		MResidue::Markstrands(bridges);
+	}
+}
 
 void MProtein::Center()
 {
@@ -729,6 +1447,14 @@ void MProtein::Center()
 	point t = center_points(p);
 	
 	Translate(point(-t.m_x, -t.m_y, -t.m_z));
+}
+
+MResidue& MProtein::GetResidue(char inChainID, uint16 inSeqNumber)
+{
+	MChain& chain = mChains[inChainID];
+	if (chain.mResidues.empty())
+		throw mas_exception(boost::format("Invalid chain id '%c'") % inChainID);
+	return chain.GetResidueBySeqNumber(inSeqNumber);
 }
 
 void MProtein::GetCAlphaLocations(char inChain, vector<point>& outPoints) const
@@ -755,13 +1481,18 @@ point MProtein::GetCAlphaPosition(char inChain, int16 inPDBResSeq) const
 	
 	foreach (const MResidue* r, chain->second.mResidues)
 	{
-		if (r->mNumber != inPDBResSeq)
+		if (r->mSeqNumber != inPDBResSeq)
 			continue;
 		
 		result = r->GetCAlpha();
 	}
 	
 	return result;
+}
+
+void MProtein::CalculateSSBridges()
+{
+	
 }
 
 void MProtein::GetSequence(char inChain, entry& outEntry) const
@@ -827,8 +1558,15 @@ void MProtein::WritePDB(ostream& os)
 
 void MProtein::WriteDSSP(ostream& os)
 {
+	boost::format kDSSPResidueLine(
+	"%5.5d        !*             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");  
+
 	for (map<char,MChain>::iterator c = mChains.begin(); c != mChains.end(); ++c)
+	{
 		c->second.WriteDSSP(os);
+		if (next(c) != mChains.end())
+			os << (kDSSPResidueLine % (c->second.mResidues.back()->mNumber + 1)) << endl;
+	}
 }
 
 // --------------------------------------------------------------------
@@ -844,113 +1582,6 @@ double CalculateRMSD(const MProtein& a, const MProtein& b, char chainA, char cha
 	b.GetCAlphaLocations(chainB, pb);
 	
 	return rmsd(pa, pb);
-}
-
-inline double ParseFloat(const string& s)
-{
-	return boost::lexical_cast<double>(ba::trim_copy(s));
-}
-
-MResidueType MapResidueName(const string& n)
-{
-	MResidueType result = kUnknownResidue;
-	
-	for (uint32 i = 0; i < kResidueTypeCount; ++i)
-	{
-		if (n == kResidueInfo[i].name)
-		{
-			result = kResidueInfo[i].type;
-			break;
-		}
-	}
-	
-	return result;
-}
-
-void ParsePDB(istream& is, MProtein& prot, bool cAlhpaOnly)
-{
-	bool model = false;
-	MResidue* residue = NULL;
-	
-	while (not is.eof())
-	{
-		string line;
-		getline(is, line);
-		
-		if (ba::starts_with(line, "HEADER"))
-		{
-			prot.mID = line.substr(62, 4);
-			continue;
-		}
-		
-		// brain dead support for only the first model in the file
-		if (ba::starts_with(line, "MODEL"))
-		{
-			model = true;
-			continue;
-		}
-		
-		if (ba::starts_with(line, "ENDMDL") and model == true)
-			break;
-		
-		if (ba::starts_with(line, "ATOM  "))
-		{
-			if (cAlhpaOnly and line.substr(12, 4) != " CA ")
-				continue;
-			
-			MAtom atom = {};
-			//	1 - 6	Record name "ATOM "
-
-			atom.mType = kCarbon;
-
-			//	7 - 11	Integer serial Atom serial number.
-			atom.mSerial = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(6, 5)));
-			//	13 - 16	Atom name Atom name.
-			line.copy(atom.mName, 4, 12);
-			//	17		Character altLoc Alternate location indicator.
-			atom.mAltLoc = line[16];
-			//	18 - 20	Residue name resName Residue name.
-			line.copy(atom.mResName, 4, 17);
-			//	22		Character chainID Chain identifier.
-			atom.mChainID = line[21];
-			//	23 - 26	Integer resSeq Residue sequence number.
-			atom.mResSeq = boost::lexical_cast<int16>(ba::trim_copy(line.substr(22, 4)));
-			//	27		AChar iCode Code for insertion of residues.
-			atom.mICode = line[26];
-
-			//	31 - 38	Real(8.3) x Orthogonal coordinates for X in Angstroms.
-			atom.mLoc.m_x = ParseFloat(line.substr(30, 8));
-			//	39 - 46	Real(8.3) y Orthogonal coordinates for Y in Angstroms.
-			atom.mLoc.m_y = ParseFloat(line.substr(38, 8));
-			//	47 - 54	Real(8.3) z Orthogonal coordinates for Z in Angstroms.
-			atom.mLoc.m_z = ParseFloat(line.substr(46, 8));
-			//	55 - 60	Real(6.2) occupancy Occupancy.
-			atom.mOccupancy = ParseFloat(line.substr(54, 6));
-			//	61 - 66	Real(6.2) tempFactor Temperature factor.
-			atom.mTempFactor = ParseFloat(line.substr(60, 6));
-			//	77 - 78	LString(2) element Element symbol, right-justified.
-			if (line.length() > 76)
-				line.copy(atom.mElement, 2, 76);
-			//	79 - 80	LString(2) charge Charge on the atom.
-			atom.mCharge = 0;
-			
-			char chainID = line[21];
-			MChain& chain = prot.mChains[chainID];
-			chain.mChainID = chainID;
-
-			if (residue == NULL or residue->mNumber != atom.mResSeq)
-			{
-				residue = new MResidue(chain);
-
-				residue->mType = MapResidueName(line.substr(17, 3));
-				residue->mNumber = boost::lexical_cast<int32>(ba::trim_copy(line.substr(22, 4)));
-
-				chain.mResidues.push_back(residue);
-			}
-				
-			residue->mAtoms.push_back(atom);
-		}
-	}
 }
 
 // The next function returns the largest solution for a quartic equation
@@ -1299,7 +1930,7 @@ void align_proteins(MProtein& a, char chainA, MProtein& b, char chainB,
 	}
 	
 	if (cAlphaA.size() != cAlphaB.size())
-		throw logic_error("Protein A and B should have the same number of c-alhpa atoms");
+		throw logic_error("Protein A and B should have the same number of c-alpha atoms");
 	
 	if (cAlphaA.size() < 3)
 		throw logic_error("Protein A and B should have at least 3 of c-alpha atoms");
@@ -1464,7 +2095,6 @@ void align_structures(const string& structureA, const string& structureB,
 	uint32 iterations,
 	substitution_matrix_family& mat, float gop, float gep, float magic)
 {
-	MProtein a, b;
 	char chainA = 0, chainB = 0;
 	
 	CDatabankPtr pdb = LoadDatabank("pdb");
@@ -1488,13 +2118,13 @@ void align_structures(const string& structureA, const string& structureB,
 		throw mas_exception("Please specify a PDB ID in 4 letter code");
 
 	stringstream file_a(pdb->GetDocument(pdbid_a));
-	ParsePDB(file_a, a, false);
+	MProtein a(file_a, false);
 	
 	if (chainA == 0)
 		chainA = a.mChains.begin()->first;
 
 	stringstream file_b(pdb->GetDocument(pdbid_b));
-	ParsePDB(file_b, b, false);
+	MProtein b(file_b, false);
 
 	if (chainB == 0)
 		chainB = b.mChains.begin()->first;
@@ -1535,9 +2165,10 @@ void test_ss(const string& inID)
 	
 	stringstream file(pdb->GetDocument(inID));
 	
-	MProtein a;
-	ParsePDB(file, a, false);
+	MProtein a(file, false);
+
+	a.CalculateSecondaryStructure();
 	
-	a.WritePDB(cout);
+//	a.WritePDB(cout);
 	a.WriteDSSP(cout);
 }
