@@ -165,6 +165,23 @@ ostream& operator<<(ostream& os, const vector<point>& pts)
 	return os;
 }
 
+// another utility stream function:
+ostream& operator<<(ostream& os, const vector<uint16>& v)
+{
+	os << '[';
+	copy(v.begin(), v.end(), ostream_iterator<uint16>(os, ", "));
+	os << ']' << endl;
+	return os;
+}
+
+ostream& operator<<(ostream& os, const set<uint16>& v)
+{
+	os << '[';
+	copy(v.begin(), v.end(), ostream_iterator<uint16>(os, ", "));
+	os << ']' << endl;
+	return os;
+}
+
 // --------------------------------------------------------------------
 // some 3d functions
 //
@@ -1327,41 +1344,50 @@ void MProtein::CalculateSecondaryStructure()
 		}
 	}
 
-	if (not bridges.empty())
+foreach (MBridge& bridge, bridges)
+	cerr << "bridge " << (bridge.type == parallel ? "parallel" : "antiparallel") << endl
+		 << "  link: " << bridge.link << endl
+		 << "  ib: " << bridge.ib << ", ie: " << bridge.ie << ", jb: " << bridge.jb << ", je: " << bridge.je
+		 << ", from: " << bridge.from << ", to: " << bridge.to << endl;
+
+	// extend ladders
+	for (uint32 i = 0; i < bridges.size(); ++i)
 	{
-		// extend ladders
-		for (uint32 i = 0; i < bridges.size(); ++i)
+		MBridge& bridge = bridges[i];
+		
+		for (uint32 j = i + 1; j < bridges.size() and bridge.to == 0; ++j)
 		{
-			MBridge& bridge = bridges[i];
-			
-			for (uint32 j = i + 1; j < bridges.size() and bridge.to == 0; ++j)
+			uint32 ib1 = bridges[j].ib;
+			uint32 jb1 = bridges[j].jb;
+			uint32 je1 = bridges[j].je;
+
+			bool bulge = residues[bridge.ie].chain == residues[ib1].chain and
+				ib1 - bridge.ie < 6 and
+				bridges[j].type == bridge.type and
+				bridges[j].from == 0;
+
+			if (bulge)
 			{
-				uint32 ib1 = bridges[j].ib;
-				uint32 jb1 = bridges[j].jb;
-				uint32 je1 = bridges[j].je;
-
-				bool bulge = residues[bridge.ie].chain == residues[ib1].chain and
-					ib1 - bridge.ie < 6 and
-					bridges[j].type == bridge.type and
-					bridges[j].from == 0;
-
-				if (bulge)
-				{
-					if (bridge.type == parallel)
-						bulge = ((jb1 - bridge.je < 6 and ib1 - bridge.ie < 3) or jb1 - bridge.je < 3) and
-							residues[bridge.je].chain == residues[jb1].chain;
-					else
-						bulge = ((bridge.jb - je1 < 6 and ib1 - bridge.ie < 3) or bridge.jb - je1 < 3) and
-							residues[je1].chain == residues[bridge.jb].chain;
-				}
-				
-				if (bulge)
-				{
-					bridge.to = j;
-					bridges[j].from = i;
-				}
+				if (bridge.type == parallel)
+					bulge = ((jb1 - bridge.je < 6 and ib1 - bridge.ie < 3) or jb1 - bridge.je < 3) and
+						residues[bridge.je].chain == residues[jb1].chain;
+				else
+					bulge = ((bridge.jb - je1 < 6 and ib1 - bridge.ie < 3) or bridge.jb - je1 < 3) and
+						residues[je1].chain == residues[bridge.jb].chain;
+			}
+			
+			if (bulge)
+			{
+				bridge.to = j;
+				bridges[j].from = i;
 			}
 		}
+
+foreach (MBridge& bridge, bridges)
+	cerr << "bridge " << (bridge.type == parallel ? "parallel" : "antiparallel") << endl
+		 << "  link: " << bridge.link << endl
+		 << "  ib: " << bridge.ib << ", ie: " << bridge.ie << ", jb: " << bridge.jb << ", je: " << bridge.je
+		 << ", from: " << bridge.from << ", to: " << bridge.to << endl;
 		
 		for (uint32 i = 0; i < bridges.size(); ++i)
 		{
@@ -1386,9 +1412,11 @@ void MProtein::CalculateSecondaryStructure()
 		
 		while (not ladderset.empty())
 		{
+cerr << "ladder set: " << ladderset << endl;
 			++sheetname;
 			
 			sheetset = bridges[*ladderset.begin()].link;
+cerr << "sheet set: " << sheetset << endl;
 			bool done = false;
 			while (not done)
 			{
