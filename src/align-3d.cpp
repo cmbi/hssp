@@ -638,10 +638,11 @@ class MResidue
 	const MResidue*		Next() const;
 	const MResidue*		Prev() const;
 	
-	void				SetBetaPartner(uint32 n, MResidue* inResidue)
+	void				SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder)
 													{ mBetaPartner[n] = inResidue; }
 	const MResidue*		GetBetaPartner(uint32 n) const
 													{ return mBetaPartner[n]; }
+	void				SetSheet(uint32 inSheet)	{ mSheet = inSheet; }
 
 	void				CheckResidue(MResidue* inPrevious);
 
@@ -712,6 +713,7 @@ class MResidue
 	HBond				mHBondDonor[2], mHBondAcceptor[2];
 	vector<MAtom>		mAtoms;
 	MResidue*			mBetaPartner[2];
+	uint32				mSheet;
 };
 
 struct MChain
@@ -836,6 +838,7 @@ MResidue::MResidue(MChain& chain, uint32 inSeqNumber, uint32 inNumber)
 	, mType(kUnknownResidue)
 	, mSSBridgeNr(0)
 	, mSecondaryStructure(loop)
+	, mSheet(0)
 {
 	mHBondDonor[0].energy = mHBondDonor[1].energy = mHBondAcceptor[0].energy = mHBondAcceptor[1].energy = 0;
 	mHBondDonor[0].residue = mHBondDonor[1].residue = mHBondAcceptor[0].residue = mHBondAcceptor[1].residue = nil;
@@ -1066,7 +1069,7 @@ void MResidue::WriteDSSP(ostream& os)
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA 
  */
 	boost::format kDSSPResidueLine(
-	"%5.5d%5.5d %c %c  %c.....%c.....           %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
+	"%5.5d%5.5d %c %c  %c.....%c..%4.4d%4.4d%c     %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
 	
 	const MAtom& ca = GetCAlpha();
 	
@@ -1121,7 +1124,18 @@ void MResidue::WriteDSSP(ostream& os)
 		ONH2 = (boost::format("%d,%3.1f") % d % mHBondDonor[1].energy).str();
 	}
 	
+	uint32 bp1 = 0, bp2 = 0;
+	if (mBetaPartner[0] != nil)
+		bp1 = mBetaPartner[0]->mNumber;
+	if (mBetaPartner[1] != nil)
+		bp2 = mBetaPartner[1]->mNumber;
+	
+	char sheet = ' ';
+	if (mSheet != 0)
+		sheet = 'A' + (mSheet - 1) % 26;
+	
 	cout << (kDSSPResidueLine % mNumber % ca.mResSeq % ca.mChainID % code % ss % chirality % 
+		bp1 % bp2 % sheet %
 		NHO1 % ONH1 % NHO2 % ONH2 %
 		TCO() % Kappa() % alpha % Phi() % Psi() % ca.mLoc.m_x % ca.mLoc.m_y % ca.mLoc.m_z) << endl;
 }
@@ -1444,15 +1458,14 @@ void MProtein::CalculateSecondaryStructure()
 	// Sheet
 	set<MBridge2*> ladderset;
 	foreach (MBridge2& bridge, bridges)
-	{
-		bridge.link.insert(&bridge);
 		ladderset.insert(&bridge);
-	}
 	
-	uint32 sheet = 0, ladder = 0;
+	uint32 sheet = 1, ladder = 1;
 	while (not ladderset.empty())
 	{
-		set<MBridge2*> sheetset = (*ladderset.begin())->link;
+		set<MBridge2*> sheetset;
+		sheetset.insert(*ladderset.begin());
+		ladderset.erase(ladderset.begin());
 
 		bool done = false;
 		while (not done)
@@ -1462,7 +1475,7 @@ void MProtein::CalculateSecondaryStructure()
 			{
 				foreach (MBridge2* b, ladderset)
 				{
-					if (a != b and Linked(*a, *b))
+					if (Linked(*a, *b))
 					{
 						sheetset.insert(b);
 						ladderset.erase(b);
@@ -1481,91 +1494,102 @@ void MProtein::CalculateSecondaryStructure()
 			bridge->sheet = sheet;
 			bridge->link = sheetset;
 			
-			ladderset.erase(bridge);
-			
 			++ladder;
 		}
 		
 		++sheet;
 	}
 
-//	vector<MSecondaryStructure> beta[2] = {
-//		vector<MSecondaryStructure>(residues.size(), loop),
-//		vector<MSecondaryStructure>(residues.size(), loop)
-//	};
-//
+	vector<MSecondaryStructure> beta[2] = {
+		vector<MSecondaryStructure>(residues.size(), loop),
+		vector<MSecondaryStructure>(residues.size(), loop)
+	};
+
 	foreach (MBridge2& bridge, bridges)
 	{
+		set<MSecondaryStructure> iset[2], jset[2];
 		
-//		set<MSecondaryStructure> iset[2], jset[2];
-//		
-//		int32 ib0 = residues.size(), jb0 = residues.size();
-//		int32 ie0 = -1, je0 = -1;
-//		
-//		for (int32 j = bridge.nr; j != -1; j = bridges[j].to)
-//		{
-//			for (uint32 l = bridges[j].ib; l <= bridges[j].ie; ++l)
-//			{
-//				iset[0].insert(beta[0][l]);
-//				iset[1].insert(beta[1][l]);
-//			}
-//
-//			for (uint32 l = bridges[j].jb; l <= bridges[j].je; ++l)
-//			{
-//				jset[0].insert(beta[0][l]);
-//				jset[1].insert(beta[1][l]);
-//			}
-//			
-//			if (ib0 > bridges[j].ib)
-//				ib0 = bridges[j].ib;
-//			if (ie0 < bridges[j].ie)
-//				ie0 = bridges[j].ie;
-//			if (jb0 > bridges[j].jb)
-//				jb0 = bridges[j].jb;
-//			if (je0 < bridges[j].je)
-//				je0 = bridges[j].je;
-//		}
-//		
-//		uint32 betai = 1;
-//		if (iset[0].size() == 1 and iset[0].count(loop))
-//			betai = 0;
-//
-//		uint32 betaj = 1;
-//		if (jset[0].size() == 1 and jset[0].count(loop))
-//			betaj = 0;
-//		
-//		for (int32 j = bridge.nr; j != -1; j = bridges[j].to)
-//		{
-//			for (uint32 l = bridges[j].ib; l <= bridges[j].ie; ++l)
-//			{
-////				MResidue* r = GetResidue(residues[l]);
-////				r->SetLadder(bridges[j].ladder);
-//			}
-//
-//			for (uint32 l = bridges[j].jb; l <= bridges[j].je; ++l)
-//			{
-//			}
-//		}
+		foreach (uint32 l, bridge.i)
+		{
+			iset[0].insert(beta[0][l]);
+			iset[1].insert(beta[1][l]);
+		}
+
+		foreach (uint32 l, bridge.j)
+		{
+			jset[0].insert(beta[0][l]);
+			jset[1].insert(beta[1][l]);
+		}
+		
+		uint32 betai = 1;
+		if (iset[0].size() == 1 and iset[0].count(loop))
+			betai = 0;
+
+		uint32 betaj = 1;
+		if (jset[0].size() == 1 and jset[0].count(loop))
+			betaj = 0;
 		
 		MSecondaryStructure ss = betabridge;
 		if (bridge.i.size() > 1)
 			ss = strand;
 		
-		foreach (int32 i, bridge.i)
+		if (bridge.type == parallel)
 		{
-			MResidue& r = GetResidue(residues[i]);
-			if (r.GetSecondaryStructure() != strand)
-				r.SetSecondaryStructure(ss);
+			deque<uint32>::iterator j = bridge.j.begin();
+
+			foreach (uint32 i, bridge.i)
+			{
+				MResidue& r = GetResidue(residues[i]);
+				r.SetBetaPartner(betai, &GetResidue(residues[*j++]), bridge.ladder);
+				r.SetSheet(bridge.sheet);
+			}
+
+			j = bridge.i.begin();
+
+			foreach (uint32 i, bridge.j)
+			{
+				MResidue& r = GetResidue(residues[i]);
+				r.SetBetaPartner(betaj, &GetResidue(residues[*j++]), bridge.ladder);
+				r.SetSheet(bridge.sheet);
+			}
+		}
+		else
+		{
+			deque<uint32>::reverse_iterator j = bridge.j.rbegin();
+
+			foreach (uint32 i, bridge.i)
+			{
+				MResidue& r = GetResidue(residues[i]);
+				r.SetBetaPartner(betai, &GetResidue(residues[*j++]), bridge.ladder);
+				r.SetSheet(bridge.sheet);
+			}
+
+			j = bridge.i.rbegin();
+
+			foreach (uint32 i, bridge.j)
+			{
+				MResidue& r = GetResidue(residues[i]);
+				r.SetBetaPartner(betaj, &GetResidue(residues[*j++]), bridge.ladder);
+				r.SetSheet(bridge.sheet);
+			}
 		}
 
-		foreach (int32 i, bridge.j)
+		for (uint32 i = bridge.i.front(); i <= bridge.i.back(); ++i)
 		{
 			MResidue& r = GetResidue(residues[i]);
 			if (r.GetSecondaryStructure() != strand)
 				r.SetSecondaryStructure(ss);
+			r.SetSheet(bridge.sheet);
+		}
+
+		for (uint32 i = bridge.j.front(); i <= bridge.j.back(); ++i)
+		{
+			MResidue& r = GetResidue(residues[i]);
+			if (r.GetSecondaryStructure() != strand)
+				r.SetSecondaryStructure(ss);
+			r.SetSheet(bridge.sheet);
 		}
 	}
-	
 		
 //		MResidue::Markstrands(bridges);
 }
