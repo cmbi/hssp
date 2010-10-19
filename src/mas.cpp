@@ -1016,6 +1016,13 @@ int main(int argc, char* argv[])
 		po::variables_map vm;
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 		po::notify(vm);
+
+		VERBOSE = vm.count("verbose");
+		if (vm.count("debug"))
+			VERBOSE = vm["debug"].as<int>();
+
+		if (vm.count("no-threads"))
+			MULTI_THREADED = 0;
 		
 		if (vm.count("dssp"))
 		{
@@ -1029,13 +1036,6 @@ int main(int argc, char* argv[])
 			exit(1);
 		}
 		
-		VERBOSE = vm.count("verbose");
-		if (vm.count("debug"))
-			VERBOSE = vm["debug"].as<int>();
-
-		if (vm.count("no-threads"))
-			MULTI_THREADED = 0;
-
 		// matrix
 		string matrix;
 		float gop, gep, magic;
