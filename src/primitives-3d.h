@@ -123,3 +123,10 @@ void MPoint::rotate(const MQuaternion& q)
 	mZ = p.R_component_4();
 }
 
+inline double Distance(const MPoint& a, const MPoint& b)
+{
+	return sqrt(
+		(a.mX - b.mX) * (a.mX - b.mX) +
+		(a.mY - b.mY) * (a.mY - b.mY) +
+		(a.mZ - b.mZ) * (a.mZ - b.mZ));
+}

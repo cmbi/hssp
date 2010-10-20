@@ -29,7 +29,7 @@ LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 CC					?= c++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
 					  -iquote ./ -gdwarf-2 -fPIC -pthread -Wall -Wno-multichar -std=c++0x
-# OPT					= -O3 -DNDEBUG
+OPT					= -O3 -DNDEBUG -mtune=core2 -march=core2
 
 include make.config
 

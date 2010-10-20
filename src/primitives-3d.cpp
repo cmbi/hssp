@@ -51,17 +51,13 @@ MPoint operator-(const MPoint& pt)
 	return MPoint(-pt.mX, -pt.mY, -pt.mZ);
 }
 
-double Distance(const MPoint& a, const MPoint& b)
-{
-	valarray<double> d(3);
-	d[0] = a.mX - b.mX;
-	d[1] = a.mY - b.mY;
-	d[2] = a.mZ - b.mZ;
-	
-	d *= d;
-	
-	return sqrt(d.sum());
-}
+//double Distance(const MPoint& a, const MPoint& b)
+//{
+//	return sqrt(
+//		(a.mX - b.mX) * (a.mX - b.mX) +
+//		(a.mY - b.mY) * (a.mY - b.mY) +
+//		(a.mZ - b.mZ) * (a.mZ - b.mZ));
+//}
 
 ostream& operator<<(ostream& os, const MPoint& pt)
 {

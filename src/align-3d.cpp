@@ -15,6 +15,9 @@
 #include <map>
 #include <valarray>
 
+#include <sys/times.h>
+#include <sys/resource.h>
+
 #include "structure.h"
 #include "matrix.h"
 #include "ioseq.h"
@@ -448,13 +451,13 @@ void align_structures(const string& structureA, const string& structureB,
 	MProtein a(file_a, false);
 	
 	if (chainA == 0)
-		chainA = a.GetChains().begin()->first;
+		chainA = a.GetFirstChainID();
 
 	stringstream file_b(pdb->GetDocument(pdbid_b));
 	MProtein b(file_b, false);
 
 	if (chainB == 0)
-		chainB = b.GetChains().begin()->first;
+		chainB = b.GetFirstChainID();
 
 	align_proteins(a, chainA, b, chainB, iterations, mat, gop, gep, magic);
 	
@@ -474,11 +477,8 @@ void align_structures(const string& structureA, const string& structureB,
 	
 	MProtein c;
 
-	c.GetChains()['A'] = a.GetChain(chainA);
-	c.GetChains()['A'].SetChainID('A');
-
-	c.GetChains()['B'] = b.GetChain(chainB);
-	c.GetChains()['B'].SetChainID('B');
+	c.SetChain('A', a.GetChain(chainA));
+	c.SetChain('B', b.GetChain(chainB));
 	
 	ofstream file_o(pdbid_a + chainA + '-' + pdbid_b + chainB + ".pdb");
 	c.WritePDB(file_o);
@@ -486,16 +486,85 @@ void align_structures(const string& structureA, const string& structureB,
 
 // --------------------------------------------------------------------
 
+class CStopwatch
+{
+  public:
+			CStopwatch(double& ioAccumulator);
+			~CStopwatch();
+
+  private:
+	double&			fAccumulator;
+	struct rusage	fStartTime;
+};
+
+CStopwatch::CStopwatch(double& ioAccumulator)
+	: fAccumulator(ioAccumulator)
+{
+	getrusage(RUSAGE_SELF, &fStartTime);
+}
+
+CStopwatch::~CStopwatch()
+{
+	struct rusage stop;
+	getrusage(RUSAGE_SELF, &stop);
+	
+	fAccumulator += (stop.ru_utime.tv_sec - fStartTime.ru_utime.tv_sec);
+	fAccumulator += 0.000001 * (stop.ru_utime.tv_usec - fStartTime.ru_utime.tv_usec);
+}
+
+ostream& operator<<(ostream& inStream, const struct timeval& t)
+{
+	uint32 hours = t.tv_sec / 3600;
+	uint32 minutes = ((t.tv_sec % 3600) / 60);
+	uint32 seconds = t.tv_sec % 60;
+	
+	uint32 milliseconds = t.tv_usec / 1000;
+	
+	inStream << hours << ':'
+			 << setw(2) << setfill('0') << minutes << ':'
+			 << setw(2) << setfill('0') << seconds << '.'
+			 << setw(3) << setfill('0') << milliseconds;
+	
+	return inStream;
+}
+
+static void PrintStatistics()
+{
+	struct rusage ru = {} ;
+	
+	if (getrusage(RUSAGE_SELF, &ru) < 0)
+		cerr << "Error calling getrusage" << endl;
+	
+	cerr << "Total time user:    " << ru.ru_utime << endl;
+	cerr << "Total time system:  " << ru.ru_stime << endl;
+	cerr << "I/O operations in:  " << ru.ru_inblock << endl;
+	cerr << "I/O operations out: " << ru.ru_oublock << endl;
+}	
+
+
 void test_ss(const string& inID)
 {
 	CDatabankPtr pdb = LoadDatabank("pdb");
 	
 	stringstream file(pdb->GetDocument(inID));
 	
-	MProtein a(file, false);
-
-	a.CalculateSecondaryStructure();
+	double timer;
 	
-//	a.WritePDB(cout);
-	a.WriteDSSP(cout);
+	{
+		CStopwatch sw(timer);
+		MProtein a(file, false);
+		a.CalculateSecondaryStructure();
+
+		a.WriteDSSP(cout);
+//		a.WritePDB(cout);
+	}
+
+	struct timeval t;
+	
+	t.tv_sec = static_cast<uint32>(timer);
+	t.tv_usec = static_cast<uint32>(timer * 1000000.0) % 1000000;
+	
+	cerr << "Calculating secondary structure: " << t << endl;
+
+	PrintStatistics();
 }

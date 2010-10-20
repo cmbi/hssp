@@ -194,6 +194,9 @@ MResidue::MResidue(MChain& chain, uint32 inNumber,
 	
 	mHBondDonor[0].energy = mHBondDonor[1].energy = mHBondAcceptor[0].energy = mHBondAcceptor[1].energy = 0;
 	mHBondDonor[0].residue = mHBondDonor[1].residue = mHBondAcceptor[0].residue = mHBondAcceptor[1].residue = nil;
+
+	static const MAtom kNullAtom = {};
+	mN = mCA = mC = mO = kNullAtom;
 	
 	foreach (const MAtom& atom, inAtoms)
 	{
@@ -214,7 +217,7 @@ MResidue::MResidue(MChain& chain, uint32 inNumber,
 		else
 			mSideChain.push_back(atom);
 	}
-
+	
 	// assign the Hydrogen
 	mH = GetN();
 	
@@ -410,12 +413,12 @@ double MResidue::CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor)
 
 MBridgeType MResidue::TestBridge(MResidue* test) const
 {										// I.	a	d	II.	a	d		parallel    
-	const MResidue* a = Prev();			//		  \			  /
+	const MResidue* a = mPrev;			//		  \			  /
 	const MResidue* b = this;			//		b	e		b	e
-	const MResidue* c = Next();			// 		  /			  \                      ..
-	const MResidue* d = test->Prev();	//		c	f		c	f
+	const MResidue* c = mNext;			// 		  /			  \                      ..
+	const MResidue* d = test->mPrev;	//		c	f		c	f
 	const MResidue* e = test;			//
-	const MResidue* f = test->Next();	// III.	a <- f	IV. a	  f		antiparallel
+	const MResidue* f = test->mNext;	// III.	a <- f	IV. a	  f		antiparallel
 										//		                                   
 	MBridgeType result = nobridge;		//		b	 e      b <-> e                  
 	if (a and c and d and f)			//                                          
@@ -615,20 +618,12 @@ MResidue& MChain::GetResidueBySeqNumber(uint16 inSeqNumber)
 	return **r;
 }
 
-void MChain::AddResidue(uint32 inNumber, const vector<MAtom>& inAtoms)
-{
-	MResidue* prev = nil;
-	if (not mResidues.empty())
-		prev = mResidues.back();
-	mResidues.push_back(new MResidue(*this, inNumber, prev, inAtoms));
-}
-
 // --------------------------------------------------------------------
 
 MProtein::MProtein(istream& is, bool cAlphaOnly)
+	: mResidueCount(0)
 {
 	bool model = false;
-	uint32 resNumber = 1;
 	vector<MAtom> atoms;
 	
 	while (not is.eof())
@@ -670,15 +665,8 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			if (atoms.empty())
 				throw mas_exception("no atoms read before TER record");
 			
-			MChain& chain = GetChain(atoms.back().mChainID);
-			chain.AddResidue(resNumber, atoms);
-			++resNumber;
-	
-			foreach (const MResidue* r, GetChain(atoms.back().mChainID).GetResidues())
-			{
-				cerr << r->GetNumber() << '\t' << r->GetSeqNumber() << '\t' << kResidueInfo[r->GetType()].code << endl;
-			}
-
+			AddResidue(atoms);
+			atoms.clear();
 			continue;
 		}
 		
@@ -723,48 +711,99 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			
 			atom.mType = MapElement(line.substr(77, 2));
 			
+			if (atom.mAltLoc != ' ' and atom.mAltLoc != 'A')
+			{
+				if (VERBOSE)
+					cerr << "skipping alternate atom record " << atom.mResName << endl;
+				continue;
+			}
+			
 			if (not atoms.empty() and atom.mResSeq != atoms.back().mResSeq)
 			{
-				MChain& chain = GetChain(atoms.back().mChainID);
-				
-				chain.AddResidue(resNumber, atoms);
-				++resNumber;
-				
+				AddResidue(atoms);
 				atoms.clear();
 			}
 			
 			atoms.push_back(atom);
 		}
 	}
+	
+	mChains.erase(
+		remove_if(mChains.begin(), mChains.end(), boost::bind(&MChain::Empty, _1)),
+		mChains.end());
+}
+
+void MProtein::AddResidue(const vector<MAtom>& inAtoms)
+{
+	MChain& chain = GetChain(inAtoms.front().mChainID);
+	vector<MResidue*>& residues(chain.GetResidues());
+
+	MResidue* prev = nil;
+	if (not residues.empty())
+		prev = residues.back();
+
+	bool hasN = false, hasCA = false, hasC = false, hasO = false;
+	foreach (const MAtom& atom, inAtoms)
+	{
+		if (atom.GetName() == " N  ")
+			hasN = true;
+		if (atom.GetName() == " CA ")
+			hasCA = true;
+		if (atom.GetName() == " C  ")
+			hasC = true;
+		if (atom.GetName() == " O  ")
+			hasO = true;
+	}
+	
+	if (hasN and hasCA and hasC and hasO)
+	{
+		uint32 resNumber = mResidueCount + mChains.size();
+		residues.push_back(new MResidue(chain, resNumber, prev, inAtoms));
+		++mResidueCount;
+	}
+	else if (VERBOSE)
+		cerr << "ignoring incomplete residue " << inAtoms.front().mResName << " (" << inAtoms.front().mResSeq << ')' << endl;
+}
+
+const MChain& MProtein::GetChain(char inChainID) const
+{
+	for (uint32 i = 0; i < mChains.size(); ++i)
+		if (mChains[i]->GetChainID() == inChainID)
+			return *mChains[i];
+	
+	throw mas_exception("Chain not found");
+	return *mChains.front();
 }
 
 MChain& MProtein::GetChain(char inChainID)
 {
-	map<char,MChain>::iterator chain = mChains.find(inChainID);
-	if (chain == mChains.end())
-		mChains[inChainID] = MChain(inChainID);
-	return mChains[inChainID];
+	for (uint32 i = 0; i < mChains.size(); ++i)
+		if (mChains[i]->GetChainID() == inChainID)
+			return *mChains[i];
+	
+	mChains.push_back(new MChain(inChainID));
+	return *mChains.back();
 }
 
 void MProtein::GetPoints(std::vector<MPoint>& outPoints) const
 {
-	for (std::map<char,MChain>::const_iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+	foreach (const MChain* chain, mChains)
 	{
-		foreach (const MResidue* r, chain->second.GetResidues())
+		foreach (const MResidue* r, chain->GetResidues())
 			r->GetPoints(outPoints);
 	}
 }
 
 void MProtein::Translate(const MPoint& inTranslation)
 {
-	for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
-		chain->second.Translate(inTranslation);
+	foreach (MChain* chain, mChains)
+		chain->Translate(inTranslation);
 }
 
 void MProtein::Rotate(const MQuaternion& inRotation)
 {
-	for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
-		chain->second.Rotate(inRotation);
+	foreach (MChain* chain, mChains)
+		chain->Rotate(inRotation);
 }
 
 void MProtein::CalculateSecondaryStructure()
@@ -793,8 +832,12 @@ void MProtein::CalculateSecondaryStructure()
 	
 	// Calculate the HBond energies
 	vector<MResidue*> residues;
-	for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
-		residues.insert(residues.end(), chain->second.GetResidues().begin(), chain->second.GetResidues().end());
+	residues.reserve(mResidueCount);
+	foreach (const MChain* chain, mChains)
+		residues.insert(residues.end(), chain->GetResidues().begin(), chain->GetResidues().end());
+	
+	if (VERBOSE)
+		cerr << "using " << residues.size() << " residues" << endl;
 	
 	for (uint32 i = 0; i < residues.size() - 1; ++i)
 	{
@@ -818,52 +861,55 @@ void MProtein::CalculateSecondaryStructure()
 	
 	// Calculate Bridges
 	vector<MBridge> bridges;
-	for (uint32 i = 1; i < residues.size() - 4; ++i)
+	if (residues.size() > 4)
 	{
-		MResidue* ri = residues[i];
-		
-		for (uint32 j = i + 3; j < residues.size() - 1; ++j)
+		for (uint32 i = 1; i < residues.size() - 4; ++i)
 		{
-			MResidue* rj = residues[j];
+			MResidue* ri = residues[i];
 			
-			MBridgeType type = ri->TestBridge(rj);
-			if (type == nobridge)
-				continue;
-			
-			bool found = false;
-			foreach (MBridge& bridge, bridges)
+			for (uint32 j = i + 3; j < residues.size() - 1; ++j)
 			{
-				if (type != bridge.type or i != bridge.i.back() + 1)
+				MResidue* rj = residues[j];
+				
+				MBridgeType type = ri->TestBridge(rj);
+				if (type == nobridge)
 					continue;
 				
-				if (type == parallel and bridge.j.back() + 1 == j)
+				bool found = false;
+				foreach (MBridge& bridge, bridges)
 				{
+					if (type != bridge.type or i != bridge.i.back() + 1)
+						continue;
+					
+					if (type == parallel and bridge.j.back() + 1 == j)
+					{
+						bridge.i.push_back(i);
+						bridge.j.push_back(j);
+						found = true;
+						break;
+					}
+	
+					if (type == antiparallel and bridge.j.front() - 1 == j)
+					{
+						bridge.i.push_back(i);
+						bridge.j.push_front(j);
+						found = true;
+						break;
+					}
+				}
+				
+				if (not found)
+				{
+					MBridge bridge = {};
+					
+					bridge.type = type;
 					bridge.i.push_back(i);
+					bridge.chainI = ri->GetChainID();
 					bridge.j.push_back(j);
-					found = true;
-					break;
+					bridge.chainJ = rj->GetChainID();
+					
+					bridges.push_back(bridge);
 				}
-
-				if (type == antiparallel and bridge.j.front() - 1 == j)
-				{
-					bridge.i.push_back(i);
-					bridge.j.push_front(j);
-					found = true;
-					break;
-				}
-			}
-			
-			if (not found)
-			{
-				MBridge bridge = {};
-				
-				bridge.type = type;
-				bridge.i.push_back(i);
-				bridge.chainI = ri->GetChainID();
-				bridge.j.push_back(j);
-				bridge.chainJ = rj->GetChainID();
-				
-				bridges.push_back(bridge);
 			}
 		}
 	}
@@ -965,10 +1011,8 @@ void MProtein::CalculateSecondaryStructure()
 		
 		foreach (uint32 l, bridge.i)
 		{
-cerr << "test i " << l << endl;
 			if (residues[l]->GetBetaPartner(0).residue != nil)
 			{
-cerr << " hit " << endl;
 				betai = 1;
 				break;
 			}
@@ -976,10 +1020,8 @@ cerr << " hit " << endl;
 
 		foreach (uint32 l, bridge.j)
 		{
-cerr << "test j " << l << endl;
 			if (residues[l]->GetBetaPartner(0).residue != nil)
 			{
-cerr << " hit " << endl;
 				betaj = 1;
 				break;
 			}
@@ -1042,11 +1084,13 @@ cerr << " hit " << endl;
 	}
 	
 	// Helix and Turn
-	for (map<char,MChain>::iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+	foreach (const MChain* chain, mChains)
 	{
 		for (uint32 stride = 3; stride <= 5; ++stride)
 		{
-			vector<MResidue*> res(chain->second.GetResidues());
+			vector<MResidue*> res(chain->GetResidues());
+			if (res.size() < stride)
+				continue;
 			
 			for (uint32 i = 0; i < res.size() - stride; ++i)
 			{
@@ -1144,9 +1188,16 @@ void MProtein::Center()
 	Translate(MPoint(-t.mX, -t.mY, -t.mZ));
 }
 
+void MProtein::SetChain(char inChainID, const MChain& inChain)
+{
+	MChain& chain(GetChain(inChainID));
+	chain = inChain;
+	chain.SetChainID(inChainID);
+}
+
 MResidue& MProtein::GetResidue(char inChainID, uint16 inSeqNumber)
 {
-	MChain& chain = mChains[inChainID];
+	MChain& chain = GetChain(inChainID);
 	if (chain.GetResidues().empty())
 		throw mas_exception(boost::format("Invalid chain id '%c'") % inChainID);
 	return chain.GetResidueBySeqNumber(inSeqNumber);
@@ -1155,26 +1206,19 @@ MResidue& MProtein::GetResidue(char inChainID, uint16 inSeqNumber)
 void MProtein::GetCAlphaLocations(char inChain, vector<MPoint>& outPoints) const
 {
 	if (inChain == 0)
-		inChain = mChains.begin()->first;
+		inChain = mChains.front()->GetChainID();
 	
-	map<char,MChain>::const_iterator chain = mChains.find(inChain);
-	assert(chain != mChains.end());
-	
-	foreach (const MResidue* r, chain->second.GetResidues())
+	foreach (const MResidue* r, GetChain(inChain).GetResidues())
 		outPoints.push_back(r->GetCAlpha());
 }
 
 MPoint MProtein::GetCAlphaPosition(char inChain, int16 inPDBResSeq) const
 {
 	if (inChain == 0)
-		inChain = mChains.begin()->first;
-	
-	map<char,MChain>::const_iterator chain = mChains.find(inChain);
-	assert(chain != mChains.end());
+		inChain = mChains.front()->GetChainID();
 	
 	MPoint result;
-	
-	foreach (const MResidue* r, chain->second.GetResidues())
+	foreach (const MResidue* r, GetChain(inChain).GetResidues())
 	{
 		if (r->GetSeqNumber() != inPDBResSeq)
 			continue;
@@ -1193,14 +1237,10 @@ void MProtein::CalculateSSBridges()
 void MProtein::GetSequence(char inChain, entry& outEntry) const
 {
 	if (inChain == 0)
-		inChain = mChains.begin()->first;
-	
-	map<char,MChain>::const_iterator chain = mChains.find(inChain);
-	assert(chain != mChains.end());
+		inChain = mChains.front()->GetChainID();
 	
 	string seq;
-	
-	foreach (const MResidue* r, chain->second.GetResidues())
+	foreach (const MResidue* r, GetChain(inChain).GetResidues())
 	{
 		seq += kResidueInfo[r->GetType()].code;
 		outEntry.m_positions.push_back(r->GetSeqNumber());
@@ -1212,14 +1252,10 @@ void MProtein::GetSequence(char inChain, entry& outEntry) const
 void MProtein::GetSequence(char inChain, sequence& outSequence) const
 {
 	if (inChain == 0)
-		inChain = mChains.begin()->first;
-	
-	map<char,MChain>::const_iterator chain = mChains.find(inChain);
-	assert(chain != mChains.end());
+		inChain = mChains.front()->GetChainID();
 	
 	string seq;
-	
-	foreach (const MResidue* r, chain->second.GetResidues())
+	foreach (const MResidue* r, GetChain(inChain).GetResidues())
 		seq += kResidueInfo[r->GetType()].code;
 	
 	outSequence = encode(seq);
@@ -1227,8 +1263,8 @@ void MProtein::GetSequence(char inChain, sequence& outSequence) const
 
 void MProtein::WritePDB(ostream& os)
 {
-	for (map<char,MChain>::iterator c = mChains.begin(); c != mChains.end(); ++c)
-		c->second.WritePDB(os);
+	foreach (MChain* chain, mChains)
+		chain->WritePDB(os);
 }
 
 void MProtein::WriteDSSP(ostream& os)
@@ -1237,10 +1273,11 @@ void MProtein::WriteDSSP(ostream& os)
 	boost::format kDSSPResidueLine(
 	"%5.5d        !*             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");  
 
-	for (map<char,MChain>::iterator c = mChains.begin(); c != mChains.end(); ++c)
+	foreach (MChain* chain, mChains)
 	{
-		c->second.WriteDSSP(os);
-		if (next(c) != mChains.end())
-			os << (kDSSPResidueLine % (c->second.GetResidues().back()->GetNumber() + 1)) << endl;
+		chain->WriteDSSP(os);
+		if (chain != mChains.back())
+			os << (kDSSPResidueLine % (chain->GetResidues().back()->GetNumber() + 1)) << endl;
 	}
 }
+

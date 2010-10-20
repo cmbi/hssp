@@ -254,7 +254,7 @@ class MChain
 	const std::vector<MResidue*>&
 						GetResidues() const					{ return mResidues; }
 
-	void				AddResidue(uint32 inNumber, const std::vector<MAtom>& inAtoms);
+	bool				Empty() const						{ return mResidues.empty(); }
 
   private:
 	char				mChainID;
@@ -293,16 +293,20 @@ class MProtein
 	MResidue&			GetResidue(MResidueID inID)							{ return GetResidue(inID.chain, inID.seqNumber); }
 	MResidue&			GetResidue(char inChainID, uint16 inSeqNumber);
 
-	MChain&				GetChain(char inChainID);
+	char				GetFirstChainID() const								{ return mChains.front()->GetChainID(); }
 
-	std::map<char,MChain>&
-						GetChains() 						{ return mChains; }
-	
+	void				SetChain(char inChainID, const MChain& inChain);
+
+	MChain&				GetChain(char inChainID);
+	const MChain&		GetChain(char inChainID) const;
+
   private:
 
+	void				AddResidue(const std::vector<MAtom>& inAtoms);
+
 	std::string			mID;
-	std::map<char,MChain>
-						mChains;
+	std::vector<MChain*>mChains;
+	uint32				mResidueCount;
 	
 	std::vector<std::pair<MResidueID,MResidueID>>
 						mSSBonds;

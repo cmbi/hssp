@@ -64,6 +64,7 @@
       <compiler>/usr/bin/g++</compiler>
       <defines>
         <define>NDEBUG</define>
+        <define>LINUX</define>
       </defines>
       <cflags>
         <cflag>-O3</cflag>
@@ -72,6 +73,7 @@
       </cflags>
       <warnings>
         <warning>all</warning>
+        <warning>no-multichar</warning>
       </warnings>
     </target>
   </targets>
