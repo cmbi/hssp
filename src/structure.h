@@ -118,6 +118,17 @@ enum MBridgeType
 	nobridge, parallel, antiparallel
 };
 
+struct MBridgeParner
+{
+	MResidue*		residue;
+	uint32			ladder;
+};
+
+enum MHelixFlag
+{
+	helixNone, helixStart, helixEnd, helixStartAndEnd, helixMiddle
+};
+
 enum MSecondaryStructure
 {
 	loop, alphahelix, betabridge, strand, helix_3, helix_5, turn, bend
@@ -154,11 +165,17 @@ class MResidue
 	const MResidue*		Next() const					{ return mNext; }
 	const MResidue*		Prev() const					{ return mPrev; }
 	
-	void				SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder)
-													{ mBetaPartner[n] = inResidue; }
-	const MResidue*		GetBetaPartner(uint32 n) const
-													{ return mBetaPartner[n]; }
+	void				SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder);
+	MBridgeParner		GetBetaPartner(uint32 n) const;
+						
 	void				SetSheet(uint32 inSheet)	{ mSheet = inSheet; }
+	
+	bool				IsBend() const				{ return mBend; }
+	void				SetBend(bool inBend)		{ mBend = inBend; }
+	
+	MHelixFlag			GetHelixFlag(uint32 inHelixStride) const;
+	bool				IsHelixStart(uint32 inHelixStride) const;
+	void				SetHelixFlag(uint32 inHelixStride, MHelixFlag inHelixFlag);
 
 	void				SetSSBridgeNr(uint8 inBridgeNr);
 	uint8				GetSSBridgeNr() const;
@@ -209,8 +226,10 @@ class MResidue
 	MAtom				mC, mN, mCA, mO, mH;
 	HBond				mHBondDonor[2], mHBondAcceptor[2];
 	std::vector<MAtom>	mSideChain;
-	MResidue*			mBetaPartner[2];
+	MBridgeParner		mBetaPartner[2];
 	uint32				mSheet;
+	MHelixFlag			mHelixFlags[3];	//
+	bool				mBend;
 };
 
 class MChain

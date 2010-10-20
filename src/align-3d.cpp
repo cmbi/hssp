@@ -496,6 +496,6 @@ void test_ss(const string& inID)
 
 	a.CalculateSecondaryStructure();
 	
-	a.WritePDB(cout);
+//	a.WritePDB(cout);
 	a.WriteDSSP(cout);
 }
