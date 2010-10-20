@@ -316,12 +316,14 @@ double MResidue::TCO() const
 	return result;
 }
 
-void MResidue::SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder)
+void MResidue::SetBetaPartner(uint32 n,
+	MResidue* inResidue, uint32 inLadder, bool inParallel)
 {
 	assert(n == 0 or n == 1);
 	
 	mBetaPartner[n].residue = inResidue;
 	mBetaPartner[n].ladder = inLadder;
+	mBetaPartner[n].parallel = inParallel;
 }
 
 MBridgeParner MResidue::GetBetaPartner(uint32 n) const
@@ -420,13 +422,13 @@ MBridgeType MResidue::TestBridge(MResidue* test) const
 	const MResidue* e = test;			//
 	const MResidue* f = test->mNext;	// III.	a <- f	IV. a	  f		antiparallel
 										//		                                   
-	MBridgeType result = nobridge;		//		b	 e      b <-> e                  
+	MBridgeType result = btNoBridge;	//		b	 e      b <-> e                  
 	if (a and c and d and f)			//                                          
 	{									//		c -> d		c     d
 		if ((TestBond(c, e) and TestBond(e, a)) or (TestBond(f, b) and TestBond(b, d)))
-			result = parallel;
+			result = btParallel;
 		else if ((TestBond(c, d) and TestBond(f, a)) or (TestBond(e, b) and TestBond(b, e)))
-			result = antiparallel;
+			result = btAntiParallel;
 	}
 	
 	return result;
@@ -478,7 +480,7 @@ void MResidue::WriteDSSP(ostream& os)
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA 
  */
 	boost::format kDSSPResidueLine(
-	"%5.5d%5.5d %c %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c     %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
+	"%5.5d%5.5d%c%c %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c     %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
 	
 	const MAtom& ca = GetCAlpha();
 	
@@ -539,12 +541,16 @@ void MResidue::WriteDSSP(ostream& os)
 	if (mBetaPartner[0].residue != nil)
 	{
 		bp1 = mBetaPartner[0].residue->mNumber;
-		bridgelabel1 = 'a' + mBetaPartner[0].ladder % 26;
+		bridgelabel1 = 'A' + mBetaPartner[0].ladder % 26;
+		if (mBetaPartner[0].parallel)
+			bridgelabel1 = tolower(bridgelabel1);
 	}
 	if (mBetaPartner[1].residue != nil)
 	{
 		bp2 = mBetaPartner[1].residue->mNumber;
-		bridgelabel2 = 'a' + mBetaPartner[1].ladder % 26;
+		bridgelabel2 = 'A' + mBetaPartner[1].ladder % 26;
+		if (mBetaPartner[1].parallel)
+			bridgelabel2 = tolower(bridgelabel2);
 	}
 	
 	char sheet = ' ';
@@ -568,7 +574,7 @@ void MResidue::WriteDSSP(ostream& os)
 	if (mBend)
 		bend = 'S';
 	
-	cout << (kDSSPResidueLine % mNumber % ca.mResSeq % ca.mChainID % code %
+	cout << (kDSSPResidueLine % mNumber % ca.mResSeq % ca.mICode % ca.mChainID % code %
 		ss % helix[0] % helix[1] % helix[2] % bend % chirality % bridgelabel1 % bridgelabel2 %
 		bp1 % bp2 % sheet %
 		NHO1 % ONH1 % NHO2 % ONH2 %
@@ -670,7 +676,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			continue;
 		}
 		
-		if (ba::starts_with(line, "ATOM  "))
+		if (ba::starts_with(line, "ATOM  ") or ba::starts_with(line, "HETATM"))
 			//	1 - 6	Record name "ATOM "
 		{
 			if (cAlphaOnly and line.substr(12, 4) != " CA ")
@@ -709,7 +715,16 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			//	79 - 80	LString(2) charge Charge on the atom.
 			atom.mCharge = 0;
 			
-			atom.mType = MapElement(line.substr(77, 2));
+			try
+			{
+				atom.mType = MapElement(line.substr(77, 2));
+			}
+			catch (exception& e)
+			{
+				if (VERBOSE)
+					cerr << e.what() << endl;
+				atom.mType = kUnknownAtom;
+			}
 			
 			if (atom.mAltLoc != ' ' and atom.mAltLoc != 'A')
 			{
@@ -718,13 +733,15 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 				continue;
 			}
 			
-			if (not atoms.empty() and atom.mResSeq != atoms.back().mResSeq)
+			if (not atoms.empty() and
+				(atom.mResSeq != atoms.back().mResSeq or (atom.mResSeq == atoms.back().mResSeq and atom.mICode != atoms.back().mICode)))
 			{
 				AddResidue(atoms);
 				atoms.clear();
 			}
-			
-			atoms.push_back(atom);
+
+			if (atom.mType != kHydrogen)
+				atoms.push_back(atom);
 		}
 	}
 	
@@ -872,7 +889,7 @@ void MProtein::CalculateSecondaryStructure()
 				MResidue* rj = residues[j];
 				
 				MBridgeType type = ri->TestBridge(rj);
-				if (type == nobridge)
+				if (type == btNoBridge)
 					continue;
 				
 				bool found = false;
@@ -881,7 +898,7 @@ void MProtein::CalculateSecondaryStructure()
 					if (type != bridge.type or i != bridge.i.back() + 1)
 						continue;
 					
-					if (type == parallel and bridge.j.back() + 1 == j)
+					if (type == btParallel and bridge.j.back() + 1 == j)
 					{
 						bridge.i.push_back(i);
 						bridge.j.push_back(j);
@@ -889,7 +906,7 @@ void MProtein::CalculateSecondaryStructure()
 						break;
 					}
 	
-					if (type == antiparallel and bridge.j.front() - 1 == j)
+					if (type == btAntiParallel and bridge.j.front() - 1 == j)
 					{
 						bridge.i.push_back(i);
 						bridge.j.push_front(j);
@@ -939,7 +956,7 @@ void MProtein::CalculateSecondaryStructure()
 			uint32 jej = bridges[j].j.back();
 			
 			bool bulge;
-			if (bridges[i].type == parallel)
+			if (bridges[i].type == btParallel)
 				bulge = (jbj - jei < 6 and ibj - iei < 3) or (jbj - jei < 3);
 			else
 				bulge = (jbi - jej < 6 and ibj - iei < 3) or (jbi - jej < 3);
@@ -947,7 +964,7 @@ void MProtein::CalculateSecondaryStructure()
 			if (bulge)
 			{
 				bridges[i].i.insert(bridges[i].i.end(), bridges[j].i.begin(), bridges[j].i.end());
-				if (bridges[i].type == parallel)
+				if (bridges[i].type == btParallel)
 					bridges[i].j.insert(bridges[i].j.end(), bridges[j].j.begin(), bridges[j].j.end());
 				else
 					bridges[i].j.insert(bridges[i].j.begin(), bridges[j].j.begin(), bridges[j].j.end());
@@ -1031,41 +1048,25 @@ void MProtein::CalculateSecondaryStructure()
 		if (bridge.i.size() > 1)
 			ss = strand;
 		
-		if (bridge.type == parallel)
+		if (bridge.type == btParallel)
 		{
 			deque<uint32>::iterator j = bridge.j.begin();
-
 			foreach (uint32 i, bridge.i)
-			{
-				residues[i]->SetBetaPartner(betai, residues[*j++], bridge.ladder);
-				residues[i]->SetSheet(bridge.sheet);
-			}
+				residues[i]->SetBetaPartner(betai, residues[*j++], bridge.ladder, true);
 
 			j = bridge.i.begin();
-
 			foreach (uint32 i, bridge.j)
-			{
-				residues[i]->SetBetaPartner(betaj, residues[*j++], bridge.ladder);
-				residues[i]->SetSheet(bridge.sheet);
-			}
+				residues[i]->SetBetaPartner(betaj, residues[*j++], bridge.ladder, true);
 		}
 		else
 		{
 			deque<uint32>::reverse_iterator j = bridge.j.rbegin();
-
 			foreach (uint32 i, bridge.i)
-			{
-				residues[i]->SetBetaPartner(betai, residues[*j++], bridge.ladder);
-				residues[i]->SetSheet(bridge.sheet);
-			}
+				residues[i]->SetBetaPartner(betai, residues[*j++], bridge.ladder, false);
 
 			j = bridge.i.rbegin();
-
 			foreach (uint32 i, bridge.j)
-			{
-				residues[i]->SetBetaPartner(betaj, residues[*j++], bridge.ladder);
-				residues[i]->SetSheet(bridge.sheet);
-			}
+				residues[i]->SetBetaPartner(betaj, residues[*j++], bridge.ladder, false);
 		}
 
 		for (uint32 i = bridge.i.front(); i <= bridge.i.back(); ++i)

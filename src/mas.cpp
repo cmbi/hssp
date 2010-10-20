@@ -1026,7 +1026,20 @@ int main(int argc, char* argv[])
 		
 		if (vm.count("dssp"))
 		{
+			streambuf* outBuffer = NULL;
+			ofstream of;
+			
+			if (vm.count("outfile"))
+			{
+				of.open(vm["outfile"].as<string>().c_str(), ios::out|ios::trunc);
+				outBuffer = cout.rdbuf(of.rdbuf());
+			}
+			
 			test_ss(vm["dssp"].as<string>());
+			
+			if (outBuffer != NULL)
+				cout.rdbuf(outBuffer);
+			
 			exit(0);
 		}
 		

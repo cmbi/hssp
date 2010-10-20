@@ -559,12 +559,15 @@ void test_ss(const string& inID)
 //		a.WritePDB(cout);
 	}
 
-	struct timeval t;
+	if (VERBOSE)
+	{
+		struct timeval t;
+		
+		t.tv_sec = static_cast<uint32>(timer);
+		t.tv_usec = static_cast<uint32>(timer * 1000000.0) % 1000000;
+		
+		cerr << "Calculating secondary structure: " << t << endl;
 	
-	t.tv_sec = static_cast<uint32>(timer);
-	t.tv_usec = static_cast<uint32>(timer * 1000000.0) % 1000000;
-	
-	cerr << "Calculating secondary structure: " << t << endl;
-
-	PrintStatistics();
+		PrintStatistics();
+	}
 }

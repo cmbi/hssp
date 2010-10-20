@@ -115,13 +115,14 @@ struct HBond
 
 enum MBridgeType
 {
-	nobridge, parallel, antiparallel
+	btNoBridge, btParallel, btAntiParallel
 };
 
 struct MBridgeParner
 {
 	MResidue*		residue;
 	uint32			ladder;
+	bool			parallel;
 };
 
 enum MHelixFlag
@@ -165,7 +166,8 @@ class MResidue
 	const MResidue*		Next() const					{ return mNext; }
 	const MResidue*		Prev() const					{ return mPrev; }
 	
-	void				SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder);
+	void				SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder,
+							bool inParallel);
 	MBridgeParner		GetBetaPartner(uint32 n) const;
 						
 	void				SetSheet(uint32 inSheet)	{ mSheet = inSheet; }
