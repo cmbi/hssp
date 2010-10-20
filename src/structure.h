@@ -30,7 +30,7 @@ enum MAtomType
 	kAtomTypeCount
 };
 
-MAtomType MapElement(const std::string& inElement);
+MAtomType MapElement(std::string inElement);
 
 // for now, MAtom contains exactly what the ATOM line contains in a PDB file
 struct MAtom
@@ -53,7 +53,7 @@ struct MAtom
 	std::string	GetName() const							{ return mName; }
 	void		Translate(const MPoint& inTranslation)	{ mLoc += inTranslation; }
 	void		Rotate(const MQuaternion& inRotation)	{ mLoc.rotate(inRotation); }
-	void		WritePDB(std::ostream& os);
+	void		WritePDB(std::ostream& os) const;
 
 				operator const MPoint&() const			{ return mLoc; }
 				operator MPoint&()						{ return mLoc; }
@@ -97,7 +97,7 @@ struct MResidueInfo
 
 extern const MResidueInfo kResidueInfo[];
 
-char MapThreeLetterCode(const std::string& inThreeLetterCode);
+MResidueType MapResidue(std::string inName);
 
 struct MResidueID
 {
@@ -126,8 +126,7 @@ enum MSecondaryStructure
 class MResidue
 {
   public:
-						MResidue(MChain& chain, uint32 inSeqNumber, uint32 inNumber,
-							MResidueType inType,
+						MResidue(MChain& chain, uint32 inNumber,
 							MResidue* inPrevious, const std::vector<MAtom>& inAtoms);
 
 	void				SetChainID(char inID);
@@ -152,8 +151,8 @@ class MResidue
 														{ mSecondaryStructure = inSS; }
 	MSecondaryStructure	GetSecondaryStructure() const	{ return mSecondaryStructure; }
 	
-	const MResidue*		Next() const					{ return mPrev; }
-	const MResidue*		Prev() const					{ return mNext; }
+	const MResidue*		Next() const					{ return mNext; }
+	const MResidue*		Prev() const					{ return mPrev; }
 	
 	void				SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder)
 													{ mBetaPartner[n] = inResidue; }
@@ -190,9 +189,11 @@ class MResidue
 
 	static double		CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor);
 
-	std::vector<MAtom>&	GetAtoms()					{ return mAtoms; }
+	std::vector<MAtom>&	GetSideChain()				{ return mSideChain; }
 	const std::vector<MAtom>&
-						GetAtoms() const			{ return mAtoms; }
+						GetSideChain() const		{ return mSideChain; }
+
+	void				GetPoints(std::vector<MPoint>& outPoints) const;
 
   protected:
 
@@ -207,7 +208,7 @@ class MResidue
 	MSecondaryStructure	mSecondaryStructure;
 	MAtom				mC, mN, mCA, mO, mH;
 	HBond				mHBondDonor[2], mHBondAcceptor[2];
-	std::vector<MAtom>	mAtoms;
+	std::vector<MAtom>	mSideChain;
 	MResidue*			mBetaPartner[2];
 	uint32				mSheet;
 };
@@ -234,8 +235,7 @@ class MChain
 	const std::vector<MResidue*>&
 						GetResidues() const					{ return mResidues; }
 
-	void				AddResidue(uint32 inSeqNumber, uint32 inNumber,
-							MResidueType inType, const std::vector<MAtom>& inAtoms);
+	void				AddResidue(uint32 inNumber, const std::vector<MAtom>& inAtoms);
 
   private:
 	char				mChainID;

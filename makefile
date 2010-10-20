@@ -17,7 +17,7 @@ DEST_DIR			?= /usr/local/
 LIB_DIR				= $(DEST_DIR)lib $(HOME)/projects/mrs/lib \
 					  $(ZEEP_DIR) $(BOOST_LIB_DIR)
 INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
-					  $(ZEEP_DIR)
+					  $(ZEEP_DIR) src/
 MAN_DIR				= $(DEST_DIR)man/man3
 
 BOOST_LIBS			= system thread regex filesystem program_options
@@ -43,6 +43,8 @@ OBJECTS = \
 	obj/ioseq.o \
 	obj/mas.o \
 	obj/matrix.o \
+	obj/primitives-3d.o \
+	obj/structure.o \
 	obj/utils.o
 
 mas: $(OBJECTS)

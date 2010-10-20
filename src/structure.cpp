@@ -31,8 +31,10 @@ const double
 
 // --------------------------------------------------------------------
 
-MAtomType MapElement(const string& inElement)
+MAtomType MapElement(string inElement)
 {
+	ba::trim(inElement);
+	
 	MAtomType result = kUnknownAtom;
 	if (inElement == "H")
 		result = kHydrogen;
@@ -63,6 +65,24 @@ MAtomType MapElement(const string& inElement)
 	return result;
 }
 
+MResidueType MapResidue(string inName)
+{
+	ba::trim(inName);
+
+	MResidueType result = kUnknownResidue;
+	
+	for (uint32 i = 0; i < kResidueTypeCount; ++i)
+	{
+		if (inName == kResidueInfo[i].name)
+		{
+			result = kResidueInfo[i].type;
+			break;
+		}
+	}
+	
+	return result;
+}
+
 // --------------------------------------------------------------------
 
 inline double ParseFloat(const string& s)
@@ -70,7 +90,7 @@ inline double ParseFloat(const string& s)
 	return boost::lexical_cast<double>(ba::trim_copy(s));
 }
 
-void MAtom::WritePDB(ostream& os)
+void MAtom::WritePDB(ostream& os) const
 {
 	//	1 - 6	Record name "ATOM "
 	//	7 - 11	Integer serial Atom serial number.
@@ -127,22 +147,6 @@ const MResidueInfo kResidueInfo[] = {
 	{ kValine,			'V', "VAL" }
 };
 
-char MapThreeLetterCode(const string& inThreeLetterCode)
-{
-	char result = 'U';
-
-	for (uint32 i = 1; i < kResidueTypeCount; ++i)
-	{
-		if (inThreeLetterCode == kResidueInfo[i].name)
-		{
-			result = kResidueInfo[i].code;
-			break;
-		}
-	}
-	
-	return result;
-}
-
 struct MBridge
 {
 	MBridgeType		type;
@@ -169,15 +173,14 @@ bool Linked(const MBridge& a, const MBridge& b)
 
 // --------------------------------------------------------------------
 
-MResidue::MResidue(MChain& chain, uint32 inSeqNumber, uint32 inNumber,
-	MResidueType inType,
-	MResidue* inPrevious, const vector<MAtom>& inAtoms)
+MResidue::MResidue(MChain& chain, uint32 inNumber,
+		MResidue* inPrevious, const vector<MAtom>& inAtoms)
 	: mChain(chain)
 	, mPrev(inPrevious)
 	, mNext(nil)
-	, mSeqNumber(inSeqNumber)
+	, mSeqNumber(inAtoms.front().mResSeq)
 	, mNumber(inNumber)
-	, mType(inType)
+	, mType(MapResidue(inAtoms.front().mResName))
 	, mSSBridgeNr(0)
 	, mSecondaryStructure(loop)
 	, mSheet(0)
@@ -191,16 +194,22 @@ MResidue::MResidue(MChain& chain, uint32 inSeqNumber, uint32 inNumber,
 	
 	foreach (const MAtom& atom, inAtoms)
 	{
-		if (atom.GetName() == " C  ")
-			mC = atom;
-		else if (atom.GetName() == " N  ")
-			mC = atom;
+		if (MapResidue(atom.mResName) != mType)
+			throw mas_exception("inconsistent residue types in atom records");
+		
+		if (atom.mResSeq != mSeqNumber)
+			throw mas_exception("inconsistent residue sequence numbers");
+		
+		if (atom.GetName() == " N  ")
+			mN = atom;
 		else if (atom.GetName() == " CA ")
+			mCA = atom;
+		else if (atom.GetName() == " C  ")
 			mC = atom;
 		else if (atom.GetName() == " O  ")
-			mC = atom;
+			mO = atom;
 		else
-			mAtoms.push_back(atom);
+			mSideChain.push_back(atom);
 	}
 
 	// assign the Hydrogen
@@ -226,7 +235,7 @@ void MResidue::SetChainID(char inID)
 	mO.SetChainID(inID);
 	mN.SetChainID(inID);
 	mH.SetChainID(inID);
-	for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::SetChainID, _1, inID));
+	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::SetChainID, _1, inID));
 }
 
 char MResidue::GetChainID() const
@@ -245,15 +254,6 @@ bool MResidue::TestBond(const MResidue* other) const
 		(mHBondAcceptor[0].residue == other and mHBondAcceptor[0].energy < kMaxHBondEnergy) or
 		(mHBondAcceptor[1].residue == other and mHBondAcceptor[1].energy < kMaxHBondEnergy);
 }
-
-//void MResidue::AddAtom(MAtom& inAtom)
-//{
-//	if (inAtom.mType == kHydrogen)
-//	{
-//	}
-//	else
-//		mAtoms.push_back(inAtom);
-//}
 
 double MResidue::Phi() const
 {
@@ -396,17 +396,42 @@ MBridgeType MResidue::TestBridge(MResidue* test) const
 
 void MResidue::Translate(const MPoint& inTranslation)
 {
-	for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::Translate, _1, inTranslation));
+	mN.Translate(inTranslation);
+	mCA.Translate(inTranslation);
+	mC.Translate(inTranslation);
+	mO.Translate(inTranslation);
+	mH.Translate(inTranslation);
+	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::Translate, _1, inTranslation));
 }
 
 void MResidue::Rotate(const MQuaternion& inRotation)
 {
-	for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::Rotate, _1, inRotation));
+	mN.Rotate(inRotation);
+	mCA.Rotate(inRotation);
+	mC.Rotate(inRotation);
+	mO.Rotate(inRotation);
+	mH.Rotate(inRotation);
+	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::Rotate, _1, inRotation));
+}
+
+void MResidue::GetPoints(vector<MPoint>& outPoints) const
+{
+	outPoints.push_back(mN);
+	outPoints.push_back(mCA);
+	outPoints.push_back(mC);
+	outPoints.push_back(mO);
+	foreach (const MAtom& a, mSideChain)
+		outPoints.push_back(a);
 }
 
 void MResidue::WritePDB(std::ostream& os)
 {
-	for_each(mAtoms.begin(), mAtoms.end(), boost::bind(&MAtom::WritePDB, _1, ref(os)));
+	mN.WritePDB(os);
+	mCA.WritePDB(os);
+	mC.WritePDB(os);
+	mO.WritePDB(os);
+	
+	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::WritePDB, _1, ref(os)));
 }
 
 void MResidue::WriteDSSP(ostream& os)
@@ -415,7 +440,7 @@ void MResidue::WriteDSSP(ostream& os)
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA 
  */
 	boost::format kDSSPResidueLine(
-	"%5.5d%5.5d %c %c  %c.....%c..%4.4d%4.4d%c     %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
+	"%5.5d%5.5d %c %c  %c     %c  %4.4d%4.4d%c     %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
 	
 	const MAtom& ca = GetCAlpha();
 	
@@ -510,9 +535,9 @@ void MChain::WritePDB(std::ostream& os)
 	
 	boost::format ter("TER    %4.4d      %3.3s %c%4.4d%c");
 	
-	MResidue& last = *mResidues.back();
+	MResidue* last = mResidues.back();
 	
-	os << (ter % (last.GetCAlpha().mSerial + 1) % kResidueInfo[last.GetType()].name % mChainID % last.GetNumber() % ' ') << endl;
+	os << (ter % (last->GetCAlpha().mSerial + 1) % kResidueInfo[last->GetType()].name % mChainID % last->GetNumber() % ' ') << endl;
 }
 
 void MChain::WriteDSSP(std::ostream& os)
@@ -529,28 +554,12 @@ MResidue& MChain::GetResidueBySeqNumber(uint16 inSeqNumber)
 	return **r;
 }
 
-void MChain::AddResidue(uint32 inSeqNumber, uint32 inNumber, MResidueType inType, const vector<MAtom>& inAtoms)
+void MChain::AddResidue(uint32 inNumber, const vector<MAtom>& inAtoms)
 {
 	MResidue* prev = nil;
 	if (not mResidues.empty())
 		prev = mResidues.back();
-	mResidues.push_back(new MResidue(*this, inSeqNumber, inNumber, inType, prev, inAtoms));
-}
-
-MResidueType MapResidueName(const string& n)
-{
-	MResidueType result = kUnknownResidue;
-	
-	for (uint32 i = 0; i < kResidueTypeCount; ++i)
-	{
-		if (n == kResidueInfo[i].name)
-		{
-			result = kResidueInfo[i].type;
-			break;
-		}
-	}
-	
-	return result;
+	mResidues.push_back(new MResidue(*this, inNumber, prev, inAtoms));
 }
 
 // --------------------------------------------------------------------
@@ -558,7 +567,7 @@ MResidueType MapResidueName(const string& n)
 MProtein::MProtein(istream& is, bool cAlphaOnly)
 {
 	bool model = false;
-	uint32 resNumber = 0;
+	uint32 resNumber = 1;
 	vector<MAtom> atoms;
 	
 	while (not is.eof())
@@ -572,7 +581,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			continue;
 		}
 		
-		// brain dead support for only the first model in the file
+		// brain dead support for only the first model in the file (NMR)
 		if (ba::starts_with(line, "MODEL"))
 		{
 			model = true;
@@ -600,7 +609,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 		{
 			if (cAlphaOnly and line.substr(12, 4) != " CA ")
 				continue;
-			
+
 			MAtom atom = {};
 
 			//	7 - 11	Integer serial Atom serial number.
@@ -634,15 +643,13 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			//	79 - 80	LString(2) charge Charge on the atom.
 			atom.mCharge = 0;
 			
-			atom.mType = MapElement(ba::trim_copy(line.substr(77, 2)));
+			atom.mType = MapElement(line.substr(77, 2));
 			
 			if (not atoms.empty() and atom.mResSeq != atoms.back().mResSeq)
 			{
-				char chainID = line[21];
-				MChain& chain = GetChain(chainID);
+				MChain& chain = GetChain(atoms.back().mChainID);
 				
-				chain.AddResidue(atom.mResSeq, resNumber,
-					MapResidueName(line.substr(17, 3)), atoms);
+				chain.AddResidue(resNumber, atoms);
 				++resNumber;
 				
 				atoms.clear();
@@ -655,8 +662,12 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 	if (not atoms.empty())
 	{
 		MChain& chain = GetChain(atoms.back().mChainID);
-		chain.AddResidue(atoms.back().mResSeq, resNumber,
-			MapResidueName(atoms.back().mResName), atoms);
+		chain.AddResidue(resNumber, atoms);
+
+		foreach (const MResidue* r, GetChain(atoms.back().mChainID).GetResidues())
+		{
+			cerr << r->GetNumber() << '\t' << r->GetSeqNumber() << '\t' << kResidueInfo[r->GetType()].code << endl;
+		}
 	}
 }
 
@@ -673,10 +684,7 @@ void MProtein::GetPoints(std::vector<MPoint>& outPoints) const
 	for (std::map<char,MChain>::const_iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
 	{
 		foreach (const MResidue* r, chain->second.GetResidues())
-		{
-			foreach (const MAtom& a, r->GetAtoms())
-				outPoints.push_back(a.mLoc);
-		}
+			r->GetPoints(outPoints);
 	}
 }
 
@@ -961,8 +969,6 @@ void MProtein::CalculateSecondaryStructure()
 			residues[i]->SetSheet(bridge.sheet);
 		}
 	}
-		
-//		MResidue::Markstrands(bridges);
 }
 
 void MProtein::Center()
@@ -1033,17 +1039,8 @@ void MProtein::GetSequence(char inChain, entry& outEntry) const
 	
 	foreach (const MResidue* r, chain->second.GetResidues())
 	{
-		foreach (const MAtom& a, r->GetAtoms())
-		{
-			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
-			{
-				string residueName(a.mResName);
-				ba::trim(residueName);
-				
-				seq += MapThreeLetterCode(residueName);
-				outEntry.m_positions.push_back(a.mResSeq);
-			}
-		}
+		seq += kResidueInfo[r->GetType()].code;
+		outEntry.m_positions.push_back(r->GetSeqNumber());
 	}
 	
 	outEntry.m_seq = encode(seq);
@@ -1060,18 +1057,7 @@ void MProtein::GetSequence(char inChain, sequence& outSequence) const
 	string seq;
 	
 	foreach (const MResidue* r, chain->second.GetResidues())
-	{
-		foreach (const MAtom& a, r->GetAtoms())
-		{
-			if (a.mType == kCarbon and strcmp(a.mName, " CA ") == 0)
-			{
-				string residueName(a.mResName);
-				ba::trim(residueName);
-				
-				seq += MapThreeLetterCode(residueName);
-			}
-		}
-	}
+		seq += kResidueInfo[r->GetType()].code;
 	
 	outSequence = encode(seq);
 }
@@ -1084,6 +1070,7 @@ void MProtein::WritePDB(ostream& os)
 
 void MProtein::WriteDSSP(ostream& os)
 {
+	os << "  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA " << endl;
 	boost::format kDSSPResidueLine(
 	"%5.5d        !*             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");  
 

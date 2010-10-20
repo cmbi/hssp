@@ -18,8 +18,10 @@
       <file>align-3d.cpp</file>
       <file>guide.cpp</file>
       <file>ioseq.cpp</file>
-      <file>matrix.cpp</file>
       <file>mas.cpp</file>
+      <file>matrix.cpp</file>
+      <file>primitives-3d.cpp</file>
+      <file>structure.cpp</file>
       <file>utils.cpp</file>
     </group>
     <group name="Libraries">
