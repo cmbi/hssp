@@ -233,6 +233,9 @@ class MResidue
 
 	bool				TestBond(const MResidue* other) const;
 
+	void				ExtendBox(const MAtom& atom, double inRadius);
+	bool				AtomIntersectsBox(const MAtom& atom, double inRadius) const;
+
 	MChain&				mChain;
 	MResidue*			mPrev;
 	MResidue*			mNext;
@@ -248,6 +251,7 @@ class MResidue
 	uint32				mSheet;
 	MHelixFlag			mHelixFlags[3];	//
 	bool				mBend;
+	MPoint				mBox[2];		// The 3D box containing all atoms
 };
 
 class MChain

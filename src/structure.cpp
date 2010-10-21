@@ -30,6 +30,14 @@ const double
 	kCouplingConstant = -332 * 0.42 * 0.2,
 	kMaxPeptideBondLength = 2.5;
 
+const double
+	kRadiusN = 1.65,
+	kRadiusCA = 1.87,
+	kRadiusC = 1.76,
+	kRadiusO = 1.4,
+	kRadiusSideAtom = 1.8,
+	kRadiusWater = 1.4;
+
 // --------------------------------------------------------------------
 
 MAtomType MapElement(string inElement)
@@ -234,6 +242,17 @@ MResidue::MResidue(MChain& chain, uint32 inNumber,
 		mH.mLoc.mY += (pc.mLoc.mY - po.mLoc.mY) / CODistance; 
 		mH.mLoc.mZ += (pc.mLoc.mZ - po.mLoc.mZ) / CODistance; 
 	}
+	
+	// update the box containing all atoms
+	mBox[0].mX = mBox[0].mY = mBox[0].mZ =  numeric_limits<double>::max();
+	mBox[1].mX = mBox[1].mY = mBox[1].mZ = -numeric_limits<double>::max();
+	
+	ExtendBox(mN, kRadiusN + 2 * kRadiusWater);
+	ExtendBox(mCA, kRadiusCA + 2 * kRadiusWater);
+	ExtendBox(mC, kRadiusC + 2 * kRadiusWater);
+	ExtendBox(mO, kRadiusO + 2 * kRadiusWater);
+	foreach (const MAtom& atom, mSideChain)
+		ExtendBox(atom, kRadiusSideAtom + 2 * kRadiusWater);
 }
 
 void MResidue::SetChainID(char inID)
@@ -436,14 +455,30 @@ MBridgeType MResidue::TestBridge(MResidue* test) const
 	return result;
 }
 
-const double
-	kRadiusN = 1.65,
-	kRadiusCA = 1.87,
-	kRadiusC = 1.76,
-	kRadiusO = 1.4,
-	kRadiusSideAtom = 1.8,
-	kRadiusWater = 1.4,
-	kResidueRadius = 10.0;
+void MResidue::ExtendBox(const MAtom& atom, double inRadius)
+{
+	if (mBox[0].mX > atom.mLoc.mX - inRadius)
+		mBox[0].mX = atom.mLoc.mX - inRadius;
+	if (mBox[0].mY > atom.mLoc.mY - inRadius)
+		mBox[0].mY = atom.mLoc.mY - inRadius;
+	if (mBox[0].mZ > atom.mLoc.mZ - inRadius)
+		mBox[0].mZ = atom.mLoc.mZ - inRadius;
+	if (mBox[1].mX < atom.mLoc.mX + inRadius)
+		mBox[1].mX = atom.mLoc.mX + inRadius;
+	if (mBox[1].mY < atom.mLoc.mY + inRadius)
+		mBox[1].mY = atom.mLoc.mY + inRadius;
+	if (mBox[1].mZ < atom.mLoc.mZ + inRadius)
+		mBox[1].mZ = atom.mLoc.mZ + inRadius;
+}
+
+inline
+bool MResidue::AtomIntersectsBox(const MAtom& atom, double inRadius) const
+{
+	return
+		atom.mLoc.mX + inRadius >= mBox[0].mX and atom.mLoc.mX - inRadius <= mBox[1].mX and
+		atom.mLoc.mY + inRadius >= mBox[0].mY and atom.mLoc.mY - inRadius <= mBox[1].mY and
+		atom.mLoc.mZ + inRadius >= mBox[0].mZ and atom.mLoc.mZ - inRadius <= mBox[1].mZ;	
+}
 
 double MResidue::CalculateSurface(const vector<MPoint>& inPolyeder,
 	const vector<double>& inWeights, const vector<MResidue*>& inResidues)
@@ -474,6 +509,7 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
 
 			if (distance < test and distance > 0.0001)
 			{
+cerr << "add " << (b - a) << endl;
 				m_x.push_back(b - a);
 				m_r.push_back(r);
 			}
@@ -485,8 +521,10 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
 	
 	foreach (MResidue* r, inResidues)
 	{
-		if (Distance(inAtom, r->mCA) < kResidueRadius)
+		if (r->AtomIntersectsBox(inAtom, inRadius))
+//		if (Distance(r->mCA, inAtom) < 10.0 + 2 * kRadiusWater)
 		{
+cerr << "add residue " << r->mNumber << endl;
 			accumulate(inAtom, r->mN, inRadius, kRadiusN);
 			accumulate(inAtom, r->mCA, inRadius, kRadiusCA);
 			accumulate(inAtom, r->mC, inRadius, kRadiusC);
@@ -1271,6 +1309,8 @@ void MProtein::CalculateAccessibilities(std::vector<MResidue*> inResidues)
 	if (VERBOSE)
 		cerr << "Calculate accessibilities" << endl;
 
+	// start by creating a icosahedron. Since this is constant, we can 
+	// one day insert the constant data here.
 	const double kXVertex = 0, kYVertex = 0.8506508, kZVertex = 0.5257311;
 	
 	const MPoint v[12] = {

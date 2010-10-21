@@ -14,13 +14,18 @@ extern const double kPI;
 
 struct MPoint
 {
-				MPoint(double x = 0, double y = 0, double z = 0);
+				MPoint();
+				MPoint(double x, double y, double z);
 				MPoint(const MPoint& rhs);
 
 	MPoint&		operator=(const MPoint& rhs);
 
 	MPoint&		operator+=(const MPoint& rhs);
 	MPoint&		operator-=(const MPoint& rhs);
+
+	MPoint&		operator+=(double f);
+	MPoint&		operator-=(double f);
+
 	MPoint&		operator*=(double f);
 	MPoint&		operator/=(double f);
 
@@ -60,6 +65,14 @@ double RMSd(const std::vector<MPoint>& a, const std::vector<MPoint>& b);
 
 // --------------------------------------------------------------------
 // inlines
+
+inline
+MPoint::MPoint()
+	: mX(0)
+	, mY(0)
+	, mZ(0)
+{
+}
 
 inline
 MPoint::MPoint(double x, double y, double z)
@@ -103,6 +116,26 @@ MPoint& MPoint::operator-=(const MPoint& rhs)
 	mX -= rhs.mX;
 	mY -= rhs.mY;
 	mZ -= rhs.mZ;
+	
+	return *this;
+}
+
+inline
+MPoint& MPoint::operator+=(double f)
+{
+	mX += f;
+	mY += f;
+	mZ += f;
+	
+	return *this;
+}
+
+inline
+MPoint& MPoint::operator-=(double f)
+{
+	mX -= f;
+	mY -= f;
+	mZ -= f;
 	
 	return *this;
 }

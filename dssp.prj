@@ -58,9 +58,13 @@
       </defines>
       <cflags>
         <cflag>-O3</cflag>
-        <cflag>-std=c++0x</cflag>
         <cflag>-pthread</cflag>
+        <cflag>-std=c++0x</cflag>
+        <cflag>-pg</cflag>
       </cflags>
+      <ldflags>
+        <ldflag>-pg</ldflag>
+      </ldflags>
       <warnings>
         <warning>all</warning>
         <warning>no-multichar</warning>
