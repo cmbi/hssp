@@ -448,11 +448,6 @@ const double
 double MResidue::CalculateSurface(const vector<MPoint>& inPolyeder,
 	const vector<double>& inWeights, const vector<MResidue*>& inResidues)
 {
-cerr << "n : " << CalculateSurface(mN, kRadiusN, inPolyeder, inWeights, inResidues) << endl;
-cerr << "ca: " << CalculateSurface(mCA, kRadiusCA, inPolyeder, inWeights, inResidues) << endl;
-cerr << "c : " << CalculateSurface(mC, kRadiusC, inPolyeder, inWeights, inResidues) << endl;
-cerr << "o : " << CalculateSurface(mO, kRadiusO, inPolyeder, inWeights, inResidues) << endl;
-
 	double surface = CalculateSurface(mN, kRadiusN, inPolyeder, inWeights, inResidues) +
 					 CalculateSurface(mCA, kRadiusCA, inPolyeder, inWeights, inResidues) +
 					 CalculateSurface(mC, kRadiusC, inPolyeder, inWeights, inResidues) +
@@ -461,9 +456,7 @@ cerr << "o : " << CalculateSurface(mO, kRadiusO, inPolyeder, inWeights, inResidu
 	foreach (const MAtom& atom, mSideChain)
 		surface += CalculateSurface(atom, kRadiusSideAtom, inPolyeder, inWeights, inResidues);
 
-cerr << "surface: " << surface << endl;
-
-	mAccessibility = rint(surface);
+	mAccessibility = floor(surface + 0.5);
 	
 	return surface;
 }
@@ -481,7 +474,6 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
 
 			if (distance < test and distance > 0.0001)
 			{
-cerr << "add " << (b - a) << endl;
 				m_x.push_back(b - a);
 				m_r.push_back(r);
 			}
@@ -495,8 +487,6 @@ cerr << "add " << (b - a) << endl;
 	{
 		if (Distance(inAtom, r->mCA) < kResidueRadius)
 		{
-cerr << "add residue " << r->GetNumber() << endl;
-
 			accumulate(inAtom, r->mN, inRadius, kRadiusN);
 			accumulate(inAtom, r->mCA, inRadius, kRadiusCA);
 			accumulate(inAtom, r->mC, inRadius, kRadiusC);
@@ -523,13 +513,8 @@ cerr << "add residue " << r->GetNumber() << endl;
 		}
 		
 		if (one)
-		{
 			surface += inWeights[i];
-cerr << "wp[" << i << "] = " << inWeights[i] << endl;
-		}
 	}
-	
-cerr << "N: " << accumulate.m_x.size() << " radius: " << radius << " f: " << surface << endl;
 	
 	return surface * radius * radius;
 }
@@ -1275,9 +1260,9 @@ void CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int le
 		outPolyeders.push_back(p);
 		
 		p = CrossProduct(p3 - p1, p2 - p1);
-		p.Normalize();
-		outWeights.push_back(sqrt(p.mX * p.mX + p.mY * p.mY + p.mZ * p.mZ) / 2);
-cerr << "polyeder[" << (outPolyeders.size() - 1) << "] = " << outPolyeders.back() << " -> " << outWeights.back() << endl;
+
+		double l = p.Normalize();
+		outWeights.push_back(l / 2);
 	}
 }
 
@@ -1319,9 +1304,6 @@ void MProtein::CalculateAccessibilities(std::vector<MResidue*> inResidues)
 	a = 4 * kPI / a;
 	transform(weights.begin(), weights.end(), weights.begin(), boost::bind(multiplies<double>(), _1, a));
 
-	for (uint32 i = 0; i < weights.size(); ++i)
-		cerr << "wp[" << i << "] = " << weights[i] << endl;
-	
 	foreach (MResidue* residue, inResidues)
 		residue->CalculateSurface(polyeder, weights, inResidues);
 }

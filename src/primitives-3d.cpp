@@ -41,16 +41,17 @@ MQuaternion Normalize(MQuaternion q)
 
 // --------------------------------------------------------------------
 
-void MPoint::Normalize()
+double MPoint::Normalize()
 {
-	double lengthSq = mX * mX + mY * mY + mZ * mZ;
-	if (lengthSq > 0)
+	double length = mX * mX + mY * mY + mZ * mZ;
+	if (length > 0)
 	{
-		double length = sqrt(lengthSq);
+		length = sqrt(length);
 		mX /= length;
 		mY /= length;
 		mZ /= length;
 	}
+	return length;
 }
 
 MPoint operator+(const MPoint& lhs, const MPoint& rhs)

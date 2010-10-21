@@ -24,7 +24,7 @@ struct MPoint
 	MPoint&		operator*=(double f);
 	MPoint&		operator/=(double f);
 
-	void		Normalize();
+	double		Normalize();
 	void		Rotate(const MQuaternion& q);
 
 	double		mX, mY, mZ;
@@ -146,9 +146,9 @@ inline double DotProduct(const MPoint& a, const MPoint& b)
 
 inline MPoint CrossProduct(const MPoint& a, const MPoint& b)
 {
-	return MPoint(a.mY * b.mZ - a.mY * a.mZ,
-				  a.mZ * a.mX - a.mZ * a.mX,
-				  a.mX * a.mY - a.mX * a.mY);
+	return MPoint(a.mY * b.mZ - b.mY * a.mZ,
+				 a.mZ * b.mX - b.mZ * a.mX,
+				 a.mX * b.mY - b.mX * a.mY);
 }
 
 inline double DistanceSquared(const MPoint& a, const MPoint& b)
