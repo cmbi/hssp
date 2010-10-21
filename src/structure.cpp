@@ -1,9 +1,10 @@
 // structure related stuff
 
-#include "MRS.h"
 #include "mas.h"
 
 #include <set>
+#include <numeric>
+#include <functional>
 
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
@@ -182,6 +183,7 @@ MResidue::MResidue(MChain& chain, uint32 inNumber,
 	, mNumber(inNumber)
 	, mType(MapResidue(inAtoms.front().mResName))
 	, mSSBridgeNr(0)
+	, mAccessibility(0)
 	, mSecondaryStructure(loop)
 	, mSheet(0)
 {
@@ -434,6 +436,104 @@ MBridgeType MResidue::TestBridge(MResidue* test) const
 	return result;
 }
 
+const double
+	kRadiusN = 1.65,
+	kRadiusCA = 1.87,
+	kRadiusC = 1.76,
+	kRadiusO = 1.4,
+	kRadiusSideAtom = 1.8,
+	kRadiusWater = 1.4,
+	kResidueRadius = 10.0;
+
+double MResidue::CalculateSurface(const vector<MPoint>& inPolyeder,
+	const vector<double>& inWeights, const vector<MResidue*>& inResidues)
+{
+cerr << "n : " << CalculateSurface(mN, kRadiusN, inPolyeder, inWeights, inResidues) << endl;
+cerr << "ca: " << CalculateSurface(mCA, kRadiusCA, inPolyeder, inWeights, inResidues) << endl;
+cerr << "c : " << CalculateSurface(mC, kRadiusC, inPolyeder, inWeights, inResidues) << endl;
+cerr << "o : " << CalculateSurface(mO, kRadiusO, inPolyeder, inWeights, inResidues) << endl;
+
+	double surface = CalculateSurface(mN, kRadiusN, inPolyeder, inWeights, inResidues) +
+					 CalculateSurface(mCA, kRadiusCA, inPolyeder, inWeights, inResidues) +
+					 CalculateSurface(mC, kRadiusC, inPolyeder, inWeights, inResidues) +
+					 CalculateSurface(mO, kRadiusO, inPolyeder, inWeights, inResidues);
+	
+	foreach (const MAtom& atom, mSideChain)
+		surface += CalculateSurface(atom, kRadiusSideAtom, inPolyeder, inWeights, inResidues);
+
+cerr << "surface: " << surface << endl;
+
+	mAccessibility = rint(surface);
+	
+	return surface;
+}
+
+double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
+	const vector<MPoint>& inPolyeder, const vector<double>& inWeights, const vector<MResidue*>& inResidues)
+{
+	struct
+	{
+		void operator()(const MPoint& a, const MPoint& b, double d, double r)
+		{
+			double distance = DistanceSquared(a, b);
+			double test = d + r + kRadiusWater + kRadiusWater;
+			test *= test;
+
+			if (distance < test and distance > 0.0001)
+			{
+cerr << "add " << (b - a) << endl;
+				m_x.push_back(b - a);
+				m_r.push_back(r);
+			}
+		}
+
+		vector<MPoint>	m_x;
+		vector<double>	m_r;
+	} accumulate;
+	
+	foreach (MResidue* r, inResidues)
+	{
+		if (Distance(inAtom, r->mCA) < kResidueRadius)
+		{
+cerr << "add residue " << r->GetNumber() << endl;
+
+			accumulate(inAtom, r->mN, inRadius, kRadiusN);
+			accumulate(inAtom, r->mCA, inRadius, kRadiusCA);
+			accumulate(inAtom, r->mC, inRadius, kRadiusC);
+			accumulate(inAtom, r->mO, inRadius, kRadiusO);
+				
+			foreach (const MAtom& atom, r->mSideChain)
+				accumulate(inAtom, atom, inRadius, kRadiusSideAtom);
+		}
+	}
+
+	double radius = inRadius + kRadiusWater;
+	double surface = 0;
+	
+	for (uint32 i = 0; i < inPolyeder.size(); ++i)
+	{
+		MPoint xx = inPolyeder[i] * radius;
+		
+		bool one = true;
+		for (uint32 k = 0; one and k < accumulate.m_x.size(); ++k)
+		{
+			double d = accumulate.m_r[k] + kRadiusWater;
+			d *= d;
+			one = DistanceSquared(xx, accumulate.m_x[k]) >= d;
+		}
+		
+		if (one)
+		{
+			surface += inWeights[i];
+cerr << "wp[" << i << "] = " << inWeights[i] << endl;
+		}
+	}
+	
+cerr << "N: " << accumulate.m_x.size() << " radius: " << radius << " f: " << surface << endl;
+	
+	return surface * radius * radius;
+}
+
 void MResidue::Translate(const MPoint& inTranslation)
 {
 	mN.Translate(inTranslation);
@@ -474,113 +574,6 @@ void MResidue::WritePDB(std::ostream& os)
 	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::WritePDB, _1, ref(os)));
 }
 
-void MResidue::WriteDSSP(ostream& os)
-{
-/*   
-  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA 
- */
-	boost::format kDSSPResidueLine(
-	"%5.5d%5.5d%c%c %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c     %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
-	
-	const MAtom& ca = GetCAlpha();
-	
-	char code = kResidueInfo[mType].code;
-	if (mType == kCysteine and GetSSBridgeNr() != 0)
-		code = 'a' - 1 + (GetSSBridgeNr() % 26);
-
-	double alpha;
-	char chirality;
-	tr1::tie(alpha,chirality) = Alpha();
-	
-	char ss;
-	switch (mSecondaryStructure)
-	{
-		case alphahelix:	ss = 'H'; break;
-		case betabridge:	ss = 'B'; break;
-		case strand:		ss = 'E'; break;
-		case helix_3:		ss = 'G'; break;
-		case helix_5:		ss = 'I'; break;
-		case turn:			ss = 'T'; break;
-		case bend:			ss = 'S'; break;
-		case loop:			ss = ' '; break;
-	}
-	
-	string NHO1 = "0, 0.0", NHO2 = "0, 0.0", ONH1 = "0, 0.0", ONH2 = "0, 0.0";
-	
-	MResidue* acceptor = mHBondAcceptor[0].residue;
-	if (acceptor != nil)
-	{
-		int32 d = acceptor->mNumber - mNumber;
-		NHO1 = (boost::format("%d,%3.1f") % d % mHBondAcceptor[0].energy).str();
-	}
-	
-	acceptor = mHBondAcceptor[1].residue;
-	if (acceptor != nil)
-	{
-		int32 d = acceptor->mNumber - mNumber;
-		NHO2 = (boost::format("%d,%3.1f") % d % mHBondAcceptor[1].energy).str();
-	}
-
-	MResidue* donor = mHBondDonor[0].residue;
-	if (donor != nil)
-	{
-		int32 d = donor->mNumber - mNumber;
-		ONH1 = (boost::format("%d,%3.1f") % d % mHBondDonor[0].energy).str();
-	}
-	
-	donor = mHBondDonor[1].residue;
-	if (donor != nil)
-	{
-		int32 d = donor->mNumber - mNumber;
-		ONH2 = (boost::format("%d,%3.1f") % d % mHBondDonor[1].energy).str();
-	}
-	
-	uint32 bp1 = 0, bp2 = 0;
-	char bridgelabel1 = ' ', bridgelabel2 = ' ';
-	
-	if (mBetaPartner[0].residue != nil)
-	{
-		bp1 = mBetaPartner[0].residue->mNumber;
-		bridgelabel1 = 'A' + mBetaPartner[0].ladder % 26;
-		if (mBetaPartner[0].parallel)
-			bridgelabel1 = tolower(bridgelabel1);
-	}
-	if (mBetaPartner[1].residue != nil)
-	{
-		bp2 = mBetaPartner[1].residue->mNumber;
-		bridgelabel2 = 'A' + mBetaPartner[1].ladder % 26;
-		if (mBetaPartner[1].parallel)
-			bridgelabel2 = tolower(bridgelabel2);
-	}
-	
-	char sheet = ' ';
-	if (mSheet != 0)
-		sheet = 'A' + (mSheet - 1) % 26;
-	
-	char helix[3];
-	for (uint32 stride = 3; stride <= 5; ++stride)
-	{
-		switch (mHelixFlags[stride - 3])
-		{
-			case helixNone:			helix[stride - 3] = ' '; break;
-			case helixStart:		helix[stride - 3] = '>'; break;
-			case helixEnd:			helix[stride - 3] = '<'; break;
-			case helixStartAndEnd:	helix[stride - 3] = 'X'; break;
-			case helixMiddle:		helix[stride - 3] = '0' + stride; break;
-		}
-	}
-	
-	char bend = ' ';
-	if (mBend)
-		bend = 'S';
-	
-	cout << (kDSSPResidueLine % mNumber % ca.mResSeq % ca.mICode % ca.mChainID % code %
-		ss % helix[0] % helix[1] % helix[2] % bend % chirality % bridgelabel1 % bridgelabel2 %
-		bp1 % bp2 % sheet %
-		NHO1 % ONH1 % NHO2 % ONH2 %
-		TCO() % Kappa() % alpha % Phi() % Psi() % ca.mLoc.mX % ca.mLoc.mY % ca.mLoc.mZ) << endl;
-}
-
 // --------------------------------------------------------------------
 
 void MChain::SetChainID(char inID)
@@ -610,11 +603,6 @@ void MChain::WritePDB(std::ostream& os)
 	os << (ter % (last->GetCAlpha().mSerial + 1) % kResidueInfo[last->GetType()].name % mChainID % last->GetNumber() % ' ') << endl;
 }
 
-void MChain::WriteDSSP(std::ostream& os)
-{
-	for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::WriteDSSP, _1, ref(os)));
-}
-
 MResidue& MChain::GetResidueBySeqNumber(uint16 inSeqNumber)
 {
 	vector<MResidue*>::iterator r = find_if(mResidues.begin(), mResidues.end(),
@@ -639,7 +627,27 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 		
 		if (ba::starts_with(line, "HEADER"))
 		{
+			mHeader = line.substr(0, 62);
+			ba::trim(mHeader);
 			mID = line.substr(62, 4);
+			continue;
+		}
+
+		if (ba::starts_with(line, "COMPND"))
+		{
+			mCompound.push_back(ba::trim_copy(line));
+			continue;
+		}
+
+		if (ba::starts_with(line, "SOURCE"))
+		{
+			mSource.push_back(ba::trim_copy(line));
+			continue;
+		}
+		
+		if (ba::starts_with(line, "AUTHOR"))
+		{
+			mAuthor.push_back(ba::trim_copy(line));
 			continue;
 		}
 		
@@ -750,6 +758,57 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 		mChains.end());
 }
 
+string MProtein::GetCompound() const
+{
+	string result = "(missing)";
+	if (not mCompound.empty())
+	{
+		result = mCompound.front();
+		if (ba::starts_with(result.substr(10), "MOL_ID: ") and mCompound.size() > 1)
+			result = mCompound[1];
+	}
+	return result;
+}
+
+string MProtein::GetSource() const
+{
+	string result = "(missing)";
+	if (not mSource.empty())
+	{
+		result = mSource.front();
+		if (ba::starts_with(result.substr(10), "MOL_ID: ") and mSource.size() > 1)
+			result = mSource[1];
+	}
+	return result;
+}
+
+string MProtein::GetAuthor() const
+{
+	string result = "(missing)";
+	if (not mAuthor.empty())
+	{
+		result = mAuthor.front();
+		if (ba::starts_with(result.substr(10), "MOL_ID: ") and mAuthor.size() > 1)
+			result = mAuthor[1];
+	}
+	return result;
+}
+
+void MProtein::GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
+	uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges) const
+{
+	outNrOfResidues = mResidueCount;
+	outNrOfChains = mChains.size();
+	outNrOfSSBridges = mSSBonds.size();
+	
+	outNrOfIntraChainSSBridges = 0;
+	for (vector<pair<MResidueID,MResidueID>>::const_iterator ri = mSSBonds.begin(); ri != mSSBonds.end(); ++ri)
+	{
+		if (ri->first.chain == ri->second.chain)
+			++outNrOfIntraChainSSBridges;
+	}
+}
+
 void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 {
 	MChain& chain = GetChain(inAtoms.front().mChainID);
@@ -843,11 +902,7 @@ void MProtein::CalculateSecondaryStructure()
 		second.SetSSBridgeNr(ssbondNr);
 		++ssbondNr;
 	}
-	
-	if (VERBOSE)
-		cerr << "Calculate HBond energies" << endl;
-	
-	// Calculate the HBond energies
+
 	vector<MResidue*> residues;
 	residues.reserve(mResidueCount);
 	foreach (const MChain* chain, mChains)
@@ -855,14 +910,26 @@ void MProtein::CalculateSecondaryStructure()
 	
 	if (VERBOSE)
 		cerr << "using " << residues.size() << " residues" << endl;
+
+	CalculateHBondEnergies(residues);
+	CalculateBetaSheets(residues);
+	CalculateAlphaHelices(residues);
+	CalculateAccessibilities(residues);
+}
+
+void MProtein::CalculateHBondEnergies(std::vector<MResidue*> inResidues)
+{
+	if (VERBOSE)
+		cerr << "Calculate H-bond energies" << endl;
 	
-	for (uint32 i = 0; i < residues.size() - 1; ++i)
+	// Calculate the HBond energies
+	for (uint32 i = 0; i < inResidues.size() - 1; ++i)
 	{
-		MResidue* ri = residues[i];
+		MResidue* ri = inResidues[i];
 		
-		for (uint32 j = i + 1; j < residues.size(); ++j)
+		for (uint32 j = i + 1; j < inResidues.size(); ++j)
 		{
-			MResidue* rj = residues[j];
+			MResidue* rj = inResidues[j];
 			
 			if (Distance(ri->GetCAlpha(), rj->GetCAlpha()) < kMinimalCADistance)
 			{
@@ -872,21 +939,122 @@ void MProtein::CalculateSecondaryStructure()
 			}
 		}
 	}
+}
 
+void MProtein::CalculateAlphaHelices(std::vector<MResidue*> inResidues)
+{
 	if (VERBOSE)
-		cerr << "Calculate Bridges" << endl;
+		cerr << "Calculate alhpa helices" << endl;
+	
+	// Helix and Turn
+	foreach (const MChain* chain, mChains)
+	{
+		for (uint32 stride = 3; stride <= 5; ++stride)
+		{
+			vector<MResidue*> res(chain->GetResidues());
+			if (res.size() < stride)
+				continue;
+			
+			for (uint32 i = 0; i < res.size() - stride; ++i)
+			{
+				if (MResidue::TestBond(res[i + stride], res[i]))
+				{
+					res[i + stride]->SetHelixFlag(stride, helixEnd);
+					for (uint32 j = i + 1; j < i + stride; ++j)
+					{
+						if (res[j]->GetHelixFlag(stride) == helixNone)
+							res[j]->SetHelixFlag(stride, helixMiddle);
+					}
+					
+					if (res[i]->GetHelixFlag(stride) == helixEnd)
+						res[i]->SetHelixFlag(stride, helixStartAndEnd);
+					else
+						res[i]->SetHelixFlag(stride, helixStart);
+				}
+			}
+		}
+	}
+	
+	foreach (MResidue* r, inResidues)
+	{
+		double kappa = r->Kappa();
+		r->SetBend(kappa != 360 and kappa > 70);
+	}
+
+	for (uint32 i = 1; i < inResidues.size() - 4; ++i)
+	{
+		if (inResidues[i]->IsHelixStart(4) and inResidues[i - 1]->IsHelixStart(4))
+		{
+			for (uint32 j = i; j <= i + 3; ++j)
+				inResidues[j]->SetSecondaryStructure(alphahelix);
+		}
+	}
+
+	for (uint32 i = 1; i < inResidues.size() - 3; ++i)
+	{
+		if (inResidues[i]->IsHelixStart(3) and inResidues[i - 1]->IsHelixStart(3))
+		{
+			bool empty = true;
+			for (uint32 j = i; empty and j <= i + 2; ++j)
+				empty = inResidues[j]->GetSecondaryStructure() == loop or inResidues[j]->GetSecondaryStructure() == helix_3;
+			if (empty)
+			{
+				for (uint32 j = i; j <= i + 2; ++j)
+					inResidues[j]->SetSecondaryStructure(helix_3);
+			}
+		}
+	}
+
+	for (uint32 i = 1; i < inResidues.size() - 5; ++i)
+	{
+		if (inResidues[i]->IsHelixStart(5) and inResidues[i - 1]->IsHelixStart(5))
+		{
+			bool empty = true;
+			for (uint32 j = i; empty and j <= i + 4; ++j)
+				empty = inResidues[j]->GetSecondaryStructure() == loop or inResidues[j]->GetSecondaryStructure() == helix_5;
+			if (empty)
+			{
+				for (uint32 j = i; j <= i + 4; ++j)
+					inResidues[j]->SetSecondaryStructure(helix_5);
+			}
+		}
+	}
+			
+	for (uint32 i = 1; i < inResidues.size() - 1; ++i)
+	{
+		if (inResidues[i]->GetSecondaryStructure() == loop)
+		{
+			bool isTurn = false;
+			for (uint32 stride = 3; stride <= 5 and not isTurn; ++stride)
+			{
+				for (uint32 k = 1; k < stride and not isTurn; ++k)
+					isTurn = (i >= k) and inResidues[i - k]->IsHelixStart(stride);
+			}
+			
+			if (isTurn)
+				inResidues[i]->SetSecondaryStructure(turn);
+			else if (inResidues[i]->IsBend())
+				inResidues[i]->SetSecondaryStructure(bend);
+		}
+	}
+}
+
+void MProtein::CalculateBetaSheets(std::vector<MResidue*> inResidues)
+{
+	if (VERBOSE)
+		cerr << "Calculate beta sheets" << endl;
 	
 	// Calculate Bridges
 	vector<MBridge> bridges;
-	if (residues.size() > 4)
+	if (inResidues.size() > 4)
 	{
-		for (uint32 i = 1; i < residues.size() - 4; ++i)
+		for (uint32 i = 1; i < inResidues.size() - 4; ++i)
 		{
-			MResidue* ri = residues[i];
+			MResidue* ri = inResidues[i];
 			
-			for (uint32 j = i + 3; j < residues.size() - 1; ++j)
+			for (uint32 j = i + 3; j < inResidues.size() - 1; ++j)
 			{
-				MResidue* rj = residues[j];
+				MResidue* rj = inResidues[j];
 				
 				MBridgeType type = ri->TestBridge(rj);
 				if (type == btNoBridge)
@@ -1028,7 +1196,7 @@ void MProtein::CalculateSecondaryStructure()
 		
 		foreach (uint32 l, bridge.i)
 		{
-			if (residues[l]->GetBetaPartner(0).residue != nil)
+			if (inResidues[l]->GetBetaPartner(0).residue != nil)
 			{
 				betai = 1;
 				break;
@@ -1037,7 +1205,7 @@ void MProtein::CalculateSecondaryStructure()
 
 		foreach (uint32 l, bridge.j)
 		{
-			if (residues[l]->GetBetaPartner(0).residue != nil)
+			if (inResidues[l]->GetBetaPartner(0).residue != nil)
 			{
 				betaj = 1;
 				break;
@@ -1052,131 +1220,110 @@ void MProtein::CalculateSecondaryStructure()
 		{
 			deque<uint32>::iterator j = bridge.j.begin();
 			foreach (uint32 i, bridge.i)
-				residues[i]->SetBetaPartner(betai, residues[*j++], bridge.ladder, true);
+				inResidues[i]->SetBetaPartner(betai, inResidues[*j++], bridge.ladder, true);
 
 			j = bridge.i.begin();
 			foreach (uint32 i, bridge.j)
-				residues[i]->SetBetaPartner(betaj, residues[*j++], bridge.ladder, true);
+				inResidues[i]->SetBetaPartner(betaj, inResidues[*j++], bridge.ladder, true);
 		}
 		else
 		{
 			deque<uint32>::reverse_iterator j = bridge.j.rbegin();
 			foreach (uint32 i, bridge.i)
-				residues[i]->SetBetaPartner(betai, residues[*j++], bridge.ladder, false);
+				inResidues[i]->SetBetaPartner(betai, inResidues[*j++], bridge.ladder, false);
 
 			j = bridge.i.rbegin();
 			foreach (uint32 i, bridge.j)
-				residues[i]->SetBetaPartner(betaj, residues[*j++], bridge.ladder, false);
+				inResidues[i]->SetBetaPartner(betaj, inResidues[*j++], bridge.ladder, false);
 		}
 
 		for (uint32 i = bridge.i.front(); i <= bridge.i.back(); ++i)
 		{
-			if (residues[i]->GetSecondaryStructure() != strand)
-				residues[i]->SetSecondaryStructure(ss);
-			residues[i]->SetSheet(bridge.sheet);
+			if (inResidues[i]->GetSecondaryStructure() != strand)
+				inResidues[i]->SetSecondaryStructure(ss);
+			inResidues[i]->SetSheet(bridge.sheet);
 		}
 
 		for (uint32 i = bridge.j.front(); i <= bridge.j.back(); ++i)
 		{
-			if (residues[i]->GetSecondaryStructure() != strand)
-				residues[i]->SetSecondaryStructure(ss);
-			residues[i]->SetSheet(bridge.sheet);
+			if (inResidues[i]->GetSecondaryStructure() != strand)
+				inResidues[i]->SetSecondaryStructure(ss);
+			inResidues[i]->SetSheet(bridge.sheet);
 		}
 	}
-	
-	// Helix and Turn
-	foreach (const MChain* chain, mChains)
+}
+
+void CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level,
+	vector<MPoint>& outPolyeders, vector<double>& outWeights)
+{
+	if (level > 0)
 	{
-		for (uint32 stride = 3; stride <= 5; ++stride)
+		--level;
+		MPoint p4 = p1 + p2;	p4.Normalize();
+		MPoint p5 = p2 + p3;	p5.Normalize();
+		MPoint p6 = p3 + p1;	p6.Normalize();
+		
+		CreateTriangle(p1, p4, p6, level, outPolyeders, outWeights);
+		CreateTriangle(p4, p2, p5, level, outPolyeders, outWeights);
+		CreateTriangle(p4, p5, p6, level, outPolyeders, outWeights);
+		CreateTriangle(p5, p3, p6, level, outPolyeders, outWeights);
+	}
+	else
+	{
+		MPoint p = p1 + p2 + p3;
+		p.Normalize();
+		outPolyeders.push_back(p);
+		
+		p = CrossProduct(p3 - p1, p2 - p1);
+		p.Normalize();
+		outWeights.push_back(sqrt(p.mX * p.mX + p.mY * p.mY + p.mZ * p.mZ) / 2);
+cerr << "polyeder[" << (outPolyeders.size() - 1) << "] = " << outPolyeders.back() << " -> " << outWeights.back() << endl;
+	}
+}
+
+void MProtein::CalculateAccessibilities(std::vector<MResidue*> inResidues)
+{
+	if (VERBOSE)
+		cerr << "Calculate accessibilities" << endl;
+
+	const double kXVertex = 0, kYVertex = 0.8506508, kZVertex = 0.5257311;
+	
+	const MPoint v[12] = {
+		{ kXVertex, -kYVertex, -kZVertex }, { -kZVertex, kXVertex, -kYVertex }, { -kYVertex, -kZVertex, kXVertex },
+		{ kXVertex, -kYVertex,  kZVertex }, {  kZVertex, kXVertex, -kYVertex }, { -kYVertex,  kZVertex, kXVertex },
+		{ kXVertex,  kYVertex, -kZVertex }, { -kZVertex, kXVertex,  kYVertex }, {  kYVertex, -kZVertex, kXVertex },
+		{ kXVertex,  kYVertex,  kZVertex }, {  kZVertex, kXVertex,  kYVertex }, {  kYVertex,  kZVertex, kXVertex },
+	};
+	
+	const uint32 kOrder = 2;
+	
+	vector<MPoint> polyeder;
+	vector<double> weights;
+	
+	for (uint32 i = 0; i < 10; ++i)
+	{
+		for (uint32 j = i + 1; j < 11; ++j)
 		{
-			vector<MResidue*> res(chain->GetResidues());
-			if (res.size() < stride)
-				continue;
-			
-			for (uint32 i = 0; i < res.size() - stride; ++i)
+			if (Distance(v[i], v[j]) < 1.1)
 			{
-				if (MResidue::TestBond(res[i + stride], res[i]))
+				for (uint32 k = j + 1; k < 12; ++k)
 				{
-					res[i + stride]->SetHelixFlag(stride, helixEnd);
-					for (uint32 j = i + 1; j < i + stride; ++j)
-					{
-						if (res[j]->GetHelixFlag(stride) == helixNone)
-							res[j]->SetHelixFlag(stride, helixMiddle);
-					}
-					
-					if (res[i]->GetHelixFlag(stride) == helixEnd)
-						res[i]->SetHelixFlag(stride, helixStartAndEnd);
-					else
-						res[i]->SetHelixFlag(stride, helixStart);
+					if (Distance(v[i], v[k]) < 1.1 and Distance(v[j], v[k]) < 1.1)
+						CreateTriangle(v[i], v[j], v[k], kOrder, polyeder, weights);
 				}
 			}
 		}
 	}
 	
-	foreach (MResidue* r, residues)
-	{
-		double kappa = r->Kappa();
-		r->SetBend(kappa != 360 and kappa > 70);
-	}
+	double a = std::accumulate(weights.begin(), weights.end(), 0.0);
+	a = 4 * kPI / a;
+	transform(weights.begin(), weights.end(), weights.begin(), boost::bind(multiplies<double>(), _1, a));
 
-	for (uint32 i = 1; i < residues.size() - 4; ++i)
-	{
-		if (residues[i]->IsHelixStart(4) and residues[i - 1]->IsHelixStart(4))
-		{
-			for (uint32 j = i; j <= i + 3; ++j)
-				residues[j]->SetSecondaryStructure(alphahelix);
-		}
-	}
-
-	for (uint32 i = 1; i < residues.size() - 3; ++i)
-	{
-		if (residues[i]->IsHelixStart(3) and residues[i - 1]->IsHelixStart(3))
-		{
-			bool empty = true;
-			for (uint32 j = i; empty and j <= i + 2; ++j)
-				empty = residues[j]->GetSecondaryStructure() == loop or residues[j]->GetSecondaryStructure() == helix_3;
-			if (empty)
-			{
-				for (uint32 j = i; j <= i + 2; ++j)
-					residues[j]->SetSecondaryStructure(helix_3);
-			}
-		}
-	}
-
-	for (uint32 i = 1; i < residues.size() - 5; ++i)
-	{
-		if (residues[i]->IsHelixStart(5) and residues[i - 1]->IsHelixStart(5))
-		{
-			bool empty = true;
-			for (uint32 j = i; empty and j <= i + 4; ++j)
-				empty = residues[j]->GetSecondaryStructure() == loop or residues[j]->GetSecondaryStructure() == helix_5;
-			if (empty)
-			{
-				for (uint32 j = i; j <= i + 4; ++j)
-					residues[j]->SetSecondaryStructure(helix_5);
-			}
-		}
-	}
-			
-	for (uint32 i = 1; i < residues.size() - 1; ++i)
-	{
-		if (residues[i]->GetSecondaryStructure() == loop)
-		{
-			bool isTurn = false;
-			for (uint32 stride = 3; stride <= 5 and not isTurn; ++stride)
-			{
-				for (uint32 k = 1; k < stride and not isTurn; ++k)
-					isTurn = (i >= k) and residues[i - k]->IsHelixStart(stride);
-			}
-			
-			if (isTurn)
-				residues[i]->SetSecondaryStructure(turn);
-			else if (residues[i]->IsBend())
-				residues[i]->SetSecondaryStructure(bend);
-		}
-	}
+	for (uint32 i = 0; i < weights.size(); ++i)
+		cerr << "wp[" << i << "] = " << weights[i] << endl;
 	
-	
+	foreach (MResidue* residue, inResidues)
+		residue->CalculateSurface(polyeder, weights, inResidues);
 }
 
 void MProtein::Center()
@@ -1267,18 +1414,3 @@ void MProtein::WritePDB(ostream& os)
 	foreach (MChain* chain, mChains)
 		chain->WritePDB(os);
 }
-
-void MProtein::WriteDSSP(ostream& os)
-{
-	os << "  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA " << endl;
-	boost::format kDSSPResidueLine(
-	"%5.5d        !*             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");  
-
-	foreach (MChain* chain, mChains)
-	{
-		chain->WriteDSSP(os);
-		if (chain != mChains.back())
-			os << (kDSSPResidueLine % (chain->GetResidues().back()->GetNumber() + 1)) << endl;
-	}
-}
-

@@ -52,7 +52,7 @@ struct MAtom
 	void		SetChainID(char inID)					{ mChainID = inID;}
 	std::string	GetName() const							{ return mName; }
 	void		Translate(const MPoint& inTranslation)	{ mLoc += inTranslation; }
-	void		Rotate(const MQuaternion& inRotation)	{ mLoc.rotate(inRotation); }
+	void		Rotate(const MQuaternion& inRotation)	{ mLoc.Rotate(inRotation); }
 	void		WritePDB(std::ostream& os) const;
 
 				operator const MPoint&() const			{ return mLoc; }
@@ -159,6 +159,8 @@ class MResidue
 	double				Kappa() const;
 	double				TCO() const;
 	
+	uint32				Accessibility() const			{ return mAccessibility; }
+	
 	void				SetSecondaryStructure(MSecondaryStructure inSS)
 														{ mSecondaryStructure = inSS; }
 	MSecondaryStructure	GetSecondaryStructure() const	{ return mSecondaryStructure; }
@@ -171,6 +173,7 @@ class MResidue
 	MBridgeParner		GetBetaPartner(uint32 n) const;
 						
 	void				SetSheet(uint32 inSheet)	{ mSheet = inSheet; }
+	uint32				GetSheet() const			{ return mSheet; }
 	
 	bool				IsBend() const				{ return mBend; }
 	void				SetBend(bool inBend)		{ mBend = inBend; }
@@ -186,6 +189,9 @@ class MResidue
 	
 	HBond*				Donor()						{ return mHBondDonor; }
 	HBond*				Acceptor()					{ return mHBondAcceptor; }
+
+	const HBond*		Donor() const				{ return mHBondDonor; }
+	const HBond*		Acceptor() const			{ return mHBondAcceptor; }
 
 	bool				ValidDistance(const MResidue& inNext) const;
 
@@ -204,7 +210,6 @@ class MResidue
 	void				Rotate(const MQuaternion& inRotation);
 
 	void				WritePDB(std::ostream& os);
-	void				WriteDSSP(std::ostream& os);
 
 	static double		CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor);
 
@@ -214,7 +219,17 @@ class MResidue
 
 	void				GetPoints(std::vector<MPoint>& outPoints) const;
 
+	double				CalculateSurface(const std::vector<MPoint>& inPolyeder,
+							const std::vector<double>& inWeights,
+							const std::vector<MResidue*>& inResidues);
+
   protected:
+
+	double				CalculateSurface(
+							const MAtom& inAtom, double inRadius,
+							const std::vector<MPoint>& inPolyeder,
+							const std::vector<double>& inWeights,
+							const std::vector<MResidue*>& inResidues);
 
 	bool				TestBond(const MResidue* other) const;
 
@@ -224,6 +239,7 @@ class MResidue
 	int32				mSeqNumber, mNumber;
 	MResidueType		mType;
 	uint8				mSSBridgeNr;
+	uint32				mAccessibility;
 	MSecondaryStructure	mSecondaryStructure;
 	MAtom				mC, mN, mCA, mO, mH;
 	HBond				mHBondDonor[2], mHBondAcceptor[2];
@@ -249,7 +265,6 @@ class MChain
 	void				Rotate(const MQuaternion& inRotation);
 
 	void				WritePDB(std::ostream& os);
-	void				WriteDSSP(std::ostream& os);
 	
 	std::vector<MResidue*>&
 						GetResidues()						{ return mResidues; }
@@ -269,12 +284,22 @@ class MProtein
   public:
 						MProtein() {}
 
-	std::string			GetID() const					{ return mID; }
+	const std::string&	GetID() const					{ return mID; }
 						
 						MProtein(std::istream& is, bool inCAlphaOnly = false);
+	
+	const std::string&	GetHeader() const				{ return mHeader; }
+	std::string			GetCompound() const;
+	std::string			GetSource() const;
+	std::string			GetAuthor() const;
 
 	void				CalculateSecondaryStructure();
 	void				CalculateSSBridges();
+	
+	double				GetAccessibleSurface() const	{ return mAccessibleSurface; }
+	
+	void				GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
+							uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges) const;
 	
 	void				GetCAlphaLocations(char inChain, std::vector<MPoint>& outPoints) const;
 	MPoint				GetCAlphaPosition(char inChain, int16 inPDBResSeq) const;
@@ -287,8 +312,6 @@ class MProtein
 	void				Rotate(const MQuaternion& inRotation);
 
 	void				WritePDB(std::ostream& os);
-
-	void				WriteDSSP(std::ostream& os);
 	
 	void				GetPoints(std::vector<MPoint>& outPoints) const;
 
@@ -301,14 +324,25 @@ class MProtein
 
 	MChain&				GetChain(char inChainID);
 	const MChain&		GetChain(char inChainID) const;
+	
+	const std::vector<MChain*>&
+						GetChains() const									{ return mChains; }
 
   private:
 
 	void				AddResidue(const std::vector<MAtom>& inAtoms);
 
-	std::string			mID;
+	void				CalculateHBondEnergies(std::vector<MResidue*> inResidues);
+	void				CalculateAlphaHelices(std::vector<MResidue*> inResidues);
+	void				CalculateBetaSheets(std::vector<MResidue*> inResidues);
+	void				CalculateAccessibilities(std::vector<MResidue*> inResidues);
+
+	std::string			mID, mHeader;
+	std::vector<std::string>
+						mCompound, mSource, mAuthor;
 	std::vector<MChain*>mChains;
 	uint32				mResidueCount;
+	double				mAccessibleSurface;
 	
 	std::vector<std::pair<MResidueID,MResidueID>>
 						mSSBonds;

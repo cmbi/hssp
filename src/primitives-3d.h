@@ -21,21 +21,27 @@ struct MPoint
 
 	MPoint&		operator+=(const MPoint& rhs);
 	MPoint&		operator-=(const MPoint& rhs);
+	MPoint&		operator*=(double f);
 	MPoint&		operator/=(double f);
 
-	void		rotate(const MQuaternion& q);
+	void		Normalize();
+	void		Rotate(const MQuaternion& q);
 
 	double		mX, mY, mZ;
 };
 
 std::ostream& operator<<(std::ostream& os, const MPoint& pt);
+MPoint operator+(const MPoint& lhs, const MPoint& rhs);
 MPoint operator-(const MPoint& lhs, const MPoint& rhs);
 MPoint operator-(const MPoint& pt);
+MPoint operator*(const MPoint& pt, double f);
+MPoint operator/(const MPoint& pt, double f);
 
 // --------------------------------------------------------------------
 // several standard 3d operations
 
 double Distance(const MPoint& a, const MPoint& b);
+double DistanceSquared(const MPoint& a, const MPoint& b);
 double DotProduct(const MPoint& p1, const MPoint& p2);
 MPoint CrossProduct(const MPoint& p1, const MPoint& p2);
 double DihedralAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3, const MPoint& p4);
@@ -102,7 +108,17 @@ MPoint& MPoint::operator-=(const MPoint& rhs)
 }
 
 inline
-MPoint& MPoint::operator /=(double f)
+MPoint& MPoint::operator*=(double f)
+{
+	mX *= f;
+	mY *= f;
+	mZ *= f;
+
+	return *this;
+}
+
+inline
+MPoint& MPoint::operator/=(double f)
 {
 	mX /= f;
 	mY /= f;
@@ -112,7 +128,7 @@ MPoint& MPoint::operator /=(double f)
 }
 
 inline
-void MPoint::rotate(const MQuaternion& q)
+void MPoint::Rotate(const MQuaternion& q)
 {
 	MQuaternion p(0, mX, mY, mZ);
 	
@@ -121,6 +137,26 @@ void MPoint::rotate(const MQuaternion& q)
 	mX = p.R_component_2();
 	mY = p.R_component_3();
 	mZ = p.R_component_4();
+}
+
+inline double DotProduct(const MPoint& a, const MPoint& b)
+{
+	return a.mX * b.mX + a.mY * b.mY + a.mZ * b.mZ;
+}
+
+inline MPoint CrossProduct(const MPoint& a, const MPoint& b)
+{
+	return MPoint(a.mY * b.mZ - a.mY * a.mZ,
+				  a.mZ * a.mX - a.mZ * a.mX,
+				  a.mX * a.mY - a.mX * a.mY);
+}
+
+inline double DistanceSquared(const MPoint& a, const MPoint& b)
+{
+	return
+		(a.mX - b.mX) * (a.mX - b.mX) +
+		(a.mY - b.mY) * (a.mY - b.mY) +
+		(a.mZ - b.mZ) * (a.mZ - b.mZ);
 }
 
 inline double Distance(const MPoint& a, const MPoint& b)

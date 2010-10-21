@@ -1,6 +1,6 @@
 // 3d routines
 
-#include "MRS.h"
+#include "mas.h"
 
 #include <valarray>
 #include <cmath>
@@ -18,7 +18,7 @@ const double
 
 // --------------------------------------------------------------------
 
-MQuaternion normalize(MQuaternion q)
+MQuaternion Normalize(MQuaternion q)
 {
 	valarray<double> t(4);
 	
@@ -41,6 +41,23 @@ MQuaternion normalize(MQuaternion q)
 
 // --------------------------------------------------------------------
 
+void MPoint::Normalize()
+{
+	double lengthSq = mX * mX + mY * mY + mZ * mZ;
+	if (lengthSq > 0)
+	{
+		double length = sqrt(lengthSq);
+		mX /= length;
+		mY /= length;
+		mZ /= length;
+	}
+}
+
+MPoint operator+(const MPoint& lhs, const MPoint& rhs)
+{
+	return MPoint(lhs.mX + rhs.mX, lhs.mY + rhs.mY, lhs.mZ + rhs.mZ);
+}
+
 MPoint operator-(const MPoint& lhs, const MPoint& rhs)
 {
 	return MPoint(lhs.mX - rhs.mX, lhs.mY - rhs.mY, lhs.mZ - rhs.mZ);
@@ -49,6 +66,20 @@ MPoint operator-(const MPoint& lhs, const MPoint& rhs)
 MPoint operator-(const MPoint& pt)
 {
 	return MPoint(-pt.mX, -pt.mY, -pt.mZ);
+}
+
+MPoint operator*(const MPoint& pt, double f)
+{
+	MPoint result(pt);
+	result *= f;
+	return result;
+}
+
+MPoint operator/(const MPoint& pt, double f)
+{
+	MPoint result(pt);
+	result /= f;
+	return result;
 }
 
 //double Distance(const MPoint& a, const MPoint& b)
@@ -82,17 +113,17 @@ ostream& operator<<(ostream& os, const vector<MPoint>& pts)
 
 // --------------------------------------------------------------------
 
-double DotProduct(const MPoint& p1, const MPoint& p2)
-{
-	return p1.mX * p2.mX + p1.mY * p2.mY + p1.mZ * p2.mZ;
-}
-
-MPoint CrossProduct(const MPoint& p1, const MPoint& p2)
-{
-	return MPoint(p1.mY * p2.mZ - p2.mY * p1.mZ,
-				 p1.mZ * p2.mX - p2.mZ * p1.mX,
-				 p1.mX * p2.mY - p2.mX * p1.mY);
-}
+//double DotProduct(const MPoint& p1, const MPoint& p2)
+//{
+//	return p1.mX * p2.mX + p1.mY * p2.mY + p1.mZ * p2.mZ;
+//}
+//
+//MPoint CrossProduct(const MPoint& p1, const MPoint& p2)
+//{
+//	return MPoint(p1.mY * p2.mZ - p2.mY * p1.mZ,
+//				 p1.mZ * p2.mX - p2.mZ * p1.mX,
+//				 p1.mX * p2.mY - p2.mX * p1.mY);
+//}
 
 double DihedralAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3, const MPoint& p4)
 {
@@ -139,7 +170,7 @@ double CosinusAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3, const 
 tr1::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q)
 {
 	if (q.R_component_1() > 1)
-		q = normalize(q);
+		q = Normalize(q);
 
 	// angle:
 	double angle = 2 * acos(q.R_component_1());
@@ -353,7 +384,7 @@ MQuaternion AlignPoints(const vector<MPoint>& pa, const vector<MPoint>& pb)
 	
 	// NOTE the negation of the y here, why? Maybe I swapped r/c above?
 	MQuaternion q(cf(maxR, 0), cf(maxR, 1), -cf(maxR, 2), cf(maxR, 3));
-	q = normalize(q);
+	q = Normalize(q);
 	
 	return q;
 }

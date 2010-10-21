@@ -4,7 +4,6 @@
 
 #include <iomanip>
 #include <iostream>
-#include <boost/thread.hpp>
 #include <time.h>
 #if defined(_MSC_VER)
 #define TERM_WIDTH 80
@@ -12,6 +11,10 @@
 #include <termios.h>
 #include <sys/ioctl.h>
 #endif
+
+#include <boost/thread.hpp>
+#include <boost/foreach.hpp>
+#define foreach BOOST_FOREACH
 
 #include "utils.h"
 
@@ -122,3 +125,52 @@ void progress::run()
 			cout << '\r' << m_msg << " done" << string(width - m_msg.length() - 5, ' ') << endl;
 	}
 }
+
+// --------------------------------------------------------------------
+
+string decode(const sequence& s)
+{
+	string result;
+	result.reserve(s.length());
+	
+	foreach (aa a, s)
+		result.push_back(kAA[a]);
+
+	return result;
+}
+
+sequence encode(const string& s)
+{
+	static bool sInited = false;
+	static uint8 kAA_Reverse[256];
+	
+	if (not sInited)
+	{
+		// init global reverse mapping
+		for (uint32 a = 0; a < 256; ++a)
+			kAA_Reverse[a] = 255;
+		for (uint8 a = 0; a < sizeof(kAA); ++a)
+		{
+			kAA_Reverse[toupper(kAA[a])] = a;
+			kAA_Reverse[tolower(kAA[a])] = a;
+		}
+	}
+	
+	sequence result;
+	result.reserve(s.length());
+
+	foreach (char r, s)
+	{
+		if (r == '.' or r == '*' or r == '~')
+			r = '-';
+		
+		aa rc = kAA_Reverse[static_cast<uint8>(r)];
+		if (rc >= sizeof(kAA))
+			throw mas_exception(boost::format("invalid residue in sequence %1%") % r);
+
+		result.push_back(rc);
+	}
+	
+	return result;
+}
+

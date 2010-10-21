@@ -20,9 +20,9 @@ INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
 					  $(ZEEP_DIR) src/
 MAN_DIR				= $(DEST_DIR)man/man3
 
-BOOST_LIBS			= system thread regex filesystem program_options
+BOOST_LIBS			= system thread regex filesystem program_options date_time iostreams
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
-LIBS				= zeep mrsd $(BOOST_LIBS) z bz2 uuid 
+LIBS				= zeep $(BOOST_LIBS) z bz2 uuid 
 LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
@@ -52,6 +52,11 @@ mas: $(OBJECTS)
 	@ c++ -o $@ $(OBJECTS) $(LDOPTS)
 	@ echo OK
 
+dssp-2: obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
+	@ echo linking $@
+	@ c++ -o $@ $? $(LDOPTS)
+	@ echo OK
+
 obj/%.o: %.cpp
 	@ echo compiling $@
 	@ c++ -MD -c -o $@ $< $(CFLAGS)
@@ -74,3 +79,4 @@ install: mas
 make.config:
 	@echo "creating empty make.config file"
 	@echo "# Set local options for make here" > make.config
+
