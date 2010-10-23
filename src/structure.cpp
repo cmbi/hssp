@@ -504,14 +504,24 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
 		void operator()(const MPoint& a, const MPoint& b, double d, double r)
 		{
 			double distance = DistanceSquared(a, b);
-			double test = d + r + kRadiusWater + kRadiusWater;
+			
+			d += kRadiusWater;
+			r += kRadiusWater;
+			
+			double test = d + r;
 			test *= test;
 
 			if (distance < test and distance > 0.0001)
 			{
-cerr << "add " << (b - a) << endl;
+//cerr << "add " << (b - a) << endl;
 				m_x.push_back(b - a);
-				m_r.push_back(r);
+				m_r.push_back(r * r);
+				
+				if (m_r.back() > m_r.front())
+				{
+					swap(m_x.back(), m_x.front());
+					swap(m_r.back(), m_r.front());
+				}
 			}
 		}
 
@@ -524,7 +534,7 @@ cerr << "add " << (b - a) << endl;
 		if (r->AtomIntersectsBox(inAtom, inRadius))
 //		if (Distance(r->mCA, inAtom) < 10.0 + 2 * kRadiusWater)
 		{
-cerr << "add residue " << r->mNumber << endl;
+//cerr << "add residue " << r->mNumber << endl;
 			accumulate(inAtom, r->mN, inRadius, kRadiusN);
 			accumulate(inAtom, r->mCA, inRadius, kRadiusCA);
 			accumulate(inAtom, r->mC, inRadius, kRadiusC);
@@ -542,15 +552,11 @@ cerr << "add residue " << r->mNumber << endl;
 	{
 		MPoint xx = inPolyeder[i] * radius;
 		
-		bool one = true;
-		for (uint32 k = 0; one and k < accumulate.m_x.size(); ++k)
-		{
-			double d = accumulate.m_r[k] + kRadiusWater;
-			d *= d;
-			one = DistanceSquared(xx, accumulate.m_x[k]) >= d;
-		}
+		bool free = true;
+		for (uint32 k = 0; free and k < accumulate.m_x.size(); ++k)
+			free = DistanceSquared(xx, accumulate.m_x[k]) >= accumulate.m_r[k];
 		
-		if (one)
+		if (free)
 			surface += inWeights[i];
 	}
 	
