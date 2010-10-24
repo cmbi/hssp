@@ -496,38 +496,51 @@ double MResidue::CalculateSurface(const vector<MPoint>& inPolyeder,
 	return surface;
 }
 
+class MAccumulator
+{
+  public:
+
+	struct candidate
+	{
+		MPoint	location;
+		double	radius;
+		double	distance;
+		
+		bool operator<(const candidate& rhs) const
+				{ return distance < rhs.distance; }
+	};
+	
+	void operator()(const MPoint& a, const MPoint& b, double d, double r)
+	{
+		double distance = DistanceSquared(a, b);
+		
+		d += kRadiusWater;
+		r += kRadiusWater;
+		
+		double test = d + r;
+		test *= test;
+
+		if (distance < test and distance > 0.0001)
+		{
+			candidate c = { b - a, r * r, distance };
+			
+			m_x.push_back(c);
+			push_heap(m_x.begin(), m_x.end());
+		}
+	}
+	
+	void sort()
+	{
+		sort_heap(m_x.begin(), m_x.end());
+	}
+
+	vector<candidate>	m_x;
+};
+
 double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
 	const vector<MPoint>& inPolyeder, const vector<double>& inWeights, const vector<MResidue*>& inResidues)
 {
-	struct
-	{
-		void operator()(const MPoint& a, const MPoint& b, double d, double r)
-		{
-			double distance = DistanceSquared(a, b);
-			
-			d += kRadiusWater;
-			r += kRadiusWater;
-			
-			double test = d + r;
-			test *= test;
-
-			if (distance < test and distance > 0.0001)
-			{
-//cerr << "add " << (b - a) << endl;
-				m_x.push_back(b - a);
-				m_r.push_back(r * r);
-				
-				if (m_r.back() > m_r.front())
-				{
-					swap(m_x.back(), m_x.front());
-					swap(m_r.back(), m_r.front());
-				}
-			}
-		}
-
-		vector<MPoint>	m_x;
-		vector<double>	m_r;
-	} accumulate;
+	MAccumulator accumulate;
 	
 	foreach (MResidue* r, inResidues)
 	{
@@ -545,6 +558,8 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
 		}
 	}
 
+	accumulate.sort();
+
 	double radius = inRadius + kRadiusWater;
 	double surface = 0;
 	
@@ -554,7 +569,7 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
 		
 		bool free = true;
 		for (uint32 k = 0; free and k < accumulate.m_x.size(); ++k)
-			free = DistanceSquared(xx, accumulate.m_x[k]) >= accumulate.m_r[k];
+			free = DistanceSquared(xx, accumulate.m_x[k].location) >= accumulate.m_x[k].radius;
 		
 		if (free)
 			surface += inWeights[i];
