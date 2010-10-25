@@ -362,7 +362,7 @@ class MProtein
 	std::vector<MChain*>mChains;
 	uint32				mResidueCount;
 	
-	std::vector<std::pair<MResidueID,MResidueID>>
+	std::vector<std::pair<MResidueID,MResidueID> >
 						mSSBonds;
 	
 	// statistics

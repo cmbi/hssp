@@ -12,6 +12,7 @@
 #include <sys/ioctl.h>
 #endif
 
+#include <boost/bind.hpp>
 #include <boost/thread.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH

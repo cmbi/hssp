@@ -22,14 +22,14 @@ MAN_DIR				= $(DEST_DIR)man/man3
 
 BOOST_LIBS			= system thread regex filesystem program_options date_time iostreams
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
-LIBS				= zeep $(BOOST_LIBS) z bz2 uuid 
+LIBS				= $(BOOST_LIBS) z bz2 # uuid zeep
 LDOPTS				= $(LIB_DIR:%=-L%)
-LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
+LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 # -pthread
 
 CC					?= c++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
-					  -iquote ./ -gdwarf-2 -fPIC -pthread -Wall -Wno-multichar -std=c++0x
-OPT					= -O3 -DNDEBUG -mtune=core2 -march=core2
+					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar # -pthread -std=c++0x
+OPT					= -O3 -DNDEBUG # -mtune=core2 -march=core2
 
 include make.config
 
@@ -39,6 +39,7 @@ VPATH += src
 
 OBJECTS = \
 	obj/align-3d.o \
+	obj/dssp.o \
 	obj/guide.o \
 	obj/ioseq.o \
 	obj/mas.o \
@@ -54,7 +55,7 @@ mas: $(OBJECTS)
 
 dssp-2: obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
 	@ echo linking $@
-	@ c++ -o $@ $? $(LDOPTS)
+	@ c++ -o $@ $(LDOPTS) $^
 	@ echo OK
 
 obj/%.o: %.cpp

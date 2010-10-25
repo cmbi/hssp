@@ -6,6 +6,7 @@
 #include <numeric>
 #include <functional>
 
+#include <boost/bind.hpp>
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
@@ -83,10 +84,14 @@ MPolyeder::MPolyeder(int inOrder)
 	const double kXVertex = 0, kYVertex = 0.8506508, kZVertex = 0.5257311;
 	
 	const MPoint v[12] = {
-		{ kXVertex, -kYVertex, -kZVertex }, { -kZVertex, kXVertex, -kYVertex }, { -kYVertex, -kZVertex, kXVertex },
-		{ kXVertex, -kYVertex,  kZVertex }, {  kZVertex, kXVertex, -kYVertex }, { -kYVertex,  kZVertex, kXVertex },
-		{ kXVertex,  kYVertex, -kZVertex }, { -kZVertex, kXVertex,  kYVertex }, {  kYVertex, -kZVertex, kXVertex },
-		{ kXVertex,  kYVertex,  kZVertex }, {  kZVertex, kXVertex,  kYVertex }, {  kYVertex,  kZVertex, kXVertex },
+		MPoint(kXVertex, -kYVertex, -kZVertex), MPoint(-kZVertex, kXVertex, -kYVertex), MPoint(-kYVertex, -kZVertex, kXVertex),
+		MPoint(kXVertex, -kYVertex,  kZVertex), MPoint( kZVertex, kXVertex, -kYVertex), MPoint(-kYVertex,  kZVertex, kXVertex),
+		MPoint(kXVertex,  kYVertex, -kZVertex), MPoint(-kZVertex, kXVertex,  kYVertex), MPoint( kYVertex, -kZVertex, kXVertex),
+		MPoint(kXVertex,  kYVertex,  kZVertex), MPoint( kZVertex, kXVertex,  kYVertex), MPoint( kYVertex,  kZVertex, kXVertex),
+//		{ kXVertex, -kYVertex, -kZVertex }, { -kZVertex, kXVertex, -kYVertex }, { -kYVertex, -kZVertex, kXVertex },
+//		{ kXVertex, -kYVertex,  kZVertex }, {  kZVertex, kXVertex, -kYVertex }, { -kYVertex,  kZVertex, kXVertex },
+//		{ kXVertex,  kYVertex, -kZVertex }, { -kZVertex, kXVertex,  kYVertex }, {  kYVertex, -kZVertex, kXVertex },
+//		{ kXVertex,  kYVertex,  kZVertex }, {  kZVertex, kXVertex,  kYVertex }, {  kYVertex,  kZVertex, kXVertex },
 	};
 	
 	for (uint32 i = 0; i < 10; ++i)
@@ -775,7 +780,7 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius, const ve
 		
 		bool free = true;
 		for (uint32 k = 0; free and k < accumulate.m_x.size(); ++k)
-			free = DistanceSquared(xx, accumulate.m_x[k].location) >= accumulate.m_x[k].radius;
+			free = accumulate.m_x[k].radius < DistanceSquared(xx, accumulate.m_x[k].location);
 		
 		if (free)
 			surface += polyeder.GetWeight(i);
@@ -821,7 +826,7 @@ void MResidue::WritePDB(std::ostream& os)
 	mC.WritePDB(os);
 	mO.WritePDB(os);
 	
-	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::WritePDB, _1, ref(os)));
+	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::WritePDB, _1, boost::ref(os)));
 }
 
 // --------------------------------------------------------------------
@@ -850,7 +855,7 @@ void MChain::Rotate(const MQuaternion& inRotation)
 
 void MChain::WritePDB(std::ostream& os)
 {
-	for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::WritePDB, _1, ref(os)));
+	for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::WritePDB, _1, boost::ref(os)));
 	
 	boost::format ter("TER    %4.4d      %3.3s %c%4.4d%c");
 	
@@ -1077,7 +1082,7 @@ void MProtein::GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
 	outNrOfSSBridges = mSSBonds.size();
 	
 	outNrOfIntraChainSSBridges = 0;
-	for (vector<pair<MResidueID,MResidueID>>::const_iterator ri = mSSBonds.begin(); ri != mSSBonds.end(); ++ri)
+	for (vector<pair<MResidueID,MResidueID> >::const_iterator ri = mSSBonds.begin(); ri != mSSBonds.end(); ++ri)
 	{
 		if (ri->first.chain == ri->second.chain)
 			++outNrOfIntraChainSSBridges;
