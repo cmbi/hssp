@@ -194,9 +194,78 @@ MResidueType MapResidue(string inName)
 
 // --------------------------------------------------------------------
 
-inline double ParseFloat(const string& s)
+double ParseFloat(const string& s)
 {
-	return boost::lexical_cast<double>(ba::trim_copy(s));
+	double result = 0;
+	bool negate = false;
+	double div = 10;
+	
+	enum State {
+		pStart, pSign, pFirst, pSecond
+	} state = pStart;
+	
+	for (string::const_iterator ch = s.begin(); ch != s.end(); ++ch)
+	{
+		switch (state)
+		{
+			case pStart:
+				if (isspace(*ch))
+					continue;
+				if (*ch == '-')
+				{
+					negate = true;
+					state = pSign;
+				}
+				else if (*ch == '+')
+					state = pSign;
+				else if (*ch == '.')
+					state = pSecond;
+				else if (isdigit(*ch))
+				{
+					result = *ch - '0';
+					state = pFirst;
+				}
+				else
+					throw mas_exception(boost::format("invalid formatted floating point number '%1%'") % s);
+				break;
+			
+			case pSign:
+				if (*ch == '.')
+					state = pSecond;
+				else if (isdigit(*ch))
+				{
+					state = pFirst;
+					result = *ch - '0';
+				}
+				else
+					throw mas_exception(boost::format("invalid formatted floating point number '%1%'") % s);
+				break;
+			
+			case pFirst:
+				if (*ch == '.')
+					state = pSecond;
+				else if (isdigit(*ch))
+					result = 10 * result + (*ch - '0');
+				else
+					throw mas_exception(boost::format("invalid formatted floating point number '%1%'") % s);
+				break;
+			
+			case pSecond:
+				if (isdigit(*ch))
+				{
+					result += (*ch - '0') / div;
+					div *= 10;
+				}
+				else
+					throw mas_exception(boost::format("invalid formatted floating point number '%1%'") % s);
+				break;
+		}
+	}
+	
+	if (negate)
+		result = -result;
+	
+	return result;
 }
 
 void MAtom::WritePDB(ostream& os) const
@@ -353,6 +422,16 @@ MResidue::MResidue(MChain& chain, uint32 inNumber,
 	ExtendBox(mO, kRadiusO + 2 * kRadiusWater);
 	foreach (const MAtom& atom, mSideChain)
 		ExtendBox(atom, kRadiusSideAtom + 2 * kRadiusWater);
+	
+	mRadius = mBox[1].mX - mBox[0].mX;
+	if (mRadius < mBox[1].mY - mBox[0].mY)
+		mRadius = mBox[1].mY - mBox[0].mY;
+	if (mRadius < mBox[1].mZ - mBox[0].mZ)
+		mRadius = mBox[1].mZ - mBox[0].mZ;
+	
+	mCenter.mX = (mBox[0].mX + mBox[1].mX) / 2;
+	mCenter.mY = (mBox[0].mY + mBox[1].mY) / 2;
+	mCenter.mZ = (mBox[0].mZ + mBox[1].mZ) / 2;
 }
 
 void MResidue::SetChainID(char inID)
@@ -580,23 +659,21 @@ bool MResidue::AtomIntersectsBox(const MAtom& atom, double inRadius) const
 		atom.mLoc.mZ + inRadius >= mBox[0].mZ and atom.mLoc.mZ - inRadius <= mBox[1].mZ;	
 }
 
-//struct stats
-//{
-//	stats() : m_max(0), m_count(0), m_cumm(0) {}
-//	~stats() { if (VERBOSE) cerr << endl << "max: " << m_max << " count: " << m_count << " average: " << (m_cumm / m_count) << endl; }
-//	
-//	void operator()(uint32 i)
-//	{
-//		if (m_max < i)
-//			m_max = i;
-//		++m_count;
-//		m_cumm += i;
-//	}
-//	
-//	uint32 m_max, m_count, m_cumm;
-//};
-//
-//stats g_neighbourcounter;
+struct stats
+{
+	stats() : m_max(0), m_count(0), m_cumm(0) {}
+	~stats() { if (VERBOSE) cerr << endl << "max: " << m_max << " count: " << m_count << " average: " << (m_cumm / m_count) << endl; }
+	
+	void operator()(uint32 i)
+	{
+		if (m_max < i)
+			m_max = i;
+		++m_count;
+		m_cumm += i;
+	}
+	
+	uint32 m_max, m_count, m_cumm;
+};
 
 void MResidue::CalculateSurface(const vector<MResidue*>& inResidues)
 {
@@ -604,15 +681,18 @@ void MResidue::CalculateSurface(const vector<MResidue*>& inResidues)
 	
 	foreach (MResidue* r, inResidues)
 	{
-		if (mBox[1].mX >= r->mBox[0].mX and mBox[0].mX <= mBox[1].mX and
-			mBox[1].mY >= r->mBox[0].mY and mBox[0].mY <= mBox[1].mY and
-			mBox[1].mZ >= r->mBox[0].mZ and mBox[0].mZ <= mBox[1].mZ)
+		MPoint center;
+		double radius;
+		r->GetCenterAndRadius(center, radius);
+		
+		if (Distance(mCenter, center) < mRadius + radius)
 		{
 			neighbours.push_back(r);
 		}
 	}
 	
-//	g_neighbourcounter(neighbours.size());
+	static stats s_neighbourcounter;
+	s_neighbourcounter(neighbours.size());
 	
 	mAccessibility = CalculateSurface(mN, kRadiusN, neighbours) +
 					 CalculateSurface(mCA, kRadiusCA, neighbours) +
@@ -746,6 +826,12 @@ void MResidue::WritePDB(std::ostream& os)
 
 // --------------------------------------------------------------------
 
+MChain::~MChain()
+{
+	foreach (MResidue* residue, mResidues)
+		delete residue;
+}
+
 void MChain::SetChainID(char inID)
 {
 	mChainID = inID;
@@ -811,19 +897,22 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 
 		if (ba::starts_with(line, "COMPND"))
 		{
-			mCompound.push_back(ba::trim_copy(line));
+			ba::trim(line);
+			mCompound.push_back(line);
 			continue;
 		}
 
 		if (ba::starts_with(line, "SOURCE"))
 		{
-			mSource.push_back(ba::trim_copy(line));
+			ba::trim(line);
+			mSource.push_back(line);
 			continue;
 		}
 		
 		if (ba::starts_with(line, "AUTHOR"))
 		{
-			mAuthor.push_back(ba::trim_copy(line));
+			ba::trim(line);
+			mAuthor.push_back(line);
 			continue;
 		}
 		
@@ -932,6 +1021,15 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 	mChains.erase(
 		remove_if(mChains.begin(), mChains.end(), boost::bind(&MChain::Empty, _1)),
 		mChains.end());
+	
+	if (mChains.empty())
+		throw mas_exception("empty protein, or no valid complete residues");
+}
+
+MProtein::~MProtein()
+{
+	foreach (MChain* chain, mChains)
+		delete chain;
 }
 
 string MProtein::GetCompound() const
@@ -1587,6 +1685,20 @@ void MProtein::GetSequence(char inChain, entry& outEntry) const
 	{
 		seq += kResidueInfo[r->GetType()].code;
 		outEntry.m_positions.push_back(r->GetSeqNumber());
+		
+		char ss;
+		switch (r->GetSecondaryStructure())
+		{
+			case alphahelix:	ss = 'H'; break;
+			case betabridge:	ss = 'B'; break;
+			case strand:		ss = 'E'; break;
+			case helix_3:		ss = 'G'; break;
+			case helix_5:		ss = 'I'; break;
+			case turn:			ss = 'T'; break;
+			case bend:			ss = 'S'; break;
+			case loop:			ss = ' '; break;
+		}
+		outEntry.m_ss += ss;
 	}
 	
 	outEntry.m_seq = encode(seq);

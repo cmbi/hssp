@@ -83,7 +83,7 @@ void align_points_iterative(
 	
 	outRotation = AlignPoints(cAlphaA, cAlphaB);
 	foreach (MPoint& pt, cAlphaB)
-		pt.rotate(outRotation);
+		pt.Rotate(outRotation);
 
 	double angle; MPoint axis;
 	tr1::tie(angle, axis) = QuaternionToAngleAxis(outRotation);
@@ -288,7 +288,7 @@ void align_proteins(MProtein& a, char chainA, MProtein& b, char chainB,
 	
 	rotation = AlignPoints(cAlphaA, cAlphaB);
 	foreach (MPoint& pt, cAlphaB)
-		pt.rotate(rotation);
+		pt.Rotate(rotation);
 
 	double angle; MPoint axis;
 	tr1::tie(angle, axis) = QuaternionToAngleAxis(rotation);
@@ -484,90 +484,3 @@ void align_structures(const string& structureA, const string& structureB,
 	c.WritePDB(file_o);
 }
 
-// --------------------------------------------------------------------
-
-class CStopwatch
-{
-  public:
-			CStopwatch(double& ioAccumulator);
-			~CStopwatch();
-
-  private:
-	double&			fAccumulator;
-	struct rusage	fStartTime;
-};
-
-CStopwatch::CStopwatch(double& ioAccumulator)
-	: fAccumulator(ioAccumulator)
-{
-	getrusage(RUSAGE_SELF, &fStartTime);
-}
-
-CStopwatch::~CStopwatch()
-{
-	struct rusage stop;
-	getrusage(RUSAGE_SELF, &stop);
-	
-	fAccumulator += (stop.ru_utime.tv_sec - fStartTime.ru_utime.tv_sec);
-	fAccumulator += 0.000001 * (stop.ru_utime.tv_usec - fStartTime.ru_utime.tv_usec);
-}
-
-ostream& operator<<(ostream& inStream, const struct timeval& t)
-{
-	uint32 hours = t.tv_sec / 3600;
-	uint32 minutes = ((t.tv_sec % 3600) / 60);
-	uint32 seconds = t.tv_sec % 60;
-	
-	uint32 milliseconds = t.tv_usec / 1000;
-	
-	inStream << hours << ':'
-			 << setw(2) << setfill('0') << minutes << ':'
-			 << setw(2) << setfill('0') << seconds << '.'
-			 << setw(3) << setfill('0') << milliseconds;
-	
-	return inStream;
-}
-
-static void PrintStatistics()
-{
-	struct rusage ru = {} ;
-	
-	if (getrusage(RUSAGE_SELF, &ru) < 0)
-		cerr << "Error calling getrusage" << endl;
-	
-	cerr << "Total time user:    " << ru.ru_utime << endl;
-	cerr << "Total time system:  " << ru.ru_stime << endl;
-	cerr << "I/O operations in:  " << ru.ru_inblock << endl;
-	cerr << "I/O operations out: " << ru.ru_oublock << endl;
-}	
-
-
-void test_ss(const string& inID)
-{
-	CDatabankPtr pdb = LoadDatabank("pdb");
-	
-	stringstream file(pdb->GetDocument(inID));
-	
-	double timer;
-	
-	{
-		CStopwatch sw(timer);
-		MProtein a(file, false);
-		a.CalculateSecondaryStructure();
-
-		a.WriteDSSP(cout);
-//		a.WritePDB(cout);
-	}
-
-	if (VERBOSE)
-	{
-		struct timeval t;
-		
-		t.tv_sec = static_cast<uint32>(timer);
-		t.tv_usec = static_cast<uint32>(timer * 1000000.0) % 1000000;
-		
-		cerr << "Calculating secondary structure: " << t << endl;
-	
-		PrintStatistics();
-	}
-}

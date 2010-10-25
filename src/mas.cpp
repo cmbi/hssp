@@ -515,15 +515,9 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 					case 'H':
 					case 'G':
 					case 'I':
-						residue_specific_penalty[ix] += 3.0f;
-						break;
-
 					case 'B':
-						residue_specific_penalty[ix] += 2.0f;
-						break;
-
 					case 'E':
-						residue_specific_penalty[ix] += 1.5f;
+						residue_specific_penalty[ix] += 3.0f;
 						break;
 
 					default:
@@ -941,7 +935,8 @@ int main(int argc, char* argv[])
 		po::options_description desc("mas options");
 		desc.add_options()
 			("help,h",							 "Display help message")
-			("input,i",		po::value<string>(), "Input file")
+			("input,i",		po::value<vector<string>>(),
+												"Input file(s)")
 			("outfile,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("format,f",	po::value<string>(), "Output format, can be clustalw (default) or fasta")
 			("outtree",		po::value<string>(), "Write guide tree")
@@ -959,7 +954,6 @@ int main(int argc, char* argv[])
 			("3d-b",		po::value<string>(), "Align-3d file B")
 			("iterations,I",po::value<uint32>(), "Number of iterations in 3d alignment")
 			("ss",								 "Read secondary structure files")
-			("dssp",		po::value<string>(), "Create DSSP for <pdbid>")
 			;
 	
 		po::positional_options_description p;
@@ -975,25 +969,6 @@ int main(int argc, char* argv[])
 
 		if (vm.count("no-threads"))
 			MULTI_THREADED = 0;
-		
-		if (vm.count("dssp"))
-		{
-			streambuf* outBuffer = NULL;
-			ofstream of;
-			
-			if (vm.count("outfile"))
-			{
-				of.open(vm["outfile"].as<string>().c_str(), ios::out|ios::trunc);
-				outBuffer = cout.rdbuf(of.rdbuf());
-			}
-			
-			test_ss(vm["dssp"].as<string>());
-			
-			if (outBuffer != NULL)
-				cout.rdbuf(outBuffer);
-			
-			exit(0);
-		}
 		
 		if (vm.count("help") or (vm.count("input") == 0 and vm.count("3d-a") == 0))
 		{
@@ -1053,21 +1028,23 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			path = vm["input"].as<string>();
-
-			if (path.extension() == ".hssp" or chain != 0)
-				readAlignmentFromHsspFile(path, chain, data);
-			else if (path.extension() == ".mapping")
-				readWhatifMappingFile(path, data);
-			else if (path.extension() == ".ids")
-				readFamilyIdsFile(path, data);
-			else
-				readFasta(path, data);
-			
-			if (vm.count("ss"))
-				readSecStruct(data);
+			foreach (const string& i, vm["input"].as<vector<string>>())
+			{
+				path = i;
+	
+				if (path.extension() == ".hssp" or chain != 0)
+					readAlignmentFromHsspFile(path, chain, data);
+				else if (path.extension() == ".mapping")
+					readWhatifMappingFile(path, data);
+				else if (path.extension() == ".ids")
+					readFamilyIdsFile(path, data);
+				else if (path.extension() == "pdb" or (ba::starts_with(path.leaf(), "pdb") and path.extension() == ".ent"))
+					readPDB(path, data);
+				else
+					readFasta(path, data);
+			}
 		}
-		
+
 		if (vm.count("ignore-pos-nr"))
 			for_each(data.begin(), data.end(), boost::bind(&entry::dump_positions, _1));
 		

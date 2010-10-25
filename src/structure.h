@@ -223,6 +223,9 @@ class MResidue
 
 	void				CalculateSurface(const std::vector<MResidue*>& inResidues);
 
+	void				GetCenterAndRadius(MPoint& outCenter, double& outRadius) const
+													{ outCenter = mCenter; outRadius = mRadius; }
+
   protected:
 
 	double				CalculateSurface(
@@ -250,6 +253,8 @@ class MResidue
 	MHelixFlag			mHelixFlags[3];	//
 	bool				mBend;
 	MPoint				mBox[2];		// The 3D box containing all atoms
+	MPoint				mCenter;		// and the 3d Sphere containing all atoms
+	double				mRadius;
 };
 
 class MChain
@@ -257,6 +262,7 @@ class MChain
   public:
 
 						MChain(char inChainID = 0) : mChainID(inChainID) {}
+						~MChain();
 
 	char				GetChainID() const					{ return mChainID; }
 	void				SetChainID(char inID);
@@ -285,6 +291,7 @@ class MProtein
 {
   public:
 						MProtein() {}
+						~MProtein();
 
 	const std::string&	GetID() const					{ return mID; }
 						

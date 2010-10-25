@@ -15,6 +15,7 @@
 #include <boost/regex.hpp>
 #include <boost/date_time/local_time/local_time.hpp>
 
+#include "structure.h"
 #include "ioseq.h"
 #include "utils.h"
 
@@ -67,6 +68,20 @@ void readFasta(fs::path path, vector<entry>& seq)
 		
 		s += line;
 	}
+}
+
+void readPDB(fs::path path, vector<entry>& seq)
+{
+	fs::ifstream file(path);
+	if (not file.is_open())
+		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
+	
+	MProtein p(file);
+	char chainID = p.GetFirstChainID();
+	
+	entry e(seq.size(), p.GetID());
+	p.GetSequence(chainID, e);
+	seq.push_back(e);
 }
 
 void readAlignmentFromHsspFile(
