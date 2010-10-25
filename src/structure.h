@@ -9,6 +9,8 @@ class MResidue;
 class MChain;
 class MProtein;
 
+const uint32 kHistogramSize = 30;
+
 enum MAtomType
 {
 	kUnknownAtom,
@@ -159,7 +161,7 @@ class MResidue
 	double				Kappa() const;
 	double				TCO() const;
 	
-	uint32				Accessibility() const			{ return mAccessibility; }
+	double				Accessibility() const			{ return mAccessibility; }
 	
 	void				SetSecondaryStructure(MSecondaryStructure inSS)
 														{ mSecondaryStructure = inSS; }
@@ -219,16 +221,12 @@ class MResidue
 
 	void				GetPoints(std::vector<MPoint>& outPoints) const;
 
-	double				CalculateSurface(const std::vector<MPoint>& inPolyeder,
-							const std::vector<double>& inWeights,
-							const std::vector<MResidue*>& inResidues);
+	void				CalculateSurface(const std::vector<MResidue*>& inResidues);
 
   protected:
 
 	double				CalculateSurface(
 							const MAtom& inAtom, double inRadius,
-							const std::vector<MPoint>& inPolyeder,
-							const std::vector<double>& inWeights,
 							const std::vector<MResidue*>& inResidues);
 
 	bool				TestBond(const MResidue* other) const;
@@ -242,7 +240,7 @@ class MResidue
 	int32				mSeqNumber, mNumber;
 	MResidueType		mType;
 	uint8				mSSBridgeNr;
-	uint32				mAccessibility;
+	double				mAccessibility;
 	MSecondaryStructure	mSecondaryStructure;
 	MAtom				mC, mN, mCA, mO, mH;
 	HBond				mHBondDonor[2], mHBondAcceptor[2];
@@ -300,10 +298,11 @@ class MProtein
 	void				CalculateSecondaryStructure();
 	void				CalculateSSBridges();
 	
-	double				GetAccessibleSurface() const	{ return mAccessibleSurface; }
+//	double				GetAccessibleSurface() const	{ return mAccessibleSurface; }
 	
 	void				GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
-							uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges) const;
+							uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges,
+							uint32& outNrOfHBonds, uint32 outNrOfHBondsPerDistance[11]) const;
 	
 	void				GetCAlphaLocations(char inChain, std::vector<MPoint>& outPoints) const;
 	MPoint				GetCAlphaPosition(char inChain, int16 inPDBResSeq) const;
@@ -332,6 +331,15 @@ class MProtein
 	const std::vector<MChain*>&
 						GetChains() const									{ return mChains; }
 
+	// statistics
+	uint32				GetNrOfHBondsInParallelBridges() const				{ return mNrOfHBondsInParallelBridges; }
+	uint32				GetNrOfHBondsInAntiparallelBridges() const			{ return mNrOfHBondsInAntiparallelBridges; }
+
+	void				GetResiduesPerAlphaHelixHistogram(uint32 outHistogram[30]) const;
+	void				GetParallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
+	void				GetAntiparallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
+	void				GetLaddersPerSheetHistogram(uint32 outHistogram[30]) const;
+	
   private:
 
 	void				AddResidue(const std::vector<MAtom>& inAtoms);
@@ -346,8 +354,13 @@ class MProtein
 						mCompound, mSource, mAuthor;
 	std::vector<MChain*>mChains;
 	uint32				mResidueCount;
-	double				mAccessibleSurface;
 	
 	std::vector<std::pair<MResidueID,MResidueID>>
 						mSSBonds;
+	
+	// statistics
+	uint32				mNrOfHBondsInParallelBridges, mNrOfHBondsInAntiparallelBridges;
+	uint32				mParallelBridgesPerLadderHistogram[kHistogramSize];
+	uint32				mAntiparallelBridgesPerLadderHistogram[kHistogramSize];
+	uint32				mLaddersPerSheetHistogram[kHistogramSize];
 };

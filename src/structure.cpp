@@ -40,6 +40,106 @@ const double
 
 // --------------------------------------------------------------------
 
+namespace
+{
+
+class MPolyeder
+{
+  public:
+	static MPolyeder&	Instance();
+	
+	const MPoint&		GetPoint(uint32 ix) const		{ return mPoints[ix]; }
+	double				GetWeight(uint32 ix) const		{ return mWeights[ix]; }
+	uint32				GetSize() const					{ return mPoints.size(); }
+	
+  private:
+						MPolyeder(int inOrder);
+
+	void				CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level);
+
+	vector<MPoint>		mPoints;
+	vector<double>		mWeights;
+};
+
+MPolyeder& MPolyeder::Instance()
+{
+	const uint32 kOrder = 2;
+	
+	static MPolyeder sPolyeder(kOrder);
+	return sPolyeder;
+}
+
+MPolyeder::MPolyeder(int inOrder)
+{
+	uint32 r = 20;
+	for (uint32 i = inOrder; i > 0; --i)
+		r *= 4;
+	
+	mPoints.reserve(r);
+	mWeights.reserve(r);
+
+	// start by creating a icosahedron. Since this is constant, we can 
+	// one day insert the constant data here.
+	const double kXVertex = 0, kYVertex = 0.8506508, kZVertex = 0.5257311;
+	
+	const MPoint v[12] = {
+		{ kXVertex, -kYVertex, -kZVertex }, { -kZVertex, kXVertex, -kYVertex }, { -kYVertex, -kZVertex, kXVertex },
+		{ kXVertex, -kYVertex,  kZVertex }, {  kZVertex, kXVertex, -kYVertex }, { -kYVertex,  kZVertex, kXVertex },
+		{ kXVertex,  kYVertex, -kZVertex }, { -kZVertex, kXVertex,  kYVertex }, {  kYVertex, -kZVertex, kXVertex },
+		{ kXVertex,  kYVertex,  kZVertex }, {  kZVertex, kXVertex,  kYVertex }, {  kYVertex,  kZVertex, kXVertex },
+	};
+	
+	for (uint32 i = 0; i < 10; ++i)
+	{
+		for (uint32 j = i + 1; j < 11; ++j)
+		{
+			if (Distance(v[i], v[j]) < 1.1)
+			{
+				for (uint32 k = j + 1; k < 12; ++k)
+				{
+					if (Distance(v[i], v[k]) < 1.1 and Distance(v[j], v[k]) < 1.1)
+						CreateTriangle(v[i], v[j], v[k], inOrder);
+				}
+			}
+		}
+	}
+	
+	double a = std::accumulate(mWeights.begin(), mWeights.end(), 0.0);
+	a = 4 * kPI / a;
+	transform(mWeights.begin(), mWeights.end(), mWeights.begin(), boost::bind(multiplies<double>(), _1, a));
+}
+
+void MPolyeder::CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level)
+{
+	if (level > 0)
+	{
+		--level;
+		MPoint p4 = p1 + p2;	p4.Normalize();
+		MPoint p5 = p2 + p3;	p5.Normalize();
+		MPoint p6 = p3 + p1;	p6.Normalize();
+		
+		CreateTriangle(p1, p4, p6, level);
+		CreateTriangle(p4, p2, p5, level);
+		CreateTriangle(p4, p5, p6, level);
+		CreateTriangle(p5, p3, p6, level);
+	}
+	else
+	{
+		MPoint p = p1 + p2 + p3;
+		p.Normalize();
+		mPoints.push_back(p);
+		
+		p = CrossProduct(p3 - p1, p2 - p1);
+
+		double l = p.Normalize();
+		mWeights.push_back(l / 2);
+	}
+}
+	
+}
+
+// --------------------------------------------------------------------
+
 MAtomType MapElement(string inElement)
 {
 	ba::trim(inElement);
@@ -480,20 +580,47 @@ bool MResidue::AtomIntersectsBox(const MAtom& atom, double inRadius) const
 		atom.mLoc.mZ + inRadius >= mBox[0].mZ and atom.mLoc.mZ - inRadius <= mBox[1].mZ;	
 }
 
-double MResidue::CalculateSurface(const vector<MPoint>& inPolyeder,
-	const vector<double>& inWeights, const vector<MResidue*>& inResidues)
+//struct stats
+//{
+//	stats() : m_max(0), m_count(0), m_cumm(0) {}
+//	~stats() { if (VERBOSE) cerr << endl << "max: " << m_max << " count: " << m_count << " average: " << (m_cumm / m_count) << endl; }
+//	
+//	void operator()(uint32 i)
+//	{
+//		if (m_max < i)
+//			m_max = i;
+//		++m_count;
+//		m_cumm += i;
+//	}
+//	
+//	uint32 m_max, m_count, m_cumm;
+//};
+//
+//stats g_neighbourcounter;
+
+void MResidue::CalculateSurface(const vector<MResidue*>& inResidues)
 {
-	double surface = CalculateSurface(mN, kRadiusN, inPolyeder, inWeights, inResidues) +
-					 CalculateSurface(mCA, kRadiusCA, inPolyeder, inWeights, inResidues) +
-					 CalculateSurface(mC, kRadiusC, inPolyeder, inWeights, inResidues) +
-					 CalculateSurface(mO, kRadiusO, inPolyeder, inWeights, inResidues);
+	vector<MResidue*> neighbours;
+	
+	foreach (MResidue* r, inResidues)
+	{
+		if (mBox[1].mX >= r->mBox[0].mX and mBox[0].mX <= mBox[1].mX and
+			mBox[1].mY >= r->mBox[0].mY and mBox[0].mY <= mBox[1].mY and
+			mBox[1].mZ >= r->mBox[0].mZ and mBox[0].mZ <= mBox[1].mZ)
+		{
+			neighbours.push_back(r);
+		}
+	}
+	
+//	g_neighbourcounter(neighbours.size());
+	
+	mAccessibility = CalculateSurface(mN, kRadiusN, neighbours) +
+					 CalculateSurface(mCA, kRadiusCA, neighbours) +
+					 CalculateSurface(mC, kRadiusC, neighbours) +
+					 CalculateSurface(mO, kRadiusO, neighbours);
 	
 	foreach (const MAtom& atom, mSideChain)
-		surface += CalculateSurface(atom, kRadiusSideAtom, inPolyeder, inWeights, inResidues);
-
-	mAccessibility = floor(surface + 0.5);
-	
-	return surface;
+		mAccessibility += CalculateSurface(atom, kRadiusSideAtom, neighbours);
 }
 
 class MAccumulator
@@ -537,17 +664,14 @@ class MAccumulator
 	vector<candidate>	m_x;
 };
 
-double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
-	const vector<MPoint>& inPolyeder, const vector<double>& inWeights, const vector<MResidue*>& inResidues)
+double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius, const vector<MResidue*>& inResidues)
 {
 	MAccumulator accumulate;
 	
 	foreach (MResidue* r, inResidues)
 	{
 		if (r->AtomIntersectsBox(inAtom, inRadius))
-//		if (Distance(r->mCA, inAtom) < 10.0 + 2 * kRadiusWater)
 		{
-//cerr << "add residue " << r->mNumber << endl;
 			accumulate(inAtom, r->mN, inRadius, kRadiusN);
 			accumulate(inAtom, r->mCA, inRadius, kRadiusCA);
 			accumulate(inAtom, r->mC, inRadius, kRadiusC);
@@ -563,16 +687,18 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius,
 	double radius = inRadius + kRadiusWater;
 	double surface = 0;
 	
-	for (uint32 i = 0; i < inPolyeder.size(); ++i)
+	MPolyeder& polyeder = MPolyeder::Instance();
+	
+	for (uint32 i = 0; i < polyeder.GetSize(); ++i)
 	{
-		MPoint xx = inPolyeder[i] * radius;
+		MPoint xx = polyeder.GetPoint(i) * radius;
 		
 		bool free = true;
 		for (uint32 k = 0; free and k < accumulate.m_x.size(); ++k)
 			free = DistanceSquared(xx, accumulate.m_x[k].location) >= accumulate.m_x[k].radius;
 		
 		if (free)
-			surface += inWeights[i];
+			surface += polyeder.GetWeight(i);
 	}
 	
 	return surface * radius * radius;
@@ -660,7 +786,13 @@ MResidue& MChain::GetResidueBySeqNumber(uint16 inSeqNumber)
 
 MProtein::MProtein(istream& is, bool cAlphaOnly)
 	: mResidueCount(0)
+	, mNrOfHBondsInParallelBridges(0)
+	, mNrOfHBondsInAntiparallelBridges(0)
 {
+	fill(mParallelBridgesPerLadderHistogram, mParallelBridgesPerLadderHistogram + kHistogramSize, 0);
+	fill(mAntiparallelBridgesPerLadderHistogram, mAntiparallelBridgesPerLadderHistogram + kHistogramSize, 0);
+	fill(mLaddersPerSheetHistogram, mLaddersPerSheetHistogram + kHistogramSize, 0);
+
 	bool model = false;
 	vector<MAtom> atoms;
 	
@@ -839,7 +971,8 @@ string MProtein::GetAuthor() const
 }
 
 void MProtein::GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
-	uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges) const
+	uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges,
+	uint32& outNrOfHBonds, uint32 outNrOfHBondsPerDistance[11]) const
 {
 	outNrOfResidues = mResidueCount;
 	outNrOfChains = mChains.size();
@@ -851,6 +984,66 @@ void MProtein::GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
 		if (ri->first.chain == ri->second.chain)
 			++outNrOfIntraChainSSBridges;
 	}
+	
+	outNrOfHBonds = 0;
+	foreach (const MChain* chain, mChains)
+	{
+		foreach (const MResidue* r, chain->GetResidues())
+		{
+			const HBond* donor = r->Donor();
+			
+			for (uint32 i = 0; i < 2; ++i)
+			{
+				if (donor[i].residue != nil and donor[i].energy < kMaxHBondEnergy)
+				{
+					++outNrOfHBonds;
+					int32 k = donor[i].residue->GetNumber() - r->GetNumber();
+					if (k >= -5 and k <= 5)
+						outNrOfHBondsPerDistance[k + 5] += 1;
+				}
+			}
+		}
+	}
+}
+
+void MProtein::GetResiduesPerAlphaHelixHistogram(uint32 outHistogram[30]) const
+{
+	fill(outHistogram, outHistogram + 30, 0);
+
+	foreach (const MChain* chain, mChains)
+	{
+		uint32 helixLength = 0;
+		
+		foreach (const MResidue* r, chain->GetResidues())
+		{
+			if (r->GetSecondaryStructure() == alphahelix)
+				++helixLength;
+			else if (helixLength > 0)
+			{
+				--helixLength;
+				if (helixLength > kHistogramSize)
+					helixLength = kHistogramSize;
+				
+				outHistogram[helixLength] += 1;
+				helixLength = 0;
+			}
+		}
+	}
+}
+
+void MProtein::GetParallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const
+{
+	copy(mParallelBridgesPerLadderHistogram, mParallelBridgesPerLadderHistogram + kHistogramSize, outHistogram);
+}
+
+void MProtein::GetAntiparallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const
+{
+	copy(mAntiparallelBridgesPerLadderHistogram, mAntiparallelBridgesPerLadderHistogram + kHistogramSize, outHistogram);
+}
+
+void MProtein::GetLaddersPerSheetHistogram(uint32 outHistogram[30]) const
+{
+	copy(mLaddersPerSheetHistogram, mLaddersPerSheetHistogram + kHistogramSize, outHistogram);
 }
 
 void MProtein::AddResidue(const vector<MAtom>& inAtoms)
@@ -1189,7 +1382,18 @@ void MProtein::CalculateBetaSheets(std::vector<MResidue*> inResidues)
 	// Sheet
 	set<MBridge*> ladderset;
 	foreach (MBridge& bridge, bridges)
+	{
 		ladderset.insert(&bridge);
+		
+		uint32 n = bridge.i.size();
+		if (n > kHistogramSize)
+			n = kHistogramSize;
+		
+		if (bridge.type == btParallel)
+			mParallelBridgesPerLadderHistogram[n - 1] += 1;
+		else
+			mAntiparallelBridgesPerLadderHistogram[n - 1] += 1;
+	}
 	
 	uint32 sheet = 1, ladder = 0;
 	while (not ladderset.empty())
@@ -1228,6 +1432,14 @@ void MProtein::CalculateBetaSheets(std::vector<MResidue*> inResidues)
 			++ladder;
 		}
 		
+		uint32 nrOfLaddersPerSheet = sheetset.size();
+		if (nrOfLaddersPerSheet > kHistogramSize)
+			nrOfLaddersPerSheet = kHistogramSize;
+		if (nrOfLaddersPerSheet == 1 and (*sheetset.begin())->i.size() > 1)
+			mLaddersPerSheetHistogram[0] += 1;
+		else if (nrOfLaddersPerSheet > 1)
+			mLaddersPerSheetHistogram[nrOfLaddersPerSheet - 1] += 1;
+		
 		++sheet;
 	}
 
@@ -1262,6 +1474,8 @@ void MProtein::CalculateBetaSheets(std::vector<MResidue*> inResidues)
 		
 		if (bridge.type == btParallel)
 		{
+			mNrOfHBondsInParallelBridges += bridge.i.back() - bridge.i.front() + 2;
+			
 			deque<uint32>::iterator j = bridge.j.begin();
 			foreach (uint32 i, bridge.i)
 				inResidues[i]->SetBetaPartner(betai, inResidues[*j++], bridge.ladder, true);
@@ -1272,6 +1486,8 @@ void MProtein::CalculateBetaSheets(std::vector<MResidue*> inResidues)
 		}
 		else
 		{
+			mNrOfHBondsInAntiparallelBridges += bridge.i.back() - bridge.i.front() + 2;
+
 			deque<uint32>::reverse_iterator j = bridge.j.rbegin();
 			foreach (uint32 i, bridge.i)
 				inResidues[i]->SetBetaPartner(betai, inResidues[*j++], bridge.ladder, false);
@@ -1297,76 +1513,13 @@ void MProtein::CalculateBetaSheets(std::vector<MResidue*> inResidues)
 	}
 }
 
-void CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level,
-	vector<MPoint>& outPolyeders, vector<double>& outWeights)
-{
-	if (level > 0)
-	{
-		--level;
-		MPoint p4 = p1 + p2;	p4.Normalize();
-		MPoint p5 = p2 + p3;	p5.Normalize();
-		MPoint p6 = p3 + p1;	p6.Normalize();
-		
-		CreateTriangle(p1, p4, p6, level, outPolyeders, outWeights);
-		CreateTriangle(p4, p2, p5, level, outPolyeders, outWeights);
-		CreateTriangle(p4, p5, p6, level, outPolyeders, outWeights);
-		CreateTriangle(p5, p3, p6, level, outPolyeders, outWeights);
-	}
-	else
-	{
-		MPoint p = p1 + p2 + p3;
-		p.Normalize();
-		outPolyeders.push_back(p);
-		
-		p = CrossProduct(p3 - p1, p2 - p1);
-
-		double l = p.Normalize();
-		outWeights.push_back(l / 2);
-	}
-}
-
 void MProtein::CalculateAccessibilities(std::vector<MResidue*> inResidues)
 {
 	if (VERBOSE)
 		cerr << "Calculate accessibilities" << endl;
 
-	// start by creating a icosahedron. Since this is constant, we can 
-	// one day insert the constant data here.
-	const double kXVertex = 0, kYVertex = 0.8506508, kZVertex = 0.5257311;
-	
-	const MPoint v[12] = {
-		{ kXVertex, -kYVertex, -kZVertex }, { -kZVertex, kXVertex, -kYVertex }, { -kYVertex, -kZVertex, kXVertex },
-		{ kXVertex, -kYVertex,  kZVertex }, {  kZVertex, kXVertex, -kYVertex }, { -kYVertex,  kZVertex, kXVertex },
-		{ kXVertex,  kYVertex, -kZVertex }, { -kZVertex, kXVertex,  kYVertex }, {  kYVertex, -kZVertex, kXVertex },
-		{ kXVertex,  kYVertex,  kZVertex }, {  kZVertex, kXVertex,  kYVertex }, {  kYVertex,  kZVertex, kXVertex },
-	};
-	
-	const uint32 kOrder = 2;
-	
-	vector<MPoint> polyeder;
-	vector<double> weights;
-	
-	for (uint32 i = 0; i < 10; ++i)
-	{
-		for (uint32 j = i + 1; j < 11; ++j)
-		{
-			if (Distance(v[i], v[j]) < 1.1)
-			{
-				for (uint32 k = j + 1; k < 12; ++k)
-				{
-					if (Distance(v[i], v[k]) < 1.1 and Distance(v[j], v[k]) < 1.1)
-						CreateTriangle(v[i], v[j], v[k], kOrder, polyeder, weights);
-				}
-			}
-		}
-	}
-	
-	double a = std::accumulate(weights.begin(), weights.end(), 0.0);
-	a = 4 * kPI / a;
-	transform(weights.begin(), weights.end(), weights.begin(), boost::bind(multiplies<double>(), _1, a));
-
 	foreach (MResidue* residue, inResidues)
-		residue->CalculateSurface(polyeder, weights, inResidues);
+		residue->CalculateSurface(inResidues);
 }
 
 void MProtein::Center()
