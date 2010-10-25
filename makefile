@@ -24,7 +24,7 @@ BOOST_LIBS			= system thread regex filesystem program_options date_time iostream
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
 LIBS				= $(BOOST_LIBS) z bz2 # uuid zeep
 LDOPTS				= $(LIB_DIR:%=-L%)
-LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 # -pthread
+LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
 CC					?= c++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
@@ -55,7 +55,7 @@ mas: $(OBJECTS)
 
 dssp-2: obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
 	@ echo linking $@
-	@ c++ -o $@ $(LDOPTS) $^
+	@ c++ -o $@ $^ $(LDOPTS)
 	@ echo OK
 
 obj/%.o: %.cpp

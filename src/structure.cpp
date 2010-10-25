@@ -344,14 +344,11 @@ struct MBridge
 // return true if any of the residues in bridge a is identical to any of the residues in bridge b
 bool Linked(const MBridge& a, const MBridge& b)
 {
-	bool result = find_first_of(a.i.begin(), a.i.end(), b.i.begin(), b.i.end()) != a.i.end();
-	if (result == false)
-		result = find_first_of(a.i.begin(), a.i.end(), b.j.begin(), b.j.end()) != a.i.end();
-	if (result == false)
-		result = find_first_of(a.j.begin(), a.j.end(), b.i.begin(), b.i.end()) != a.j.end();
-	if (result == false)
-		result = find_first_of(a.j.begin(), a.j.end(), b.j.begin(), b.j.end()) != a.j.end();
-	return result;
+	return
+		find_first_of(a.i.begin(), a.i.end(), b.i.begin(), b.i.end()) != a.i.end() or
+		find_first_of(a.i.begin(), a.i.end(), b.j.begin(), b.j.end()) != a.i.end() or
+		find_first_of(a.j.begin(), a.j.end(), b.i.begin(), b.i.end()) != a.j.end() or
+		find_first_of(a.j.begin(), a.j.end(), b.j.begin(), b.j.end()) != a.j.end();
 }
 
 // --------------------------------------------------------------------
@@ -691,9 +688,7 @@ void MResidue::CalculateSurface(const vector<MResidue*>& inResidues)
 		r->GetCenterAndRadius(center, radius);
 		
 		if (Distance(mCenter, center) < mRadius + radius)
-		{
 			neighbours.push_back(r);
-		}
 	}
 	
 	static stats s_neighbourcounter;
@@ -752,7 +747,7 @@ class MAccumulator
 double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius, const vector<MResidue*>& inResidues)
 {
 	MAccumulator accumulate;
-	
+
 	foreach (MResidue* r, inResidues)
 	{
 		if (r->AtomIntersectsBox(inAtom, inRadius))
@@ -766,6 +761,9 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius, const ve
 				accumulate(inAtom, atom, inRadius, kRadiusSideAtom);
 		}
 	}
+
+	static stats s_x_counter;
+	s_x_counter(accumulate.m_x.size());
 
 	accumulate.sort();
 

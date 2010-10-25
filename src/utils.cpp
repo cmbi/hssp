@@ -2,6 +2,7 @@
 
 #include "mas.h"
 
+#include <cstdio>
 #include <iomanip>
 #include <iostream>
 #include <time.h>
