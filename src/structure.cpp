@@ -1020,11 +1020,10 @@ void MProtein::GetResiduesPerAlphaHelixHistogram(uint32 outHistogram[30]) const
 				++helixLength;
 			else if (helixLength > 0)
 			{
-				--helixLength;
 				if (helixLength > kHistogramSize)
 					helixLength = kHistogramSize;
 				
-				outHistogram[helixLength] += 1;
+				outHistogram[helixLength - 1] += 1;
 				helixLength = 0;
 			}
 		}
