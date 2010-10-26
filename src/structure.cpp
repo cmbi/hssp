@@ -696,22 +696,6 @@ bool MResidue::AtomIntersectsBox(const MAtom& atom, double inRadius) const
 		atom.mLoc.mZ + inRadius >= mBox[0].mZ and atom.mLoc.mZ - inRadius <= mBox[1].mZ;	
 }
 
-struct stats
-{
-	stats() : m_max(0), m_count(0), m_cumm(0) {}
-	~stats() { if (VERBOSE) cerr << endl << "max: " << m_max << " count: " << m_count << " average: " << (m_cumm / m_count) << endl; }
-	
-	void operator()(uint32 i)
-	{
-		if (m_max < i)
-			m_max = i;
-		++m_count;
-		m_cumm += i;
-	}
-	
-	uint32 m_max, m_count, m_cumm;
-};
-
 void MResidue::CalculateSurface(const vector<MResidue*>& inResidues)
 {
 	vector<MResidue*> neighbours;
@@ -725,9 +709,11 @@ void MResidue::CalculateSurface(const vector<MResidue*>& inResidues)
 		if (Distance(mCenter, center) < mRadius + radius)
 			neighbours.push_back(r);
 	}
-	
+
+#ifndef NDEBUG
 	static stats s_neighbourcounter;
 	s_neighbourcounter(neighbours.size());
+#endif
 	
 	mAccessibility = CalculateSurface(mN, kRadiusN, neighbours) +
 					 CalculateSurface(mCA, kRadiusCA, neighbours) +
@@ -797,8 +783,10 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius, const ve
 		}
 	}
 
+#ifndef NDEBUG
 	static stats s_x_counter;
 	s_x_counter(accumulate.m_x.size());
+#endif
 
 	accumulate.sort();
 
@@ -1284,9 +1272,26 @@ void MProtein::Rotate(const MQuaternion& inRotation)
 
 void MProtein::CalculateSecondaryStructure()
 {
-	if (VERBOSE)
-		cerr << "Assigning sulfur bridges" << endl;
+	vector<MResidue*> residues;
+	residues.reserve(mResidueCount);
+	foreach (const MChain* chain, mChains)
+		residues.insert(residues.end(), chain->GetResidues().begin(), chain->GetResidues().end());
 	
+	if (VERBOSE)
+		cerr << "using " << residues.size() << " residues" << endl;
+
+	boost::thread t(boost::bind(&MProtein::CalculateAccessibilities, this, boost::ref(residues)));
+
+	CalculateSSBridges();
+	CalculateHBondEnergies(residues);
+	CalculateBetaSheets(residues);
+	CalculateAlphaHelices(residues);
+
+	t.join();
+}
+
+void MProtein::CalculateSSBridges()
+{
 	// map the sulfur bridges
 	sort(mSSBonds.begin(), mSSBonds.end());
 	
@@ -1302,22 +1307,6 @@ void MProtein::CalculateSecondaryStructure()
 		second.SetSSBridgeNr(ssbondNr);
 		++ssbondNr;
 	}
-
-	vector<MResidue*> residues;
-	residues.reserve(mResidueCount);
-	foreach (const MChain* chain, mChains)
-		residues.insert(residues.end(), chain->GetResidues().begin(), chain->GetResidues().end());
-	
-	if (VERBOSE)
-		cerr << "using " << residues.size() << " residues" << endl;
-
-	boost::thread t(boost::bind(&MProtein::CalculateAccessibilities, this, boost::ref(residues)));
-
-	CalculateHBondEnergies(residues);
-	CalculateBetaSheets(residues);
-	CalculateAlphaHelices(residues);
-//	CalculateAccessibilities(residues);
-	t.join();
 }
 
 void MProtein::CalculateHBondEnergies(const std::vector<MResidue*>& inResidues)
@@ -1712,6 +1701,9 @@ void MProtein::CalculateAccessibilities(const std::vector<MResidue*>& inResidues
 void MProtein::CalculateAccessibility(MResidueQueue& inQueue,
 	const std::vector<MResidue*>& inResidues)
 {
+	// make sure the polyeder is constructed once
+	(void)MPolyeder::Instance();
+	
 	for (;;)
 	{
 		MResidue* residue = inQueue.get();
@@ -1773,11 +1765,6 @@ MPoint MProtein::GetCAlphaPosition(char inChain, int16 inPDBResSeq) const
 	}
 	
 	return result;
-}
-
-void MProtein::CalculateSSBridges()
-{
-	
 }
 
 void MProtein::GetSequence(char inChain, entry& outEntry) const

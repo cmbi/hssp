@@ -41,3 +41,22 @@ class progress
 	std::time_t		m_start;
 };
 
+// --------------------------------------------------------------------
+
+#ifndef NDEBUG
+struct stats
+{
+	stats() : m_max(0), m_count(0), m_cumm(0) {}
+	~stats() { if (VERBOSE) std::cerr << std::endl << "max: " << m_max << " count: " << m_count << " average: " << (m_cumm / m_count) << std::endl; }
+	
+	void operator()(uint32 i)
+	{
+		if (m_max < i)
+			m_max = i;
+		++m_count;
+		m_cumm += i;
+	}
+	
+	uint32 m_max, m_count, m_cumm;
+};
+#endif
