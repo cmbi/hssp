@@ -2,6 +2,10 @@
 
 #pragma once
 
+#ifndef NDEBUG
+#include <iostream>
+#endif
+
 #include <time.h>
 #include <boost/thread.hpp>
 

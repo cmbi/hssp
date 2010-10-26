@@ -45,103 +45,165 @@ const double
 namespace
 {
 
-class MPolyeder
+class MSurfaceDots
 {
   public:
-	static MPolyeder&	Instance();
+	static MSurfaceDots&	Instance();
 	
-	const MPoint&		GetPoint(uint32 ix) const		{ return mPoints[ix]; }
-	double				GetWeight(uint32 ix) const		{ return mWeights[ix]; }
-	uint32				GetSize() const					{ return mPoints.size(); }
-	
+	uint32					size() const					{ return mPoints.size(); }
+	const MPoint&			operator[](uint32 inIx) const	{ return mPoints[inIx]; }
+	double					weight() const					{ return mWeight; }
+
   private:
-						MPolyeder(int inOrder);
+							MSurfaceDots();
 
-	void				CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level);
-
-	vector<MPoint>		mPoints;
-	vector<double>		mWeights;
+	vector<MPoint>			mPoints;
+	double					mWeight;
 };
 
-MPolyeder& MPolyeder::Instance()
+MSurfaceDots& MSurfaceDots::Instance()
 {
-	const uint32 kOrder = 2;
-	
-	static MPolyeder sPolyeder(kOrder);
-	return sPolyeder;
+	static MSurfaceDots sInstance;
+	return sInstance;
 }
 
-MPolyeder::MPolyeder(int inOrder)
+MSurfaceDots::MSurfaceDots()
 {
-	uint32 r = 20;
-	for (uint32 i = inOrder; i > 0; --i)
-		r *= 4;
+	int32 N = 120;
+	int32 P = 2 * N + 1;
 	
-	mPoints.reserve(r);
-	mWeights.reserve(r);
-
-	// start by creating a icosahedron. Since this is constant, we can 
-	// one day insert the constant data here.
-	const double kXVertex = 0, kYVertex = 0.8506508, kZVertex = 0.5257311;
+	const double
+		kGoldenRatio = (1 + sqrt(5)) / 2;
 	
-	const MPoint v[12] = {
-		MPoint(kXVertex, -kYVertex, -kZVertex), MPoint(-kZVertex, kXVertex, -kYVertex), MPoint(-kYVertex, -kZVertex, kXVertex),
-		MPoint(kXVertex, -kYVertex,  kZVertex), MPoint( kZVertex, kXVertex, -kYVertex), MPoint(-kYVertex,  kZVertex, kXVertex),
-		MPoint(kXVertex,  kYVertex, -kZVertex), MPoint(-kZVertex, kXVertex,  kYVertex), MPoint( kYVertex, -kZVertex, kXVertex),
-		MPoint(kXVertex,  kYVertex,  kZVertex), MPoint( kZVertex, kXVertex,  kYVertex), MPoint( kYVertex,  kZVertex, kXVertex),
-//		{ kXVertex, -kYVertex, -kZVertex }, { -kZVertex, kXVertex, -kYVertex }, { -kYVertex, -kZVertex, kXVertex },
-//		{ kXVertex, -kYVertex,  kZVertex }, {  kZVertex, kXVertex, -kYVertex }, { -kYVertex,  kZVertex, kXVertex },
-//		{ kXVertex,  kYVertex, -kZVertex }, { -kZVertex, kXVertex,  kYVertex }, {  kYVertex, -kZVertex, kXVertex },
-//		{ kXVertex,  kYVertex,  kZVertex }, {  kZVertex, kXVertex,  kYVertex }, {  kYVertex,  kZVertex, kXVertex },
-	};
+	mWeight = (4 * kPI) / P;
 	
-	for (uint32 i = 0; i < 10; ++i)
+	for (int32 i = -N; i <= N; ++i)
 	{
-		for (uint32 j = i + 1; j < 11; ++j)
-		{
-			if (Distance(v[i], v[j]) < 1.1)
-			{
-				for (uint32 k = j + 1; k < 12; ++k)
-				{
-					if (Distance(v[i], v[k]) < 1.1 and Distance(v[j], v[k]) < 1.1)
-						CreateTriangle(v[i], v[j], v[k], inOrder);
-				}
-			}
-		}
-	}
-	
-	double a = std::accumulate(mWeights.begin(), mWeights.end(), 0.0);
-	a = 4 * kPI / a;
-	transform(mWeights.begin(), mWeights.end(), mWeights.begin(), boost::bind(multiplies<double>(), _1, a));
-}
-
-void MPolyeder::CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level)
-{
-	if (level > 0)
-	{
-		--level;
-		MPoint p4 = p1 + p2;	p4.Normalize();
-		MPoint p5 = p2 + p3;	p5.Normalize();
-		MPoint p6 = p3 + p1;	p6.Normalize();
+		double lat = asin((2.0 * i) / P);
+		double lon = fmod(i, kGoldenRatio) * 2 * kPI / kGoldenRatio;
+		if (lon < -kPI)
+			lon += 2 * kPI;
+		if (lon >  kPI)
+			lon -= 2 * kPI;
 		
-		CreateTriangle(p1, p4, p6, level);
-		CreateTriangle(p4, p2, p5, level);
-		CreateTriangle(p4, p5, p6, level);
-		CreateTriangle(p5, p3, p6, level);
-	}
-	else
-	{
-		MPoint p = p1 + p2 + p3;
-		p.Normalize();
+		MPoint p;
+		p.mX = sin(lon) * cos(lat);
+		p.mY = cos(lon) * cos(lat);
+		p.mZ = 			  sin(lat);
+
 		mPoints.push_back(p);
-		
-		p = CrossProduct(p3 - p1, p2 - p1);
-
-		double l = p.Normalize();
-		mWeights.push_back(l / 2);
 	}
 }
-	
+
+//class MPolyeder
+//{
+//  public:
+//	static MPolyeder&	Instance();
+//	
+//	const MPoint&		GetPoint(uint32 ix) const		{ return mPoints[ix]; }
+//	double				GetWeight(uint32 ix) const		{ return mWeights[ix]; }
+//	uint32				GetSize() const					{ return mPoints.size(); }
+//	
+//  private:
+//						MPolyeder(int inOrder);
+//
+//	void				CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level);
+//
+//	vector<MPoint>		mPoints;
+//	vector<double>		mWeights;
+//};
+//
+//MPolyeder& MPolyeder::Instance()
+//{
+//	const uint32 kOrder = 2;
+//	
+//	static MPolyeder sPolyeder(kOrder);
+//	return sPolyeder;
+//}
+//
+//MPolyeder::MPolyeder(int inOrder)
+//{
+//	uint32 r = 20;
+//	for (uint32 i = inOrder; i > 0; --i)
+//		r *= 4;
+//	
+//	mPoints.reserve(r);
+//	mWeights.reserve(r);
+//
+//	// start by creating a icosahedron. Since this is constant, we can 
+//	// one day insert the constant data here.
+//	const double kXVertex = 0, kYVertex = 0.8506508, kZVertex = 0.5257311;
+//	
+//	const MPoint v[12] = {
+//		MPoint(kXVertex, -kYVertex, -kZVertex), MPoint(-kZVertex, kXVertex, -kYVertex), MPoint(-kYVertex, -kZVertex, kXVertex),
+//		MPoint(kXVertex, -kYVertex,  kZVertex), MPoint( kZVertex, kXVertex, -kYVertex), MPoint(-kYVertex,  kZVertex, kXVertex),
+//		MPoint(kXVertex,  kYVertex, -kZVertex), MPoint(-kZVertex, kXVertex,  kYVertex), MPoint( kYVertex, -kZVertex, kXVertex),
+//		MPoint(kXVertex,  kYVertex,  kZVertex), MPoint( kZVertex, kXVertex,  kYVertex), MPoint( kYVertex,  kZVertex, kXVertex),
+////		{ kXVertex, -kYVertex, -kZVertex }, { -kZVertex, kXVertex, -kYVertex }, { -kYVertex, -kZVertex, kXVertex },
+////		{ kXVertex, -kYVertex,  kZVertex }, {  kZVertex, kXVertex, -kYVertex }, { -kYVertex,  kZVertex, kXVertex },
+////		{ kXVertex,  kYVertex, -kZVertex }, { -kZVertex, kXVertex,  kYVertex }, {  kYVertex, -kZVertex, kXVertex },
+////		{ kXVertex,  kYVertex,  kZVertex }, {  kZVertex, kXVertex,  kYVertex }, {  kYVertex,  kZVertex, kXVertex },
+//	};
+//	
+//	for (uint32 i = 0; i < 10; ++i)
+//	{
+//		for (uint32 j = i + 1; j < 11; ++j)
+//		{
+//			if (Distance(v[i], v[j]) < 1.1)
+//			{
+//				for (uint32 k = j + 1; k < 12; ++k)
+//				{
+//					if (Distance(v[i], v[k]) < 1.1 and Distance(v[j], v[k]) < 1.1)
+//						CreateTriangle(v[i], v[j], v[k], inOrder);
+//				}
+//			}
+//		}
+//	}
+//	
+//	double a = std::accumulate(mWeights.begin(), mWeights.end(), 0.0);
+//	a = 4 * kPI / a;
+//	transform(mWeights.begin(), mWeights.end(), mWeights.begin(), boost::bind(multiplies<double>(), _1, a));
+////	uint32 i = 1;
+////	foreach (MPoint& p, mPoints)
+////	{
+////		p *= 20;
+////		const char kATOMLine[] =
+////"ATOM  %5.5d  UNK UNK  %4.4d    %8.3f%8.3f%8.3f                       C  ";
+////		cerr << boost::format(kATOMLine) % i % i % p.mX % p.mY % p.mZ << endl;
+////		++i;
+////	}
+////	
+////	cerr << boost::format("TER    %4.4d      UNK  %4.4d ") % i % i << endl;
+////	exit(0);
+//}
+//
+//void MPolyeder::CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level)
+//{
+//	if (level > 0)
+//	{
+//		--level;
+//		MPoint p4 = p1 + p2;	p4.Normalize();
+//		MPoint p5 = p2 + p3;	p5.Normalize();
+//		MPoint p6 = p3 + p1;	p6.Normalize();
+//		
+//		CreateTriangle(p1, p4, p6, level);
+//		CreateTriangle(p4, p2, p5, level);
+//		CreateTriangle(p4, p5, p6, level);
+//		CreateTriangle(p5, p3, p6, level);
+//	}
+//	else
+//	{
+//		MPoint p = p1 + p2 + p3;
+//		p.Normalize();
+//		mPoints.push_back(p);
+//		
+//		p = CrossProduct(p3 - p1, p2 - p1);
+//
+//		double l = p.Normalize();
+//		mWeights.push_back(l / 2);
+//	}
+//}
+//	
 }
 
 // --------------------------------------------------------------------
@@ -793,18 +855,18 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius, const ve
 	double radius = inRadius + kRadiusWater;
 	double surface = 0;
 	
-	MPolyeder& polyeder = MPolyeder::Instance();
+	MSurfaceDots& surfaceDots = MSurfaceDots::Instance();
 	
-	for (uint32 i = 0; i < polyeder.GetSize(); ++i)
+	for (uint32 i = 0; i < surfaceDots.size(); ++i)
 	{
-		MPoint xx = polyeder.GetPoint(i) * radius;
+		MPoint xx = surfaceDots[i] * radius;
 		
 		bool free = true;
 		for (uint32 k = 0; free and k < accumulate.m_x.size(); ++k)
 			free = accumulate.m_x[k].radius < DistanceSquared(xx, accumulate.m_x[k].location);
 		
 		if (free)
-			surface += polyeder.GetWeight(i);
+			surface += surfaceDots.weight();
 	}
 	
 	return surface * radius * radius;
@@ -1674,7 +1736,7 @@ void MProtein::CalculateAccessibilities(const std::vector<MResidue*>& inResidues
 		cerr << "Calculate accessibilities" << endl;
 
 	uint32 nr_of_threads = boost::thread::hardware_concurrency();
-	if (nr_of_threads == 1)
+	if (nr_of_threads <= 1)
 	{
 		foreach (MResidue* residue, inResidues)
 			residue->CalculateSurface(inResidues);
@@ -1701,8 +1763,8 @@ void MProtein::CalculateAccessibilities(const std::vector<MResidue*>& inResidues
 void MProtein::CalculateAccessibility(MResidueQueue& inQueue,
 	const std::vector<MResidue*>& inResidues)
 {
-	// make sure the polyeder is constructed once
-	(void)MPolyeder::Instance();
+	// make sure the MSurfaceDots is constructed once
+	(void)MSurfaceDots::Instance();
 	
 	for (;;)
 	{
