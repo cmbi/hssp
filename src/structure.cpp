@@ -69,7 +69,7 @@ MSurfaceDots& MSurfaceDots::Instance()
 
 MSurfaceDots::MSurfaceDots()
 {
-	int32 N = 120;
+	int32 N = 150;
 	int32 P = 2 * N + 1;
 	
 	const double
@@ -81,10 +81,6 @@ MSurfaceDots::MSurfaceDots()
 	{
 		double lat = asin((2.0 * i) / P);
 		double lon = fmod(i, kGoldenRatio) * 2 * kPI / kGoldenRatio;
-		if (lon < -kPI)
-			lon += 2 * kPI;
-		if (lon >  kPI)
-			lon -= 2 * kPI;
 		
 		MPoint p;
 		p.mX = sin(lon) * cos(lat);
