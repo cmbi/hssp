@@ -515,9 +515,12 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 					case 'H':
 					case 'G':
 					case 'I':
+						residue_specific_penalty[ix] += 5.0f;
+						break;
+
 					case 'B':
 					case 'E':
-						residue_specific_penalty[ix] += 3.0f;
+						residue_specific_penalty[ix] += 10.0f;
 						break;
 
 					default:

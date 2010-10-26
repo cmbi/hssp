@@ -8,6 +8,9 @@ struct MAtom;
 class MResidue;
 class MChain;
 class MProtein;
+template<typename T, uint32 N>
+class buffer;
+typedef buffer<MResidue*,100>	MResidueQueue;
 
 const uint32 kHistogramSize = 30;
 
@@ -140,11 +143,12 @@ enum MSecondaryStructure
 class MResidue
 {
   public:
-						MResidue(MChain& chain, uint32 inNumber,
+						MResidue(const MResidue& residue);
+						MResidue(uint32 inNumber,
 							MResidue* inPrevious, const std::vector<MAtom>& inAtoms);
 
 	void				SetChainID(char inID);
-	char				GetChainID() const;
+	char				GetChainID() const				{ return mChainID; }
 
 	MResidueType		GetType() const					{ return mType; }
 
@@ -169,6 +173,8 @@ class MResidue
 	
 	const MResidue*		Next() const					{ return mNext; }
 	const MResidue*		Prev() const					{ return mPrev; }
+
+	void				SetPrev(MResidue* inResidue);
 	
 	void				SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder,
 							bool inParallel);
@@ -237,7 +243,7 @@ class MResidue
 	void				ExtendBox(const MAtom& atom, double inRadius);
 	bool				AtomIntersectsBox(const MAtom& atom, double inRadius) const;
 
-	MChain&				mChain;
+	char				mChainID;
 	MResidue*			mPrev;
 	MResidue*			mNext;
 	int32				mSeqNumber, mNumber;
@@ -255,14 +261,20 @@ class MResidue
 	MPoint				mBox[2];		// The 3D box containing all atoms
 	MPoint				mCenter;		// and the 3d Sphere containing all atoms
 	double				mRadius;
+
+  private:
+	MResidue&			operator=(const MResidue& residue);
 };
 
 class MChain
 {
   public:
 
+						MChain(const MChain& chain);
 						MChain(char inChainID = 0) : mChainID(inChainID) {}
 						~MChain();
+
+	MChain&				operator=(const MChain& chain);
 
 	char				GetChainID() const					{ return mChainID; }
 	void				SetChainID(char inID);
@@ -351,10 +363,14 @@ class MProtein
 
 	void				AddResidue(const std::vector<MAtom>& inAtoms);
 
-	void				CalculateHBondEnergies(std::vector<MResidue*> inResidues);
-	void				CalculateAlphaHelices(std::vector<MResidue*> inResidues);
-	void				CalculateBetaSheets(std::vector<MResidue*> inResidues);
-	void				CalculateAccessibilities(std::vector<MResidue*> inResidues);
+	void				CalculateHBondEnergies(const std::vector<MResidue*>& inResidues);
+	void				CalculateAlphaHelices(const std::vector<MResidue*>& inResidues);
+	void				CalculateBetaSheets(const std::vector<MResidue*>& inResidues);
+	void				CalculateAccessibilities(const std::vector<MResidue*>& inResidues);
+
+	// a thread entry point
+	void				CalculateAccessibility(MResidueQueue& inQueue,
+							const std::vector<MResidue*>& inResidues);
 
 	std::string			mID, mHeader;
 	std::vector<std::string>

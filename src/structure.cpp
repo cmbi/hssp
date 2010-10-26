@@ -14,6 +14,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include "utils.h"
+#include "buffer.h"
 #include "structure.h"
 
 using namespace std;
@@ -353,9 +354,9 @@ bool Linked(const MBridge& a, const MBridge& b)
 
 // --------------------------------------------------------------------
 
-MResidue::MResidue(MChain& chain, uint32 inNumber,
+MResidue::MResidue(uint32 inNumber,
 		MResidue* inPrevious, const vector<MAtom>& inAtoms)
-	: mChain(chain)
+	: mChainID(0)
 	, mPrev(inPrevious)
 	, mNext(nil)
 	, mSeqNumber(inAtoms.front().mResSeq)
@@ -381,6 +382,9 @@ MResidue::MResidue(MChain& chain, uint32 inNumber,
 	
 	foreach (const MAtom& atom, inAtoms)
 	{
+		if (mChainID == 0)
+			mChainID = atom.mChainID;
+		
 		if (MapResidue(atom.mResName) != mType)
 			throw mas_exception("inconsistent residue types in atom records");
 		
@@ -436,19 +440,50 @@ MResidue::MResidue(MChain& chain, uint32 inNumber,
 	mCenter.mZ = (mBox[0].mZ + mBox[1].mZ) / 2;
 }
 
+MResidue::MResidue(const MResidue& residue)
+	: mChainID(residue.mChainID)
+	, mPrev(nil)
+	, mNext(nil)
+	, mSeqNumber(residue.mSeqNumber)
+	, mNumber(residue.mNumber)
+	, mType(residue.mType)
+	, mSSBridgeNr(residue.mSSBridgeNr)
+	, mAccessibility(residue.mAccessibility)
+	, mSecondaryStructure(residue.mSecondaryStructure)
+	, mC(residue.mC)
+	, mN(residue.mN)
+	, mCA(residue.mCA)
+	, mO(residue.mO)
+	, mH(residue.mH)
+	, mSideChain(residue.mSideChain)
+	, mSheet(residue.mSheet)
+	, mBend(residue.mBend)
+	, mCenter(residue.mCenter)
+	, mRadius(residue.mRadius)
+{
+	copy(residue.mHBondDonor, residue.mHBondDonor + 2, mHBondDonor);
+	copy(residue.mHBondAcceptor, residue.mHBondAcceptor + 2, mHBondAcceptor);
+	copy(residue.mBetaPartner, residue.mBetaPartner + 2, mBetaPartner);
+	copy(residue.mHelixFlags, residue.mHelixFlags + 3, mHelixFlags);
+	copy(residue.mBox, residue.mBox + 2, mBox);
+}
+
+void MResidue::SetPrev(MResidue* inResidue)
+{
+	mPrev = inResidue;
+	mPrev->mNext = this;
+}
+
 void MResidue::SetChainID(char inID)
 {
+	mChainID = inID;
+	
 	mC.SetChainID(inID);
 	mCA.SetChainID(inID);
 	mO.SetChainID(inID);
 	mN.SetChainID(inID);
 	mH.SetChainID(inID);
 	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::SetChainID, _1, inID));
-}
-
-char MResidue::GetChainID() const
-{
-	return mChain.GetChainID();
 }
 
 bool MResidue::ValidDistance(const MResidue& inNext) const
@@ -829,10 +864,38 @@ void MResidue::WritePDB(std::ostream& os)
 
 // --------------------------------------------------------------------
 
+MChain::MChain(const MChain& chain)
+	: mChainID(chain.mChainID)
+{
+	MResidue* previous = nil;
+	
+	foreach (const MResidue* residue, chain.mResidues)
+	{
+		MResidue* newResidue = new MResidue(*residue);
+		newResidue->SetPrev(previous);
+		mResidues.push_back(newResidue);
+		previous = newResidue;
+	}
+}
+
 MChain::~MChain()
 {
 	foreach (MResidue* residue, mResidues)
 		delete residue;
+}
+
+MChain& MChain::operator=(const MChain& chain)
+{
+	foreach (MResidue* residue, mResidues)
+		delete residue;
+	mResidues.clear();
+
+	foreach (const MResidue* residue, chain.mResidues)
+		mResidues.push_back(new MResidue(*residue));
+	
+	mChainID = chain.mChainID;
+	
+	return *this;
 }
 
 void MChain::SetChainID(char inID)
@@ -1171,7 +1234,7 @@ void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 	if (hasN and hasCA and hasC and hasO)
 	{
 		uint32 resNumber = mResidueCount + mChains.size();
-		residues.push_back(new MResidue(chain, resNumber, prev, inAtoms));
+		residues.push_back(new MResidue(resNumber, prev, inAtoms));
 		++mResidueCount;
 	}
 	else if (VERBOSE)
@@ -1248,13 +1311,16 @@ void MProtein::CalculateSecondaryStructure()
 	if (VERBOSE)
 		cerr << "using " << residues.size() << " residues" << endl;
 
+	boost::thread t(boost::bind(&MProtein::CalculateAccessibilities, this, boost::ref(residues)));
+
 	CalculateHBondEnergies(residues);
 	CalculateBetaSheets(residues);
 	CalculateAlphaHelices(residues);
-	CalculateAccessibilities(residues);
+//	CalculateAccessibilities(residues);
+	t.join();
 }
 
-void MProtein::CalculateHBondEnergies(std::vector<MResidue*> inResidues)
+void MProtein::CalculateHBondEnergies(const std::vector<MResidue*>& inResidues)
 {
 	if (VERBOSE)
 		cerr << "Calculate H-bond energies" << endl;
@@ -1278,7 +1344,7 @@ void MProtein::CalculateHBondEnergies(std::vector<MResidue*> inResidues)
 	}
 }
 
-void MProtein::CalculateAlphaHelices(std::vector<MResidue*> inResidues)
+void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 {
 	if (VERBOSE)
 		cerr << "Calculate alhpa helices" << endl;
@@ -1376,7 +1442,7 @@ void MProtein::CalculateAlphaHelices(std::vector<MResidue*> inResidues)
 	}
 }
 
-void MProtein::CalculateBetaSheets(std::vector<MResidue*> inResidues)
+void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 {
 	if (VERBOSE)
 		cerr << "Calculate beta sheets" << endl;
@@ -1613,13 +1679,49 @@ void MProtein::CalculateBetaSheets(std::vector<MResidue*> inResidues)
 	}
 }
 
-void MProtein::CalculateAccessibilities(std::vector<MResidue*> inResidues)
+void MProtein::CalculateAccessibilities(const std::vector<MResidue*>& inResidues)
 {
 	if (VERBOSE)
 		cerr << "Calculate accessibilities" << endl;
 
-	foreach (MResidue* residue, inResidues)
+	uint32 nr_of_threads = boost::thread::hardware_concurrency();
+	if (nr_of_threads == 1)
+	{
+		foreach (MResidue* residue, inResidues)
+			residue->CalculateSurface(inResidues);
+	}
+	else
+	{
+		MResidueQueue queue;
+	
+		boost::thread_group t;
+	
+		for (uint32 ti = 0; ti < nr_of_threads; ++ti)
+			t.create_thread(boost::bind(&MProtein::CalculateAccessibility, this,
+				boost::ref(queue), boost::ref(inResidues)));
+		
+		foreach (MResidue* residue, inResidues)
+			queue.put(residue);
+		
+		queue.put(nil);
+		
+		t.join_all();
+	}
+}
+
+void MProtein::CalculateAccessibility(MResidueQueue& inQueue,
+	const std::vector<MResidue*>& inResidues)
+{
+	for (;;)
+	{
+		MResidue* residue = inQueue.get();
+		if (residue == nil)
+			break;
+		
 		residue->CalculateSurface(inResidues);
+	}
+	
+	inQueue.put(nil);
 }
 
 void MProtein::Center()
