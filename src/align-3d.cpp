@@ -172,14 +172,20 @@ bool align_proteins2(MProtein& a, MProtein& b, char chainA, char chainB,
 		switch (traceback(ai, bi))
 		{
 			case 0:
-				if (VERBOSE > 3)
-					cerr << "map " << ai << '(' << kAA[sa[ai]]
-						 << ") to " << bi << '(' << kAA[sb[bi]] << ')' << endl;
-				newCAlphaA.push_back(cAlphaA[ai]);
-				newCAlphaB.push_back(cAlphaB[bi]);
+			{
+				float d = Distance(cAlphaA[ai], cAlphaB[bi]);
+				if (d < 3.5)
+				{
+					if (VERBOSE > 3)
+						cerr << "map " << ai << '(' << kAA[sa[ai]]
+							 << ") to " << bi << '(' << kAA[sb[bi]] << ')' << endl;
+					newCAlphaA.push_back(cAlphaA[ai]);
+					newCAlphaB.push_back(cAlphaB[bi]);
+				}
 				--ai;
 				--bi;
 				break;
+			}
 			
 			case 1:
 				--ai;
@@ -221,6 +227,9 @@ void align_proteins(MProtein& a, char chainA, MProtein& b, char chainB,
 	substitution_matrix_family& mat, float gop, float gep, float magic)
 {
 	vector<MPoint> cAlphaA, cAlphaB;
+
+	a.CalculateSecondaryStructure();
+	b.CalculateSecondaryStructure();
 
 	// fetch sequences
 	entry ea(1, a.GetID()), eb(2, b.GetID());

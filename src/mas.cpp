@@ -26,6 +26,7 @@
 #include "buffer.h"
 #include "utils.h"
 #include "guide.h"
+#include "structure.h"
 #include "align-3d.h"
 
 using namespace std;
@@ -60,6 +61,8 @@ void entry::insert_gap(uint32 pos)
 	if (pos > m_seq.length())
 	{
 		m_seq += kSignalGapCode;
+		if (not m_ss.empty())
+			m_ss += loop;
 		if (not m_positions.empty())
 			m_positions.push_back(0);
 	}
@@ -67,6 +70,11 @@ void entry::insert_gap(uint32 pos)
 	{
 		aa r = kSignalGapCode;
 		m_seq.insert(pos, &r, 1);
+		
+		ss s = loop;
+		if (not m_ss.empty())
+			m_ss.insert(pos, &s, 1);
+
 		if (not m_positions.empty())
 			m_positions.insert(m_positions.begin() + pos, 0);
 	}
@@ -77,6 +85,8 @@ void entry::insert_gap(uint32 pos)
 void entry::append_gap()
 {
 	m_seq += kSignalGapCode;
+	if (not m_ss.empty())
+		m_ss += loop;
 	if (not m_positions.empty())
 		m_positions.push_back(0);
 
@@ -430,6 +440,30 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 	uint32 ix_a, uint32 ix_b, const substitution_matrix& mat)
 {
 	float result = 0;
+
+//	const float kSSScore[8][8] = {
+//		// loop, alphahelix, betabridge, strand, helix_3, helix_5, turn, bend
+//		{  0,  0,  0,  0,  0,  0,  0,  0 },	// loop
+//		{  0,  2, -1, -1,  0,  0,  0,  0 },	// alphahelix
+//		{  0, -1,  2,  1, -1, -1, -1,  0 },	// betabridge
+//		{  0, -1,  1,  2, -1, -1, -1,  0 }, // strand
+//		{  0,  0, -1, -1,  2, -1, -1,  0 }, // helix_3
+//		{  0,  0, -1, -1, -1,  2, -1,  0 }, // helix_5
+//		{  0,  0, -1, -1, -1, -1,  2,  0 },	// turn
+//		{  0,  0,  0,  0,  0,  0,  0,  0 },	// bend
+//	};
+
+	const float kSSScore[8][8] = {
+		// loop, alphahelix, betabridge, strand, helix_3, helix_5, turn, bend
+		{  0,  0,  0,  0,  0,  0,  0,  0 },	// loop
+		{  0,  2,  0,  0,  0,  0,  0,  0 },	// alphahelix
+		{  0,  0,  2,  1,  0,  0,  0,  0 },	// betabridge
+		{  0,  0,  1,  2,  0,  0,  0,  0 }, // strand
+		{  0,  0,  0,  0,  2,  0,  0,  0 }, // helix_3
+		{  0,  0,  0,  0,  0,  2,  0,  0 }, // helix_5
+		{  0,  0,  0,  0,  0,  0,  2,  0 },	// turn
+		{  0,  0,  0,  0,  0,  0,  0,  0 },	// bend
+	};
 	
 	foreach (const entry* ea, a)
 	{
@@ -443,6 +477,16 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 			
 			if (ra != kSignalGapCode and rb != kSignalGapCode)
 				result += ea->m_weight * eb->m_weight * mat(ra, rb);
+
+			if (not (ea->m_ss.empty() or eb->m_ss.empty()))
+			{
+				ss ssa = ea->m_ss[ix_a];
+				ss ssb = eb->m_ss[ix_b];
+				
+				assert(ssa < 8); assert(ssb < 8);
+				
+				result += ea->m_weight * eb->m_weight * kSSScore[ssa][ssb];
+			}
 		}
 	}
 
@@ -489,7 +533,7 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 	foreach (const entry* e, seq)
 	{
 		const sequence& s = e->m_seq;
-		const string& ss = e->m_ss;
+		const sec_structure& s2 = e->m_ss;
 		
 		for (uint32 ix = 0; ix < gop.size(); ++ix)
 		{
@@ -499,7 +543,7 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 				gaps[ix] += 1;
 
 			// residue specific gap penalty
-			if (ix < ss.length())
+			if (ix < s2.length())
 			{
 				// The output of DSSP is explained extensively under 'explanation'. The very short summary of the output is: 
 				// H = alpha helix 
@@ -510,17 +554,17 @@ void adjust_gp(vector<float>& gop, vector<float>& gep, const vector<entry*>& seq
 				// T = hydrogen bonded turn 
 				// S = bend
 
-				switch (ss[ix])
+				switch (s2[ix])
 				{
-					case 'H':
-					case 'G':
-					case 'I':
+					case alphahelix:
+					case helix_5:
+					case helix_3:
 						residue_specific_penalty[ix] += 5.0f;
 						break;
 
-					case 'B':
-					case 'E':
-						residue_specific_penalty[ix] += 10.0f;
+					case betabridge:
+					case strand:
+						residue_specific_penalty[ix] += 5.0f;
 						break;
 
 					default:

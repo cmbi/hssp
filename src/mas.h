@@ -58,6 +58,9 @@ const uint32
 	kSentinalScore = kSignalGapCode;
 #endif
 
+typedef uint8					ss;
+typedef std::basic_string<ss>	sec_structure;
+
 // --------------------------------------------------------------------
 
 struct entry
@@ -92,10 +95,10 @@ struct entry
 	uint32			m_nr;
 	std::string		m_id;
 	sequence		m_seq;
+	sec_structure	m_ss;
 	float			m_weight;
 	std::vector<int16>
 					m_positions;
-	std::string		m_ss;
 };
 
 // --------------------------------------------------------------------

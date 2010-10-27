@@ -380,6 +380,7 @@ class MProtein
 	
 	std::vector<std::pair<MResidueID,MResidueID> >
 						mSSBonds;
+	uint32				mIgnoredWaterMolecules;
 	
 	// statistics
 	uint32				mNrOfHBondsInParallelBridges, mNrOfHBondsInAntiparallelBridges;

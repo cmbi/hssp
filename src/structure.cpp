@@ -19,7 +19,6 @@
 
 using namespace std;
 namespace ba = boost::algorithm;
-//namespace bm = boost::math;
 
 // --------------------------------------------------------------------
 
@@ -89,6 +88,19 @@ MSurfaceDots::MSurfaceDots()
 
 		mPoints.push_back(p);
 	}
+
+//	uint32 i = 1;
+//	foreach (MPoint& p, mPoints)
+//	{
+//		p *= 20;
+//		const char kATOMLine[] =
+//"ATOM  %5.5d  UNK UNK  %4.4d    %8.3f%8.3f%8.3f                       C  ";
+//		cerr << boost::format(kATOMLine) % i % i % p.mX % p.mY % p.mZ << endl;
+//		++i;
+//	}
+//	
+//	cerr << boost::format("TER    %4.4d      UNK  %4.4d ") % i % i << endl;
+//	exit(0);
 }
 
 //class MPolyeder
@@ -159,18 +171,19 @@ MSurfaceDots::MSurfaceDots()
 //	double a = std::accumulate(mWeights.begin(), mWeights.end(), 0.0);
 //	a = 4 * kPI / a;
 //	transform(mWeights.begin(), mWeights.end(), mWeights.begin(), boost::bind(multiplies<double>(), _1, a));
-////	uint32 i = 1;
-////	foreach (MPoint& p, mPoints)
-////	{
-////		p *= 20;
-////		const char kATOMLine[] =
-////"ATOM  %5.5d  UNK UNK  %4.4d    %8.3f%8.3f%8.3f                       C  ";
-////		cerr << boost::format(kATOMLine) % i % i % p.mX % p.mY % p.mZ << endl;
-////		++i;
-////	}
-////	
-////	cerr << boost::format("TER    %4.4d      UNK  %4.4d ") % i % i << endl;
-////	exit(0);
+//
+//	uint32 i = 1;
+//	foreach (MPoint& p, mPoints)
+//	{
+//		p *= 20;
+//		const char kATOMLine[] =
+//"ATOM  %5.5d  UNK UNK  %4.4d    %8.3f%8.3f%8.3f                       C  ";
+//		cerr << boost::format(kATOMLine) % i % i % p.mX % p.mY % p.mZ << endl;
+//		++i;
+//	}
+//	
+//	cerr << boost::format("TER    %4.4d      UNK  %4.4d ") % i % i << endl;
+//	exit(0);
 //}
 //
 //void MPolyeder::CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level)
@@ -199,7 +212,9 @@ MSurfaceDots::MSurfaceDots()
 //		mWeights.push_back(l / 2);
 //	}
 //}
-//	
+//
+//MPolyeder& gPolyeder = MPolyeder::Instance();
+	
 }
 
 // --------------------------------------------------------------------
@@ -234,7 +249,8 @@ MAtomType MapElement(string inElement)
 	else if (inElement == "Se")
 		result = kSelenium;
 	else
-		throw mas_exception(boost::format("Unsupported element %s") % inElement);
+		cerr << boost::format("Unsupported element '%1%'") % inElement << endl;
+//		throw mas_exception(boost::format("Unsupported element '%1%'") % inElement);
 	return result;
 }
 
@@ -984,6 +1000,7 @@ MResidue& MChain::GetResidueBySeqNumber(uint16 inSeqNumber)
 
 MProtein::MProtein(istream& is, bool cAlphaOnly)
 	: mResidueCount(0)
+	, mIgnoredWaterMolecules(0)
 	, mNrOfHBondsInParallelBridges(0)
 	, mNrOfHBondsInAntiparallelBridges(0)
 {
@@ -1133,6 +1150,9 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 	mChains.erase(
 		remove_if(mChains.begin(), mChains.end(), boost::bind(&MChain::Empty, _1)),
 		mChains.end());
+
+	if (VERBOSE and mIgnoredWaterMolecules)
+		cerr << "Ignored " << mIgnoredWaterMolecules << " water molecules" << endl;
 	
 	if (mChains.empty())
 		throw mas_exception("empty protein, or no valid complete residues");
@@ -1283,6 +1303,8 @@ void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 		residues.push_back(new MResidue(resNumber, prev, inAtoms));
 		++mResidueCount;
 	}
+	else if (string(inAtoms.front().mResName) == "HOH ")
+		++mIgnoredWaterMolecules;
 	else if (VERBOSE)
 		cerr << "ignoring incomplete residue " << inAtoms.front().mResName << " (" << inAtoms.front().mResSeq << ')' << endl;
 }
@@ -1835,20 +1857,7 @@ void MProtein::GetSequence(char inChain, entry& outEntry) const
 	{
 		seq += kResidueInfo[r->GetType()].code;
 		outEntry.m_positions.push_back(r->GetSeqNumber());
-		
-		char ss;
-		switch (r->GetSecondaryStructure())
-		{
-			case alphahelix:	ss = 'H'; break;
-			case betabridge:	ss = 'B'; break;
-			case strand:		ss = 'E'; break;
-			case helix_3:		ss = 'G'; break;
-			case helix_5:		ss = 'I'; break;
-			case turn:			ss = 'T'; break;
-			case bend:			ss = 'S'; break;
-			case loop:			ss = ' '; break;
-		}
-		outEntry.m_ss += ss;
+		outEntry.m_ss += r->GetSecondaryStructure();
 	}
 	
 	outEntry.m_seq = encode(seq);

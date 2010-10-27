@@ -424,27 +424,28 @@ void readFamilyIdsFile(fs::path path, vector<entry>& seq)
 
 void readSecStruct(std::vector<entry>& seq)
 {
-	foreach (entry& e, seq)
-	{
-		fs::path ssfile(e.m_id + ".ss");
-		if (fs::exists(ssfile))
-		{
-			fs::ifstream ssdata(ssfile);
-			
-			if (ssdata.is_open())
-			{
-				string line;
-				getline(ssdata, line);
-				
-				if (encode(line) == e.m_seq)
-				{
-					getline(ssdata, line);
-					if (line.length() == e.m_seq.length())
-						e.m_ss = line;
-				}
-			}
-		}
-	}
+	throw mas_exception("please implement me first");
+//	foreach (entry& e, seq)
+//	{
+//		fs::path ssfile(e.m_id + ".ss");
+//		if (fs::exists(ssfile))
+//		{
+//			fs::ifstream ssdata(ssfile);
+//			
+//			if (ssdata.is_open())
+//			{
+//				string line;
+//				getline(ssdata, line);
+//				
+//				if (encode(line) == e.m_seq)
+//				{
+//					getline(ssdata, line);
+//					if (line.length() == e.m_seq.length())
+//						e.m_ss = line;
+//				}
+//			}
+//		}
+//	}
 }
 
 // --------------------------------------------------------------------
@@ -514,6 +515,22 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 		
 		foreach (const entry* e, alignment)
 		{
+			string id = e->m_id;
+			if (id.length() > 15)
+				id = id.substr(0, 12) + "...";
+			else if (id.length() < 15)
+				id += string(15 - id.length(), ' ');
+			
+			if (VERBOSE and not e->m_ss.empty())
+			{
+				sec_structure s2 = e->m_ss.substr(offset, n);
+				const char kSS[] = " HBEGITS";
+				os << id << ' ';
+				for (sec_structure::iterator i = s2.begin(); i != s2.end(); ++i)
+					os << kSS[*i];
+				os << endl;
+			}
+			
 			sequence ss = e->m_seq.substr(offset, n);
 			
 			for (uint32 i = 0; i < n; ++i)
@@ -523,12 +540,6 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 					dist[i].cnt[ri] += 1;
 			}
 
-			string id = e->m_id;
-			if (id.length() > 15)
-				id = id.substr(0, 12) + "...";
-			else if (id.length() < 15)
-				id += string(15 - id.length(), ' ');
-			
 			os << id << ' ' << decode(ss) << endl;
 		}
 		
