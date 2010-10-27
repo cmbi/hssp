@@ -521,7 +521,7 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 			else if (id.length() < 15)
 				id += string(15 - id.length(), ' ');
 			
-			if (VERBOSE and not e->m_ss.empty())
+			if (VERBOSE > 1 and not e->m_ss.empty())
 			{
 				sec_structure s2 = e->m_ss.substr(offset, n);
 				const char kSS[] = " HBEGITS";
@@ -593,17 +593,17 @@ void report_in_clustalw(const vector<entry*>& alignment, ostream& os)
 		
 		os << string(16, ' ') << scores << endl;
 
-//		if (not alignment.front()->m_positions.empty())
-//		{
-//			string pos_nrs(n, ' ');
-//			for (uint32 i = 0; i < n; ++i)
-//			{
-//				if (alignment.front()->m_positions[offset + i] != 0)
-//					pos_nrs[i] = '!';
-//			}
-//			
-//			os << string(16, ' ') << pos_nrs << endl;
-//		}
+		if (not alignment.front()->m_positions.empty() and VERBOSE > 1)
+		{
+			string pos_nrs(n, ' ');
+			for (uint32 i = 0; i < n; ++i)
+			{
+				if (alignment.front()->m_positions[offset + i] != 0)
+					pos_nrs[i] = '!';
+			}
+			
+			os << string(16, ' ') << pos_nrs << endl;
+		}
 		
 		offset += n;
 		os << endl;

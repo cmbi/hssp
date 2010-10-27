@@ -27,6 +27,7 @@ enum MAtomType
 	kPhosphorus,
 	kSulfur,
 	kChlorine,
+	kMagnesium,
 	kPotassium,
 	kCalcium,
 	kZinc,

@@ -332,8 +332,8 @@ CDatabankPtr LoadDatabank(
 void create_entries(MProtein& a, MProtein& b, char chainA, char chainB,
 	entry& ea, entry& eb)
 {
-	a.GetSequence(chainA, ea.m_seq);
-	b.GetSequence(chainB, eb.m_seq);
+	a.GetSequence(chainA, ea);
+	b.GetSequence(chainB, eb);
 	
 	ea.m_positions = vector<int16>(ea.m_seq.length());
 	eb.m_positions = vector<int16>(eb.m_seq.length());
@@ -404,7 +404,7 @@ void create_entries(MProtein& a, MProtein& b, char chainA, char chainB,
 		switch (traceback(ai, bi))
 		{
 			case 0:
-				if (Distance(cAlphaA[ai], cAlphaB[bi]) < 3.5)
+				if (Distance(cAlphaA[ai], cAlphaB[bi]) <= 1.9)
 				{
 					assert(posNr > 0);
 					ea.m_positions[ai] = posNr;

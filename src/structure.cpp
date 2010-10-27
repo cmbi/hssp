@@ -54,7 +54,7 @@ class MSurfaceDots
 	double					weight() const					{ return mWeight; }
 
   private:
-							MSurfaceDots();
+							MSurfaceDots(int32 inN);
 
 	vector<MPoint>			mPoints;
 	double					mWeight;
@@ -62,13 +62,14 @@ class MSurfaceDots
 
 MSurfaceDots& MSurfaceDots::Instance()
 {
-	static MSurfaceDots sInstance;
+	const uint32 kN = 200;
+	
+	static MSurfaceDots sInstance(kN);
 	return sInstance;
 }
 
-MSurfaceDots::MSurfaceDots()
+MSurfaceDots::MSurfaceDots(int32 N)
 {
-	int32 N = 150;
 	int32 P = 2 * N + 1;
 	
 	const double
@@ -88,133 +89,8 @@ MSurfaceDots::MSurfaceDots()
 
 		mPoints.push_back(p);
 	}
-
-//	uint32 i = 1;
-//	foreach (MPoint& p, mPoints)
-//	{
-//		p *= 20;
-//		const char kATOMLine[] =
-//"ATOM  %5.5d  UNK UNK  %4.4d    %8.3f%8.3f%8.3f                       C  ";
-//		cerr << boost::format(kATOMLine) % i % i % p.mX % p.mY % p.mZ << endl;
-//		++i;
-//	}
-//	
-//	cerr << boost::format("TER    %4.4d      UNK  %4.4d ") % i % i << endl;
-//	exit(0);
 }
 
-//class MPolyeder
-//{
-//  public:
-//	static MPolyeder&	Instance();
-//	
-//	const MPoint&		GetPoint(uint32 ix) const		{ return mPoints[ix]; }
-//	double				GetWeight(uint32 ix) const		{ return mWeights[ix]; }
-//	uint32				GetSize() const					{ return mPoints.size(); }
-//	
-//  private:
-//						MPolyeder(int inOrder);
-//
-//	void				CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level);
-//
-//	vector<MPoint>		mPoints;
-//	vector<double>		mWeights;
-//};
-//
-//MPolyeder& MPolyeder::Instance()
-//{
-//	const uint32 kOrder = 2;
-//	
-//	static MPolyeder sPolyeder(kOrder);
-//	return sPolyeder;
-//}
-//
-//MPolyeder::MPolyeder(int inOrder)
-//{
-//	uint32 r = 20;
-//	for (uint32 i = inOrder; i > 0; --i)
-//		r *= 4;
-//	
-//	mPoints.reserve(r);
-//	mWeights.reserve(r);
-//
-//	// start by creating a icosahedron. Since this is constant, we can 
-//	// one day insert the constant data here.
-//	const double kXVertex = 0, kYVertex = 0.8506508, kZVertex = 0.5257311;
-//	
-//	const MPoint v[12] = {
-//		MPoint(kXVertex, -kYVertex, -kZVertex), MPoint(-kZVertex, kXVertex, -kYVertex), MPoint(-kYVertex, -kZVertex, kXVertex),
-//		MPoint(kXVertex, -kYVertex,  kZVertex), MPoint( kZVertex, kXVertex, -kYVertex), MPoint(-kYVertex,  kZVertex, kXVertex),
-//		MPoint(kXVertex,  kYVertex, -kZVertex), MPoint(-kZVertex, kXVertex,  kYVertex), MPoint( kYVertex, -kZVertex, kXVertex),
-//		MPoint(kXVertex,  kYVertex,  kZVertex), MPoint( kZVertex, kXVertex,  kYVertex), MPoint( kYVertex,  kZVertex, kXVertex),
-////		{ kXVertex, -kYVertex, -kZVertex }, { -kZVertex, kXVertex, -kYVertex }, { -kYVertex, -kZVertex, kXVertex },
-////		{ kXVertex, -kYVertex,  kZVertex }, {  kZVertex, kXVertex, -kYVertex }, { -kYVertex,  kZVertex, kXVertex },
-////		{ kXVertex,  kYVertex, -kZVertex }, { -kZVertex, kXVertex,  kYVertex }, {  kYVertex, -kZVertex, kXVertex },
-////		{ kXVertex,  kYVertex,  kZVertex }, {  kZVertex, kXVertex,  kYVertex }, {  kYVertex,  kZVertex, kXVertex },
-//	};
-//	
-//	for (uint32 i = 0; i < 10; ++i)
-//	{
-//		for (uint32 j = i + 1; j < 11; ++j)
-//		{
-//			if (Distance(v[i], v[j]) < 1.1)
-//			{
-//				for (uint32 k = j + 1; k < 12; ++k)
-//				{
-//					if (Distance(v[i], v[k]) < 1.1 and Distance(v[j], v[k]) < 1.1)
-//						CreateTriangle(v[i], v[j], v[k], inOrder);
-//				}
-//			}
-//		}
-//	}
-//	
-//	double a = std::accumulate(mWeights.begin(), mWeights.end(), 0.0);
-//	a = 4 * kPI / a;
-//	transform(mWeights.begin(), mWeights.end(), mWeights.begin(), boost::bind(multiplies<double>(), _1, a));
-//
-//	uint32 i = 1;
-//	foreach (MPoint& p, mPoints)
-//	{
-//		p *= 20;
-//		const char kATOMLine[] =
-//"ATOM  %5.5d  UNK UNK  %4.4d    %8.3f%8.3f%8.3f                       C  ";
-//		cerr << boost::format(kATOMLine) % i % i % p.mX % p.mY % p.mZ << endl;
-//		++i;
-//	}
-//	
-//	cerr << boost::format("TER    %4.4d      UNK  %4.4d ") % i % i << endl;
-//	exit(0);
-//}
-//
-//void MPolyeder::CreateTriangle(const MPoint& p1, const MPoint& p2, const MPoint& p3, int level)
-//{
-//	if (level > 0)
-//	{
-//		--level;
-//		MPoint p4 = p1 + p2;	p4.Normalize();
-//		MPoint p5 = p2 + p3;	p5.Normalize();
-//		MPoint p6 = p3 + p1;	p6.Normalize();
-//		
-//		CreateTriangle(p1, p4, p6, level);
-//		CreateTriangle(p4, p2, p5, level);
-//		CreateTriangle(p4, p5, p6, level);
-//		CreateTriangle(p5, p3, p6, level);
-//	}
-//	else
-//	{
-//		MPoint p = p1 + p2 + p3;
-//		p.Normalize();
-//		mPoints.push_back(p);
-//		
-//		p = CrossProduct(p3 - p1, p2 - p1);
-//
-//		double l = p.Normalize();
-//		mWeights.push_back(l / 2);
-//	}
-//}
-//
-//MPolyeder& gPolyeder = MPolyeder::Instance();
-	
 }
 
 // --------------------------------------------------------------------
@@ -222,6 +98,7 @@ MSurfaceDots::MSurfaceDots()
 MAtomType MapElement(string inElement)
 {
 	ba::trim(inElement);
+	ba::to_upper(inElement);
 	
 	MAtomType result = kUnknownAtom;
 	if (inElement == "H")
@@ -238,19 +115,20 @@ MAtomType MapElement(string inElement)
 		result = kPhosphorus;
 	else if (inElement == "S")
 		result = kSulfur;
-	else if (inElement == "Cl")
+	else if (inElement == "CL")
 		result = kChlorine;
 	else if (inElement == "K")
 		result = kPotassium;
-	else if (inElement == "Ca")
+	else if (inElement == "MG")
+		result = kMagnesium;
+	else if (inElement == "CA")
 		result = kCalcium;
-	else if (inElement == "Zn")
+	else if (inElement == "ZN")
 		result = kZinc;
-	else if (inElement == "Se")
+	else if (inElement == "SE")
 		result = kSelenium;
 	else
-		cerr << boost::format("Unsupported element '%1%'") % inElement << endl;
-//		throw mas_exception(boost::format("Unsupported element '%1%'") % inElement);
+		throw mas_exception(boost::format("Unsupported element '%1%'") % inElement);
 	return result;
 }
 
@@ -784,11 +662,6 @@ void MResidue::CalculateSurface(const vector<MResidue*>& inResidues)
 			neighbours.push_back(r);
 	}
 
-#ifndef NDEBUG
-	static stats s_neighbourcounter;
-	s_neighbourcounter(neighbours.size());
-#endif
-	
 	mAccessibility = CalculateSurface(mN, kRadiusN, neighbours) +
 					 CalculateSurface(mCA, kRadiusCA, neighbours) +
 					 CalculateSurface(mC, kRadiusC, neighbours) +
@@ -856,11 +729,6 @@ double MResidue::CalculateSurface(const MAtom& inAtom, double inRadius, const ve
 				accumulate(inAtom, atom, inRadius, kRadiusSideAtom);
 		}
 	}
-
-#ifndef NDEBUG
-	static stats s_x_counter;
-	s_x_counter(accumulate.m_x.size());
-#endif
 
 	accumulate.sort();
 
@@ -1119,7 +987,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			
 			try
 			{
-				atom.mType = MapElement(line.substr(77, 2));
+				atom.mType = MapElement(line.substr(76, 2));
 			}
 			catch (exception& e)
 			{
