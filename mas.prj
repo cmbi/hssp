@@ -25,15 +25,12 @@
       <file>utils.cpp</file>
     </group>
     <group name="Libraries">
-      <link>mrsd</link>
-      <link>zeep</link>
       <link>boost_filesystem</link>
       <link>boost_iostreams</link>
       <link>boost_program_options</link>
       <link>boost_system</link>
       <link>boost_thread</link>
       <link>boost_regex</link>
-      <link>uuid</link>
       <link>bz2</link>
       <link>z</link>
     </group>

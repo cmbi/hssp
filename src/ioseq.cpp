@@ -26,21 +26,17 @@ namespace ba = boost::algorithm;
 
 // --------------------------------------------------------------------
 
-void readFasta(fs::path path, vector<entry>& seq)
+void readFasta(istream& is, vector<entry>& seq)
 {
-	fs::ifstream file(path);
-	if (not file.is_open())
-		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
-	
 	string id, s;
 	
 	for (;;)
 	{
 		string line;
-		getline(file, line);
+		getline(is, line);
 		if (line.empty() or line[0] == '>')
 		{
-			if (line.empty() and not file.eof())
+			if (line.empty() and not is.eof())
 				continue;
 			
 			if (not (id.empty() or s.empty()))
@@ -70,13 +66,9 @@ void readFasta(fs::path path, vector<entry>& seq)
 	}
 }
 
-void readPDB(fs::path path, char chainID, vector<entry>& seq)
+void readPDB(istream& is, char chainID, vector<entry>& seq)
 {
-	fs::ifstream file(path);
-	if (not file.is_open())
-		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
-	
-	MProtein p(file);
+	MProtein p(is);
 	
 	if (chainID == 0)
 		chainID = p.GetFirstChainID();
@@ -89,25 +81,21 @@ void readPDB(fs::path path, char chainID, vector<entry>& seq)
 }
 
 void readAlignmentFromHsspFile(
-	fs::path		path,
+	istream&		is,
 	char&			chainID,
 	vector<entry>&	seq)
 {
 	seq.clear();
 
-	fs::ifstream file(path);
-	if (not file.is_open())
-		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
-	
 	string line;
 	
 	// first line, should be something like "HSSP   bla bla bla"
-	getline(file, line);
+	getline(is, line);
 	if (not ba::starts_with(line, "HSSP"))
 		throw mas_exception("file is not an HSSP file, does not start with HSSP");
 	
 	// second line, should contain PDBID
-	getline(file, line);
+	getline(is, line);
 	if (not ba::starts_with(line, "PDBID") or line.length() < 13)
 		throw mas_exception("file is not a valid HSSP file, PDBID missing");
 	
@@ -117,9 +105,9 @@ void readAlignmentFromHsspFile(
 	string header;
 	uint32 seqLength = 0, nchain = 0, nalign = 0, chain = 0;
 	
-	while (not file.eof())
+	while (not is.eof())
 	{
-		getline(file, line);
+		getline(is, line);
 		
 		if (ba::starts_with(line, "## "))
 			break;
@@ -171,15 +159,15 @@ void readAlignmentFromHsspFile(
 	if (line != "## PROTEINS : EMBL/SWISSPROT identifier and alignment statistics")
 		throw mas_exception("invalid or unsupported HSSP file, ## PROTEINS line does match expected value");
 
-	getline(file, line);
+	getline(is, line);
 	if (not ba::starts_with(line, "  NR."))
 		throw mas_exception("invalid HSSP file, expected line starting with NR.");
 	
 	seq.reserve(nalign);
 	
-	for (uint32 nr = 0; file.eof() == false and nr < nalign; ++nr)
+	for (uint32 nr = 0; is.eof() == false and nr < nalign; ++nr)
 	{
-		getline(file, line);
+		getline(is, line);
 		
 		if (line.length() < 92)
 			throw mas_exception("invalid HSSP file, protein line too short");
@@ -196,10 +184,10 @@ void readAlignmentFromHsspFile(
 	
 	assert(seq.size() == nalign + 1);
 	
-	getline(file, line);
+	getline(is, line);
 	
 	uint32 alignment = 1;
-	while (file.eof() == false and alignment < nalign)
+	while (is.eof() == false and alignment < nalign)
 	{
 		if (not ba::starts_with(line, "## ALIGNMENTS"))
 			throw mas_exception("invalid HSSP file, missing ## ALIGNMENTS line");
@@ -215,14 +203,14 @@ void readAlignmentFromHsspFile(
 		
 		alignment = a_t + 1;
 		
-		getline(file, line);	// SeqNo line
+		getline(is, line);	// SeqNo line
 		
 		string pdb_seq;
 		vector<string> s(a_t - a_f + 1);
 		vector<int16> pdbnrs;
 		
 		do {
-			getline(file, line);
+			getline(is, line);
 			
 			int32 n = static_cast<int32>(line.length()) - 51;
 			
@@ -250,7 +238,7 @@ void readAlignmentFromHsspFile(
 				}
 			}
 		}
-		while (not file.eof() and not (ba::starts_with(line, "##") or ba::starts_with(line, "//")));
+		while (not is.eof() and not (ba::starts_with(line, "##") or ba::starts_with(line, "//")));
 		
 		for (uint32 i = 0; i < a_t - a_f + 1; ++i)
 		{
@@ -275,25 +263,25 @@ void readAlignmentFromHsspFile(
 	
 	// process ## INSERTION LIST, if any
 	
-	while (not file.eof() and ba::starts_with(line, "## ") and
+	while (not is.eof() and ba::starts_with(line, "## ") and
 		not ba::starts_with(line, "## INSERTION LIST"))
 	{
 		do
 		{
-			getline(file, line);
+			getline(is, line);
 		}
-		while (not (file.eof() or ba::starts_with(line, "## ")));
+		while (not (is.eof() or ba::starts_with(line, "## ")));
 	}
 	
 	if (ba::starts_with(line, "## INSERTION LIST"))
 	{
-		getline(file, line);
+		getline(is, line);
 		
 		for (;;)
 		{
-			getline(file, line);
+			getline(is, line);
 			
-			if (file.eof() or ba::starts_with(line, "//"))
+			if (is.eof() or ba::starts_with(line, "//"))
 				break;
 
 			uint32 l = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(20, 4)));
@@ -327,19 +315,15 @@ void readAlignmentFromHsspFile(
 //	}
 }
 
-void readWhatifMappingFile(fs::path path, vector<entry>& seq)
+void readWhatifMappingFile(istream& is, vector<entry>& seq)
 {
 	seq.clear();
 
-	fs::ifstream file(path);
-	if (not file.is_open())
-		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
-	
 	string line;
 	
-	while (not file.eof())
+	while (not is.eof())
 	{
-		getline(file, line);
+		getline(is, line);
 		if (not ba::starts_with(line, "Sequence name: "))
 			continue;
 		break;
@@ -352,11 +336,11 @@ void readWhatifMappingFile(fs::path path, vector<entry>& seq)
 		vector<int16> pos;
 		
 		// skip the description line
-		getline(file, line);
+		getline(is, line);
 		
-		while (not (file.eof() or ba::starts_with(line, "Sequence name: ")))
+		while (not (is.eof() or ba::starts_with(line, "Sequence name: ")))
 		{
-			getline(file, line);
+			getline(is, line);
 
 			if (line.length() != 16 or line[4] != ' ' or line[6] != ' ' or line[11] != ' ')
 				continue;
@@ -381,50 +365,46 @@ void readWhatifMappingFile(fs::path path, vector<entry>& seq)
 	}
 }
 
-void readFamilyIdsFile(fs::path path, vector<entry>& seq)
-{
-	seq.clear();
-
-	fs::ifstream file(path);
-	if (not file.is_open())
-		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
-	
-	fs::path dir = path.parent_path();
-	
-	while (not file.eof())
-	{
-		string id;
-		getline(file, id);
-		
-		if (id.empty())
-			continue;
-		
-		fs::ifstream data(dir / (id + ".mapping"));
-		if (not data.is_open())
-			throw mas_exception(boost::format("Failed to open mapping file for protein %1%") % id);
-		
-		string line, s;
-		vector<int16> pos;
-
-		while (not data.eof())
-		{
-			getline(data, line);
-	
-			if (line.length() < 3 or line[1] != '\t')
-				continue;
-			
-			s += line[0];
-			pos.push_back(boost::lexical_cast<int16>(line.substr(2)));
-		}
-		
-		if (not s.empty())
-		{
-			entry e(seq.size(), id, encode(s));
-			e.m_positions = pos;
-			seq.push_back(e);
-		}
-	}
-}
+//void readFamilyIdsFile(istream& is, vector<entry>& seq)
+//{
+//	seq.clear();
+//
+//	fs::path dir = path.parent_path();
+//	
+//	while (not file.eof())
+//	{
+//		string id;
+//		getline(file, id);
+//		
+//		if (id.empty())
+//			continue;
+//		
+//		fs::ifstream data(dir / (id + ".mapping"));
+//		if (not data.is_open())
+//			throw mas_exception(boost::format("Failed to open mapping file for protein %1%") % id);
+//		
+//		string line, s;
+//		vector<int16> pos;
+//
+//		while (not data.eof())
+//		{
+//			getline(data, line);
+//	
+//			if (line.length() < 3 or line[1] != '\t')
+//				continue;
+//			
+//			s += line[0];
+//			pos.push_back(boost::lexical_cast<int16>(line.substr(2)));
+//		}
+//		
+//		if (not s.empty())
+//		{
+//			entry e(seq.size(), id, encode(s));
+//			e.m_positions = pos;
+//			seq.push_back(e);
+//		}
+//	}
+//}
 
 void readSecStruct(std::vector<entry>& seq)
 {

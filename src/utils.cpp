@@ -18,6 +18,7 @@
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 
+#include "align-2d.h"
 #include "utils.h"
 
 using namespace std;

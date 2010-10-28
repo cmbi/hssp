@@ -25,6 +25,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
 
+#include "align-2d.h"
 #include "ioseq.h"
 #include "matrix.h"
 #include "buffer.h"
@@ -39,9 +40,6 @@ namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
-
-int VERBOSE = 0,
-	MULTI_THREADED = 1;
 
 // --------------------------------------------------------------------
 
@@ -130,6 +128,16 @@ ostream& operator<<(ostream& lhs, base_node& rhs)
 {
 	rhs.print(lhs);
 	return lhs;
+}
+
+joined_node::joined_node()
+	: m_left(nil)
+	, m_right(nil)
+	, m_d_left(0.5)
+	, m_d_right(0.5)
+	, m_leaf_count(0)
+	, m_length(0)
+{	
 }
 
 joined_node::joined_node(base_node* left, base_node* right,
@@ -1018,300 +1026,3 @@ void shuffle(vector<entry*> alignment, substitution_matrix_family& mat, float go
 		pr.step(1);
 	}
 }
-
-void align3d(const vector<string>& input,
-	uint32 iterations, substitution_matrix_family& mat, float gop, float gep, float magic,
-	vector<entry*>& alignment)
-{
-	if (input.size() != 2)
-		throw mas_exception("Structure alignment is limited to two structures at the moment");
-
-	char chainA = 0;
-	string fileNameA = input[0];
-	if (fileNameA.length() > 2 and fileNameA[fileNameA.length() - 2] == ',')
-	{
-		chainA = fileNameA[fileNameA.length() - 1];
-		fileNameA.erase(fileNameA.begin() + fileNameA.length() - 2, fileNameA.end());
-	}
-	
-	ifstream fileA(fileNameA.c_str(), ios_base::in | ios_base::binary);
-	if (not fileA.is_open())
-		throw mas_exception(boost::format("Could not open file '%1%'") % fileNameA);
-	
-	io::filtering_stream<io::input> inA;
-	if (ba::ends_with(fileNameA, ".bz2"))
-		inA.push(io::bzip2_decompressor());
-	else if (ba::ends_with(fileNameA, ".gz"))
-		inA.push(io::gzip_decompressor());
-	
-	inA.push(fileA);
-
-	char chainB = 0;
-	string fileNameB = input[1];
-	if (fileNameB.length() > 2 and fileNameB[fileNameB.length() - 2] == ',')
-	{
-		chainB = fileNameB[fileNameB.length() - 1];
-		fileNameB.erase(fileNameB.begin() + fileNameB.length() - 2, fileNameB.end());
-	}
-	
-	ifstream fileB(fileNameB.c_str(), ios_base::in | ios_base::binary);
-	if (not fileB.is_open())
-		throw mas_exception(boost::format("Could not open file '%1%'") % fileNameB);
-	
-	io::filtering_stream<io::input> inB;
-	if (ba::ends_with(fileNameB, ".bz2"))
-		inB.push(io::bzip2_decompressor());
-	else if (ba::ends_with(fileNameB, ".gz"))
-		inB.push(io::gzip_decompressor());
-	
-	inB.push(fileB);
-	
-	align_structures(fileA, fileB, chainA, chainB, iterations, mat, gop, gep, magic, alignment);
-}
-
-void align2d(const vector<string>& input, char chain, vector<entry>& data,
-	substitution_matrix_family& mat, float gop, float gep, float magic,
-	vector<entry*>& alignment)
-{
-	fs::path path;
-	
-	joined_node* root;
-
-	foreach (string infile, input)
-	{
-		char iChain = chain;
-		if (infile.length() > 2 and infile[infile.length() - 2] == ',')
-		{
-			iChain = infile[infile.length() - 1];
-			infile.erase(infile.length() - 2, string::npos);
-		}
-
-		ifstream file(infile.c_str(), ios_base::in | ios_base::binary);
-		if (not file.is_open())
-			throw mas_exception(boost::format("Could not open file '%1%'") % infile);
-		
-		io::filtering_stream<io::input> in;
-		if (ba::ends_with(infile, ".bz2"))
-		{
-			in.push(io::bzip2_decompressor());
-			infile.erase(infile.length() - 4, string::npos);
-		}
-		else if (ba::ends_with(infile, ".gz"))
-		{
-			in.push(io::gzip_decompressor());
-			infile.erase(infile.length() - 3, string::npos);
-		}
-		
-		in.push(file);
-		
-		fs::path path(infile);
-		if (path.extension() == ".hssp")
-			readAlignmentFromHsspFile(in, iChain, data);
-//		else if (path.extension() == ".mapping")
-//			readWhatifMappingFile(in, data);
-//		else if (path.extension() == ".ids")
-//			readFamilyIdsFile(in, data);
-		else if (path.extension() == ".pdb" or (ba::starts_with(path.leaf(), "pdb") and path.extension() == ".ent"))
-		{
-			readPDB(in, iChain, data);
-			data.back().m_positions.clear();
-		}
-		else
-			readFasta(in, data);
-	}
-
-//	if (vm.count("ignore-pos-nr"))
-//		for_each(data.begin(), data.end(), boost::bind(&entry::dump_positions, _1));
-	
-	if (data.size() < 2)
-		throw mas_exception("insufficient number of sequences");
-
-	if (data.size() == 2)
-	{
-		// no need to do difficult stuff, just align two sequences:
-		float dist = calculateDistance(data[0], data[1]);
-		root = new joined_node(new leaf_node(data[0]), new leaf_node(data[1]), dist / 2, dist / 2);
-	}
-	else
-	{
-		// create the leaf nodes
-		vector<base_node*> tree;
-		tree.reserve(data.size());
-		foreach (entry& e, data)
-			tree.push_back(new leaf_node(e));
-		
-		// calculate guide tree
-//		if (vm.count("guide-tree"))
-//			useGuideTree(vm["guide-tree"].as<string>(), tree);
-//		else
-//		{
-			// a distance matrix
-			symmetric_matrix<float> d(data.size());
-			calculateDistanceMatrix(d, data);
-			joinNeighbours(d, tree);
-//		}
-		
-		root = static_cast<joined_node*>(tree.front());
-	}
-	
-	if (VERBOSE)
-		cerr << *root << ';' << endl;
-	
-	progress pr("calculating alignments", root->cumulative_cost());
-	createAlignment(root, alignment, mat, gop, gep, magic, pr);
-}
-
-int main(int argc, char* argv[])
-{
-	try
-	{
-		po::options_description desc("mas options");
-		desc.add_options()
-			("help,h",							 "Display help message")
-			("input,i",		po::value<vector<string>>(),
-												"Input file(s)")
-			("outfile,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
-			("format,f",	po::value<string>(), "Output format, can be clustalw (default) or fasta")
-			("outtree",		po::value<string>(), "Write guide tree")
-			("debug,d",		po::value<int>(),	 "Debug output level")
-			("verbose,v",						 "Verbose output")
-			("no-threads,T",					 "Avoid multi-threading (=debug option)")
-			("guide-tree,g",po::value<string>(), "use existing guide tree")
-			("matrix,m",	po::value<string>(), "Substitution matrix, default is PAM")
-			("gap-open",	po::value<float>(),	 "Gap open penalty")
-			("gap-extend",	po::value<float>(),	 "Gap extend penalty")
-			("magic",		po::value<float>(),	 "Magical number")
-			("chain,c",		po::value<char>(),	 "Chain ID to select (from HSSP input)")
-			("ignore-pos-nr",					 "Do not use position/PDB nr in scoring")
-			("3d",								 "Do a structure alignment")
-			("iterations,I",po::value<uint32>(), "Number of iterations in 3d alignment [default = 5]")
-			("ss",								 "Read secondary structure files")
-			("shuffle",							 "Refine alignment")
-			;
-	
-		po::positional_options_description p;
-		p.add("input", -1);
-	
-		po::variables_map vm;
-		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
-		po::notify(vm);
-
-		VERBOSE = vm.count("verbose");
-		if (vm.count("debug"))
-			VERBOSE = vm["debug"].as<int>();
-
-		if (vm.count("no-threads"))
-			MULTI_THREADED = 0;
-		
-		if (vm.count("help") or (vm.count("input") == 0 and vm.count("3d-a") == 0))
-		{
-			cerr << desc << endl;
-			exit(1);
-		}
-		
-		// matrix
-		string matrix;
-		float gop, gep, magic;
-		
-		if (vm.count("input"))		// regular alignments
-		{
-			matrix = "BLOSUM";
-			gop = 10;
-			gep = 0.2;
-			magic = 0.1;
-		}
-		else						// 3d alignments
-		{
-			matrix = "GONNET";
-			gop = 2;
-			gep = 0.02;
-			magic = 0.1;
-		}
-
-		if (vm.count("matrix"))
-			matrix = vm["matrix"].as<string>();
-		substitution_matrix_family mat(matrix);
-
-		if (vm.count("gap-open"))	gop = vm["gap-open"].as<float>();
-		if (vm.count("gap-extend"))	gep = vm["gap-extend"].as<float>();
-		if (vm.count("magic"))		magic = vm["magic"].as<float>();
-
-		char chain = 0;
-		if (vm.count("chain"))
-			chain = vm["chain"].as<char>();
-
-		vector<entry> data;
-		vector<entry*> alignment;
-
-		if (vm.count("3d"))
-		{
-			uint32 iterations = 5;
-			if (vm.count("iterations"))
-				iterations = vm["iterations"].as<uint32>();
-			
-			align3d(vm["input"].as<vector<string>>(), iterations, mat, gop, gep, magic, alignment);
-		}
-		else
-		{
-			align2d(vm["input"].as<vector<string>>(), chain, data, mat, gop, gep, magic, alignment);
-		}
-
-		string outfile = "stdout";
-		if (vm.count("outfile") != 0)
-			outfile = vm["outfile"].as<string>();
-		
-//		if (vm.count("outtree"))
-//		{
-//			fs::path treepath = vm["outtree"].as<string>();
-//			treepath = treepath.parent_path() / (treepath.stem() + ".dnd");
-//			fs::ofstream file(treepath);
-//			if (not file.is_open())
-//				throw mas_exception(boost::format("Failed to write guide tree %1%") % treepath.string());
-//			file << *root << ';' << endl;
-//		}
-
-		sort(alignment.begin(), alignment.end(),
-			boost::bind(&entry::nr, _1) < boost::bind(&entry::nr, _2));
-
-		if (vm.count("shuffle"))
-		{
-			shuffle(alignment, mat, gop, gep, magic);
-			shuffle(alignment, mat, gop, gep, magic);
-		}
-
-		string format = "clustalw";
-		if (vm.count("format"))
-			format = vm["format"].as<string>();
-		
-		if (vm.count("output"))
-		{
-			string output = vm["output"].as<string>();
-			
-			ofstream outfile(output.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
-			if (not outfile.is_open())
-				throw runtime_error("could not create output file");
-			
-			io::filtering_stream<io::output> out;
-			if (ba::ends_with(output, ".bz2"))
-				out.push(io::bzip2_compressor());
-			else if (ba::ends_with(output, ".gz"))
-				out.push(io::gzip_compressor());
-			
-			out.push(outfile);
-			
-			report(alignment, out, format);
-		}
-		else
-			report(alignment, cout, format);
-
-//		delete root;
-	}
-	catch (const exception& e)
-	{
-		cerr << e.what() << endl;
-		exit(1);
-	}
-	
-	return 0;
-}
-

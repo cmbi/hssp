@@ -13,6 +13,7 @@
 #define foreach BOOST_FOREACH
 #include <boost/algorithm/string.hpp>
 
+#include "align-2d.h"
 #include "utils.h"
 #include "buffer.h"
 #include "structure.h"
