@@ -138,7 +138,14 @@ enum MHelixFlag
 
 enum MSecondaryStructure
 {
-	loop, alphahelix, betabridge, strand, helix_3, helix_5, turn, bend
+	loop,		//' '
+	alphahelix,	// H
+	betabridge, // B
+	strand,		// E
+	helix_3,	// G
+	helix_5,	// I
+	turn,		// T
+	bend		// S
 };
 
 class MResidue

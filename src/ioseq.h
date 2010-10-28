@@ -9,7 +9,7 @@
 struct entry;
 
 void readFasta(boost::filesystem::path path, std::vector<entry>& seq);
-void readPDB(boost::filesystem::path path, std::vector<entry>& seq);
+void readPDB(boost::filesystem::path path, char chainID, std::vector<entry>& seq);
 void readAlignmentFromHsspFile(boost::filesystem::path path,
 	char& chainID, std::vector<entry>& seq);
 void readWhatifMappingFile(boost::filesystem::path path,

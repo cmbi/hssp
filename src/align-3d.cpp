@@ -1,8 +1,5 @@
 // 3d dingen
 
-#include "MRS.h"
-#include "CSequence.h"
-
 #include "mas.h"
 
 #include <iostream>
@@ -22,9 +19,6 @@
 #include "matrix.h"
 #include "ioseq.h"
 #include "utils.h"
-
-#include "CDatabank.h"
-#include "CDatabankTable.h"
 
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
@@ -322,13 +316,6 @@ void align_proteins(MProtein& a, char chainA, MProtein& b, char chainB,
 	}
 }
 
-CDatabankPtr LoadDatabank(
-	const string&		inDB)
-{
-	static CDatabankTable sDBTable;
-	return sDBTable.Load(inDB);
-}
-
 void create_entries(MProtein& a, MProtein& b, char chainA, char chainB,
 	entry& ea, entry& eb)
 {
@@ -430,40 +417,39 @@ void create_entries(MProtein& a, MProtein& b, char chainA, char chainB,
 	}
 }
 
-void align_structures(const string& structureA, const string& structureB,
+void align_structures(
+	std::istream& structureA, std::istream& structureB,
+	char chainA, char chainB,
 	uint32 iterations,
-	substitution_matrix_family& mat, float gop, float gep, float magic)
+	substitution_matrix_family& mat, float gop, float gep, float magic,
+	std::vector<entry*>& alignment)
 {
-	char chainA = 0, chainB = 0;
-	
-	CDatabankPtr pdb = LoadDatabank("pdb");
-	
-	string pdbid_a = structureA;
-	if (pdbid_a.length() == 5)
-	{
-		chainA = pdbid_a[4];
-		pdbid_a.erase(4, 5);
-	}
-	else if (pdbid_a.length() != 4)
-		throw mas_exception("Please specify a PDB ID in 4 letter code");
+//	string pdbid_a = structureA;
+//	if (pdbid_a.length() == 5)
+//	{
+//		chainA = pdbid_a[4];
+//		pdbid_a.erase(4, 5);
+//	}
+//	else if (pdbid_a.length() != 4)
+//		throw mas_exception("Please specify a PDB ID in 4 letter code");
+//
+//	string pdbid_b = structureB;
+//	if (pdbid_b.length() == 5)
+//	{
+//		chainB = pdbid_b[4];
+//		pdbid_b.erase(4, 5);
+//	}
+//	else if (pdbid_b.length() != 4)
+//		throw mas_exception("Please specify a PDB ID in 4 letter code");
 
-	string pdbid_b = structureB;
-	if (pdbid_b.length() == 5)
-	{
-		chainB = pdbid_b[4];
-		pdbid_b.erase(4, 5);
-	}
-	else if (pdbid_b.length() != 4)
-		throw mas_exception("Please specify a PDB ID in 4 letter code");
-
-	stringstream file_a(pdb->GetDocument(pdbid_a));
-	MProtein a(file_a, false);
+//	stringstream file_a(pdb->GetDocument(pdbid_a));
+	MProtein a(structureA, false);
 	
 	if (chainA == 0)
 		chainA = a.GetFirstChainID();
 
-	stringstream file_b(pdb->GetDocument(pdbid_b));
-	MProtein b(file_b, false);
+//	stringstream file_b(pdb->GetDocument(pdbid_b));
+	MProtein b(structureB, false);
 
 	if (chainB == 0)
 		chainB = b.GetFirstChainID();
@@ -473,23 +459,31 @@ void align_structures(const string& structureA, const string& structureB,
 	if (VERBOSE)
 		cerr << "RMSD: " << CalculateRMSD(a, b, chainA, chainB) << endl;
 
-	entry ea(1, a.GetID()), eb(2, b.GetID());
-	create_entries(a, b, chainA, chainB, ea, eb);
+	entry* ea = new entry(1, a.GetID());
+	entry* eb = new entry(2, b.GetID());
+	create_entries(a, b, chainA, chainB, *ea, *eb);
 	
-	vector<entry*> aa, ab, ac;
-	aa.push_back(&ea);
-	ab.push_back(&eb);
-	joined_node n(new leaf_node(ea), new leaf_node(eb), 0.1, 0.1);
+	vector<entry*> aa, ab;
+	aa.push_back(ea);
+	ab.push_back(eb);
+	joined_node n(new leaf_node(*ea), new leaf_node(*eb), 0.1, 0.1);
 
-	align(&n, aa, ab, ac, mat, gop, gep, magic, false);
-	report(ac, cout, "clustalw");
+	align(&n, aa, ab, alignment, mat, gop, gep, magic, false);
 	
 	MProtein c;
 
 	c.SetChain('A', a.GetChain(chainA));
 	c.SetChain('B', b.GetChain(chainB));
 	
-	ofstream file_o(pdbid_a + chainA + '-' + pdbid_b + chainB + ".pdb");
+	string pdbid_a = a.GetID();
+	if (isprint(chainA) and not isspace(chainA))
+		pdbid_a += chainA;
+	
+	string pdbid_b = b.GetID();
+	if (isprint(chainB) and not isspace(chainB))
+		pdbid_b += chainB;
+	
+	ofstream file_o(pdbid_a + '-' + pdbid_b + ".pdb");
 	c.WritePDB(file_o);
 }
 

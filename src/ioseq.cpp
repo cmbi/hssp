@@ -70,14 +70,18 @@ void readFasta(fs::path path, vector<entry>& seq)
 	}
 }
 
-void readPDB(fs::path path, vector<entry>& seq)
+void readPDB(fs::path path, char chainID, vector<entry>& seq)
 {
 	fs::ifstream file(path);
 	if (not file.is_open())
 		throw mas_exception(boost::format("input file '%1%' not opened") % path.string());
 	
 	MProtein p(file);
-	char chainID = p.GetFirstChainID();
+	
+	if (chainID == 0)
+		chainID = p.GetFirstChainID();
+	
+	p.CalculateSecondaryStructure();
 	
 	entry e(seq.size(), p.GetID());
 	p.GetSequence(chainID, e);
