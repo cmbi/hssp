@@ -214,3 +214,4 @@ substitution_matrix_family::~substitution_matrix_family()
 	delete m_pos_smat[2];
 	delete m_pos_smat[3];
 }
+

@@ -14,7 +14,7 @@
 using namespace std;
 
 const double
-	kPI = 4 * std::atan(1);
+	kPI = 4 * std::atan(1.0);
 
 // --------------------------------------------------------------------
 

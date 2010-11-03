@@ -177,3 +177,12 @@ sequence encode(const string& s)
 	return result;
 }
 
+// --------------------------------------------------------------------
+
+#ifdef DEBUG
+stats::~stats()
+{
+	if (VERBOSE) 
+		cerr << endl << "max: " << m_max << " count: " << m_count << " average: " << (m_cumm / m_count) << endl;
+}
+#endif

@@ -8,6 +8,7 @@
 #include <string>
 #include <istream>
 #include <cassert>
+#include <stdexcept>
 
 // --------------------------------------------------------------------
 // uBlas compatible matrix types
@@ -26,7 +27,7 @@ class matrix_base
 	virtual uint32		dim_m() const = 0;
 	virtual uint32		dim_n() const = 0;
 
-	virtual value_type&	operator()(uint32 i, uint32 j) = 0;
+	virtual value_type&	operator()(uint32 i, uint32 j) { throw std::runtime_error("unimplemented method"); }
 	virtual value_type	operator()(uint32 i, uint32 j) const = 0;
 	
 	matrix_base&		operator*=(const value_type& rhs);
@@ -237,7 +238,6 @@ class identity_matrix : public matrix_base<T>
 	virtual uint32		dim_m() const					{ return m_n; }
 	virtual uint32		dim_n() const					{ return m_n; }
 
-	virtual value_type&	operator()(uint32 i, uint32 j)	{ assert(false); }
 	virtual value_type	operator()(uint32 i, uint32 j) const
 						{
 							value_type result = 0;

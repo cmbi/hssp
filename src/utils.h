@@ -51,7 +51,7 @@ class progress
 struct stats
 {
 	stats() : m_max(0), m_count(0), m_cumm(0) {}
-	~stats() { if (VERBOSE) std::cerr << std::endl << "max: " << m_max << " count: " << m_count << " average: " << (m_cumm / m_count) << std::endl; }
+	~stats();
 	
 	void operator()(uint32 i)
 	{
