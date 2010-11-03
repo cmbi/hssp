@@ -370,6 +370,13 @@ MResidue::MResidue(uint32 inNumber,
 		mH.mLoc.mY += (pc.mLoc.mY - po.mLoc.mY) / CODistance; 
 		mH.mLoc.mZ += (pc.mLoc.mZ - po.mLoc.mZ) / CODistance; 
 	}
+
+	// check for chain breaks
+	if (mPrev != nil and not mPrev->ValidDistance(*this))
+	{
+		cerr << boost::format("The distance between residue %1% and %2% is larger than the maximum peptide bond length")
+					% mPrev->GetNumber() % mNumber << endl;
+	}
 	
 	// update the box containing all atoms
 	mBox[0].mX = mBox[0].mY = mBox[0].mZ =  numeric_limits<double>::max();

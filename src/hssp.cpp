@@ -54,19 +54,46 @@ void alignForHSSP(vector<entry>& data, vector<entry*>& alignment)
 	
 	progress pr("creating alignment", data.size() - 1);
 
-	alignment.push_back(&data.front());
 	for (uint32 i = 1; i < data.size(); ++i)
 	{
-		vector<entry*> b;
-		b.push_back(&data[i]);
+		entry ea(data.front());
+		entry eb(data[i]);
 		
-		vector<entry*> c;
-		align(&node, alignment, b, c, mat, gop, gep, magic, true);
+		vector<entry*> a, b, c;
+		a.push_back(&ea);
+		b.push_back(&eb);
 		
-		alignment = c;
+		align(&node, a, b, c, mat, gop, gep, magic, true);
+		
+		data[i].m_seq.clear();
+		
+		for (uint32 j = 0; j < ea.m_seq.length(); ++j)
+		{
+			if (ea.m_seq[j] != kSignalGapCode)
+				data[i].m_seq += eb.m_seq[j];
+		}
+		
+//		alignment.push_back(c.back());
 		
 		pr.step(1);
 	}
+
+	foreach (entry& e, data)
+		alignment.push_back(&e);
+
+//	alignment.push_back(&data.front());
+//	for (uint32 i = 1; i < data.size(); ++i)
+//	{
+//		vector<entry*> b;
+//		b.push_back(&data[i]);
+//		
+//		vector<entry*> c;
+//		align(&node, alignment, b, c, mat, gop, gep, magic, true);
+//		
+//		alignment = c;
+//		
+//		pr.step(1);
+//	}
 }
 
 void CreateHSSP(MProtein& protein, ostream& os)
