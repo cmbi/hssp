@@ -261,7 +261,7 @@ void MAtom::WritePDB(ostream& os) const
 }
 
 const MResidueInfo kResidueInfo[] = {
-	{ kUnknownResidue,	'U', "UNK" },
+	{ kUnknownResidue,	'X', "UNK" },
 	{ kAlanine,			'A', "ALA" },
 	{ kArginine,		'R', "ARG" },
 	{ kAsparagine,		'N', "ASN" },
@@ -314,6 +314,7 @@ MResidue::MResidue(uint32 inNumber,
 	, mNext(nil)
 	, mSeqNumber(inAtoms.front().mResSeq)
 	, mNumber(inNumber)
+	, mInsertionCode(inAtoms.front().mICode)
 	, mType(MapResidue(inAtoms.front().mResName))
 	, mSSBridgeNr(0)
 	, mAccessibility(0)
@@ -429,16 +430,16 @@ void MResidue::SetPrev(MResidue* inResidue)
 
 bool MResidue::NoChainBreak(const MResidue* from, const MResidue* to)
 {
-	bool nobreak = true;
-	for (const MResidue* r = from; nobreak and r != to; r = r->mNext)
+	bool result = true;
+	for (const MResidue* r = from; result and r != to; r = r->mNext)
 	{
 		MResidue* next = r->mNext;
 		if (next == nil)
-			nobreak = true;
+			result = false;
 		else
-			nobreak = next->mNumber == r->mNumber + 1;
+			result = next->mNumber == r->mNumber + 1;
 	}
-	return nobreak;
+	return result;
 }
 
 void MResidue::SetChainID(char inID)
@@ -468,7 +469,7 @@ bool MResidue::TestBond(const MResidue* other) const
 double MResidue::Phi() const
 {
 	double result = 360;
-	if (mPrev != nil and NoChainBreak(this, mNext))
+	if (mPrev != nil and NoChainBreak(mPrev, this))
 		result = DihedralAngle(mPrev->GetC(), GetN(), GetCAlpha(), GetC());
 	return result;
 }
@@ -873,20 +874,36 @@ void MChain::WritePDB(std::ostream& os)
 	os << (ter % (last->GetCAlpha().mSerial + 1) % kResidueInfo[last->GetType()].name % mChainID % last->GetNumber() % ' ') << endl;
 }
 
-MResidue& MChain::GetResidueBySeqNumber(uint16 inSeqNumber)
+MResidue* MChain::GetResidueBySeqNumber(uint16 inSeqNumber, char inInsertionCode)
 {
 	vector<MResidue*>::iterator r = find_if(mResidues.begin(), mResidues.end(),
-		boost::bind(&MResidue::GetSeqNumber, _1) == inSeqNumber);
+		boost::bind(&MResidue::GetSeqNumber, _1) == inSeqNumber and
+		boost::bind(&MResidue::GetInsertionCode, _1) == inInsertionCode);
 	if (r == mResidues.end())
-		throw mas_exception(boost::format("Residue %d not found") % inSeqNumber);
-	return **r;
+		throw mas_exception(boost::format("Residue %d%c not found") % inSeqNumber % inInsertionCode);
+	return *r;
 }
 
 // --------------------------------------------------------------------
 
+struct MResidueID
+{
+	char			chain;
+	uint16			seqNumber;
+	char			insertionCode;
+	
+	bool			operator<(const MResidueID& o) const
+	{
+		return
+			 chain < o.chain or
+			(chain == o.chain and seqNumber < o.seqNumber) or
+			(chain == o.chain and seqNumber == o.seqNumber and insertionCode < o.insertionCode);
+	}
+};
+
 MProtein::MProtein(istream& is, bool cAlphaOnly)
 	: mResidueCount(0)
-	, mNextResidueNumber(1)
+	, mChainBreaks(0)
 	, mIgnoredWaterMolecules(0)
 	, mNrOfHBondsInParallelBridges(0)
 	, mNrOfHBondsInAntiparallelBridges(0)
@@ -895,8 +912,11 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 	fill(mAntiparallelBridgesPerLadderHistogram, mAntiparallelBridgesPerLadderHistogram + kHistogramSize, 0);
 	fill(mLaddersPerSheetHistogram, mLaddersPerSheetHistogram + kHistogramSize, 0);
 
+	vector<pair<MResidueID,MResidueID>> ssbonds;
+
 	bool model = false;
 	vector<MAtom> atoms;
+	char firstAltLoc = ' ';
 	
 	while (not is.eof())
 	{
@@ -905,7 +925,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 		
 		if (ba::starts_with(line, "HEADER"))
 		{
-			mHeader = line.substr(0, 62);
+			mHeader = line;
 			ba::trim(mHeader);
 			mID = line.substr(62, 4);
 			continue;
@@ -948,10 +968,12 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			pair<MResidueID,MResidueID> ssbond;
 			ssbond.first.chain = line[15];
 			ssbond.first.seqNumber = boost::lexical_cast<uint16>(ba::trim_copy(line.substr(16, 5)));
+			ssbond.first.insertionCode = line[21];
 			ssbond.second.chain = line[29];
 			ssbond.second.seqNumber = boost::lexical_cast<uint16>(ba::trim_copy(line.substr(30, 5)));
+			ssbond.second.insertionCode = line[35];
 
-			mSSBonds.push_back(ssbond);
+			ssbonds.push_back(ssbond);
 			continue;
 		}
 		
@@ -962,6 +984,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			
 			AddResidue(atoms);
 			atoms.clear();
+			firstAltLoc = ' ';
 			continue;
 		}
 		
@@ -1015,22 +1038,57 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 				atom.mType = kUnknownAtom;
 			}
 			
-			if (atom.mAltLoc != ' ' and atom.mAltLoc != 'A')
+			if (not atoms.empty() and
+				(atom.mResSeq != atoms.back().mResSeq or (atom.mResSeq == atoms.back().mResSeq and atom.mICode != atoms.back().mICode)))
+			{
+				AddResidue(atoms);
+				atoms.clear();
+				firstAltLoc = ' ';
+			}
+
+			if (atom.mAltLoc != ' ')
+			{
+				if (firstAltLoc == ' ')
+					firstAltLoc = atom.mAltLoc;
+				if (atom.mAltLoc == firstAltLoc)
+					atom.mAltLoc = 'A';
+			}
+
+			if (atom.mAltLoc != ' ' and atom.mAltLoc != 'A' and atom.mAltLoc != '1')
 			{
 				if (VERBOSE)
 					cerr << "skipping alternate atom record " << atom.mResName << endl;
 				continue;
 			}
 			
-			if (not atoms.empty() and
-				(atom.mResSeq != atoms.back().mResSeq or (atom.mResSeq == atoms.back().mResSeq and atom.mICode != atoms.back().mICode)))
-			{
-				AddResidue(atoms);
-				atoms.clear();
-			}
-
 			if (atom.mType != kHydrogen)
 				atoms.push_back(atom);
+		}
+	}
+
+	// map the sulfur bridges
+//	sort(ssbonds.begin(), ssbonds.end());
+	
+	uint32 ssbondNr = 1;
+	typedef pair<MResidueID,MResidueID> SSBond;
+	foreach (const SSBond& ssbond, ssbonds)
+	{
+		try
+		{
+			MResidue* first = GetResidue(ssbond.first.chain, ssbond.first.seqNumber, ssbond.first.insertionCode);
+			MResidue* second = GetResidue(ssbond.second.chain, ssbond.second.seqNumber, ssbond.second.insertionCode);
+		
+			first->SetSSBridgeNr(ssbondNr);
+			second->SetSSBridgeNr(ssbondNr);
+			
+			mSSBonds.push_back(make_pair(first, second));
+			
+			++ssbondNr;
+		}
+		catch (...)
+		{
+			if (VERBOSE)
+				cerr << "invalid residue referenced in SSBOND record" << endl;
 		}
 	}
 	
@@ -1053,36 +1111,51 @@ MProtein::~MProtein()
 
 string MProtein::GetCompound() const
 {
-	string result = "(missing)";
+	string result;
 	if (not mCompound.empty())
 	{
 		result = mCompound.front();
-		if (ba::starts_with(result.substr(10), "MOL_ID: ") and mCompound.size() > 1)
-			result = mCompound[1];
+		if (ba::starts_with(result.substr(10), "MOL_ID: "))
+		{
+			if (mCompound.size() > 1)
+				result = mCompound[1];
+			else
+				result.clear();
+		}
 	}
 	return result;
 }
 
 string MProtein::GetSource() const
 {
-	string result = "(missing)";
+	string result;
 	if (not mSource.empty())
 	{
 		result = mSource.front();
-		if (ba::starts_with(result.substr(10), "MOL_ID: ") and mSource.size() > 1)
-			result = mSource[1];
+		if (ba::starts_with(result.substr(10), "MOL_ID: "))
+		{
+			if (mSource.size() > 1)
+				result = mSource[1];
+			else
+				result.clear();
+		}
 	}
 	return result;
 }
 
 string MProtein::GetAuthor() const
 {
-	string result = "(missing)";
+	string result;
 	if (not mAuthor.empty())
 	{
 		result = mAuthor.front();
-		if (ba::starts_with(result.substr(10), "MOL_ID: ") and mAuthor.size() > 1)
-			result = mAuthor[1];
+		if (ba::starts_with(result.substr(10), "MOL_ID: "))
+		{
+			if (mAuthor.size() > 1)
+				result = mAuthor[1];
+			else
+				result.clear();
+		}
 	}
 	return result;
 }
@@ -1092,14 +1165,17 @@ void MProtein::GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
 	uint32& outNrOfHBonds, uint32 outNrOfHBondsPerDistance[11]) const
 {
 	outNrOfResidues = mResidueCount;
-	outNrOfChains = mChains.size();
+	outNrOfChains = mChains.size() + mChainBreaks;
 	outNrOfSSBridges = mSSBonds.size();
 	
 	outNrOfIntraChainSSBridges = 0;
-	for (vector<pair<MResidueID,MResidueID> >::const_iterator ri = mSSBonds.begin(); ri != mSSBonds.end(); ++ri)
+	for (vector<pair<MResidue*,MResidue*> >::const_iterator ri = mSSBonds.begin(); ri != mSSBonds.end(); ++ri)
 	{
-		if (ri->first.chain == ri->second.chain)
+		if (ri->first->GetChainID() == ri->second->GetChainID() and
+			(MResidue::NoChainBreak(ri->first, ri->second) or MResidue::NoChainBreak(ri->first, ri->second)))
+		{
 			++outNrOfIntraChainSSBridges;
+		}
 	}
 	
 	outNrOfHBonds = 0;
@@ -1164,16 +1240,6 @@ void MProtein::GetLaddersPerSheetHistogram(uint32 outHistogram[30]) const
 
 void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 {
-	if (not mChains.empty() and inAtoms.front().mChainID != mChains.back()->GetChainID())
-		++mNextResidueNumber;
-	
-	MChain& chain = GetChain(inAtoms.front().mChainID);
-	vector<MResidue*>& residues(chain.GetResidues());
-
-	MResidue* prev = nil;
-	if (not residues.empty())
-		prev = residues.back();
-
 	bool hasN = false, hasCA = false, hasC = false, hasO = false;
 	foreach (const MAtom& atom, inAtoms)
 	{
@@ -1189,21 +1255,27 @@ void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 	
 	if (hasN and hasCA and hasC and hasO)
 	{
-		MResidue* r = new MResidue(mNextResidueNumber, prev, inAtoms);
+		MChain& chain = GetChain(inAtoms.front().mChainID);
+		vector<MResidue*>& residues(chain.GetResidues());
+	
+		MResidue* prev = nil;
+		if (not residues.empty())
+			prev = residues.back();
+
+		uint32 resNumber = mResidueCount + mChains.size() + mChainBreaks;
+		MResidue* r = new MResidue(resNumber, prev, inAtoms);
 		if (prev != nil and not prev->ValidDistance(*r))	// check for chain breaks
 		{
 			if (VERBOSE)
 				cerr << boost::format("The distance between residue %1% and %2% is larger than the maximum peptide bond length")
-						% prev->GetNumber() % mNextResidueNumber << endl;
+						% prev->GetNumber() % resNumber << endl;
 			
-			++mNextResidueNumber;
-			r->SetNumber(mNextResidueNumber);
+			++mChainBreaks;
+			r->SetNumber(resNumber + 1);
 		}
 		
 		residues.push_back(r);
-		
 		++mResidueCount;
-		++mNextResidueNumber;
 	}
 	else if (string(inAtoms.front().mResName) == "HOH ")
 		++mIgnoredWaterMolecules;
@@ -1264,31 +1336,11 @@ void MProtein::CalculateSecondaryStructure()
 
 	boost::thread t(boost::bind(&MProtein::CalculateAccessibilities, this, boost::ref(residues)));
 
-	CalculateSSBridges();
 	CalculateHBondEnergies(residues);
 	CalculateBetaSheets(residues);
 	CalculateAlphaHelices(residues);
 
 	t.join();
-}
-
-void MProtein::CalculateSSBridges()
-{
-	// map the sulfur bridges
-	sort(mSSBonds.begin(), mSSBonds.end());
-	
-	typedef pair<MResidueID,MResidueID> SSBond;
-	
-	uint32 ssbondNr = 1;
-	foreach (const SSBond& ssbond, mSSBonds)
-	{
-		MResidue& first = GetResidue(ssbond.first.chain, ssbond.first.seqNumber);
-		MResidue& second = GetResidue(ssbond.second.chain, ssbond.second.seqNumber);
-		
-		first.SetSSBridgeNr(ssbondNr);
-		second.SetSSBridgeNr(ssbondNr);
-		++ssbondNr;
-	}
 }
 
 void MProtein::CalculateHBondEnergies(const std::vector<MResidue*>& inResidues)
@@ -1715,12 +1767,12 @@ void MProtein::SetChain(char inChainID, const MChain& inChain)
 	chain.SetChainID(inChainID);
 }
 
-MResidue& MProtein::GetResidue(char inChainID, uint16 inSeqNumber)
+MResidue* MProtein::GetResidue(char inChainID, uint16 inSeqNumber, char inInsertionCode)
 {
 	MChain& chain = GetChain(inChainID);
 	if (chain.GetResidues().empty())
 		throw mas_exception(boost::format("Invalid chain id '%c'") % inChainID);
-	return chain.GetResidueBySeqNumber(inSeqNumber);
+	return chain.GetResidueBySeqNumber(inSeqNumber, inInsertionCode);
 }
 
 void MProtein::GetCAlphaLocations(char inChain, vector<MPoint>& outPoints) const

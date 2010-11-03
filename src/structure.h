@@ -106,14 +106,6 @@ extern const MResidueInfo kResidueInfo[];
 
 MResidueType MapResidue(std::string inName);
 
-struct MResidueID
-{
-	char			chain;
-	uint16			seqNumber;
-	
-	bool			operator<(const MResidueID& o) const		{ return chain < o.chain or (chain == o.chain and seqNumber < o.seqNumber); }
-};
-
 struct HBond
 {
 	MResidue*		residue;
@@ -221,6 +213,7 @@ class MResidue
 	MBridgeType			TestBridge(MResidue* inResidue) const;
 
 	uint16				GetSeqNumber() const		{ return mSeqNumber; }
+	char				GetInsertionCode() const	{ return mInsertionCode; }
 	
 	void				SetNumber(uint16 inNumber)	{ mNumber = inNumber; }
 	uint16				GetNumber() const			{ return mNumber; }
@@ -260,6 +253,7 @@ class MResidue
 	MResidue*			mPrev;
 	MResidue*			mNext;
 	int32				mSeqNumber, mNumber;
+	char				mInsertionCode;
 	MResidueType		mType;
 	uint8				mSSBridgeNr;
 	double				mAccessibility;
@@ -292,7 +286,7 @@ class MChain
 	char				GetChainID() const					{ return mChainID; }
 	void				SetChainID(char inID);
 
-	MResidue&			GetResidueBySeqNumber(uint16 inSeqNumber);
+	MResidue*			GetResidueBySeqNumber(uint16 inSeqNumber, char inInsertionCode);
 
 	void				Translate(const MPoint& inTranslation);
 	void				Rotate(const MQuaternion& inRotation);
@@ -328,7 +322,6 @@ class MProtein
 	std::string			GetAuthor() const;
 
 	void				CalculateSecondaryStructure();
-	void				CalculateSSBridges();
 	
 //	double				GetAccessibleSurface() const	{ return mAccessibleSurface; }
 	
@@ -350,9 +343,6 @@ class MProtein
 	
 	void				GetPoints(std::vector<MPoint>& outPoints) const;
 
-	MResidue&			GetResidue(MResidueID inID)							{ return GetResidue(inID.chain, inID.seqNumber); }
-	MResidue&			GetResidue(char inChainID, uint16 inSeqNumber);
-
 	char				GetFirstChainID() const								{ return mChains.front()->GetChainID(); }
 
 	void				SetChain(char inChainID, const MChain& inChain);
@@ -362,6 +352,8 @@ class MProtein
 	
 	const std::vector<MChain*>&
 						GetChains() const									{ return mChains; }
+
+	MResidue*			GetResidue(char inChainID, uint16 inSeqNumber, char inInsertionCode);
 
 	// statistics
 	uint32				GetNrOfHBondsInParallelBridges() const				{ return mNrOfHBondsInParallelBridges; }
@@ -386,12 +378,13 @@ class MProtein
 							const std::vector<MResidue*>& inResidues);
 
 	std::string			mID, mHeader;
+
 	std::vector<std::string>
 						mCompound, mSource, mAuthor;
 	std::vector<MChain*>mChains;
-	uint32				mResidueCount, mNextResidueNumber;
+	uint32				mResidueCount, mChainBreaks;
 	
-	std::vector<std::pair<MResidueID,MResidueID> >
+	std::vector<std::pair<MResidue*,MResidue*> >
 						mSSBonds;
 	uint32				mIgnoredWaterMolecules;
 	

@@ -29,8 +29,7 @@ namespace ba = boost::algorithm;
 
 int VERBOSE;
 
-void ResidueToDSSPLine(const MProtein& protein, const MChain& chain,
-	const MResidue& residue, ostream& os)
+void ResidueToDSSPLine(const MProtein& protein, const MResidue& residue, ostream& os)
 {
 /*   
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA 
@@ -42,7 +41,7 @@ void ResidueToDSSPLine(const MProtein& protein, const MChain& chain,
 	
 	char code = kResidueInfo[residue.GetType()].code;
 	if (residue.GetType() == kCysteine and residue.GetSSBridgeNr() != 0)
-		code = 'a' - 1 + (residue.GetSSBridgeNr() % 26);
+		code = 'a' + ((residue.GetSSBridgeNr() - 1) % 26);
 
 	double alpha;
 	char chirality;
@@ -141,9 +140,12 @@ void ReportDSSP(MProtein& protein, ostream& os)
 	os << kHeaderLine % (kFirstLine + "DATE=" + to_iso_extended_string(today)) % '.' << endl;
 	os << kHeaderLine % "REFERENCE W. KABSCH AND C.SANDER, BIOPOLYMERS 22 (1983) 2577-2637" % '.' << endl;
 	os << kHeaderLine % protein.GetHeader() % '.' << endl;
-	os << kHeaderLine % protein.GetCompound() % '.' << endl;
-	os << kHeaderLine % protein.GetSource() % '.' << endl;
-	os << kHeaderLine % protein.GetAuthor() % '.' << endl;
+	if (not protein.GetCompound().empty())
+		os << kHeaderLine % protein.GetCompound() % '.' << endl;
+	if (not protein.GetSource().empty())
+		os << kHeaderLine % protein.GetSource() % '.' << endl;
+	if (not protein.GetAuthor().empty())
+		os << kHeaderLine % protein.GetAuthor() % '.' << endl;
 
 	double accessibleSurface = 0;
 	foreach (const MChain* chain, protein.GetChains())
@@ -207,21 +209,34 @@ void ReportDSSP(MProtein& protein, ostream& os)
 
 	os << "  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA " << endl;
 	boost::format kDSSPResidueLine(
-		"%5.5d        !*             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");
+		"%5.5d        !%c             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");
+
+	vector<const MResidue*> residues;
 
 	foreach (const MChain* chain, protein.GetChains())
 	{
-		const MResidue* last = nil;
 		foreach (const MResidue* residue, chain->GetResidues())
-		{
-			if (last != nil and last->GetNumber() + 1 != residue->GetNumber())
-				os << (kDSSPResidueLine % (last->GetNumber() + 1)) << endl;
-			ResidueToDSSPLine(protein, *chain, *residue, os);
-			last = residue;
-		}
+			residues.push_back(residue);
+	}
+	
+	// keep residues sorted by residue number as assigned during reading the PDB file
+	sort(residues.begin(), residues.end(), boost::bind(&MResidue::GetNumber, _1) < boost::bind(&MResidue::GetNumber, _2));
 
-		if (chain != protein.GetChains().back())
-			os << (kDSSPResidueLine % (chain->GetResidues().back()->GetNumber() + 1)) << endl;
+	const MResidue* last = nil;
+	foreach (const MResidue* residue, residues)
+	{
+		if (last != nil and last->GetNumber() + 1 != residue->GetNumber())
+		{
+			char breaktype = ' ';
+			if (last->GetChainID() != residue->GetChainID())
+				breaktype = '*';
+			os << (kDSSPResidueLine % (last->GetNumber() + 1) % breaktype) << endl;
+		}
+		ResidueToDSSPLine(protein, *residue, os);
+		last = residue;
+//
+//		if (chain != protein.GetChains().back())
+//			os << (kDSSPResidueLine % (chain->GetResidues().back()->GetNumber() + 1) % '*') << endl;
 	}
 }
 
