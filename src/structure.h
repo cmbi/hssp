@@ -221,6 +221,8 @@ class MResidue
 	MBridgeType			TestBridge(MResidue* inResidue) const;
 
 	uint16				GetSeqNumber() const		{ return mSeqNumber; }
+	
+	void				SetNumber(uint16 inNumber)	{ mNumber = inNumber; }
 	uint16				GetNumber() const			{ return mNumber; }
 
 	void				Translate(const MPoint& inTranslation);
@@ -240,6 +242,8 @@ class MResidue
 
 	void				GetCenterAndRadius(MPoint& outCenter, double& outRadius) const
 													{ outCenter = mCenter; outRadius = mRadius; }
+
+	static bool			NoChainBreak(const MResidue* from, const MResidue* to);
 
   protected:
 
@@ -385,7 +389,7 @@ class MProtein
 	std::vector<std::string>
 						mCompound, mSource, mAuthor;
 	std::vector<MChain*>mChains;
-	uint32				mResidueCount;
+	uint32				mResidueCount, mNextResidueNumber;
 	
 	std::vector<std::pair<MResidueID,MResidueID> >
 						mSSBonds;

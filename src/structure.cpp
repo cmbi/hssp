@@ -371,13 +371,6 @@ MResidue::MResidue(uint32 inNumber,
 		mH.mLoc.mZ += (pc.mLoc.mZ - po.mLoc.mZ) / CODistance; 
 	}
 
-	// check for chain breaks
-	if (mPrev != nil and not mPrev->ValidDistance(*this))
-	{
-		cerr << boost::format("The distance between residue %1% and %2% is larger than the maximum peptide bond length")
-					% mPrev->GetNumber() % mNumber << endl;
-	}
-	
 	// update the box containing all atoms
 	mBox[0].mX = mBox[0].mY = mBox[0].mZ =  numeric_limits<double>::max();
 	mBox[1].mX = mBox[1].mY = mBox[1].mZ = -numeric_limits<double>::max();
@@ -434,6 +427,20 @@ void MResidue::SetPrev(MResidue* inResidue)
 	mPrev->mNext = this;
 }
 
+bool MResidue::NoChainBreak(const MResidue* from, const MResidue* to)
+{
+	bool nobreak = true;
+	for (const MResidue* r = from; nobreak and r != to; r = r->mNext)
+	{
+		MResidue* next = r->mNext;
+		if (next == nil)
+			nobreak = true;
+		else
+			nobreak = next->mNumber == r->mNumber + 1;
+	}
+	return nobreak;
+}
+
 void MResidue::SetChainID(char inID)
 {
 	mChainID = inID;
@@ -461,7 +468,7 @@ bool MResidue::TestBond(const MResidue* other) const
 double MResidue::Phi() const
 {
 	double result = 360;
-	if (mPrev != nil)
+	if (mPrev != nil and NoChainBreak(this, mNext))
 		result = DihedralAngle(mPrev->GetC(), GetN(), GetCAlpha(), GetC());
 	return result;
 }
@@ -469,7 +476,7 @@ double MResidue::Phi() const
 double MResidue::Psi() const
 {
 	double result = 360;
-	if (mNext != nil)
+	if (mNext != nil and NoChainBreak(this, mNext))
 		result = DihedralAngle(GetN(), GetCAlpha(), GetC(), mNext->GetN());
 	return result;
 }
@@ -480,7 +487,7 @@ tr1::tuple<double,char> MResidue::Alpha() const
 	char chirality = ' ';
 	
 	const MResidue* nextNext = mNext ? mNext->Next() : nil;
-	if (mPrev != nil and nextNext != nil)
+	if (mPrev != nil and nextNext != nil and NoChainBreak(mPrev, nextNext))
 	{
 		alhpa = DihedralAngle(mPrev->GetCAlpha(), GetCAlpha(), mNext->GetCAlpha(), nextNext->GetCAlpha());
 		if (alhpa < 0)
@@ -496,7 +503,7 @@ double MResidue::Kappa() const
 	double result = 360;
 	const MResidue* prevPrev = mPrev ? mPrev->Prev() : nil;
 	const MResidue* nextNext = mNext ? mNext->Next() : nil;
-	if (prevPrev != nil and nextNext != nil)
+	if (prevPrev != nil and nextNext != nil and NoChainBreak(prevPrev, nextNext))
 	{
 		double ckap = CosinusAngle(GetCAlpha(), prevPrev->GetCAlpha(), nextNext->GetCAlpha(), GetCAlpha());
 		double skap = sqrt(1 - ckap * ckap);
@@ -508,7 +515,7 @@ double MResidue::Kappa() const
 double MResidue::TCO() const
 {
 	double result = 0;
-	if (mPrev != nil)
+	if (mPrev != nil and NoChainBreak(mPrev, this))
 		result = CosinusAngle(GetC(), GetO(), mPrev->GetC(), mPrev->GetO());
 	return result;
 }
@@ -620,8 +627,11 @@ MBridgeType MResidue::TestBridge(MResidue* test) const
 	const MResidue* f = test->mNext;	// III.	a <- f	IV. a	  f		antiparallel
 										//		                                   
 	MBridgeType result = btNoBridge;	//		b	 e      b <-> e                  
-	if (a and c and d and f)			//                                          
-	{									//		c -> d		c     d
+										//                                          
+										//		c -> d		c     d
+										
+	if (a and c and NoChainBreak(a, c) and d and f and NoChainBreak(d, f))
+	{
 		if ((TestBond(c, e) and TestBond(e, a)) or (TestBond(f, b) and TestBond(b, d)))
 			result = btParallel;
 		else if ((TestBond(c, d) and TestBond(f, a)) or (TestBond(e, b) and TestBond(b, e)))
@@ -876,6 +886,7 @@ MResidue& MChain::GetResidueBySeqNumber(uint16 inSeqNumber)
 
 MProtein::MProtein(istream& is, bool cAlphaOnly)
 	: mResidueCount(0)
+	, mNextResidueNumber(1)
 	, mIgnoredWaterMolecules(0)
 	, mNrOfHBondsInParallelBridges(0)
 	, mNrOfHBondsInAntiparallelBridges(0)
@@ -1153,6 +1164,9 @@ void MProtein::GetLaddersPerSheetHistogram(uint32 outHistogram[30]) const
 
 void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 {
+	if (not mChains.empty() and inAtoms.front().mChainID != mChains.back()->GetChainID())
+		++mNextResidueNumber;
+	
 	MChain& chain = GetChain(inAtoms.front().mChainID);
 	vector<MResidue*>& residues(chain.GetResidues());
 
@@ -1175,9 +1189,21 @@ void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 	
 	if (hasN and hasCA and hasC and hasO)
 	{
-		uint32 resNumber = mResidueCount + mChains.size();
-		residues.push_back(new MResidue(resNumber, prev, inAtoms));
+		MResidue* r = new MResidue(mNextResidueNumber, prev, inAtoms);
+		if (prev != nil and not prev->ValidDistance(*r))	// check for chain breaks
+		{
+			if (VERBOSE)
+				cerr << boost::format("The distance between residue %1% and %2% is larger than the maximum peptide bond length")
+						% prev->GetNumber() % mNextResidueNumber << endl;
+			
+			++mNextResidueNumber;
+			r->SetNumber(mNextResidueNumber);
+		}
+		
+		residues.push_back(r);
+		
 		++mResidueCount;
+		++mNextResidueNumber;
 	}
 	else if (string(inAtoms.front().mResName) == "HOH ")
 		++mIgnoredWaterMolecules;
@@ -1305,7 +1331,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 			
 			for (uint32 i = 0; i < res.size() - stride; ++i)
 			{
-				if (MResidue::TestBond(res[i + stride], res[i]))
+				if (MResidue::TestBond(res[i + stride], res[i]) and MResidue::NoChainBreak(res[i], res[i + stride]))
 				{
 					res[i + stride]->SetHelixFlag(stride, helixEnd);
 					for (uint32 j = i + 1; j < i + stride; ++j)

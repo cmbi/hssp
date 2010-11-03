@@ -211,8 +211,14 @@ void ReportDSSP(MProtein& protein, ostream& os)
 
 	foreach (const MChain* chain, protein.GetChains())
 	{
+		const MResidue* last = nil;
 		foreach (const MResidue* residue, chain->GetResidues())
+		{
+			if (last != nil and last->GetNumber() + 1 != residue->GetNumber())
+				os << (kDSSPResidueLine % (last->GetNumber() + 1)) << endl;
 			ResidueToDSSPLine(protein, *chain, *residue, os);
+			last = residue;
+		}
 
 		if (chain != protein.GetChains().back())
 			os << (kDSSPResidueLine % (chain->GetResidues().back()->GetNumber() + 1)) << endl;
