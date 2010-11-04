@@ -977,6 +977,8 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			ssbond.second.chain = line[29];
 			ssbond.second.seqNumber = boost::lexical_cast<uint16>(ba::trim_copy(line.substr(30, 5)));
 			ssbond.second.insertionCode = line[35];
+			
+			ssbonds.push_back(ssbond);
 			continue;
 		}
 		
