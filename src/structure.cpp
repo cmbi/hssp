@@ -1542,14 +1542,15 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 	// extend ladders
 	sort(bridges.begin(), bridges.end());
 	
-	for (uint32 i = 0; i < bridges.size(); ++i)
+	for (uint32 i = 0; i < bridges.size() - 1; ++i)
 	{
 		for (uint32 j = i + 1; j < bridges.size(); ++j)
 		{
 			if (bridges[i].type != bridges[j].type or
 				bridges[i].chainI != bridges[j].chainI or
 				bridges[i].chainJ != bridges[j].chainJ or
-				bridges[j].i.front() - bridges[i].i.back() >= 6)
+				bridges[j].i.front() - bridges[i].i.back() >= 6 or
+				(bridges[i].i.back() >= bridges[j].i.front() and bridges[i].i.front() <= bridges[j].i.back()))
 			{
 				continue;
 			}
@@ -1571,6 +1572,8 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 
 			if (bulge)
 			{
+cout << "bulge " << bridges[i].i.front() << " - " << bridges[i].i.back() << ", "
+				 << bridges[i].j.front() << " - " << bridges[i].j.back() << endl;
 				bridges[i].i.insert(bridges[i].i.end(), bridges[j].i.begin(), bridges[j].i.end());
 				if (bridges[i].type == btParallel)
 					bridges[i].j.insert(bridges[i].j.end(), bridges[j].j.begin(), bridges[j].j.end());
