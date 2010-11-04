@@ -31,7 +31,8 @@ const double
 	kMinimalCADistance = 9.0,
 	kMinHBondEnergy = -9.9,
 	kMaxHBondEnergy = -0.5,
-	kCouplingConstant = -332 * 0.42 * 0.2,
+//	kCouplingConstant = -332 * 0.42 * 0.2,
+	kCouplingConstant = -27.888,
 	kMaxPeptideBondLength = 2.5;
 
 const double
