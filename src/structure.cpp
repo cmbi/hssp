@@ -1363,7 +1363,7 @@ void MProtein::CalculateHBondEnergies(const std::vector<MResidue*>& inResidues)
 		cerr << "Calculate H-bond energies" << endl;
 	
 	// Calculate the HBond energies
-	for (uint32 i = 0; i < inResidues.size() - 1; ++i)
+	for (uint32 i = 0; i + 1 < inResidues.size(); ++i)
 	{
 		MResidue* ri = inResidues[i];
 		
@@ -1395,7 +1395,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 			if (res.size() < stride)
 				continue;
 			
-			for (uint32 i = 0; i < res.size() - stride; ++i)
+			for (uint32 i = 0; i + stride < res.size(); ++i)
 			{
 				if (MResidue::TestBond(res[i + stride], res[i]) and MResidue::NoChainBreak(res[i], res[i + stride]))
 				{
@@ -1421,7 +1421,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 		r->SetBend(kappa != 360 and kappa > 70);
 	}
 
-	for (int32 i = 1; i < static_cast<int32>(inResidues.size()) - 4; ++i)
+	for (uint32 i = 1; i + 4 < inResidues.size(); ++i)
 	{
 		if (inResidues[i]->IsHelixStart(4) and inResidues[i - 1]->IsHelixStart(4))
 		{
@@ -1430,7 +1430,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 		}
 	}
 
-	for (int32 i = 1; i < static_cast<int32>(inResidues.size()) - 3; ++i)
+	for (uint32 i = 1; i + 3 < inResidues.size(); ++i)
 	{
 		if (inResidues[i]->IsHelixStart(3) and inResidues[i - 1]->IsHelixStart(3))
 		{
@@ -1445,7 +1445,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 		}
 	}
 
-	for (int32 i = 1; i < static_cast<int32>(inResidues.size()) - 5; ++i)
+	for (uint32 i = 1; i + 5 < inResidues.size(); ++i)
 	{
 		if (inResidues[i]->IsHelixStart(5) and inResidues[i - 1]->IsHelixStart(5))
 		{
@@ -1460,7 +1460,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 		}
 	}
 			
-	for (int32 i = 1; i < static_cast<int32>(inResidues.size()) - 1; ++i)
+	for (uint32 i = 1; i + 1 < inResidues.size(); ++i)
 	{
 		if (inResidues[i]->GetSecondaryStructure() == loop)
 		{
@@ -1488,11 +1488,11 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 	vector<MBridge> bridges;
 	if (inResidues.size() > 4)
 	{
-		for (uint32 i = 1; i < inResidues.size() - 4; ++i)
+		for (uint32 i = 1; i + 4 < inResidues.size(); ++i)
 		{
 			MResidue* ri = inResidues[i];
 			
-			for (uint32 j = i + 3; j < inResidues.size() - 1; ++j)
+			for (uint32 j = i + 3; j + 1 < inResidues.size(); ++j)
 			{
 				MResidue* rj = inResidues[j];
 				
