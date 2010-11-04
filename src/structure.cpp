@@ -1575,7 +1575,7 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 			{
 				bulge = (jbi - jej < 6 and ibj - iei < 3) or (jbi - jej < 3);
 				if (bulge)
-					bulge = MResidue::NoChainBreak(inResidues[jej], inResidues[ibj]);
+					bulge = MResidue::NoChainBreak(inResidues[ibj], inResidues[jej]);
 			}
 
 			if (bulge)
