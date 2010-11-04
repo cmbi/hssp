@@ -462,8 +462,8 @@ bool MResidue::ValidDistance(const MResidue& inNext) const
 bool MResidue::TestBond(const MResidue* other) const
 {
 	return
-		(mHBondAcceptor[0].residue == other and mHBondAcceptor[0].energy < kMaxHBondEnergy) or
-		(mHBondAcceptor[1].residue == other and mHBondAcceptor[1].energy < kMaxHBondEnergy);
+		(mHBondAcceptor[0].residue == other and mHBondAcceptor[0].energy <= kMaxHBondEnergy) or
+		(mHBondAcceptor[1].residue == other and mHBondAcceptor[1].energy <= kMaxHBondEnergy);
 }
 
 double MResidue::Phi() const
@@ -977,9 +977,6 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			ssbond.second.chain = line[29];
 			ssbond.second.seqNumber = boost::lexical_cast<uint16>(ba::trim_copy(line.substr(30, 5)));
 			ssbond.second.insertionCode = line[35];
-
-			if (ssbond.first != ssbond.second)
-				ssbonds.push_back(ssbond);
 			continue;
 		}
 		
@@ -1084,6 +1081,9 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			MResidue* first = GetResidue(ssbond.first.chain, ssbond.first.seqNumber, ssbond.first.insertionCode);
 			MResidue* second = GetResidue(ssbond.second.chain, ssbond.second.seqNumber, ssbond.second.insertionCode);
 		
+			if (first == second)
+				throw mas_exception("first and second residue are the same");
+		
 			first->SetSSBridgeNr(ssbondNr);
 			second->SetSSBridgeNr(ssbondNr);
 			
@@ -1091,10 +1091,10 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			
 			++ssbondNr;
 		}
-		catch (...)
+		catch (exception& e)
 		{
 			if (VERBOSE)
-				cerr << "invalid residue referenced in SSBOND record" << endl;
+				cerr << "invalid residue referenced in SSBOND record: " << e.what() << endl;
 		}
 	}
 	
