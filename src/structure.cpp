@@ -893,12 +893,17 @@ struct MResidueID
 	char			insertionCode;
 	
 	bool			operator<(const MResidueID& o) const
-	{
-		return
-			 chain < o.chain or
-			(chain == o.chain and seqNumber < o.seqNumber) or
-			(chain == o.chain and seqNumber == o.seqNumber and insertionCode < o.insertionCode);
-	}
+					{
+						return
+							 chain < o.chain or
+							(chain == o.chain and seqNumber < o.seqNumber) or
+							(chain == o.chain and seqNumber == o.seqNumber and insertionCode < o.insertionCode);
+					}
+
+	bool			operator!=(const MResidueID& o) const
+					{
+						return chain != o.chain or seqNumber != o.seqNumber or insertionCode != o.insertionCode;
+					}
 };
 
 MProtein::MProtein(istream& is, bool cAlphaOnly)
@@ -973,7 +978,8 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			ssbond.second.seqNumber = boost::lexical_cast<uint16>(ba::trim_copy(line.substr(30, 5)));
 			ssbond.second.insertionCode = line[35];
 
-			ssbonds.push_back(ssbond);
+			if (ssbond.first != ssbond.second)
+				ssbonds.push_back(ssbond);
 			continue;
 		}
 		
