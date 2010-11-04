@@ -12,6 +12,7 @@
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 #include <boost/algorithm/string.hpp>
+#include <boost/math/special_functions/round.hpp>
 
 #include "align-2d.h"
 #include "utils.h"
@@ -20,6 +21,7 @@
 
 using namespace std;
 namespace ba = boost::algorithm;
+namespace bm = boost::math;
 
 // --------------------------------------------------------------------
 
@@ -462,8 +464,8 @@ bool MResidue::ValidDistance(const MResidue& inNext) const
 bool MResidue::TestBond(const MResidue* other) const
 {
 	return
-		(mHBondAcceptor[0].residue == other and mHBondAcceptor[0].energy <= kMaxHBondEnergy) or
-		(mHBondAcceptor[1].residue == other and mHBondAcceptor[1].energy <= kMaxHBondEnergy);
+		(mHBondAcceptor[0].residue == other and mHBondAcceptor[0].energy < kMaxHBondEnergy) or
+		(mHBondAcceptor[1].residue == other and mHBondAcceptor[1].energy < kMaxHBondEnergy);
 }
 
 double MResidue::Phi() const
@@ -584,6 +586,9 @@ double MResidue::CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor)
 			result = kMinHBondEnergy;
 		else
 			result = kCouplingConstant / distanceHO - kCouplingConstant / distanceHC + kCouplingConstant / distanceNC - kCouplingConstant / distanceNO;
+
+		// DSSP compatibility mode:
+		result = bm::round(result * 1000) / 1000;
 
 		if (result < kMinHBondEnergy)
 			result = kMinHBondEnergy;
