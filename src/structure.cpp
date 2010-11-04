@@ -1421,7 +1421,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 		r->SetBend(kappa != 360 and kappa > 70);
 	}
 
-	for (uint32 i = 1; i < inResidues.size() - 4; ++i)
+	for (int32 i = 1; i < static_cast<int32>(inResidues.size()) - 4; ++i)
 	{
 		if (inResidues[i]->IsHelixStart(4) and inResidues[i - 1]->IsHelixStart(4))
 		{
@@ -1430,7 +1430,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 		}
 	}
 
-	for (uint32 i = 1; i < inResidues.size() - 3; ++i)
+	for (int32 i = 1; i < static_cast<int32>(inResidues.size()) - 3; ++i)
 	{
 		if (inResidues[i]->IsHelixStart(3) and inResidues[i - 1]->IsHelixStart(3))
 		{
@@ -1445,7 +1445,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 		}
 	}
 
-	for (uint32 i = 1; i < inResidues.size() - 5; ++i)
+	for (int32 i = 1; i < static_cast<int32>(inResidues.size()) - 5; ++i)
 	{
 		if (inResidues[i]->IsHelixStart(5) and inResidues[i - 1]->IsHelixStart(5))
 		{
@@ -1460,7 +1460,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 		}
 	}
 			
-	for (uint32 i = 1; i < inResidues.size() - 1; ++i)
+	for (int32 i = 1; i < static_cast<int32>(inResidues.size()) - 1; ++i)
 	{
 		if (inResidues[i]->GetSecondaryStructure() == loop)
 		{
@@ -1542,7 +1542,7 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 	// extend ladders
 	sort(bridges.begin(), bridges.end());
 	
-	for (uint32 i = 0; i < bridges.size() - 1; ++i)
+	for (uint32 i = 0; i < bridges.size(); ++i)
 	{
 		for (uint32 j = i + 1; j < bridges.size(); ++j)
 		{
@@ -1572,8 +1572,6 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 
 			if (bulge)
 			{
-cout << "bulge " << bridges[i].i.front() << " - " << bridges[i].i.back() << ", "
-				 << bridges[i].j.front() << " - " << bridges[i].j.back() << endl;
 				bridges[i].i.insert(bridges[i].i.end(), bridges[j].i.begin(), bridges[j].i.end());
 				if (bridges[i].type == btParallel)
 					bridges[i].j.insert(bridges[i].j.end(), bridges[j].j.begin(), bridges[j].j.end());
