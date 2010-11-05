@@ -927,7 +927,8 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 
 	bool model = false;
 	vector<MAtom> atoms;
-	char firstAltLoc = ' ';
+	char firstAltLoc = 0;
+	bool atomSeen = false;
 	
 	while (not is.eof())
 	{
@@ -995,7 +996,8 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			
 			AddResidue(atoms);
 			atoms.clear();
-			firstAltLoc = ' ';
+			firstAltLoc = 0;
+			atomSeen = false;
 			continue;
 		}
 		
@@ -1004,6 +1006,8 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 		{
 			if (cAlphaOnly and line.substr(12, 4) != " CA ")
 				continue;
+
+			atomSeen = ba::starts_with(line, "ATOM  ");
 
 			MAtom atom = {};
 
@@ -1038,6 +1042,14 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			//	79 - 80	LString(2) charge Charge on the atom.
 			atom.mCharge = 0;
 			
+			if (not atoms.empty() and
+				(atom.mResSeq != atoms.back().mResSeq or (atom.mResSeq == atoms.back().mResSeq and atom.mICode != atoms.back().mICode)))
+			{
+				AddResidue(atoms);
+				atoms.clear();
+				firstAltLoc = 0;
+			}
+
 			try
 			{
 				atom.mType = MapElement(line.substr(76, 2));
@@ -1048,18 +1060,13 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 					cerr << e.what() << endl;
 				atom.mType = kUnknownAtom;
 			}
-			
-			if (not atoms.empty() and
-				(atom.mResSeq != atoms.back().mResSeq or (atom.mResSeq == atoms.back().mResSeq and atom.mICode != atoms.back().mICode)))
-			{
-				AddResidue(atoms);
-				atoms.clear();
-				firstAltLoc = ' ';
-			}
 
+			if (atom.mType == kHydrogen)
+				continue;
+			
 			if (atom.mAltLoc != ' ')
 			{
-				if (firstAltLoc == ' ')
+				if (firstAltLoc == 0)
 					firstAltLoc = atom.mAltLoc;
 				if (atom.mAltLoc == firstAltLoc)
 					atom.mAltLoc = 'A';
@@ -1072,14 +1079,19 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 				continue;
 			}
 			
-			if (atom.mType != kHydrogen)
-				atoms.push_back(atom);
+			atoms.push_back(atom);
 		}
+	}
+	
+	if (not atoms.empty())	// we have read atoms without a TER
+	{
+		if (atomSeen and VERBOSE)
+			cerr << "ATOM records not terminated by TER record" << endl;
+		
+		AddResidue(atoms);
 	}
 
 	// map the sulfur bridges
-//	sort(ssbonds.begin(), ssbonds.end());
-	
 	uint32 ssbondNr = 1;
 	typedef pair<MResidueID,MResidueID> SSBond;
 	foreach (const SSBond& ssbond, ssbonds)
