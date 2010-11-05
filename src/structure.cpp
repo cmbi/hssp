@@ -1580,18 +1580,15 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 			if (bridges[i].type == btParallel)
 			{
 				bulge = (jbj - jei < 6 and ibj - iei < 3) or (jbj - jei < 3);
-				if (bulge)
-					bulge = MResidue::NoChainBreak(inResidues[iej], inResidues[jbj]);
+//				if (bulge)
+//					bulge = MResidue::NoChainBreak(inResidues[iej], inResidues[jbj]);
 			}
 			else
 			{
 				bulge = (jbi - jej < 6 and ibj - iei < 3) or (jbi - jej < 3);
-				if (bulge)
-					bulge = MResidue::NoChainBreak(inResidues[ibj], inResidues[jej]);
+//				if (bulge)
+//					bulge = MResidue::NoChainBreak(inResidues[ibj], inResidues[jej]);
 			}
-
-			if (bulge)
-				bulge = MResidue::NoChainBreak(inResidues[iei], inResidues[jbi]);
 
 			if (bulge)
 			{
