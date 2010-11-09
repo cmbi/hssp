@@ -298,6 +298,12 @@ struct MBridge
 	bool			operator<(const MBridge& b) const		{ return chainI < b.chainI or (chainI == b.chainI and i.front() < b.i.front()); }
 };
 
+ostream& operator<<(ostream& os, const MBridge& b)
+{
+	os << '[' << (b.type == btParallel ? "p" : "a") << ':' << b.i.front() << '-' << b.i.back() << '/' << b.j.front() << '-' << b.j.back() << ']';
+	return os;
+}
+
 // return true if any of the residues in bridge a is identical to any of the residues in bridge b
 bool Linked(const MBridge& a, const MBridge& b)
 {
@@ -1558,16 +1564,7 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 	{
 		for (uint32 j = i + 1; j < bridges.size(); ++j)
 		{
-			if (bridges[i].type != bridges[j].type or
-				bridges[i].chainI != bridges[j].chainI or
-				bridges[i].chainJ != bridges[j].chainJ or
-				bridges[j].i.front() - bridges[i].i.back() >= 6 or
-				(bridges[i].i.back() >= bridges[j].i.front() and bridges[i].i.front() <= bridges[j].i.back()))
-			{
-				continue;
-			}
-			
-//			uint32 ibi = bridges[i].i.front();
+			uint32 ibi = bridges[i].i.front();
 			uint32 iei = bridges[i].i.back();
 			uint32 jbi = bridges[i].j.front();
 			uint32 jei = bridges[i].j.back();
@@ -1575,21 +1572,27 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 			uint32 iej = bridges[j].i.back();
 			uint32 jbj = bridges[j].j.front();
 			uint32 jej = bridges[j].j.back();
+
+			if (bridges[i].type != bridges[j].type or
+				MResidue::NoChainBreak(inResidues[min(ibi, ibj)], inResidues[max(iei, iej)]) == false or
+				MResidue::NoChainBreak(inResidues[min(jbi, jbj)], inResidues[max(jei, jej)]) == false or
+				ibj - iei >= 6 or
+				(iei >= ibj and ibi <= iej))
+			{
+				continue;
+			}
 			
+//cerr << i << " = " << bridges[i] << " j = " << bridges[j];
+//
 			bool bulge;
 			if (bridges[i].type == btParallel)
-			{
-				bulge = ((jbj - jei < 6 and ibj - iei < 3) or (jbj - jei < 3)) and
-					MResidue::NoChainBreak(inResidues[iej], inResidues[jbj]);
-			}
+				bulge = ((jbj - jei < 6 and ibj - iei < 3) or (jbj - jei < 3));
 			else
-			{
-				bulge = ((jbi - jej < 6 and ibj - iei < 3) or (jbi - jej < 3)) and
-					MResidue::NoChainBreak(inResidues[ibj], inResidues[jej]);
-			}
+				bulge = ((jbi - jej < 6 and ibj - iei < 3) or (jbi - jej < 3));
 
 			if (bulge)
 			{
+//cerr << " bulge" << endl;
 				bridges[i].i.insert(bridges[i].i.end(), bridges[j].i.begin(), bridges[j].i.end());
 				if (bridges[i].type == btParallel)
 					bridges[i].j.insert(bridges[i].j.end(), bridges[j].j.begin(), bridges[j].j.end());
@@ -1598,6 +1601,8 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 				bridges.erase(bridges.begin() + j);
 				--j;
 			}
+//			else
+//cerr << " no bulge" << endl;
 		}
 	}
 
