@@ -13,8 +13,10 @@
 #define foreach BOOST_FOREACH
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
+#if defined USE_COMPRESSION
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#endif
 #include <boost/algorithm/string.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/date_clock_device.hpp>
@@ -278,10 +280,12 @@ int main(int argc, char* argv[])
 		
 		io::filtering_stream<io::input> in;
 		
+#if defined USE_COMPRESSION
 		if (ba::ends_with(input, ".bz2"))
 			in.push(io::bzip2_decompressor());
 		else if (ba::ends_with(input, ".gz"))
 			in.push(io::gzip_decompressor());
+#endif
 		
 		in.push(infile);
 	
@@ -301,11 +305,13 @@ int main(int argc, char* argv[])
 			if (not outfile.is_open())
 				throw runtime_error("could not create output file");
 			
+#if defined USE_COMPRESSION
 			io::filtering_stream<io::output> out;
 			if (ba::ends_with(output, ".bz2"))
 				out.push(io::bzip2_compressor());
 			else if (ba::ends_with(output, ".gz"))
 				out.push(io::gzip_compressor());
+#endif
 			
 			out.push(outfile);
 			

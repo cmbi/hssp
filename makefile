@@ -33,7 +33,7 @@ OPT					= -O3 -DNDEBUG # -mtune=core2 -march=core2
 
 include make.config
 
-CFLAGS				+= $(OPT) -g -DLINUX
+CFLAGS				+= $(OPT) -g -DLINUX -DUSE_COMPRESSION
 
 VPATH += src
 

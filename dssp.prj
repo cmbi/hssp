@@ -36,11 +36,12 @@
       <defines>
         <define>DEBUG</define>
         <define>LINUX</define>
+        <define>USE_COMPRESSION</define>
       </defines>
       <cflags>
         <cflag>-O0</cflag>
-        <cflag>-gdwarf-2</cflag>
         <cflag>-pthread</cflag>
+        <cflag>-gdwarf-2</cflag>
         <cflag>-std=c++0x</cflag>
       </cflags>
       <warnings>
@@ -55,6 +56,7 @@
       <defines>
         <define>NDEBUG</define>
         <define>LINUX</define>
+        <define>USE_COMPRESSION</define>
       </defines>
       <cflags>
         <cflag>-O3</cflag>
