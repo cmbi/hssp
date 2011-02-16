@@ -5,6 +5,11 @@
 
 #include "mas.h"
 
+#if defined(_MSC_VER)
+#include <conio.h>
+#include <ctype.h>
+#endif
+
 #include <iostream>
 
 #include <boost/program_options.hpp>
@@ -262,7 +267,26 @@ int main(int argc, char* argv[])
 
 		if (vm.count("help") or not vm.count("input"))
 		{
-			cerr << desc << endl;
+			cerr << desc << endl
+				 << endl
+				 << "Examples: " << endl
+				 << endl
+				 << "To calculate the secondary structure for the file 1crn.pdb and" << endl
+				 << "write the result to a file called 1crn.dssp, you type:" << endl
+				 << endl
+				 << "  dssp.exe -i 1crn.pdb -o 1crn.dssp" << endl
+				 << endl;
+#if defined(_MSC_VER)
+			cerr << endl
+				 << "DSSP is a command line application, use the 'Command prompt' application" << endl
+				 << "to start dssp.exe. You can find the 'Command prompt' in the Start menu:" << endl
+				 << endl
+				 << "Start => Accessories => Command prompt" << endl
+				 << endl
+				 << endl
+				 << "Press any key to continue..." << endl;
+			char ch = _getch();
+#endif
 			exit(1);
 		}
 

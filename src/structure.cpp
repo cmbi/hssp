@@ -77,7 +77,7 @@ MSurfaceDots::MSurfaceDots(int32 N)
 	int32 P = 2 * N + 1;
 	
 	const double
-		kGoldenRatio = (1 + sqrt(5)) / 2;
+		kGoldenRatio = (1 + sqrt(5.0)) / 2;
 	
 	mWeight = (4 * kPI) / P;
 	
