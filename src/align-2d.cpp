@@ -475,11 +475,11 @@ inline float score(const vector<entry*>& a, const vector<entry*>& b,
 	const float kSSScore[8][8] = {
 		// loop, alphahelix, betabridge, strand, helix_3, helix_5, turn, bend
 		{  0,  0,  0,  0,  0,  0,  0,  0 },	// loop
-		{  0,  3,  0,  0,  0,  0,  0,  0 },	// alphahelix
+		{  0,  3,  0,  0,  0,  1,  0,  0 },	// alphahelix
 		{  0,  0,  3,  2,  0,  0,  0,  0 },	// betabridge
 		{  0,  0,  2,  3,  0,  0,  0,  0 }, // strand
 		{  0,  0,  0,  0,  4,  0,  0,  0 }, // helix_3
-		{  0,  0,  0,  0,  0,  3,  0,  0 }, // helix_5
+		{  0,  1,  0,  0,  0,  3,  0,  0 }, // helix_5
 		{  0,  0,  0,  0,  0,  0,  2,  0 },	// turn
 		{  0,  0,  0,  0,  0,  0,  0,  1 },	// bend
 	};

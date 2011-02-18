@@ -896,6 +896,12 @@ MResidue* MChain::GetResidueBySeqNumber(uint16 inSeqNumber, char inInsertionCode
 	return *r;
 }
 
+void MChain::GetSequence(string& outSequence) const
+{
+	foreach (const MResidue* r, GetResidues())
+		outSequence += kResidueInfo[r->GetType()].code;
+}
+
 // --------------------------------------------------------------------
 
 struct MResidueID

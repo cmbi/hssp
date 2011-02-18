@@ -287,6 +287,8 @@ class MChain
 	void				SetChainID(char inID);
 
 	MResidue*			GetResidueBySeqNumber(uint16 inSeqNumber, char inInsertionCode);
+	
+	void				GetSequence(std::string& outSequence) const;
 
 	void				Translate(const MPoint& inTranslation);
 	void				Rotate(const MQuaternion& inRotation);
@@ -353,6 +355,9 @@ class MProtein
 	const std::vector<MChain*>&
 						GetChains() const									{ return mChains; }
 
+	template<class OutputIterator>
+	void				GetSequences(OutputIterator outSequences) const;
+
 	MResidue*			GetResidue(char inChainID, uint16 inSeqNumber, char inInsertionCode);
 
 	// statistics
@@ -394,3 +399,17 @@ class MProtein
 	uint32				mAntiparallelBridgesPerLadderHistogram[kHistogramSize];
 	uint32				mLaddersPerSheetHistogram[kHistogramSize];
 };
+
+// inlines
+
+template<class OutputIterator>
+void MProtein::GetSequences(OutputIterator outSequences) const
+{
+	for (std::vector<MChain*>::const_iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+	{
+		std::string seq;
+		(*chain)->GetSequence(seq);
+		*outSequences++ = seq;
+	}
+}
+

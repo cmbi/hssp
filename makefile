@@ -53,7 +53,12 @@ mas: $(OBJECTS)
 	@ c++ -o $@ $(OBJECTS) $(LDOPTS)
 	@ echo OK
 
-dssp-2: obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
+dssp-2: obj/mkdssp.o obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
+	@ echo linking $@
+	@ c++ -o $@ $^ $(LDOPTS)
+	@ echo OK
+
+mkhssp: obj/mkhssp.o obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
 	@ echo linking $@
 	@ c++ -o $@ $^ $(LDOPTS)
 	@ echo OK

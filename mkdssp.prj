@@ -16,6 +16,7 @@
       <file>structure.cpp</file>
       <file>utils.cpp</file>
       <file>dssp.cpp</file>
+      <file>mkdssp.cpp</file>
     </group>
     <group name="Libraries">
       <link>boost_filesystem</link>
