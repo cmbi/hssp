@@ -98,7 +98,7 @@ void GetHSSPForHitsAndDSSP(
 	
 	HUuid uuid;
 	
-	fs::path rundir("/tmp/hssp-2/");
+	fs::path rundir("/data/tmp/hssp-2/");
 	rundir /= boost::lexical_cast<string>(uuid);
 	fs::create_directories(rundir);
 	
