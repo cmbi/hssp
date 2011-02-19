@@ -196,9 +196,12 @@ void GetHSSPForHitsAndDSSP(
 	if (status != 0)
 		THROW(("maxhom exited with status %d", status));
 	
+	if (not fs::exists(rundir / "out.hssp"))
+		THROW(("Maxhom failed to create an alignment"));
+
 	// OK, got it! Read in the result and exit
 	fs::ifstream result(rundir / "out.hssp");
-
+	
 	// update the SEQBASE line while copying over the data
 	string dbVersion = inDatabank->GetVersion();
 	
@@ -326,9 +329,13 @@ int main(int argc, char* argv[])
 		// and the final HSSP file
 		// (we use a temporary stringstream, to avoid
 		// creating empty files if something goes wrong.
-		stringstream hssp;
-		CreateHSSP(db, maxhom, a, hssp);
-	
+		vector<char> hssp;
+		
+		io::filtering_ostream os(io::back_inserter(hssp));
+		CreateHSSP(db, maxhom, a, os);
+		
+		io::filtering_istream is(boost::make_iterator_range(hssp));
+		
 		// Where to write our HSSP file to:
 		// either to cout or an (optionally compressed) file.
 		if (vm.count("output"))
@@ -349,10 +356,10 @@ int main(int argc, char* argv[])
 			
 			out.push(outfile);
 			
-			io::copy(hssp, out);
+			io::copy(is, out);
 		}
 		else
-			io::copy(hssp, cout);
+			io::copy(is, cout);
 	}
 	catch (exception& e)
 	{
