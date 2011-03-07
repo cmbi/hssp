@@ -22,7 +22,7 @@ MAN_DIR				= $(DEST_DIR)man/man3
 
 BOOST_LIBS			= system thread regex filesystem program_options date_time iostreams
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
-LIBS				= $(BOOST_LIBS) z bz2 # uuid zeep
+LIBS				= $(BOOST_LIBS) z bz2 /usr/lib/gcc/x86_64-linux-gnu/4.4/libstdc++.a # uuid zeep
 LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
