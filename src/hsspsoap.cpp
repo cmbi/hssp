@@ -461,6 +461,7 @@ int main(int argc, char* argv[])
 		("location,l",	po::value<string>(),	"location advertised in wsdl")
 		("user,u",		po::value<string>(),	"user to run as")
 		("maxhom",		po::value<string>(),	"Path to the maxhom application")
+		("threads,a",	po::value<int>(),		"Number of threads to use (default is nr of CPU's)")
 		("no-daemon,D",							"do not fork a daemon")
 		;
 	
@@ -500,6 +501,9 @@ int main(int argc, char* argv[])
 	string maxhom = "maxhom";
 	if (vm.count("maxhom"))
 		maxhom = vm["maxhom"].as<string>();
+
+	if (vm.count("threads"))
+		BLAST_THREADS = vm["threads"].as<int>();
 	
 	gMaxHom = maxhom;
 	if (not fs::exists(gMaxHom))

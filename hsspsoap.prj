@@ -8,7 +8,6 @@
   <userpaths>
     <path>src</path>
     <path>../mrs/lib/Sources</path>
-    <path></path>
   </userpaths>
   <libpaths>
     <path>../mrs/lib</path>
@@ -16,12 +15,14 @@
   </libpaths>
   <files>
     <group name="Sources">
+      <file>blast.cpp</file>
+      <file>dssp.cpp</file>
+      <file>hsspsoap.cpp</file>
       <file>matrix.cpp</file>
+      <file>maxhom-hssp.cpp</file>
       <file>primitives-3d.cpp</file>
       <file>structure.cpp</file>
       <file>utils.cpp</file>
-      <file>dssp.cpp</file>
-      <file>mkhssp.cpp</file>
     </group>
     <group name="Libraries">
       <link>mrs</link>
@@ -39,8 +40,8 @@
   </files>
   <targets>
     <target kind="Executable">
-      <name>hssp-Debug</name>
-      <linkTarget>hssp-2</linkTarget>
+      <name>hsspsoap-Debug</name>
+      <linkTarget>hsspsoap</linkTarget>
       <compiler>/usr/bin/g++</compiler>
       <defines>
         <define>DEBUG</define>
@@ -48,10 +49,10 @@
         <define>USE_COMPRESSION</define>
       </defines>
       <cflags>
-        <cflag>-O0</cflag>
         <cflag>-pthread</cflag>
-        <cflag>-gdwarf-2</cflag>
         <cflag>-std=c++0x</cflag>
+        <cflag>-O0</cflag>
+        <cflag>-gdwarf-2</cflag>
       </cflags>
       <warnings>
         <warning>all</warning>
@@ -59,8 +60,8 @@
       </warnings>
     </target>
     <target kind="Executable">
-      <name>hssp-Release</name>
-      <linkTarget>hssp-2</linkTarget>
+      <name>hsspsoap-Release</name>
+      <linkTarget>hsspsoap</linkTarget>
       <compiler>/usr/bin/g++</compiler>
       <defines>
         <define>NDEBUG</define>
@@ -68,9 +69,9 @@
         <define>USE_COMPRESSION</define>
       </defines>
       <cflags>
-        <cflag>-O3</cflag>
         <cflag>-pthread</cflag>
         <cflag>-std=c++0x</cflag>
+        <cflag>-O3</cflag>
       </cflags>
       <warnings>
         <warning>all</warning>
