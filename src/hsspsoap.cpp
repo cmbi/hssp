@@ -3,10 +3,6 @@
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
-//#define NDEBUG
-#undef DEBUG
-#define DEBUG 0
-
 #include "MRS.h"
 
 #include <sys/wait.h>

@@ -6,6 +6,8 @@
 #include <map>
 #include <boost/tr1/tuple.hpp>
 
+#include "align-2d.h"
+
 // --------------------------------------------------------------------
 
 class GuideTreeParser

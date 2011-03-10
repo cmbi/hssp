@@ -1086,23 +1086,30 @@ void align2d(const vector<string>& input, char chain, vector<entry>& data,
 			infile.erase(infile.length() - 2, string::npos);
 		}
 
-		ifstream file(infile.c_str(), ios_base::in | ios_base::binary);
-		if (not file.is_open())
-			throw mas_exception(boost::format("Could not open file '%1%'") % infile);
-		
 		io::filtering_stream<io::input> in;
-		if (ba::ends_with(infile, ".bz2"))
-		{
-			in.push(io::bzip2_decompressor());
-			infile.erase(infile.length() - 4, string::npos);
-		}
-		else if (ba::ends_with(infile, ".gz"))
-		{
-			in.push(io::gzip_decompressor());
-			infile.erase(infile.length() - 3, string::npos);
-		}
+		auto_ptr<ifstream> file;
 		
-		in.push(file);
+		if (infile == "stdin")
+			in.push(cin);
+		else
+		{
+			file.reset(new ifstream(infile.c_str(), ios_base::in | ios_base::binary));
+			if (not file->is_open())
+				throw mas_exception(boost::format("Could not open file '%1%'") % infile);
+			
+			if (ba::ends_with(infile, ".bz2"))
+			{
+				in.push(io::bzip2_decompressor());
+				infile.erase(infile.length() - 4, string::npos);
+			}
+			else if (ba::ends_with(infile, ".gz"))
+			{
+				in.push(io::gzip_decompressor());
+				infile.erase(infile.length() - 3, string::npos);
+			}
+			
+			in.push(*file);
+		}
 		
 		fs::path path(infile);
 		if (path.extension() == ".hssp")
@@ -1169,7 +1176,7 @@ int main(int argc, char* argv[])
 		desc.add_options()
 			("help,h",							 "Display help message")
 			("input,i",		po::value<vector<string>>(),
-												"Input file(s)")
+												"Input file(s) (use stdin for input from STDIN)")
 			("outfile,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("format,f",	po::value<string>(), "Output format, can be clustalw (default) or fasta")
 			("outtree",		po::value<string>(), "Write guide tree")

@@ -154,6 +154,9 @@ void GetHSSPForHitsAndDSSP(
 	if (status != 0)
 		THROW(("maxhom exited with status %d", status));
 	
+	if (not fs::exists(rundir / "out.hssp"))
+		THROW(("Maxhom failed to create an alignment"));
+
 	// OK, got it! Read in the result and exit
 	fs::ifstream result(rundir / "out.hssp");
 
