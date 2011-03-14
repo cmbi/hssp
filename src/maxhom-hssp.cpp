@@ -147,6 +147,7 @@ void GetHSSPForHitsAndDSSP(
 	WriteToFD(fd, "LONG_OUT NO");
 	WriteToFD(fd, "DOT_PLOT NO");
 	WriteToFD(fd, "RUN");
+	close(fd);
 	
 	int status;
 	waitpid(pid, &status, 0);

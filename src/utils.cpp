@@ -85,7 +85,9 @@ void progress::run()
 	bool first = true;
 
 	// first, get the current terminal width
-	uint32 width = get_terminal_width();
+	int32 width = get_terminal_width();
+	if (width < 10)
+		return;
 
 	try
 	{
