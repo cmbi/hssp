@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE xhtml
+	PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/1999/xhtml">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <title></title>
+    <meta name="author" content="Maarten L. Hekkelman" />
+    <meta name="generator" content="Japi" />
+	<!-- Date: woensdag 23 maart, 2011 -->
+<style type="text/css">
+
+h3 {
+	margin: -5px;
+	margin-bottom: 5px;
+	padding: 3px;
+	background-color: gray;
+	color: white;
+}
+
+form {
+	display: inline-block;
+	border: solid 1px black;
+	padding: 5px;
+	font-size: small;
+}
+
+</style>
+
+</head>
+<body>
+	<p>This is the CMBI DSSP/HSSP server. You can access the functionality by using the forms
+	below, or by using SOAP from a script by using the <a href="wsdl">WSDL</a>.</p>
+
+	<form action="./PDB2DSSP" method="POST" enctype="multipart/form-data">
+		<h3>DSSP</h3>
+		Paste the contents of a PDB file in the box below and press 'Calculate DSSP'
+		<br/>
+		<textarea cols="80" name="pdb" rows="5"></textarea>
+		<br/>
+		<input class="submit" type="submit" value="Calculate DSSP"/>
+	</form>
+	<br/>
+	<form action="./PDB2HSSP" method="POST" enctype="multipart/form-data"
+		onsubmit="alert('HSSP calculations can take a long time, please be patient'); return true;">
+		<h3>HSSP</h3>
+		Paste the contents of a PDB file in the box below and press 'Calculate HSSP'
+		<br/>
+		<textarea cols="80" name="pdb" rows="5"></textarea>
+		<br/>
+		<input class="submit" type="submit" value="Calculate HSSP"/>
+	</form>
+</body>
+</html>

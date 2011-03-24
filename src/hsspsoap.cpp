@@ -18,6 +18,7 @@
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/newline.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/program_options.hpp>
 #include <boost/lexical_cast.hpp>
@@ -31,7 +32,11 @@
 
 #include "zeep/server.hpp"
 
+#include "mrsrc.h"
+
 #include "blast.h"
+#include "structure.h"
+#include "dssp.h"
 #include "maxhom-hssp.h"
 
 #define HSSPSOAP_PID_FILE	"/var/run/hsspsoap.pid"
@@ -45,61 +50,6 @@ namespace po = boost::program_options;
 // globals
 
 fs::path gMaxHom;
-
-void GetDSSPForPDBFile(
-	const string&		inPDBFile,
-	string&				outDSSP)
-{
-	HUuid uuid;
-	
-	fs::path rundir("/tmp/hsspsoap/");
-	rundir /= boost::lexical_cast<string>(uuid);
-	fs::create_directories(rundir);
-
-	// write out the dssp file
-	fs::ofstream pdb(rundir / "in.pdb");
-	pdb << inPDBFile;
-	pdb.close();
-	
-	fs::path dsspcmbi = "/home/maarten/projects/dssp/dsspcmbi";
-	if (not fs::exists(dsspcmbi))
-		THROW(("dsspcmbi executable '%s' not found", dsspcmbi.string().c_str()));
-	
-	int pid = fork();
-	if (pid == -1)
-		THROW(("fork failed: %s", strerror(errno)));
-	
-	if (pid == 0)	// the child process (will be maxhom)
-	{
-		fs::current_path(rundir);
-		
-		setpgid(0, 0);
-		
-		int fd = open("dsspcmbi.log", O_CREAT | O_RDWR, 0666);
-		dup2(fd, STDOUT_FILENO);
-		dup2(fd, STDERR_FILENO);
-		
-		char* argv[] = {
-			const_cast<char*>(dsspcmbi.string().c_str()),
-			const_cast<char*>("in.pdb"),
-			const_cast<char*>("out.dssp"),
-			nil
-		};
-		
-		(void)execve(dsspcmbi.string().c_str(), argv, environ);
-	}
-
-	int status;
-	waitpid(pid, &status, 0);
-	
-	if (status != 0)
-		THROW(("dsspcmbi exited with status %d", status));
-	
-	// OK, got it! Read in the result and exit
-	fs::ifstream result(rundir / "out.dssp");
-	io::filtering_ostream out(io::back_inserter(outDSSP));
-	io::copy(result, out);
-}
 
 void GetDSSPForSequence(
 	const string&		inSequence,
@@ -230,33 +180,104 @@ void ParseSequenceFromDSSP(
 	}
 }
 
+void GetPDBFileFromPayload(
+	const string&	payload,
+	string&			pdb,
+	fs::path&		file)
+{
+	// make streams
+	io::filtering_istream in;
+	in.push(io::newline_filter(io::newline::posix));
+	in.push(boost::make_iterator_range(payload));
+	io::filtering_ostream out(io::back_inserter(pdb));
+	
+	// get the boundary
+	string boundary;
+	getline(in, boundary);
+	
+	// parse fields until we've got the data 'pdb'
+	string name;
+	
+	for (;;)
+	{
+		// we just read a boundary, what follows are header fields
+		string line;
+		getline(in, line);
+		
+		// sanity check
+		if (line.empty() and in.eof())
+			THROW(("Unexpected end of file"));
+		
+		// skip header fields until we have "Content-Disposition: form-data"
+		if (ba::starts_with(line, "Content-Disposition: form-data"))
+		{
+			static const boost::regex nre("name=\\\"([^\"]+)\\\"");
+			boost::smatch m;
+
+			if (boost::regex_search(line, m, nre))
+				name = m[1];
+			else
+				name = "undef";	// really??
+
+			continue;
+		}
+		
+		if (not line.empty())	// any other field header
+			continue;
+		
+		// the data, read until we hit the next boundary
+		
+		for (;;)
+		{
+			getline(in, line);
+
+			if (line.empty() and in.eof())
+				THROW(("Unexpected end of file"));
+			
+			if (ba::starts_with(line, boundary))
+				break;
+			
+			if (name == "pdb")
+				out << line << endl;
+		}
+		
+		// check to see if we're done
+		if (name == "pdb" or line.substr(boundary.length(), 2) == "--")
+			break;
+	}
+}
+
 // the data types used in our communication with the outside world
 // are wrapped in a namespace.
 
 class hssp_server : public zeep::server
 {
   public:
-			hssp_server();
+					hssp_server();
 
-	void	GetDSSPForPDBID(
-				const string&	pdbid,
-				string&			dssp);
+	virtual void	handle_request(
+						const zeep::http::request&	req,
+						zeep::http::reply&			rep);
 
-	void	GetDSSPForPDBFile(
-				const string&	pdbfile,
-				string&			dssp);
-
-	void	GetHSSPForPDBID(
-				const string&	pdbid,
-				string&			hssp);
-
-	void	GetHSSPForPDBFile(
-				const string&	pdbfile,
-				string&			hssp);
-
-	void	GetHSSPForSequence(
-				const string&	sequence,
-				string&			hssp);
+	void			GetDSSPForPDBID(
+						const string&	pdbid,
+						string&			dssp);
+		
+	void			GetDSSPForPDBFile(
+						const string&	pdbfile,
+						string&			dssp);
+		
+	void			GetHSSPForPDBID(
+						const string&	pdbid,
+						string&			hssp);
+		
+	void			GetHSSPForPDBFile(
+						const string&	pdbfile,
+						string&			hssp);
+		
+	void			GetHSSPForSequence(
+						const string&	sequence,
+						string&			hssp);
 
 	CDatabankTable				mDBTable;
 };
@@ -295,6 +316,83 @@ hssp_server::hssp_server()
 	register_action("GetHSSPForSequence", this, &hssp_server::GetHSSPForSequence, kGetHSSPForSequenceParameterNames);
 }
 
+void hssp_server::handle_request(
+	const zeep::http::request&	req,
+	zeep::http::reply&			rep)
+{
+	bool handled = false;
+
+	string uri = req.uri;
+
+	// strip off the http part including hostname and such
+	if (ba::starts_with(uri, "http://"))
+	{
+		string::size_type s = uri.find_first_of('/', 7);
+		if (s != string::npos)
+			uri.erase(0, s);
+	}
+	
+	// now make the path relative to the root
+	while (uri.length() > 0 and uri[0] == '/')
+		uri.erase(uri.begin());
+	
+	try
+	{
+		if (req.method == "GET" and (uri.empty() or ba::starts_with(uri, "index.htm")))
+		{
+			mrsrc::rsrc rsrc("index.html");
+			
+			rep.set_content(string(rsrc.data(), rsrc.size()), "text/html");
+			
+			handled = true;
+		}
+		else if (req.method == "POST")
+		{
+			if (ba::starts_with(uri, "PDB2DSSP") or ba::starts_with(uri, "PDB2HSSP") )
+			{
+				string pdb;
+				fs::path file;
+	
+				GetPDBFileFromPayload(req.payload, pdb, file);
+				
+				if (file.empty() and pdb.length() > 66)
+					file = pdb.substr(62, 4) + ".pdb";
+				
+				string result;
+				if (ba::starts_with(uri, "PDB2DSSP"))
+				{
+					GetDSSPForPDBFile(pdb, result);
+					file.replace_extension(".dssp");
+				}
+				else
+				{
+					GetHSSPForPDBFile(pdb, result);
+					file.replace_extension(".hssp");
+				}
+				
+				rep.set_content(result, "text/plain");
+				rep.set_header("Content-disposition",
+					(boost::format("attachement; filename=%1%") % file).str());
+				
+				handled = true;
+			}
+		}
+	}
+	catch (exception& e)
+	{
+		mrsrc::rsrc rsrc("error.html");
+		string error(rsrc.data(), rsrc.size());
+		
+		ba::replace_first(error, "#ERRSTR", e.what());
+		
+		rep.set_content(error, "text/html");
+		handled = true;
+	}
+	
+	if (not handled)
+		zeep::server::handle_request(req, rep);
+}
+
 //void hssp_server::GetDSSPForPDBID(
 //	const string&				pdbid,
 //	string&						dssp)
@@ -313,7 +411,15 @@ void hssp_server::GetDSSPForPDBFile(
 	const string&				pdbfile,
 	string&						dssp)
 {
-	::GetDSSPForPDBFile(pdbfile, dssp);
+	// create a protein
+	io::filtering_istream in(boost::make_iterator_range(pdbfile));
+	MProtein a(in);
+	
+	// then calculate the secondary structure
+	a.CalculateSecondaryStructure();
+
+	io::filtering_ostream out(io::back_inserter(dssp));
+	WriteDSSP(a, out);
 }
 
 //void hssp_server::GetHSSPForPDBID(
@@ -326,20 +432,28 @@ void hssp_server::GetHSSPForPDBFile(
 	const string&				pdbfile,
 	string&						hssp)
 {
-	CDatabankPtr db = mDBTable.Load("uniprot");
+	io::filtering_istream in;
+	in.push(io::newline_filter(io::newline::posix));
+	in.push(boost::make_iterator_range(pdbfile));
+	
+	// OK, we've got the file, now create a protein
+	MProtein a(in);
+	
+	// then calculate the secondary structure
+	a.CalculateSecondaryStructure();
 
 	string dssp;
-	::GetDSSPForPDBFile(pdbfile, dssp);
-	
-	string sequence;
-	::ParseSequenceFromDSSP(dssp, sequence);
-	
+	io::filtering_ostream out1(io::back_inserter(dssp));
+	WriteDSSP(a, out1);
+
+	// Blast
+	CDatabankPtr db = mDBTable.Load("uniprot");
 	vector<uint32> hits;
-	::BlastSequence(db, sequence, hits);
-	
-	ostringstream s;
-	maxhom::GetHSSPForHitsAndDSSP(db, gMaxHom.string(), "UNKN", hits, dssp, 1500, s);
-	hssp = s.str();
+	BlastProtein(db, a, hits);
+
+	// and the final HSSP file
+	io::filtering_ostream out2(io::back_inserter(hssp));
+	maxhom::GetHSSPForHitsAndDSSP(db, gMaxHom.string(), a.GetID(), hits, dssp, 1500, out2);
 }
 
 void hssp_server::GetHSSPForSequence(
@@ -354,9 +468,8 @@ void hssp_server::GetHSSPForSequence(
 	vector<uint32> hits;
 	BlastSequence(db, sequence, hits);
 	
-	ostringstream s;
-	maxhom::GetHSSPForHitsAndDSSP(db, gMaxHom.string(), "UNKN", hits, dssp, 1500, s);
-	hssp = s.str();
+	io::filtering_ostream out(io::back_inserter(hssp));
+	maxhom::GetHSSPForHitsAndDSSP(db, gMaxHom.string(), "UNKN", hits, dssp, 1500, out);
 }
 
 // --------------------------------------------------------------------

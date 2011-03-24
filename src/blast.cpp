@@ -13,6 +13,7 @@
 
 #include "mas.h"
 #include "blast.h"
+#include "structure.h"
 
 using namespace std;
 
@@ -44,3 +45,17 @@ void BlastSequence(
 	}
 }
 
+void BlastProtein(
+	CDatabankPtr		inDatabank,
+	const MProtein&		inProtein,
+	vector<uint32>&		outHits)
+{
+	foreach (const MChain* chain, inProtein.GetChains())
+	{
+		char chainID = chain->GetChainID();
+		entry e(1, inProtein.GetID() + chainID);
+		inProtein.GetSequence(chainID, e);
+
+		BlastSequence(inDatabank, decode(e.m_seq), outHits);
+	}
+}

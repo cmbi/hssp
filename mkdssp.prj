@@ -69,5 +69,25 @@
         <warning>no-multichar</warning>
       </warnings>
     </target>
+    <target kind="Executable" arch="i386">
+      <name>dssp-Debug-32</name>
+      <linkTarget>dssp-2</linkTarget>
+      <compiler>/usr/bin/g++</compiler>
+      <defines>
+        <define>DEBUG</define>
+        <define>LINUX</define>
+        <define>USE_COMPRESSION</define>
+      </defines>
+      <cflags>
+        <cflag>-O0</cflag>
+        <cflag>-pthread</cflag>
+        <cflag>-gdwarf-2</cflag>
+        <cflag>-std=c++0x</cflag>
+      </cflags>
+      <warnings>
+        <warning>all</warning>
+        <warning>no-multichar</warning>
+      </warnings>
+    </target>
   </targets>
 </project>
