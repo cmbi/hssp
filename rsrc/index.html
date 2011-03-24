@@ -12,6 +12,10 @@
 	<!-- Date: woensdag 23 maart, 2011 -->
 <style type="text/css">
 
+* {
+	font-family: sans-serif;
+}
+
 h3 {
 	margin: -5px;
 	margin-bottom: 5px;
@@ -36,9 +40,11 @@ form {
 
 	<form action="./PDB2DSSP" method="POST" enctype="multipart/form-data">
 		<h3>DSSP</h3>
-		Paste the contents of a PDB file in the box below and press 'Calculate DSSP'
+		Paste the contents of a PDB file in the box below or select a file and press 'Calculate DSSP'
 		<br/>
 		<textarea cols="80" name="pdb" rows="5"></textarea>
+		<br/>
+		<input type="file" name="pdbfile" maxlength="80" size="50">
 		<br/>
 		<input class="submit" type="submit" value="Calculate DSSP"/>
 	</form>
@@ -46,9 +52,11 @@ form {
 	<form action="./PDB2HSSP" method="POST" enctype="multipart/form-data"
 		onsubmit="alert('HSSP calculations can take a long time, please be patient'); return true;">
 		<h3>HSSP</h3>
-		Paste the contents of a PDB file in the box below and press 'Calculate HSSP'
+		Paste the contents of a PDB file in the box below or select a file and press 'Calculate HSSP'
 		<br/>
 		<textarea cols="80" name="pdb" rows="5"></textarea>
+		<br/>
+		<input type="file" name="pdbfile" maxlength="80" size="50">
 		<br/>
 		<input class="submit" type="submit" value="Calculate HSSP"/>
 	</form>

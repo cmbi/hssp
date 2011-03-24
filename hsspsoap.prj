@@ -39,6 +39,7 @@
     </group>
   </files>
   <resources resource-dir="rsrc">
+    <resource>error.html</resource>
     <resource>index.html</resource>
   </resources>
   <targets>

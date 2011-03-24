@@ -5,8 +5,6 @@
 
 #include "MRS.h"
 
-#include <sys/wait.h>
-#include <unistd.h>
 #include <pwd.h>
 
 #include <boost/algorithm/string.hpp>
@@ -55,129 +53,21 @@ void GetDSSPForSequence(
 	const string&		inSequence,
 	string&				outDSSP)
 {
-	stringstream s;
+	io::filtering_ostream out(io::back_inserter(outDSSP));
 
-	char first[] =	"==== Secondary Structure Definition by the program DSSP, updated CMBI version by ElmK / April 1,2000 ==== DATE=28-MAY-2010     .\n"
-					"REFERENCE\n"
-					"HEADER\n"
-					"COMPND\n"
-					"SOURCE\n"
-					"AUTHOR\n"
-					"    x  1  0  0  0\n"
-					"  #\n";
-	
-	char *p = first + sizeof(first) - 19;
-	if (*p != 'x')
-		THROW(("Fout! p = '%s'", p));
-
-	for (int n = inSequence.length(); n > 0; n /= 10)
-		*p-- = '0' + (n % 10);
-	
-	s << first;
+	out << "==== Secondary Structure Definition by the program DSSP, updated CMBI version by ElmK / April 1,2000 ==== DATE=28-MAY-2010     ." << endl
+		<< "REFERENCE" << endl
+		<< "HEADER" << endl
+		<< "COMPND" << endl
+		<< "SOURCE" << endl
+		<< "AUTHOR" << endl
+		<< boost::format("%5.5d  1  0  0  0") % inSequence.length() << endl
+		<< "  #" << endl;
 	
 	// And now fill in the rest
-	
 	int n = 1;
 	for (string::const_iterator aa = inSequence.begin(); aa != inSequence.end(); ++aa, ++n)
-	{
-		char line[17] = {};
-		
-		snprintf(line, sizeof(line), "%5.d%5.d A %c", n, n, toupper(*aa));
-		s << line << endl;
-	}
-
-	outDSSP = s.str();
-}
-
-void ParseSequenceFromDSSP(
-	const string&		inDSSP,
-	string&				outSequence)
-{
-	istringstream s(inDSSP);
-	
-	string line;
-	getline(s, line);
-	if (not ba::starts_with(line, "==== Secondary Structure Definition"))
-		THROW(("Not a valid DSSP file"));
-	
-	int n = 0, state = 0;
-	
-	outSequence.clear();
-	outSequence.reserve(n);
-	
-	while (state < 100)
-	{
-		getline(s, line);
-		if (s.eof() or line.empty())
-			THROW(("Invalid (truncated?) DSSP file"));
-		
-		switch (state)
-		{
-			case 0:
-				if (ba::starts_with(line, "REFERENCE"))
-				{
-					state = 1;
-					break;
-				}
-
-			case 1:
-				if (ba::starts_with(line, "HEADER"))
-				{
-					state = 2;
-					break;
-				}
-
-			case 2:
-				if (ba::starts_with(line, "COMPND"))
-				{
-					state = 3;
-					break;
-				}
-
-			case 3:
-				if (ba::starts_with(line, "SOURCE"))
-				{
-					state = 4;
-					break;
-				}
-			
-			case 4:
-				if (ba::starts_with(line, "AUTHOR"))
-				{
-					state = 5;
-					break;
-				}
-
-			case 5:
-				if (ba::starts_with(line, " "))
-				{
-					line.erase(5, string::npos);
-					while (not line.empty() and isspace(line[0]))
-						line.erase(line.begin());
-					n = boost::lexical_cast<int>(line);
-					state = 6;
-				}
-				break;
-			
-			case 6:
-				if (ba::starts_with(line, "  #"))
-					state = 100;
-				break;
-		}
-	}
-	
-	outSequence.reserve(n);
-	while (n-- > 0 and not s.eof())
-	{
-		getline(s, line);
-		
-		if (line.length() < 14)
-			THROW(("Invalid DSSP file"));
-		char aa = line[13];
-		if (islower(aa))
-			aa = 'C';
-		outSequence.push_back(aa);
-	}
+		out << boost::format("%5.d%5.d A %c") % n % n % toupper(*aa) << endl;
 }
 
 void GetPDBFileFromPayload(
@@ -189,7 +79,6 @@ void GetPDBFileFromPayload(
 	io::filtering_istream in;
 	in.push(io::newline_filter(io::newline::posix));
 	in.push(boost::make_iterator_range(payload));
-	io::filtering_ostream out(io::back_inserter(pdb));
 	
 	// get the boundary
 	string boundary;
@@ -211,13 +100,17 @@ void GetPDBFileFromPayload(
 		// skip header fields until we have "Content-Disposition: form-data"
 		if (ba::starts_with(line, "Content-Disposition: form-data"))
 		{
-			static const boost::regex nre("name=\\\"([^\"]+)\\\"");
+			static const boost::regex nre("\\bname=\\\"([^\"]+)\\\"");
 			boost::smatch m;
 
 			if (boost::regex_search(line, m, nre))
 				name = m[1];
 			else
 				name = "undef";	// really??
+
+			static const boost::regex fre("\\bfilename=\\\"([^\"]+)\\\"");
+			if (boost::regex_search(line, m, fre))
+				file = m[1];
 
 			continue;
 		}
@@ -226,6 +119,9 @@ void GetPDBFileFromPayload(
 			continue;
 		
 		// the data, read until we hit the next boundary
+		
+		string data;
+		io::filtering_ostream out(io::back_inserter(pdb));
 		
 		for (;;)
 		{
@@ -237,12 +133,15 @@ void GetPDBFileFromPayload(
 			if (ba::starts_with(line, boundary))
 				break;
 			
-			if (name == "pdb")
+			if (name == "pdb" or name == "pdbfile")
 				out << line << endl;
 		}
 		
 		// check to see if we're done
-		if (name == "pdb" or line.substr(boundary.length(), 2) == "--")
+		if ((name == "pdb" or name == "pdbfile") and pdb.length() > 2)
+			break;
+
+		if (line.substr(boundary.length(), 2) == "--")
 			break;
 	}
 }
@@ -259,17 +158,9 @@ class hssp_server : public zeep::server
 						const zeep::http::request&	req,
 						zeep::http::reply&			rep);
 
-	void			GetDSSPForPDBID(
-						const string&	pdbid,
-						string&			dssp);
-		
 	void			GetDSSPForPDBFile(
 						const string&	pdbfile,
 						string&			dssp);
-		
-	void			GetHSSPForPDBID(
-						const string&	pdbid,
-						string&			hssp);
 		
 	void			GetHSSPForPDBFile(
 						const string&	pdbfile,
@@ -285,23 +176,11 @@ class hssp_server : public zeep::server
 hssp_server::hssp_server()
 	: zeep::server("http://www.cmbi.ru.nl/hsspsoap", "hsspsoap")
 {
-//	const char* kGetDSSPForPDBIDParameterNames[] = {
-//		"pdbid", "dssp"
-//	};
-//	
-//	register_action("GetDSSPForPDBID", this, &hssp_server::GetDSSPForPDBID, kGetDSSPForPDBIDParameterNames);
-
 	const char* kGetDSSPForPDBFileParameterNames[] = {
 		"pdbfile", "dssp"
 	};
 	
 	register_action("GetDSSPForPDBFile", this, &hssp_server::GetDSSPForPDBFile, kGetDSSPForPDBFileParameterNames);
-
-//	const char* kGetHSSPForPDBIDParameterNames[] = {
-//		"pdbid", "hssp"
-//	};
-//	
-//	register_action("GetHSSPForPDBID", this, &hssp_server::GetHSSPForPDBID, kGetHSSPForPDBIDParameterNames);
 
 	const char* kGetHSSPForPDBFileParameterNames[] = {
 		"pdbfile", "hssp"
@@ -354,7 +233,7 @@ void hssp_server::handle_request(
 				fs::path file;
 	
 				GetPDBFileFromPayload(req.payload, pdb, file);
-				
+
 				if (file.empty() and pdb.length() > 66)
 					file = pdb.substr(62, 4) + ".pdb";
 				
@@ -372,7 +251,7 @@ void hssp_server::handle_request(
 				
 				rep.set_content(result, "text/plain");
 				rep.set_header("Content-disposition",
-					(boost::format("attachement; filename=%1%") % file).str());
+					(boost::format("attachement; filename=\"%1%\"") % file).str());
 				
 				handled = true;
 			}
@@ -393,20 +272,6 @@ void hssp_server::handle_request(
 		zeep::server::handle_request(req, rep);
 }
 
-//void hssp_server::GetDSSPForPDBID(
-//	const string&				pdbid,
-//	string&						dssp)
-//{
-//	string sequence;
-//	
-//	GetSequenceForPDBID(pdbid, sequence);
-//	
-//	vector<uint32> hits;
-//	BlastSequence(sequence, hits);
-//	
-//	dssp = boost::lexical_cast<string>(hits.size());
-//}
-
 void hssp_server::GetDSSPForPDBFile(
 	const string&				pdbfile,
 	string&						dssp)
@@ -421,12 +286,6 @@ void hssp_server::GetDSSPForPDBFile(
 	io::filtering_ostream out(io::back_inserter(dssp));
 	WriteDSSP(a, out);
 }
-
-//void hssp_server::GetHSSPForPDBID(
-//	const string&				pdbid,
-//	string&						hssp)
-//{
-//}
 
 void hssp_server::GetHSSPForPDBFile(
 	const string&				pdbfile,
