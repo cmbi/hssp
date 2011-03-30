@@ -67,7 +67,7 @@ void GetDSSPForSequence(
 	// And now fill in the rest
 	int n = 1;
 	for (string::const_iterator aa = inSequence.begin(); aa != inSequence.end(); ++aa, ++n)
-		out << boost::format("%5.d%5.d A %c") % n % n % toupper(*aa) << endl;
+		out << boost::format("%5.d%5.d A %c") % n % n % char(toupper(*aa)) << endl;
 }
 
 void GetPDBFileFromPayload(
