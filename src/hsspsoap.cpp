@@ -255,6 +255,23 @@ void hssp_server::handle_request(
 				
 				handled = true;
 			}
+			else if (ba::starts_with(uri, "SEQ2HSSP") )
+			{
+				string::size_type p = req.payload.find("seq=");
+				if (p == string::npos)
+					THROW(("Missing sequence parameters"));
+				
+				string seq = req.payload.substr(p + 4);
+				
+				string result;
+				GetHSSPForSequence(seq, result);
+				
+				rep.set_content(result, "text/plain");
+				rep.set_header("Content-disposition",
+					(boost::format("attachement; filename=\"%1%\"") % "hssp-for-sequence").str());
+				
+				handled = true;
+			}
 		}
 	}
 	catch (exception& e)
