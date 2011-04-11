@@ -20,9 +20,9 @@ INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
 					  $(ZEEP_DIR) src/
 MAN_DIR				= $(DEST_DIR)man/man3
 
-BOOST_LIBS			= system thread regex filesystem program_options date_time iostreams
+BOOST_LIBS			= system thread regex filesystem program_options date_time iostreams math_c99
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
-LIBS				= $(BOOST_LIBS) z bz2 /usr/lib/gcc/x86_64-linux-gnu/4.4/libstdc++.a zeep
+LIBS				= zeep $(BOOST_LIBS) z bz2
 LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
@@ -55,7 +55,7 @@ mas: $(OBJECTS)
 
 dssp-2: obj/mkdssp.o obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
 	@ echo linking $@
-	@ c++ -o $@ $^ $(LDOPTS)
+	@ c++ -static -o $@ $? $(LDOPTS)
 	@ echo OK
 
 mkhssp: obj/mkhssp.o obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
