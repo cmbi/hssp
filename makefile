@@ -1,6 +1,6 @@
 # Makefile for mas
 #
-#  Copyright Maarten L. Hekkelman, Radboud University 2008-2010.
+#  Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
 # Distributed under the Boost Software License, Version 1.0.
 #    (See accompanying file LICENSE_1_0.txt or copy at
 #          http://www.boost.org/LICENSE_1_0.txt)
@@ -8,7 +8,7 @@
 # You may have to edit the first three defines on top of this
 # makefile to match your current installation.
 
-#BOOST_LIB_SUFFIX	= -mt				# Works for Ubuntu
+#BOOST_LIB_SUFFIX	= -mt
 BOOST_LIB_DIR		= $(HOME)/projects/boost/lib
 BOOST_INC_DIR		= $(HOME)/projects/boost/include
 ZEEP_DIR			= $(HOME)/projects/libzeep/
@@ -22,14 +22,14 @@ MAN_DIR				= $(DEST_DIR)man/man3
 
 BOOST_LIBS			= system thread regex filesystem program_options date_time iostreams
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
-LIBS				= $(BOOST_LIBS) z bz2 /usr/lib/gcc/x86_64-linux-gnu/4.4/libstdc++.a zeep # uuid
+LIBS				= $(BOOST_LIBS) z bz2 /usr/lib/gcc/x86_64-linux-gnu/4.4/libstdc++.a zeep
 LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
 CC					?= c++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
 					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread -std=c++0x
-OPT					= -O3 -DNDEBUG # -mtune=core2 -march=core2
+OPT					= -O3 -DNDEBUG # -march=native
 
 include make.config
 

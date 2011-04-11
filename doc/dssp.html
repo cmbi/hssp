@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE xhtml
+	PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/1999/xhtml">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <title>DSSP</title>
+    <meta name="author" content="Maarten L. Hekkelman" />
+    <meta name="generator" content="Japi" />
+	<!-- Date: maandag 11 april, 2011 -->
+</head>
+<body>
+	<h2>Introduction</h2>
+	
+	<p>The DSSP program was designed by Wolfgang Kabsch and Chris Sander to standardize secondary structure assignment. DSSP is a database of secondary structure assignments (and much more) for all protein entries in the Protein Data Bank (PDB). DSSP is also the program that calculates DSSP entries from PDB entries.</p>
+
+	<p>The above means there are actually two ways of looking at DSSP. First of all there are the precalculated DSSP files for each PDB entry. And then there's the application called DSSP that can create these files.</p>
+
+	<h3>Databank</h3>
+	
+	<p>The DSSP as a databank is maintained by the CMBI. You can access individual files using our search system MRS at <a href="http://mrs.cmbi.ru.nl">http://mrs.cmbi.ru.nl</a>. If you want to download all the DSSP files your best choice is to use <code>rsync</code>. To download all the DSSP files to the local directory <code>/data/dssp</code> you would use the command:
+	</p>
+
+	<blockquote><code>rsync -a rsync://rsync.cmbi.ru.nl/dssp /data/dssp</code></blockquote>
+
+	<p>You can also download all files directly using ftp from <a href="ftp://ftp.cmbi.ru.nl/pub/molbio/data/dssp">ftp://ftp.cmbi.ru.nl/pub/molbio/data/dssp
+	</a> but we prefer you use rsync since it is a much more efficient protocol.</p>
+	
+	<h3>Application</h3>
+	
+	<p></p>
+	
+	<p>The original DSSP application was written between 1983 and 1988 in the programming language Pascal. This Pascal code was automatically converted into C code but maintaining this proved to be a lot of trouble. That's why we decided to rewrite the application from scratch in C++. This also allows us to improve the algorithms, something we plan to do in the near future.</p>
+
+	
+</body>
+</html>
