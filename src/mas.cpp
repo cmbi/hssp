@@ -1116,8 +1116,8 @@ void align2d(const vector<string>& input, char chain, vector<entry>& data,
 			readAlignmentFromHsspFile(in, iChain, data);
 //		else if (path.extension() == ".mapping")
 //			readWhatifMappingFile(in, data);
-//		else if (path.extension() == ".ids")
-//			readFamilyIdsFile(in, data);
+		else if (path.extension() == ".ids")
+			readFamilyIdsFile(in, path.branch_path(), data);
 		else if (path.extension() == ".pdb" or (ba::starts_with(path.leaf(), "pdb") and path.extension() == ".ent"))
 		{
 			readPDB(in, iChain, data);

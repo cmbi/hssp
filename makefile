@@ -20,14 +20,14 @@ INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
 					  $(ZEEP_DIR) src/
 MAN_DIR				= $(DEST_DIR)man/man3
 
-BOOST_LIBS			= system thread regex filesystem program_options date_time iostreams math_c99
+BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
 LIBS				= zeep $(BOOST_LIBS) z bz2
 LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
 CC					?= c++
-CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
+CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources -DBOOST_FILESYSTEM_VERSION=2 \
 					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread -std=c++0x
 OPT					= -O3 -DNDEBUG # -march=native
 

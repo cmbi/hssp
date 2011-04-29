@@ -365,46 +365,44 @@ void readWhatifMappingFile(istream& is, vector<entry>& seq)
 	}
 }
 
-//void readFamilyIdsFile(istream& is, vector<entry>& seq)
-//{
-//	seq.clear();
-//
-//	fs::path dir = path.parent_path();
-//	
-//	while (not file.eof())
-//	{
-//		string id;
-//		getline(file, id);
-//		
-//		if (id.empty())
-//			continue;
-//		
-//		fs::ifstream data(dir / (id + ".mapping"));
-//		if (not data.is_open())
-//			throw mas_exception(boost::format("Failed to open mapping file for protein %1%") % id);
-//		
-//		string line, s;
-//		vector<int16> pos;
-//
-//		while (not data.eof())
-//		{
-//			getline(data, line);
-//	
-//			if (line.length() < 3 or line[1] != '\t')
-//				continue;
-//			
-//			s += line[0];
-//			pos.push_back(boost::lexical_cast<int16>(line.substr(2)));
-//		}
-//		
-//		if (not s.empty())
-//		{
-//			entry e(seq.size(), id, encode(s));
-//			e.m_positions = pos;
-//			seq.push_back(e);
-//		}
-//	}
-//}
+void readFamilyIdsFile(istream& is, const fs::path& dir, vector<entry>& seq)
+{
+	seq.clear();
+
+	while (not is.eof())
+	{
+		string id;
+		getline(is, id);
+		
+		if (id.empty())
+			continue;
+		
+		fs::ifstream data(dir / (id + ".mapping"));
+		if (not data.is_open())
+			throw mas_exception(boost::format("Failed to open mapping file for protein %1%") % id);
+		
+		string line, s;
+		vector<int16> pos;
+
+		while (not data.eof())
+		{
+			getline(data, line);
+	
+			if (line.length() < 3 or line[1] != '\t')
+				continue;
+			
+			s += line[0];
+			pos.push_back(boost::lexical_cast<int16>(line.substr(2)));
+		}
+		
+		if (not s.empty())
+		{
+			entry e(seq.size(), id, encode(s));
+			e.m_positions = pos;
+			seq.push_back(e);
+		}
+	}
+}
 
 void readSecStruct(std::vector<entry>& seq)
 {

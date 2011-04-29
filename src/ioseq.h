@@ -14,7 +14,7 @@ void readAlignmentFromHsspFile(std::istream& is,
 	char& chainID, std::vector<entry>& seq);
 void readWhatifMappingFile(std::istream& is,
 	std::vector<entry>& seq);
-void readFamilyIdsFile(std::istream& is,
+void readFamilyIdsFile(std::istream& is, const boost::filesystem::path& dir,
 	std::vector<entry>& seq);
 //void readSecStruct(std::vector<entry>& seq);
 
