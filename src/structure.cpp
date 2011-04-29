@@ -935,7 +935,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 	fill(mAntiparallelBridgesPerLadderHistogram, mAntiparallelBridgesPerLadderHistogram + kHistogramSize, 0);
 	fill(mLaddersPerSheetHistogram, mLaddersPerSheetHistogram + kHistogramSize, 0);
 
-	vector<pair<MResidueID,MResidueID>> ssbonds;
+	vector<pair<MResidueID,MResidueID> > ssbonds;
 
 	bool model = false;
 	vector<MAtom> atoms;

@@ -6,6 +6,7 @@
 #include "MRS.h"
 
 #include <pwd.h>
+#include <signal.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/operations.hpp>
@@ -20,6 +21,7 @@
 #include <boost/iostreams/copy.hpp>
 #include <boost/program_options.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/regex.hpp>
 
 #include "zeep/config.hpp"
 

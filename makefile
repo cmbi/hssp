@@ -28,7 +28,8 @@ LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
 CC					?= c++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources -DBOOST_FILESYSTEM_VERSION=2 \
-					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread -std=c++0x
+					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread \
+					  -DBOOST_FILESYSTEM_VERSION=2
 OPT					= -O3 -DNDEBUG # -march=native
 
 include make.config

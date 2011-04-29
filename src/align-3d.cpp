@@ -483,7 +483,7 @@ void align_structures(
 	if (isprint(chainB) and not isspace(chainB))
 		pdbid_b += chainB;
 	
-	ofstream file_o(pdbid_a + '-' + pdbid_b + ".pdb");
+	ofstream file_o((pdbid_a + '-' + pdbid_b + ".pdb").c_str());
 	c.WritePDB(file_o);
 }
 
