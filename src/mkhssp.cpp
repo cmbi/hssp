@@ -32,25 +32,276 @@
 #include "CQuery.h"
 
 #include "mas.h"
+#include "matrix.h"
 #include "dssp.h"
+#include "blast.h"
 #include "structure.h"
+#include "utils.h"
+
+extern "C" {
+#include <clustal-omega.h>
+}
 
 using namespace std;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
+int nrOfThreads = boost::thread::hardware_concurrency();
+
+struct insertion
+{
+	uint32		ipos, jpos;
+	string		seq;
+};
+
+struct hit
+{
+				hit() : nr(0) {}
+
+	uint32		nr;
+	string		id, acc, desc, pdb;
+	string		seq;
+	uint32		ifir, ilas, jfir, jlas, lali, ngap, lgap, lseq2;
+	float		ide, wsim;
+	uint32		identical, similar;
+	vector<insertion>
+				insertions;
+};
+
+ostream& operator<<(ostream& os, const hit& h)
+{
+	static boost::format fmt("%5.5d : %12.12s%4.4s    %4.2f  %4.2f %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d ");
+	
+	os << fmt % h.nr % h.id % h.pdb
+			  % h.ide % h.wsim % h.ifir % h.ilas % h.jfir % h.jlas % h.lali
+			  % h.ngap % h.lgap % h.lseq2;
+	
+	return os;
+}
+
+typedef unique_ptr<hit> hit_ptr;
+
+hit_ptr CreateHit(CDatabankPtr db, const string& id, const string& q, const string& s)
+{
+	hit_ptr result;
+	
+	assert(q.length() == s.length());
+
+	sequence sq = encode(q);
+	sequence ss = encode(s);
+
+	const substitution_matrix m("BLOSUM62");
+	
+	uint32 b = 0, e = q.length();
+	while (b < e)
+	{
+		if (q[b] == '-' or s[b] == '-' or m(sq[b], ss[b]) < 0)
+		{
+			++b;
+			continue;
+		}
+		break;
+	}
+
+	while (b < e)
+	{
+		if (q[e - 1] == '-' or s[e - 1] == '-' or m(sq[e - 1], ss[e - 1]) < 0)
+		{
+			--e;
+			continue;
+		}
+		break;
+	}
+	
+	result.reset(new hit);
+	hit& h = *result;
+
+	h.id = id;
+	
+	h.ifir = b + 1;
+	for (uint32 i = 0; i < b and q[i] == '-'; ++i)
+		--h.ifir;
+	
+	h.ilas = h.ifir + (e - b) - 1;
+	for (uint32 i = e - 1; i > b and q[i] == '-'; --i)
+		--h.ilas;
+
+	h.jfir = b + 1;
+	for (uint32 i = 0; i < b and s[i] == '-'; ++i)
+		--h.jfir;
+
+	h.jlas = h.jfir + (e - b) - 1;
+	for (uint32 i = e - 1; i > b and s[i] == '-'; --i)
+		--h.jlas;
+
+	h.lseq2 = 0;
+	h.lgap = 0;
+	h.ngap = 0;
+	bool gap = true;
+
+	uint32 sb = 0;
+	while (sb < s.length() and s[sb] == '-')
+		++sb;
+	
+	uint32 se = s.length();
+	while (se > sb and s[se - 1] == '-')
+		--se;
+	
+	for (uint32 i = sb; i < se; ++i)
+	{
+		if (s[i] == '-' and q[i] == '-')
+			continue;
+		
+		if (s[i] == '-')
+		{
+			if (not gap)
+				++h.ngap;
+			gap = true;
+			++h.lgap;
+		}
+		else
+		{
+			++h.lseq2;
+			gap = false;
+		}
+	}
+	
+	h.lali = 0;
+	
+	for (uint32 i = b; i < e; ++i)
+	{
+		if (q[i] == '-' and s[i] == '-')
+		{
+			--h.ilas;
+			--h.jlas;
+			++h.lgap;
+			continue;
+		}
+
+		++h.lali;
+
+		if (q[i] == s[i])
+		{
+			++h.identical;
+			++h.similar;
+			continue;
+		}
+		
+		if (q[i] == '-' or s[i] == '-')
+		{
+			if (s[i] == '-')
+			{
+				--h.jlas;
+				++h.lgap;
+			}
+			else
+				--h.ilas;
+			continue;
+		}
+		
+		if (m(sq[i], ss[i]) >= 0)
+			++h.similar;
+	}
+	
+	
+	
+	return result;
+}
+
+
+void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostream& os)
+{
+	stringstream dssp;
+	WriteDSSP(inProtein, dssp);
+
+	vector<string> seqs;
+	inProtein.GetSequences(back_inserter(seqs));
+	seqs.erase(unique(seqs.begin(), seqs.end()), seqs.end());
+
+	// blast parameters
+	float expect = 1.0;
+	bool filter = true, gapped = true;
+	int wordsize = 3, gapOpen = 11, gapExtend = 1, maxhits = 1500;
+	string matrix = "BLOSUM62";
+	
+	foreach (const string& seq, seqs)
+	{
+		vector<uint32> hits;
+
+		CDbAllDocIterator data(inDatabank.get());
+		CBlast blast(seq, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
+		
+		if (blast.Find(*inDatabank, data, nrOfThreads))
+		{
+			CBlastHitList hits(blast.Hits());
+			
+			// now create the alignment using clustalo
+			
+			mseq_t* msa;
+			NewMSeq(&msa);
+			vector<string> ids;
+			
+			AddSeq(&msa, const_cast<char*>(inProtein.GetID().c_str()),
+				const_cast<char*>(seq.c_str()));
+			
+			foreach (const CBlastHit& hit, hits)
+			{
+				string seq, id;
+
+				inDatabank->GetSequence(hit.DocumentNr(),
+					inDatabank->GetSequenceNr(hit.DocumentNr(), hit.SequenceID()),
+					seq);
+				id = hit.DocumentID();
+				
+				ids.push_back(id);
+				AddSeq(&msa, const_cast<char*>(id.c_str()), const_cast<char*>(seq.c_str()));
+			}
+			
+			msa->seqtype = SEQTYPE_PROTEIN;
+			msa->aligned = false;
+			
+			if (Align(msa, nil, &coo))
+				throw mas_exception("Fatal error creating alignment");
+			
+			
+			
+//			// print out the alignment
+//			for (int i = 0; i < msa->nseqs; ++i)
+//				cout << '>' << msa->sqinfo[i].name << endl
+//					 << msa->seq[i] << endl;
+
+			WriteAlignment(msa, "/tmp/1cnv.out", MSAFILE_STOCKHOLM);
+			
+			FreeMSeq(&msa);
+		}
+	}
+	
+	// finally create a HSSP file
+	
+	string hssp;
+	
+	
+	
+}
+
 int main(int argc, char* argv[])
 {
 	try
 	{
+	    LogDefaultSetup(&rLog);
+	    rLog.iLogLevelEnabled = LOG_DEBUG;
+
+		opts_t coo;
+		SetDefaultAlnOpts(&coo);
+		
 		po::options_description desc("DSSP options");
 		desc.add_options()
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input PDB file")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("blastdb,b",	po::value<string>(), "Blast databank to use (default is uniprot)")
-			("maxhom",		po::value<string>(), "Path to the maxhom application")
+//			("maxhom",		po::value<string>(), "Path to the maxhom application")
 			("threads,a",	po::value<int>(),	 "Number of threads to use (default is nr of CPU's)")
 			("verbose,v",						 "Verbose output")
 			("debug,d",		po::value<int>(),	 "Debug level (for even more verbose output)")
@@ -78,15 +329,26 @@ int main(int argc, char* argv[])
 		if (vm.count("blastdb"))
 			databank = vm["blastdb"].as<string>();
 			
-		string maxhom = "maxhom";
-		if (vm.count("maxhom"))
-			maxhom = vm["maxhom"].as<string>();
+//		string maxhom = "maxhom";
+//		if (vm.count("maxhom"))
+//			maxhom = vm["maxhom"].as<string>();
 		
 		if (vm.count("threads"))
-			BLAST_THREADS = vm["threads"].as<int>();
+			nrOfThreads = vm["threads"].as<int>();
+
+		// init clustalo
+		
+		InitClustalOmega(nrOfThreads);
 
 		CDatabankTable sDBTable;
 		CDatabankPtr db = sDBTable.Load(databank);
+
+hit_ptr hit = CreateHit(db, "THNA_PHOLI",
+	"----------------------------TTCCPSIVARSNFNVCRLPGT-PEAICATYTGCIIIPGATCPGDYAN-------------------------",
+	"----------------------------KSCCPSTTARNIYNTCRLTGT-SRPTCASLSGCKIISGSTCBSGWBH-------------------------");
+		cout << *hit << endl;
+		return 0;
+
 
 		// what input to use
 		string input = vm["input"].as<string>();
@@ -118,7 +380,7 @@ int main(int argc, char* argv[])
 		vector<char> hssp;
 		
 		io::filtering_ostream os(io::back_inserter(hssp));
-		CreateHSSP(db, maxhom, a, os);
+		CreateHSSP(db, a, coo, os);
 		
 		io::filtering_istream is(boost::make_iterator_range(hssp));
 		

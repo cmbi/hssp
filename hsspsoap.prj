@@ -26,16 +26,17 @@
     </group>
     <group name="Libraries">
       <link>mrs</link>
+      <link>zeep</link>
       <link>boost_date_time</link>
       <link>boost_filesystem</link>
       <link>boost_iostreams</link>
       <link>boost_program_options</link>
-      <link>boost_system</link>
       <link>boost_thread</link>
       <link>boost_regex</link>
       <link>bz2</link>
+      <link>boost_math_c99</link>
+      <link>boost_system</link>
       <link>z</link>
-      <link>zeep</link>
     </group>
   </files>
   <resources resource-dir="rsrc">
@@ -71,6 +72,7 @@
         <define>NDEBUG</define>
         <define>LINUX</define>
         <define>USE_COMPRESSION</define>
+        <define>BOOST_FILESYSTEM_VERSION=2</define>
       </defines>
       <cflags>
         <cflag>-O3</cflag>

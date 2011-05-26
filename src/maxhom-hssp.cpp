@@ -168,6 +168,10 @@ void GetHSSPForHitsAndDSSP(
 	{
 		string line;
 		getline(result, line);
+		
+		if (ba::contains(line, "\0"))
+			THROW(("Maxhom output contains NULL characters"));
+		
 		if (result.eof())
 			break;
 		

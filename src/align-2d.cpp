@@ -43,7 +43,7 @@ namespace ba = boost::algorithm;
 
 // --------------------------------------------------------------------
 
-aa kAA_Reverse[256];
+//aa kAA_Reverse[256];
 
 // ah, too bad those lamda's are not supported yet...
 struct sum_weight

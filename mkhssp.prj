@@ -1,6 +1,7 @@
 <project version="2.0">
   <pkg-config>
     <pkg tool="perl">default</pkg>
+    <pkg tool="pkg-config">clustalo</pkg>
   </pkg-config>
   <syspaths>
     <path>../libzeep</path>
@@ -8,11 +9,11 @@
   <userpaths>
     <path>src</path>
     <path>../mrs/lib/Sources</path>
-    <path></path>
   </userpaths>
   <libpaths>
     <path>../mrs/lib</path>
     <path>../libzeep</path>
+    <path>/usr/local/lib</path>
   </libpaths>
   <files>
     <group name="Sources">
@@ -24,7 +25,7 @@
       <file>mkhssp.cpp</file>
     </group>
     <group name="Libraries">
-      <link>mrs</link>
+      <link>mrsd</link>
       <link>boost_date_time</link>
       <link>boost_filesystem</link>
       <link>boost_iostreams</link>
@@ -35,6 +36,7 @@
       <link>bz2</link>
       <link>z</link>
       <link>zeep</link>
+      <link>clustalo</link>
     </group>
   </files>
   <targets>
@@ -48,6 +50,7 @@
         <define>USE_COMPRESSION</define>
       </defines>
       <cflags>
+        <cflag>-fopenmp</cflag>
         <cflag>-O0</cflag>
         <cflag>-pthread</cflag>
         <cflag>-gdwarf-2</cflag>
@@ -70,6 +73,7 @@
       <cflags>
         <cflag>-O3</cflag>
         <cflag>-pthread</cflag>
+        <cflag>-fopenmp</cflag>
         <cflag>-std=c++0x</cflag>
       </cflags>
       <warnings>

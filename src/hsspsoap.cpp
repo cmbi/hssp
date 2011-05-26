@@ -59,7 +59,7 @@ void GetDSSPForSequence(
 
 	out << "==== Secondary Structure Definition by the program DSSP, updated CMBI version by ElmK / April 1,2000 ==== DATE=28-MAY-2010     ." << endl
 		<< "REFERENCE" << endl
-		<< "HEADER" << endl
+		<< "HEADER                                                        9UNK" << endl
 		<< "COMPND" << endl
 		<< "SOURCE" << endl
 		<< "AUTHOR" << endl
