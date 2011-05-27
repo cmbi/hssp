@@ -25,6 +25,7 @@
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 #include <boost/program_options.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
 
 #include "CDatabank.h"
 #include "CDatabankTable.h"
@@ -67,6 +68,8 @@ struct hit
 	uint32		identical, similar;
 	vector<insertion>
 				insertions;
+
+	bool		operator<(const hit& rhs) const 	{ return ide > rhs.ide; }
 };
 
 ostream& operator<<(ostream& os, const hit& h)
@@ -106,7 +109,7 @@ hit_ptr CreateHit(CDatabankPtr db, const string& id, const string& q, const stri
 
 	while (b < e)
 	{
-		if (q[e - 1] == '-' or s[e - 1] == '-' or m(sq[e - 1], ss[e - 1]) < 0)
+		if (q[e - 1] == '-' or s[e - 1] == '-' or m(sq[e - 1], ss[e - 1]) <= 0)
 		{
 			--e;
 			continue;
@@ -138,6 +141,9 @@ hit_ptr CreateHit(CDatabankPtr db, const string& id, const string& q, const stri
 	h.lseq2 = 0;
 	h.lgap = 0;
 	h.ngap = 0;
+	h.identical = 0;
+	h.similar = 0;
+	
 	bool gap = true;
 
 	uint32 sb = 0;
@@ -175,7 +181,6 @@ hit_ptr CreateHit(CDatabankPtr db, const string& id, const string& q, const stri
 		{
 			--h.ilas;
 			--h.jlas;
-			++h.lgap;
 			continue;
 		}
 
@@ -191,24 +196,21 @@ hit_ptr CreateHit(CDatabankPtr db, const string& id, const string& q, const stri
 		if (q[i] == '-' or s[i] == '-')
 		{
 			if (s[i] == '-')
-			{
 				--h.jlas;
-				++h.lgap;
-			}
 			else
 				--h.ilas;
 			continue;
 		}
 		
-		if (m(sq[i], ss[i]) >= 0)
+		if (m(sq[i], ss[i]) > 0)
 			++h.similar;
 	}
 	
-	
+	h.ide = float(h.identical) / float(h.lali);
+	h.wsim = float(h.similar) / float(h.lali);
 	
 	return result;
 }
-
 
 void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostream& os)
 {
@@ -262,17 +264,31 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 			msa->aligned = false;
 			
 			if (Align(msa, nil, &coo))
+			{
+				FreeMSeq(&msa);
 				throw mas_exception("Fatal error creating alignment");
+			}
 			
-			
-			
-//			// print out the alignment
-//			for (int i = 0; i < msa->nseqs; ++i)
-//				cout << '>' << msa->sqinfo[i].name << endl
-//					 << msa->seq[i] << endl;
+			boost::ptr_vector<hit> hssp;
+			for (int i = 1; i < msa->nseqs; ++i)
+			{
+				hit_ptr hit = CreateHit(inDatabank, msa->sqinfo[i].name,
+					msa->seq[0], msa->seq[i]);
+				hssp.push_back(hit.release());
+			}
 
-			WriteAlignment(msa, "/tmp/1cnv.out", MSAFILE_STOCKHOLM);
-			
+			sort(hssp.begin(), hssp.end());
+			uint32 nr = 1;
+			foreach (hit& h, hssp)
+			{
+				h.nr = nr++;
+				cout << h << endl;
+			}
+
+			cout << endl;
+			for (int i = 0; i < msa->nseqs; ++i)
+				cout << msa->seq[i] << endl;
+
 			FreeMSeq(&msa);
 		}
 	}
@@ -290,7 +306,6 @@ int main(int argc, char* argv[])
 	try
 	{
 	    LogDefaultSetup(&rLog);
-	    rLog.iLogLevelEnabled = LOG_DEBUG;
 
 		opts_t coo;
 		SetDefaultAlnOpts(&coo);
@@ -323,7 +338,10 @@ int main(int argc, char* argv[])
 
 		VERBOSE = vm.count("verbose");
 		if (vm.count("debug"))
+		{
+		    rLog.iLogLevelEnabled = LOG_DEBUG;
 			VERBOSE = vm["debug"].as<int>();
+		}
 		
 		string databank = "uniprot";
 		if (vm.count("blastdb"))
@@ -343,13 +361,13 @@ int main(int argc, char* argv[])
 		CDatabankTable sDBTable;
 		CDatabankPtr db = sDBTable.Load(databank);
 
-hit_ptr hit = CreateHit(db, "THNA_PHOLI",
-	"----------------------------TTCCPSIVARSNFNVCRLPGT-PEAICATYTGCIIIPGATCPGDYAN-------------------------",
-	"----------------------------KSCCPSTTARNIYNTCRLTGT-SRPTCASLSGCKIISGSTCBSGWBH-------------------------");
-		cout << *hit << endl;
-		return 0;
-
-
+//hit_ptr hit = CreateHit(db, "THNA_PHOLI",
+//	"----------------------------TTCCPSIVARSNFNVCRLPGT-PEAICATYTGCIIIPGATCPGDYAN-------------------------",
+//	"----------------------------KSCCPSTTARNIYNTCRLTGT-SRPTCASLSGCKIISGSTCBSGWBH-------------------------");
+//		cout << *hit << endl;
+//		return 0;
+//
+//
 		// what input to use
 		string input = vm["input"].as<string>();
 
