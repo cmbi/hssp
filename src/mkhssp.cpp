@@ -58,7 +58,7 @@ struct insertion
 
 struct hit
 {
-				hit() : nr(0) {}
+				hit(const string& id, const string& seq) : nr(0), id(id), seq(seq) {}
 
 	uint32		nr;
 	string		id, acc, desc, pdb;
@@ -117,11 +117,9 @@ hit_ptr CreateHit(CDatabankPtr db, const string& id, const string& q, const stri
 		break;
 	}
 	
-	result.reset(new hit);
+	result.reset(new hit(id, s));
 	hit& h = *result;
 
-	h.id = id;
-	
 	h.ifir = b + 1;
 	for (uint32 i = 0; i < b and q[i] == '-'; ++i)
 		--h.ifir;
@@ -212,7 +210,8 @@ hit_ptr CreateHit(CDatabankPtr db, const string& id, const string& q, const stri
 	return result;
 }
 
-void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostream& os)
+void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
+	float identity_cutoff, opts_t& coo, ostream& os)
 {
 	stringstream dssp;
 	WriteDSSP(inProtein, dssp);
@@ -274,7 +273,50 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 			{
 				hit_ptr hit = CreateHit(inDatabank, msa->sqinfo[i].name,
 					msa->seq[0], msa->seq[i]);
-				hssp.push_back(hit.release());
+				if (hit->ide >= identity_cutoff)
+					hssp.push_back(hit.release());
+			}
+			
+			if (hssp.size() < msa->nseqs)	// repeat alignment with the new, smaller set of remaining hits
+			{
+				mseq_t* rs;
+				NewMSeq(&rs);
+				
+				string s = seq;
+				ba::erase_all(s, "-");
+				
+				AddSeq(&rs, const_cast<char*>(inProtein.GetID().c_str()),
+					const_cast<char*>(s.c_str()));
+
+				foreach (hit& h, hssp)
+				{
+					s = h.seq;
+					ba::erase_all(s, "-");
+					
+					AddSeq(&rs, const_cast<char*>(h.id.c_str()), const_cast<char*>(s.c_str()));
+				}
+
+				rs->seqtype = SEQTYPE_PROTEIN;
+				rs->aligned = false;
+				
+				if (Align(rs, nil, &coo))
+				{
+					FreeMSeq(&msa);
+					FreeMSeq(&rs);
+					throw mas_exception("Fatal error creating alignment");
+				}
+				
+				FreeMSeq(&msa);
+				msa = rs;
+				
+				hssp.clear();
+				for (int i = 1; i < msa->nseqs; ++i)
+				{
+					hit_ptr hit = CreateHit(inDatabank, msa->sqinfo[i].name,
+						msa->seq[0], msa->seq[i]);
+					if (hit->ide >= identity_cutoff)
+						hssp.push_back(hit.release());
+				}
 			}
 
 			sort(hssp.begin(), hssp.end());
@@ -284,10 +326,19 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 				h.nr = nr++;
 				cout << h << endl;
 			}
-
+			
 			cout << endl;
-			for (int i = 0; i < msa->nseqs; ++i)
-				cout << msa->seq[i] << endl;
+			foreach (hit& h, hssp)
+				cout << h.seq << endl;
+
+//			cout << endl;
+//			for (int i = 0; i < msa->nseqs; ++i)
+//			{
+//				string id = msa->sqinfo[i].name;
+//				id.insert(id.end(), 12 - id.length(), ' ');
+//				
+//				cout << id << ' ' << msa->seq[i] << endl;
+//			}
 
 			FreeMSeq(&msa);
 		}
@@ -316,6 +367,7 @@ int main(int argc, char* argv[])
 			("input,i",		po::value<string>(), "Input PDB file")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("blastdb,b",	po::value<string>(), "Blast databank to use (default is uniprot)")
+			("cutoff,c",	po::value<float>(),  "Identity cut off")
 //			("maxhom",		po::value<string>(), "Path to the maxhom application")
 			("threads,a",	po::value<int>(),	 "Number of threads to use (default is nr of CPU's)")
 			("verbose,v",						 "Verbose output")
@@ -353,6 +405,10 @@ int main(int argc, char* argv[])
 		
 		if (vm.count("threads"))
 			nrOfThreads = vm["threads"].as<int>();
+			
+		float identity_cutoff = 0.4;
+		if (vm.count("cutoff"))
+			identity_cutoff = vm["cutoff"].as<float>();
 
 		// init clustalo
 		
@@ -398,7 +454,7 @@ int main(int argc, char* argv[])
 		vector<char> hssp;
 		
 		io::filtering_ostream os(io::back_inserter(hssp));
-		CreateHSSP(db, a, coo, os);
+		CreateHSSP(db, a, identity_cutoff, coo, os);
 		
 		io::filtering_istream is(boost::make_iterator_range(hssp));
 		
