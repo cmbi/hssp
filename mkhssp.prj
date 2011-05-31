@@ -1,10 +1,10 @@
 <project version="2.0">
   <pkg-config>
     <pkg tool="perl">default</pkg>
-    <pkg tool="pkg-config">clustalo</pkg>
   </pkg-config>
   <syspaths>
     <path>../libzeep</path>
+    <path>../clustal-omega/include/clustalo</path>
   </syspaths>
   <userpaths>
     <path>src</path>
@@ -14,6 +14,7 @@
     <path>../mrs/lib</path>
     <path>../libzeep</path>
     <path>/usr/local/lib</path>
+    <path>../clustal-omega/lib</path>
   </libpaths>
   <files>
     <group name="Sources">
