@@ -81,7 +81,6 @@ typedef shared_ptr<hit> hit_ptr;
 struct ResidueHInfo
 {
 	const MResidue*	res;
-	mseq_t*			msa;
 	uint32			pos;
 	uint32			seqNo, pdbNo;
 	uint32			nocc, ndel, nins;
@@ -275,22 +274,25 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 	return result;
 }
 
-res_ptr CreateResidueHInfo(const MResidue* res, mseq_t* msa, uint32 pos)
+res_ptr CreateResidueHInfo(const MResidue* res, vector<hit_ptr>& hits, uint32 pos)
 {
 	res_ptr r(new ResidueHInfo);
 	
 	r->res = res;
-	r->msa = msa;
 	r->pos = pos;
-	
-	r->nocc = r->ndel = r->nins = 0;
+	r->nocc = 1;
+	r->ndel = r->nins = r->var = 0;
 	fill(r->dist, r->dist + 20, 0);
 	
-	for (uint32 i = 0; i < msa->nseqs; ++i)
+	foreach (hit_ptr hit, hits)
 	{
+		uint32 seqNo = res->GetSeqNumber();
+		if (hit->ifir > seqNo or hit->ilas < seqNo)
+			continue;
+		
 		++r->nocc;
 		// V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D
-		switch (msa->seq[i][pos])
+		switch (hit->seq[pos])
 		{
 			case 'V':	++r->dist[0]; break;
 			case 'L':	++r->dist[1]; break;
@@ -317,8 +319,7 @@ res_ptr CreateResidueHInfo(const MResidue* res, mseq_t* msa, uint32 pos)
 	}
 	
 	for (uint32 a = 0; a < 20; ++a)
-		r->dist[a] = (100 * r->dist[a]) / r->nocc;
-	
+		r->dist[a] = uint32((100.0 * r->dist[a]) / r->nocc + 0.5);
 	
 	//struct ResidueHInfo
 	//{
@@ -336,6 +337,39 @@ res_ptr CreateResidueHInfo(const MResidue* res, mseq_t* msa, uint32 pos)
 	return r;
 }
 
+struct MSAInfo
+{
+	string				seq;
+	vector<char>		chainNames;
+	set<hit_ptr>		hits;
+	set<res_ptr>		residues;
+
+
+						MSAInfo(const string& seq, char chainName, vector<hit_ptr>& h)
+							: seq(seq)
+						{
+							chainNames.push_back(chainName);
+							hits.insert(h.begin(), h.end());
+						}
+};
+
+char SelectAlignedLetter(const vector<MSAInfo>& msas, hit_ptr hit, res_ptr res)
+{
+	char result = ' ';
+	
+	foreach (const MSAInfo& msa, msas)
+	{
+		uint32 seqNo = res->res->GetSeqNumber();
+		if (msa.hits.count(hit) and msa.residues.count(res) and
+			hit->ifir <= seqNo and hit->ilas >= seqNo)
+		{
+			result = hit->seq[res->pos];
+		}
+	}
+	
+	return result;
+}
+
 void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 	float identity_cutoff, opts_t& coo, ostream& os)
 {
@@ -344,6 +378,7 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 
 #pragma warning("ketennamen opslaan")
 
+	uint32 nchain = 0, kchain = 0, seqlength = 0;
 //	seqs.erase(unique(seqs.begin(), seqs.end()), seqs.end());
 
 	// blast parameters
@@ -354,6 +389,7 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 	
 	vector<hit_ptr> hssp;
 	vector<res_ptr> result;
+	vector<MSAInfo> msas;
 	
 	foreach (const MChain* chain, inProtein.GetChains())
 	{
@@ -362,6 +398,24 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 		string seq;
 		chain->GetSequence(seq);
 		
+		++nchain;
+		
+		bool newSequence = true;
+		foreach (MSAInfo& msa, msas)
+		{
+			if (msa.seq == seq)
+			{
+				msa.chainNames.push_back(chain->GetChainID());
+				newSequence = false;
+			}
+		}
+
+		if (not newSequence)
+			continue;
+		
+		++kchain;
+		seqlength += seq.length();
+
 		vector<uint32> hits;
 
 		CDbAllDocIterator data(inDatabank.get());
@@ -456,18 +510,18 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 					
 					if (hit->IdentityAboveThreshold())
 					{
-						// clean up msa
-						uint32 j = 1;
-						char* seq = msa->seq[i];
-						for (char* si = seq; *si; ++si)
-						{
-							if (*si == '-')
-								continue;
-							
-							if (j < hit->jfir or j > hit->jlas)
-								*si = ' ';
-							++j;
-						}
+//						// clean up msa
+//						uint32 j = 1;
+//						char* seq = msa->seq[i];
+//						for (char* si = seq; *si; ++si)
+//						{
+//							if (*si == '-')
+//								continue;
+//							
+//							if (j < hit->jfir or j > hit->jlas)
+//								*si = ' ';
+//							++j;
+//						}
 						
 						c_hssp.push_back(hit);
 					}
@@ -476,8 +530,6 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 				}
 			}
 			
-			hssp.insert(hssp.end(), c_hssp.begin(), c_hssp.end());
-
 //			cout << endl;
 //			for (int i = 0; i < msa->nseqs; ++i)
 //			{
@@ -488,6 +540,7 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 //			}
 
 //			FreeMSeq(&msa);
+			msas.push_back(MSAInfo(seq, chain->GetChainID(), c_hssp));
 
 			uint32 alignmentlength = strlen(msa->seq[0]);
 			vector<MResidue*>::const_iterator r = residues.begin();
@@ -499,12 +552,16 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 				assert(r != residues.end());
 				assert(kResidueInfo[(*r)->GetType()].code == msa->seq[0][i]);
 				
-				result.push_back(CreateResidueHInfo(*r, msa, i));
+				result.push_back(CreateResidueHInfo(*r, c_hssp, i));
+				
+				msas.back().residues.insert(result.back());
 				
 				++r;
 			}
 			
 			assert(r == residues.end());
+
+			hssp.insert(hssp.end(), c_hssp.begin(), c_hssp.end());
 		}
 	}
 	
@@ -540,9 +597,15 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 	   << "COMPND     " + inProtein.GetCompound().substr(10) << endl
 	   << "SOURCE     " + inProtein.GetSource().substr(10) << endl
 	   << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl
-//	   << boost::format("SEQLENGTH  %4.4d") % seqlength << endl
-//	   << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % nchain % inProtein.GetID() << endl
-	   << boost::format("NALIGN     %4.4d") % hssp.size() << endl
+	   << boost::format("SEQLENGTH  %4.4d") % seqlength << endl
+	   << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % nchain % inProtein.GetID() << endl;
+	
+	if (kchain != nchain)
+	{
+		os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % kchain << endl;
+	}
+	
+	os << boost::format("NALIGN     %4.4d") % hssp.size() << endl
 	   << endl
 	   << "## PROTEINS : EMBL/SWISSPROT identifier and alignment statistics" << endl
 	   << "  NR.    ID         STRID   %IDE %WSIM IFIR ILAS JFIR JLAS LALI NGAP LGAP LSEQ2 ACCNUM     PROTEIN" << endl;
@@ -593,14 +656,13 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein,
 		foreach (res_ptr ri, result)
 		{
 			string aln;
+			
 			for (uint32 j = i; j < n; ++j)
-				aln += ri->msa->seq[j][ri->pos];
+				aln += SelectAlignedLetter(msas, hssp[j], ri);
 			
 			string dssp = ResidueToDSSPLine(inProtein, *ri->res).substr(0, 39);
 			
-			uint32 nocc = 1, var = 0;
-			
-			os << ' ' << dssp << boost::format("%4.4d %4.4d  ") % nocc % var << aln << endl;
+			os << ' ' << dssp << boost::format("%4.4d %4.4d  ") % ri->nocc % ri->var << aln << endl;
 		}
 
 //		uint32 seqNo = 1;
