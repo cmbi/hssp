@@ -4,6 +4,7 @@
   </pkg-config>
   <syspaths>
     <path>../libzeep</path>
+    <path>../clustal-omega/include/clustalo</path>
   </syspaths>
   <userpaths>
     <path>src</path>
@@ -12,6 +13,7 @@
   <libpaths>
     <path>../mrs/lib</path>
     <path>../libzeep</path>
+    <path>../clustal-omega/lib</path>
   </libpaths>
   <files>
     <group name="Sources">
@@ -19,6 +21,7 @@
       <file>dssp.cpp</file>
       <file>hsspsoap.cpp</file>
       <file>matrix.cpp</file>
+      <file>hh-hssp.cpp</file>
       <file>maxhom-hssp.cpp</file>
       <file>primitives-3d.cpp</file>
       <file>structure.cpp</file>
@@ -36,6 +39,7 @@
       <link>bz2</link>
       <link>boost_math_c99</link>
       <link>boost_system</link>
+      <link>clustalo</link>
       <link>z</link>
     </group>
   </files>
@@ -54,10 +58,11 @@
         <define>USE_COMPRESSION</define>
       </defines>
       <cflags>
-        <cflag>-pthread</cflag>
-        <cflag>-std=c++0x</cflag>
         <cflag>-O0</cflag>
+        <cflag>-pthread</cflag>
+        <cflag>-fopenmp</cflag>
         <cflag>-gdwarf-2</cflag>
+        <cflag>-std=c++0x</cflag>
       </cflags>
       <warnings>
         <warning>all</warning>
@@ -77,6 +82,7 @@
       <cflags>
         <cflag>-O3</cflag>
         <cflag>-pthread</cflag>
+        <cflag>-fopenmp</cflag>
         <cflag>-std=c++0x</cflag>
       </cflags>
       <warnings>

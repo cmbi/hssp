@@ -172,7 +172,7 @@ class hssp_server : public zeep::server
 						const string&	sequence,
 						string&			hssp);
 
-	CDatabankTable				mDBTable;
+	CDatabankTable	mDBTable;
 };
 
 hssp_server::hssp_server()

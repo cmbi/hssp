@@ -1,4 +1,4 @@
-//  Copyright Maarten L. Hekkelman, Radboud University 2008.
+//  Copyright Maarten L. Hekkelman, Radboud University 2011.
 // Distributed under the Boost Software License, Version 1.0.
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
@@ -707,137 +707,20 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 	os << "//" << endl;
 }
 
-int main(int argc, char* argv[])
+namespace hh
 {
-	try
-	{
-	    LogDefaultSetup(&rLog);
 
-		opts_t coo;
-		SetDefaultAlnOpts(&coo);
-		
-		po::options_description desc("DSSP options");
-		desc.add_options()
-			("help,h",							 "Display help message")
-			("input,i",		po::value<string>(), "Input PDB file")
-			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
-			("blastdb,b",	po::value<string>(), "Blast databank to use (default is uniprot)")
-//			("maxhom",		po::value<string>(), "Path to the maxhom application")
-			("threads,a",	po::value<int>(),	 "Number of threads to use (default is nr of CPU's)")
-			("verbose,v",						 "Verbose output")
-			("debug,d",		po::value<int>(),	 "Debug level (for even more verbose output)")
-			;
+void CreateHSSP(
+	CDatabankPtr				inDatabank,
+	MProtein&					inProtein,
+	std::ostream&				outHSSP)
+{
+    LogDefaultSetup(&rLog);
+
+	opts_t coo;
+	SetDefaultAlnOpts(&coo);
 	
-		po::positional_options_description p;
-		p.add("input", 1);
-		p.add("output", 2);
-	
-		po::variables_map vm;
-		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
-		po::notify(vm);
+	CreateHSSP(inDatabank, inProtein, coo, outHSSP);
+}
 
-		if (vm.count("help") or not vm.count("input"))
-		{
-			cerr << desc << endl;
-			exit(1);
-		}
-
-		VERBOSE = vm.count("verbose");
-		if (vm.count("debug"))
-		{
-		    rLog.iLogLevelEnabled = LOG_DEBUG;
-			VERBOSE = vm["debug"].as<int>();
-		}
-		
-		string databank = "uniprot";
-		if (vm.count("blastdb"))
-			databank = vm["blastdb"].as<string>();
-			
-//		string maxhom = "maxhom";
-//		if (vm.count("maxhom"))
-//			maxhom = vm["maxhom"].as<string>();
-		
-		if (vm.count("threads"))
-			nrOfThreads = vm["threads"].as<int>();
-			
-		// init clustalo
-		
-		InitClustalOmega(nrOfThreads);
-
-		CDatabankTable sDBTable;
-		CDatabankPtr db = sDBTable.Load(databank);
-
-//hit_ptr hit = CreateHit(db, "THNA_PHOLI",
-//	"----------------------------TTCCPSIVARSNFNVCRLPGT-PEAICATYTGCIIIPGATCPGDYAN-------------------------",
-//	"----------------------------KSCCPSTTARNIYNTCRLTGT-SRPTCASLSGCKIISGSTCBSGWBH-------------------------");
-//		cout << *hit << endl;
-//		return 0;
-//
-//
-		// what input to use
-		string input = vm["input"].as<string>();
-
-		ifstream infile(input.c_str(), ios_base::in | ios_base::binary);
-		if (not infile.is_open())
-			throw runtime_error("No such file");
-		
-		io::filtering_stream<io::input> in;
-		
-#if defined USE_COMPRESSION
-		if (ba::ends_with(input, ".bz2"))
-			in.push(io::bzip2_decompressor());
-		else if (ba::ends_with(input, ".gz"))
-			in.push(io::gzip_decompressor());
-#endif
-		
-		in.push(infile);
-
-		// OK, we've got the file, now create a protein
-		MProtein a(in);
-		
-		// then calculate the secondary structure
-		a.CalculateSecondaryStructure();
-
-		// and the final HSSP file
-		// (we use a temporary stringstream, to avoid
-		// creating empty files if something goes wrong.
-		vector<char> hssp;
-		
-		io::filtering_ostream os(io::back_inserter(hssp));
-		CreateHSSP(db, a, coo, os);
-		
-		io::filtering_istream is(boost::make_iterator_range(hssp));
-		
-		// Where to write our HSSP file to:
-		// either to cout or an (optionally compressed) file.
-		if (vm.count("output"))
-		{
-			string output = vm["output"].as<string>();
-			
-			ofstream outfile(output.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
-			if (not outfile.is_open())
-				throw runtime_error("could not create output file");
-			
-#if defined USE_COMPRESSION
-			io::filtering_stream<io::output> out;
-			if (ba::ends_with(output, ".bz2"))
-				out.push(io::bzip2_compressor());
-			else if (ba::ends_with(output, ".gz"))
-				out.push(io::gzip_compressor());
-#endif
-			
-			out.push(outfile);
-			
-			io::copy(is, out);
-		}
-		else
-			io::copy(is, cout);
-	}
-	catch (exception& e)
-	{
-		cerr << e.what() << endl;
-		exit(1);
-	}
-	
-	return 0;
 }
