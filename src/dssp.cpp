@@ -30,7 +30,7 @@
 
 using namespace std;
 
-void ResidueToDSSPLine(const MProtein& protein, const MResidue& residue, ostream& os)
+string ResidueToDSSPLine(const MProtein& protein, const MResidue& residue)
 {
 /*   
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA 
@@ -116,12 +116,12 @@ void ResidueToDSSPLine(const MProtein& protein, const MResidue& residue, ostream
 	if (residue.IsBend())
 		bend = 'S';
 	
-	os << (kDSSPResidueLine % residue.GetNumber() % ca.mResSeq % ca.mICode % ca.mChainID % code %
+	return (kDSSPResidueLine % residue.GetNumber() % ca.mResSeq % ca.mICode % ca.mChainID % code %
 		ss % helix[0] % helix[1] % helix[2] % bend % chirality % bridgelabel[0] % bridgelabel[1] %
 		bp[0] % bp[1] % sheet % floor(residue.Accessibility() + 0.5) %
 		NHO[0] % ONH[0] % NHO[1] % ONH[1] %
 		residue.TCO() % residue.Kappa() % alpha % residue.Phi() % residue.Psi() %
-		ca.mLoc.mX % ca.mLoc.mY % ca.mLoc.mZ) << endl;
+		ca.mLoc.mX % ca.mLoc.mY % ca.mLoc.mZ).str();
 }
 
 void WriteDSSP(MProtein& protein, ostream& os)
@@ -233,7 +233,7 @@ void WriteDSSP(MProtein& protein, ostream& os)
 				breaktype = '*';
 			os << (kDSSPResidueLine % (last->GetNumber() + 1) % breaktype) << endl;
 		}
-		ResidueToDSSPLine(protein, *residue, os);
+		os << ResidueToDSSPLine(protein, *residue) << endl;
 		last = residue;
 //
 //		if (chain != protein.GetChains().back())
