@@ -38,6 +38,7 @@
 #include "structure.h"
 #include "dssp.h"
 #include "maxhom-hssp.h"
+#include "hh-hssp.h"
 
 #define HSSPSOAP_PID_FILE	"/var/run/hsspsoap.pid"
 #define HSSPSOAP_LOG_FILE	"/var/log/hsspsoap.log"
@@ -160,15 +161,15 @@ class hssp_server : public zeep::server
 						const zeep::http::request&	req,
 						zeep::http::reply&			rep);
 
-	void			GetDSSPForPDBFile(
+	virtual void	GetDSSPForPDBFile(
 						const string&	pdbfile,
 						string&			dssp);
 		
-	void			GetHSSPForPDBFile(
+	virtual void	GetHSSPForPDBFile(
 						const string&	pdbfile,
 						string&			hssp);
 		
-	void			GetHSSPForSequence(
+	virtual void	GetHSSPForSequence(
 						const string&	sequence,
 						string&			hssp);
 
@@ -352,6 +353,59 @@ void hssp_server::GetHSSPForSequence(
 
 // --------------------------------------------------------------------
 //
+//	HSSP-2 server
+// 
+
+class hssp2_server : public hssp_server
+{
+  public:
+					hssp2_server();
+
+	virtual void	GetHSSPForPDBFile(
+						const string&	pdbfile,
+						string&			hssp);
+		
+	virtual void	GetHSSPForSequence(
+						const string&	sequence,
+						string&			hssp);
+};
+
+hssp2_server::hssp2_server()
+{
+}
+
+void hssp2_server::GetHSSPForPDBFile(
+	const string&				pdbfile,
+	string&						hssp)
+{
+	io::filtering_istream in;
+	in.push(io::newline_filter(io::newline::posix));
+	in.push(boost::make_iterator_range(pdbfile));
+	
+	// OK, we've got the file, now create a protein
+	MProtein a(in);
+	
+	// then calculate the secondary structure
+	a.CalculateSecondaryStructure();
+
+	// finally, create the HSSP
+	CDatabankPtr db = mDBTable.Load("uniprot");
+	io::filtering_ostream out(io::back_inserter(hssp));
+	hh::CreateHSSP(db, a, out);
+}
+
+void hssp2_server::GetHSSPForSequence(
+	const string&				sequence,
+	string&						hssp)
+{
+	CDatabankPtr db = mDBTable.Load("uniprot");
+
+	io::filtering_ostream out(io::back_inserter(hssp));
+	hh::CreateHSSP(db, sequence, out);
+}
+
+// --------------------------------------------------------------------
+//
 //	Daemonize
 // 
 
@@ -446,6 +500,7 @@ int main(int argc, char* argv[])
 		("address,a",	po::value<string>(),	"address to bind to")
 		("port,p",		po::value<uint16>(),	"port to bind to")
 		("location,l",	po::value<string>(),	"location advertised in wsdl")
+		("location2,n",	po::value<string>(),	"location advertised in wsdl (version 2)")
 		("user,u",		po::value<string>(),	"user to run as")
 		("maxhom",		po::value<string>(),	"Path to the maxhom application")
 		("threads,a",	po::value<int>(),		"Number of threads to use (default is nr of CPU's)")
@@ -454,6 +509,7 @@ int main(int argc, char* argv[])
 	
 	string
 		location = "http://mrs.cmbi.ru.nl/hsspsoap/wsdl",
+		location2 = "http://mrs.cmbi.ru.nl/hsspsoap2/wsdl",
 		address = "0.0.0.0",
 		user = "nobody";
 
@@ -479,6 +535,9 @@ int main(int argc, char* argv[])
 	if (vm.count("location"))
 		location = vm["location"].as<string>();
 
+	if (vm.count("location2"))
+		location2 = vm["location2"].as<string>();
+
 	if (vm.count("port"))
 		port = vm["port"].as<uint16>();
 
@@ -489,6 +548,7 @@ int main(int argc, char* argv[])
 	if (vm.count("maxhom"))
 		maxhom = vm["maxhom"].as<string>();
 
+	BLAST_THREADS = boost::thread::hardware_concurrency();
 	if (vm.count("threads"))
 		BLAST_THREADS = vm["threads"].as<int>();
 	
@@ -513,14 +573,24 @@ int main(int argc, char* argv[])
     sigfillset(&new_mask);
     pthread_sigmask(SIG_BLOCK, &new_mask, &old_mask);
 #endif
-
+	
+	// old server
 	hssp_server server;
 	server.bind(address, port);
 	
 	if (not location.empty())
 		server.set_location(location);
 	
-    boost::thread t(boost::bind(&hssp_server::run, &server, 1));
+	// new server
+	hssp2_server server2;
+	server2.bind(address, port + 1);
+
+	if (not location2.empty())
+		server2.set_location(location2);
+	
+    boost::thread_group t;
+    t.create_thread(boost::bind(&hssp_server::run, &server, 1));
+    t.create_thread(boost::bind(&hssp2_server::run, &server2, 1));
 
 #ifndef _MSC_VER
     pthread_sigmask(SIG_SETMASK, &old_mask, 0);
@@ -536,9 +606,10 @@ int main(int argc, char* argv[])
 	sigwait(&wait_mask, &sig);
 	
 	server.stop();
+	server2.stop();
 #endif
 
-	t.join();
+	t.join_all();
 
 	return 0;
 }

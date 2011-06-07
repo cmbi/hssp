@@ -64,7 +64,7 @@ struct hit
 
 	uint32		nr;
 	string		id, acc, desc, pdb;
-	string		seq, saln;
+	string		seq;
 	uint32		ifir, ilas, jfir, jlas, lali, ngap, lgap, lseq2;
 	float		ide, wsim;
 	uint32		identical, similar;
@@ -80,9 +80,11 @@ typedef shared_ptr<hit> hit_ptr;
 
 struct ResidueHInfo
 {
-	const MResidue*	res;
+	char			letter;
+	char			chain;
+	string			dssp;
+	uint32			seqNr;
 	uint32			pos;
-	uint32			seqNo, pdbNo;
 	uint32			nocc, ndel, nins;
 	float			entropy, weight;
 	uint32			relent;
@@ -96,6 +98,17 @@ struct compare_hit
 {
 	bool operator()(hit_ptr a, hit_ptr b) const { return *a < *b; }
 };
+
+ostream& operator<<(ostream& os, const hit& h)
+{
+	static boost::format fmt("%5.5d : %12.12s%4.4s    %4.2f  %4.2f %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d ");
+	
+	os << fmt % h.nr % h.id % h.pdb
+			  % h.ide % h.wsim % h.ifir % h.ilas % h.jfir % h.jlas % h.lali
+			  % h.ngap % h.lgap % h.lseq2;
+	
+	return os;
+}
 
 bool hit::IdentityAboveThreshold() const
 {
@@ -116,18 +129,11 @@ bool hit::IdentityAboveThreshold() const
 		l -= 10;
 	
 	assert(l < kHomologyThreshold.size());
-	return kHomologyThreshold[l] < ide;
-}
 
-ostream& operator<<(ostream& os, const hit& h)
-{
-	static boost::format fmt("%5.5d : %12.12s%4.4s    %4.2f  %4.2f %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d ");
-	
-	os << fmt % h.nr % h.id % h.pdb
-			  % h.ide % h.wsim % h.ifir % h.ilas % h.jfir % h.jlas % h.lali
-			  % h.ngap % h.lgap % h.lseq2;
-	
-	return os;
+	if (VERBOSE and kHomologyThreshold[l] >= ide)
+		cerr << "dropping " << id << " because identity " << ide << " is below threshold " << kHomologyThreshold[l] << endl;
+
+	return kHomologyThreshold[l] < ide;
 }
 
 hit_ptr CreateHit(const string& id, const string& q, const string& s)
@@ -157,12 +163,6 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 	sq.erase(qj, sq.end());
 	ss.erase(sj, ss.end());
 	
-//	if (VERBOSE)
-//	{
-//		cerr << "a: " << decode(sq) << endl
-//			 << "b: " << decode(ss) << endl;
-//	}
-//
 	const substitution_matrix m("BLOSUM62");
 	
 	sequence::iterator qb = sq.begin(), qe = sq.end(),
@@ -218,14 +218,7 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 	sq.erase(qe, sq.end());	qb = sq.begin(); qe = sq.end();
 	ss.erase(se, ss.end());	sb = ss.begin(); se = ss.end();
 
-//	if (VERBOSE)
-//	{
-//		cerr << "a: " << decode(sq) << endl
-//			 << "b: " << decode(ss) << endl;
-//	}
-	
 	h.lali = ss.length();
-	h.saln = string(h.ifir - 1, ' ');
 	
 	bool gap = true;
 	for (sequence::iterator si = sb, qi = qb; si != se; ++si, ++qi)
@@ -237,8 +230,6 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 			gap = true;
 			++h.lgap;
 			--h.lseq2;
-			
-			h.saln += ' ';
 		}
 		else if (*qi == kSignalGapCode)
 		{
@@ -258,81 +249,48 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 			}
 			else if (m(*qi, *si) > 0)
 				++h.similar;
-
-			h.saln += kAA[*si];
 		}
 	}
 
 	h.ide = float(h.identical) / float(h.lali);
 	h.wsim = float(h.similar) / float(h.lali);
-
-//	if (VERBOSE)
-//	{
-//		cerr << h << endl;
-//	}
 	
 	return result;
 }
 
-res_ptr CreateResidueHInfo(const MResidue* res, vector<hit_ptr>& hits, uint32 pos)
+res_ptr CreateResidueHInfo(char a, uint32 nr, vector<hit_ptr>& hits, uint32 pos)
 {
 	res_ptr r(new ResidueHInfo);
 	
-	r->res = res;
+	const string kIX("VLIMFWYGAPSTCHRKQEND");
+	
+	r->letter = a;
+	r->chain = 'A';
+	r->seqNr = nr;
 	r->pos = pos;
 	r->nocc = 1;
 	r->ndel = r->nins = r->var = 0;
 	fill(r->dist, r->dist + 20, 0);
 	
+	string::size_type ix = kIX.find(a);
+	assert(ix != string::npos);
+	r->dist[ix] = 1;
+	
 	foreach (hit_ptr hit, hits)
 	{
-		uint32 seqNo = res->GetSeqNumber();
-		if (hit->ifir > seqNo or hit->ilas < seqNo)
+		if (hit->ifir > nr or hit->ilas < nr)
 			continue;
 		
-		++r->nocc;
-		// V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D
-		switch (hit->seq[pos])
+		ix = kIX.find(hit->seq[pos]);
+		if (ix != string::npos)
 		{
-			case 'V':	++r->dist[0]; break;
-			case 'L':	++r->dist[1]; break;
-			case 'I':	++r->dist[2]; break;
-			case 'M':	++r->dist[3]; break;
-			case 'F':	++r->dist[4]; break;
-			case 'W':	++r->dist[5]; break;
-			case 'Y':	++r->dist[6]; break;
-			case 'G':	++r->dist[7]; break;
-			case 'A':	++r->dist[8]; break;
-			case 'P':	++r->dist[9]; break;
-			case 'S':	++r->dist[10]; break;
-			case 'T':	++r->dist[11]; break;
-			case 'C':	++r->dist[12]; break;
-			case 'H':	++r->dist[13]; break;
-			case 'R':	++r->dist[14]; break;
-			case 'K':	++r->dist[15]; break;
-			case 'Q':	++r->dist[16]; break;
-			case 'E':	++r->dist[17]; break;
-			case 'N':	++r->dist[18]; break;
-			case 'D':	++r->dist[19]; break;
-			default:	--r->nocc; break;
+			++r->nocc;
+			r->dist[ix] += 1;
 		}
 	}
 	
 	for (uint32 a = 0; a < 20; ++a)
-		r->dist[a] = uint32((100.0 * r->dist[a]) / r->nocc + 0.5);
-	
-	//struct ResidueHInfo
-	//{
-	//	MResidue*		res;
-	//	mseq_t*			msa;
-	//	uint32			msa_pos;
-	//	uint32			seqNo, pdbNo;
-	//	uint32			nocc, ndel, nins;
-	//	float			entropy, weight;
-	//	uint32			relent;
-	//	uint32			var;
-	//	uint32			dist[20];
-	//};
+		r->dist[a] = uint32(((100.0 * r->dist[a]) / r->nocc) + 0.5);
 
 	return r;
 }
@@ -344,12 +302,16 @@ struct MSAInfo
 	set<hit_ptr>		hits;
 	set<res_ptr>		residues;
 
-
-						MSAInfo(const string& seq, char chainName, vector<hit_ptr>& h)
+						MSAInfo(const string& seq, char chainName,
+							vector<hit_ptr>& h, vector<res_ptr>& r)
 							: seq(seq)
 						{
+							assert(not h.empty());
+							assert(not r.empty());
+							
 							chainNames.push_back(chainName);
 							hits.insert(h.begin(), h.end());
+							residues.insert(r.begin(), r.end());
 						}
 };
 
@@ -359,9 +321,8 @@ char SelectAlignedLetter(const vector<MSAInfo>& msas, hit_ptr hit, res_ptr res)
 	
 	foreach (const MSAInfo& msa, msas)
 	{
-		uint32 seqNo = res->res->GetSeqNumber();
 		if (msa.hits.count(hit) and msa.residues.count(res) and
-			hit->ifir <= seqNo and hit->ilas >= seqNo)
+			hit->ifir <= res->seqNr and hit->ilas >= res->seqNr)
 		{
 			result = hit->seq[res->pos];
 		}
@@ -370,24 +331,125 @@ char SelectAlignedLetter(const vector<MSAInfo>& msas, hit_ptr hit, res_ptr res)
 	return result;
 }
 
-void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostream& os)
+void ChainToHits(
+	CDatabankPtr		inDatabank,
+	const string&		seq,
+	const string&		seqId,
+	opts_t&				coo,
+	vector<hit_ptr>&	hssp,
+	vector<res_ptr>&	residues)
 {
-	stringstream dssp;
-	WriteDSSP(inProtein, dssp);
-
-#pragma warning("ketennamen opslaan")
-
-	uint32 nchain = 0, kchain = 0, seqlength = 0;
-//	seqs.erase(unique(seqs.begin(), seqs.end()), seqs.end());
-
 	// blast parameters
 	float expect = 1.0;
 	bool filter = true, gapped = true;
 	int wordsize = 3, gapOpen = 11, gapExtend = 1, maxhits = 1500;
 	string matrix = "BLOSUM62";
+
+	CDbAllDocIterator data(inDatabank.get());
+	CBlast blast(seq, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
 	
-	vector<hit_ptr> hssp;
-	vector<res_ptr> result;
+	if (blast.Find(*inDatabank, data, nrOfThreads))
+	{
+		CBlastHitList hits(blast.Hits());
+		
+		// now create the alignment using clustalo
+		mseq_t* msa;
+		NewMSeq(&msa);
+		vector<string> ids;
+		
+		AddSeq(&msa, const_cast<char*>(seqId.c_str()), const_cast<char*>(seq.c_str()));
+		
+		foreach (const CBlastHit& hit, hits)
+		{
+			string seq, id;
+
+			inDatabank->GetSequence(hit.DocumentNr(),
+				inDatabank->GetSequenceNr(hit.DocumentNr(), hit.SequenceID()),
+				seq);
+			id = hit.DocumentID();
+			
+			ids.push_back(id);
+			AddSeq(&msa, const_cast<char*>(id.c_str()), const_cast<char*>(seq.c_str()));
+		}
+		
+		msa->seqtype = SEQTYPE_PROTEIN;
+		msa->aligned = false;
+		
+		if (Align(msa, nil, &coo))
+		{
+			FreeMSeq(&msa);
+			throw mas_exception("Fatal error creating alignment");
+		}
+		
+		for (int i = 1; i < msa->nseqs; ++i)
+		{
+			hit_ptr hit = CreateHit(msa->sqinfo[i].name, msa->seq[0], msa->seq[i]);
+
+			if (hit->IdentityAboveThreshold())
+				hssp.push_back(hit);
+		}
+		
+		if (hssp.size() + 1 < msa->nseqs)	// repeat alignment with the new, smaller set of remaining hits
+		{
+			mseq_t* rs;
+			NewMSeq(&rs);
+			
+			string s = seq;
+			ba::erase_all(s, "-");
+			
+			AddSeq(&rs, const_cast<char*>(seqId.c_str()), const_cast<char*>(s.c_str()));
+
+			foreach (hit_ptr h, hssp)
+			{
+				s = h->seq;
+				ba::erase_all(s, "-");
+				
+				AddSeq(&rs, const_cast<char*>(h->id.c_str()), const_cast<char*>(s.c_str()));
+			}
+
+			rs->seqtype = SEQTYPE_PROTEIN;
+			rs->aligned = false;
+			
+			if (Align(rs, nil, &coo))
+			{
+				FreeMSeq(&msa);
+				FreeMSeq(&rs);
+				throw mas_exception("Fatal error creating alignment");
+			}
+			
+			FreeMSeq(&msa);
+			msa = rs;
+			
+			hssp.clear();
+			for (int i = 1; i < msa->nseqs; ++i)
+			{
+				hit_ptr hit = CreateHit(msa->sqinfo[i].name, msa->seq[0], msa->seq[i]);
+				
+				if (hit->IdentityAboveThreshold())
+					hssp.push_back(hit);
+			}
+		}
+
+		uint32 seqNr = 1;
+		for (char* si = msa->seq[0]; *si; ++si)
+		{
+			if (*si != '-' and *si != ' ')
+			{
+				residues.push_back(CreateResidueHInfo(*si, seqNr, hssp, si - msa->seq[0]));
+				++seqNr;
+			}
+		}
+		
+		FreeMSeq(&msa);
+	}
+}
+
+void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostream& os)
+{
+	uint32 nchain = 0, kchain = 0, seqlength = 0;
+
+	vector<hit_ptr> hits;
+	vector<res_ptr> res;
 	vector<MSAInfo> msas;
 	
 	foreach (const MChain* chain, inProtein.GetChains())
@@ -415,172 +477,29 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 		++kchain;
 		seqlength += seq.length();
 
-		vector<uint32> hits;
-
-		CDbAllDocIterator data(inDatabank.get());
-		CBlast blast(seq, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
+		vector<hit_ptr> c_hits;
 		
-		if (blast.Find(*inDatabank, data, nrOfThreads))
+		ChainToHits(inDatabank, seq, inProtein.GetID(), coo, c_hits, res);
+		if (not c_hits.empty() and not res.empty())
 		{
-			CBlastHitList hits(blast.Hits());
-			
-			// now create the alignment using clustalo
-			
-			mseq_t* msa;
-			NewMSeq(&msa);
-			vector<string> ids;
-			
-			AddSeq(&msa, const_cast<char*>(inProtein.GetID().c_str()),
-				const_cast<char*>(seq.c_str()));
-			
-			foreach (const CBlastHit& hit, hits)
+			assert(res.size() == residues.size());
+			for (uint32 i = 0; i < res.size(); ++i)
 			{
-				string seq, id;
-
-				inDatabank->GetSequence(hit.DocumentNr(),
-					inDatabank->GetSequenceNr(hit.DocumentNr(), hit.SequenceID()),
-					seq);
-				id = hit.DocumentID();
-				
-				ids.push_back(id);
-				AddSeq(&msa, const_cast<char*>(id.c_str()), const_cast<char*>(seq.c_str()));
+				assert(kResidueInfo[residues[i]->GetType()].code == res[i]->letter);
+				assert(residues[i]->GetSeqNumber() == res[i]->seqNr);
+				res[i]->chain = chain->GetChainID();
+				res[i]->dssp = ResidueToDSSPLine(inProtein, *residues[i]).substr(0, 39);
 			}
 			
-			msa->seqtype = SEQTYPE_PROTEIN;
-			msa->aligned = false;
-			
-			if (Align(msa, nil, &coo))
-			{
-				FreeMSeq(&msa);
-				throw mas_exception("Fatal error creating alignment");
-			}
-			
-			vector<hit_ptr> c_hssp;
-			for (int i = 1; i < msa->nseqs; ++i)
-			{
-				hit_ptr hit = CreateHit(msa->sqinfo[i].name, msa->seq[0], msa->seq[i]);
-
-				if (hit->IdentityAboveThreshold())
-					c_hssp.push_back(hit);
-				else if (VERBOSE)
-					cerr << "dropping " << hit->id << endl;
-			}
-			
-			if (c_hssp.size() < msa->nseqs)	// repeat alignment with the new, smaller set of remaining hits
-			{
-				mseq_t* rs;
-				NewMSeq(&rs);
-				
-				string s = seq;
-				ba::erase_all(s, "-");
-				
-				AddSeq(&rs, const_cast<char*>(inProtein.GetID().c_str()),
-					const_cast<char*>(s.c_str()));
-
-				foreach (hit_ptr h, c_hssp)
-				{
-					s = h->seq;
-					ba::erase_all(s, "-");
-					
-					AddSeq(&rs, const_cast<char*>(h->id.c_str()), const_cast<char*>(s.c_str()));
-				}
-
-				rs->seqtype = SEQTYPE_PROTEIN;
-				rs->aligned = false;
-				
-				if (Align(rs, nil, &coo))
-				{
-					FreeMSeq(&msa);
-					FreeMSeq(&rs);
-					throw mas_exception("Fatal error creating alignment");
-				}
-				
-				FreeMSeq(&msa);
-				msa = rs;
-				
-				c_hssp.clear();
-				for (int i = 1; i < msa->nseqs; ++i)
-				{
-					hit_ptr hit = CreateHit(msa->sqinfo[i].name, msa->seq[0], msa->seq[i]);
-					
-//					assert(hit->saln.length() == seq.length());
-					if (hit->saln.length() < seq.length())
-						hit->saln.append(seq.length() - hit->saln.length(), ' ');
-					
-					if (hit->IdentityAboveThreshold())
-					{
-//						// clean up msa
-//						uint32 j = 1;
-//						char* seq = msa->seq[i];
-//						for (char* si = seq; *si; ++si)
-//						{
-//							if (*si == '-')
-//								continue;
-//							
-//							if (j < hit->jfir or j > hit->jlas)
-//								*si = ' ';
-//							++j;
-//						}
-						
-						c_hssp.push_back(hit);
-					}
-					else if (VERBOSE)
-						cerr << "dropping " << hit->id << endl;
-				}
-			}
-			
-//			cout << endl;
-//			for (int i = 0; i < msa->nseqs; ++i)
-//			{
-//				string id = msa->sqinfo[i].name;
-//				id.insert(id.end(), 12 - id.length(), ' ');
-//				
-//				cout << id << ' ' << msa->seq[i] << endl;
-//			}
-
-//			FreeMSeq(&msa);
-			msas.push_back(MSAInfo(seq, chain->GetChainID(), c_hssp));
-
-			uint32 alignmentlength = strlen(msa->seq[0]);
-			vector<MResidue*>::const_iterator r = residues.begin();
-			for (uint32 i = 0; i < alignmentlength; ++i)
-			{
-				if (msa->seq[0][i] == '-')
-					continue;
-				
-				assert(r != residues.end());
-				assert(kResidueInfo[(*r)->GetType()].code == msa->seq[0][i]);
-				
-				result.push_back(CreateResidueHInfo(*r, c_hssp, i));
-				
-				msas.back().residues.insert(result.back());
-				
-				++r;
-			}
-			
-			assert(r == residues.end());
-
-			hssp.insert(hssp.end(), c_hssp.begin(), c_hssp.end());
+			msas.push_back(MSAInfo(seq, chain->GetChainID(), c_hits, res));
+			hits.insert(hits.end(), c_hits.begin(), c_hits.end());
 		}
 	}
 	
-	sort(hssp.begin(), hssp.end(), compare_hit());
+	sort(hits.begin(), hits.end(), compare_hit());
 	uint32 nr = 1;
-	foreach (hit_ptr h, hssp)
+	foreach (hit_ptr h, hits)
 		h->nr = nr++;
-
-	
-
-
-//		cout << h << endl;
-//	}
-//	
-//	cout << endl;
-//	foreach (hit& h, hssp)
-//		cout << h.seq << endl;
-
-	// finally create a HSSP file
-//	string hssp;
 
 	using namespace boost::gregorian;
 	date today = day_clock::local_day();
@@ -604,7 +523,7 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 		os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % kchain << endl;
 	}
 	
-	os << boost::format("NALIGN     %4.4d") % hssp.size() << endl
+	os << boost::format("NALIGN     %4.4d") % hits.size() << endl
 	   << endl
 	   << "## PROTEINS : EMBL/SWISSPROT identifier and alignment statistics" << endl
 	   << "  NR.    ID         STRID   %IDE %WSIM IFIR ILAS JFIR JLAS LALI NGAP LGAP LSEQ2 ACCNUM     PROTEIN" << endl;
@@ -612,7 +531,7 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 	// print the first list
 	nr = 1;
 	boost::format fmt1("%5.5d : %12.12s%4.4s    %4.2f  %4.2f %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d  %10.10s %s");
-	foreach (hit_ptr h, hssp)
+	foreach (hit_ptr h, hits)
 	{
 		string id = h->id;
 		if (id.length() > 12)
@@ -631,12 +550,11 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 	}
 
 	// print the alignments
-
-	for (uint32 i = 0; i < hssp.size(); i += 70)
+	for (uint32 i = 0; i < hits.size(); i += 70)
 	{
 		uint32 n = i + 70;
-		if (n > hssp.size())
-			n = hssp.size();
+		if (n > hits.size())
+			n = hits.size();
 		
 		uint32 k[7] = {
 			((i +  0) / 10) % 10 + 1,
@@ -652,54 +570,140 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 		   << boost::format(" SeqNo  PDBNo AA STRUCTURE BP1 BP2  ACC NOCC  VAR  ....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d")
 		   					% k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << endl;
 
-		foreach (res_ptr ri, result)
+		foreach (res_ptr ri, res)
 		{
 			string aln;
 			
 			for (uint32 j = i; j < n; ++j)
-				aln += SelectAlignedLetter(msas, hssp[j], ri);
+				aln += SelectAlignedLetter(msas, hits[j], ri);
 			
-			string dssp = ResidueToDSSPLine(inProtein, *ri->res).substr(0, 39);
-			
-			os << ' ' << dssp << boost::format("%4.4d %4.4d  ") % ri->nocc % ri->var << aln << endl;
+			os << ' ' << ri->dssp << boost::format("%4.4d %4.4d  ") % ri->nocc % ri->var << aln << endl;
 		}
-
-//		uint32 seqNo = 1;
-//		
-//		foreach (const MChain* chain, inProtein.GetChains())
-//		{
-//			foreach (const MResidue* residue, chain->GetResidues())
-//			{
-//				string aln;
-//				for (uint32 j = i; j < n; ++j)
-//					aln += hssp[j]->saln[seqNo - 1];
-//				
-//				const MResidue& r = *residue;
-//
-//				string dssp = ResidueToDSSPLine(inProtein, *residue).substr(0, 40);
-//				
-//				uint32 nocc = 1, var = 0;
-//				
-//				os << ' ' << dssp << boost::format("%4.4d %4.4d  ") % nocc % var << aln << endl;
-//				
-//				++seqNo;
-//			}
-//		}		
-
 	}
 	
 	// ## SEQUENCE PROFILE AND ENTROPY
 	os << "## SEQUENCE PROFILE AND ENTROPY" << endl
 	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
 	
-	foreach (res_ptr r, result)
+	uint32 seqNr = 1;
+	foreach (res_ptr r, res)
 	{
-		os << ResidueToDSSPLine(inProtein, *r->res).substr(0, 12);
+		os << boost::format(" %4.4d %4.4d %c") % seqNr % seqNr % r->chain;
+		++seqNr;
+
+		for (uint32 i = 0; i < 20; ++i)
+			os << boost::format("%4.4d") % r->dist[i];
+		
+		os << "  " << boost::format("%4.4d %4.4d %4.4d") % r->nocc % r->ndel % r->nins << endl;
+	}
+	
+	os << "//" << endl;
+}
+
+void CreateHSSP(CDatabankPtr inDatabank, const string& inProtein, opts_t& coo, ostream& os)
+{
+	vector<hit_ptr> hits;
+	vector<res_ptr> res;
+
+	string seq = inProtein;
+	ba::erase_all(seq, "\r\n");
+	ba::erase_all(seq, "\n");
+	
+	ChainToHits(inDatabank, inProtein, "UNKN", coo, hits, res);
+
+	vector<MSAInfo> msas;
+	msas.push_back(MSAInfo(inProtein, 'A', hits, res));
+	
+	sort(hits.begin(), hits.end(), compare_hit());
+	uint32 nr = 1;
+	foreach (hit_ptr h, hits)
+		h->nr = nr++;
+	
+	using namespace boost::gregorian;
+	date today = day_clock::local_day();
+	
+	// print the header
+	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0d1 2011" << endl
+	   << "DATE       file generated on " << to_iso_extended_string(today) << endl
+	   << "SEQBASE    " << inDatabank->GetVersion() << endl
+	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + 5" << endl
+	   << "CONTACT    New version by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
+	   << boost::format("SEQLENGTH  %4.4d") % inProtein.length() << endl
+	   << "NCHAIN     1 chain(s) in data set" << endl
+	   << boost::format("NALIGN     %4.4d") % hits.size() << endl
+	   << endl
+	   << "## PROTEINS : EMBL/SWISSPROT identifier and alignment statistics" << endl
+	   << "  NR.    ID         STRID   %IDE %WSIM IFIR ILAS JFIR JLAS LALI NGAP LGAP LSEQ2 ACCNUM     PROTEIN" << endl;
+	   
+	// print the first list
+	nr = 1;
+	boost::format fmt1("%5.5d : %12.12s%4.4s    %4.2f  %4.2f %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d  %10.10s %s");
+	foreach (hit_ptr h, hits)
+	{
+		string id = h->id;
+		if (id.length() > 12)
+			id.erase(12, string::npos);
+		else if (id.length() < 12)
+			id.append(12 - id.length(), ' ');
+		
+		os << fmt1 % nr
+				   % id % h->pdb
+				   % h->ide % h->wsim % h->ifir % h->ilas % h->jfir % h->jlas % h->lali
+				   % h->ngap % h->lgap % h->lseq2
+				   % "" % inDatabank->GetMetaData(h->id, "title")
+		   << endl;
+		
+		++nr;
+	}
+
+	// print the alignments
+	for (uint32 i = 0; i < hits.size(); i += 70)
+	{
+		uint32 n = i + 70;
+		if (n > hits.size())
+			n = hits.size();
+		
+		uint32 k[7] = {
+			((i +  0) / 10) % 10 + 1,
+			((i + 10) / 10) % 10 + 1,
+			((i + 20) / 10) % 10 + 1,
+			((i + 30) / 10) % 10 + 1,
+			((i + 40) / 10) % 10 + 1,
+			((i + 50) / 10) % 10 + 1,
+			((i + 60) / 10) % 10 + 1
+		};
+		
+		os << boost::format("## ALIGNMENTS %4.4d - %4.4d") % (i + 1) % n << endl
+		   << boost::format(" SeqNo  PDBNo AA STRUCTURE BP1 BP2  ACC NOCC  VAR  ....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d")
+		   					% k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << endl;
+
+		uint32 seqNr = 1;
+		foreach (res_ptr ri, res)
+		{
+			string aln;
+			
+			for (uint32 j = i; j < n; ++j)
+				aln += SelectAlignedLetter(msas, hits[j], ri);
+			
+			os << boost::format("  %4.4d %4.4d A %c                    %4.4d %4.4d  ")
+				% seqNr % seqNr % ri->letter % ri->nocc % ri->var << aln << endl;
+
+			++seqNr;
+		}
+	}
+	
+	// ## SEQUENCE PROFILE AND ENTROPY
+	os << "## SEQUENCE PROFILE AND ENTROPY" << endl
+	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
+	
+	uint32 seqNr = 1;
+	foreach (res_ptr r, res)
+	{
+		os << boost::format(" %4.4d %4.4d A") % seqNr % seqNr;
+		++seqNr;
 		
 		for (uint32 i = 0; i < 20; ++i)
-		{
 			os << boost::format("%4.4d") % r->dist[i];
-		}
 		
 		os << "  " << boost::format("%4.4d %4.4d %4.4d") % r->nocc % r->ndel % r->nins << endl;
 	}
@@ -710,13 +714,44 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 namespace hh
 {
 
+void Init()
+{
+	static bool sInited = false;
+	if (not sInited)
+	{
+		sInited = true;
+
+	    LogDefaultSetup(&rLog);
+
+#if 1 // DEBUG
+	    rLog.iLogLevelEnabled = LOG_VERBOSE;
+	    VERBOSE = 1;
+#endif
+
+		InitClustalOmega(BLAST_THREADS);
+	}
+}
+
 void CreateHSSP(
 	CDatabankPtr				inDatabank,
 	MProtein&					inProtein,
 	std::ostream&				outHSSP)
 {
-    LogDefaultSetup(&rLog);
+	Init();
 
+	opts_t coo;
+	SetDefaultAlnOpts(&coo);
+	
+	CreateHSSP(inDatabank, inProtein, coo, outHSSP);
+}
+
+void CreateHSSP(
+	CDatabankPtr				inDatabank,
+	const std::string&			inProtein,
+	std::ostream&				outHSSP)
+{
+	Init();
+	
 	opts_t coo;
 	SetDefaultAlnOpts(&coo);
 	

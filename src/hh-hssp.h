@@ -17,4 +17,9 @@ void CreateHSSP(
 	MProtein&					inProtein,
 	std::ostream&				outHSSP);
 
+void CreateHSSP(
+	CDatabankPtr				inDatabank,
+	const std::string&			inProtein,
+	std::ostream&				outHSSP);
+
 }
