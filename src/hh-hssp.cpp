@@ -53,6 +53,93 @@ namespace po = boost::program_options;
 int nrOfThreads = boost::thread::hardware_concurrency();
 int MAX_HITS = 250;
 
+//namespace hh2
+//{
+//	
+//struct Hit
+//{
+//	string		seq;
+//	uint32		ifir, ilas, jfir, jlas;
+//	
+//	
+//};
+//
+//class MSA
+//{
+//  public:
+//				MSA();
+//				~MSA();
+//
+//	void		Build(const string& id, const string& seq, CDatabankPtr db);
+//
+//  private:
+//	
+//	void		AppendSequence(const string& id, const string& seq);
+//
+//	mseq_t*		mSA;
+//	opts_t		mOpts;
+//};
+//
+//MSA::MSA()
+//	: mSA(nil)
+//{
+//	SetDefaultAlnOpts(&mOpts);
+//}
+//
+//MSA::~MSA()
+//{
+//	FreeMSeq(&mSA);
+//}
+//
+//void MSA::Build(const string& id, const string& seq, CDatabankPtr inDatabank)
+//{
+//	NewMSeq(&mSA);
+////	AppendSequence(id, seq);
+//	AddSeq(&mSA, const_cast<char*>(id.c_str()), const_cast<char*>(seq.c_str()));
+//
+//	// blast parameters
+//	float expect = 1.0;
+//	bool filter = true, gapped = true;
+//	int wordsize = 3, gapOpen = 11, gapExtend = 1, maxhits = MAX_HITS;
+//	string matrix = "BLOSUM62";
+//
+//	CDbAllDocIterator data(inDatabank.get());
+//	CBlast blast(seq, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
+//	
+//	if (blast.Find(*inDatabank, data, nrOfThreads))
+//	{
+//		CBlastHitList hits(blast.Hits());
+//		
+//		foreach (const CBlastHit& hit, hits)
+//		{
+//			const CBlastHsp hsp(hit.Hsps().front());
+//			
+//			uint32 docNr = hit.DocumentNr();
+//			
+//			string seq;
+//			inDatabank->GetSequence(docNr, inDatabank->GetSequenceNr(docNr, hit.SequenceID()), seq);
+//			AppendSequence(hit.DocumentID(), seq);
+//		}
+//	}
+//}
+//
+//void MSA::AppendSequence(const string& id, const string& seq)
+//{
+//	mseq_t* nmsa;
+//	NewMSeq(&nmsa);
+//	AddSeq(&nmsa, const_cast<char*>(id.c_str()), const_cast<char*>(seq.c_str()));
+//	if (Align(nmsa, mSA, &mOpts))
+//		THROW(("Failure creating multiple sequence alignment"));
+//	
+//	assert(nmsa->nseqs == mSA->nseqs + 1);
+//	FreeMSeq(&mSA);
+//	mSA = nmsa;
+//}
+//	
+//}
+
+
+
 struct insertion
 {
 	uint32		ipos, jpos;
