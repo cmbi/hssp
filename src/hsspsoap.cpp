@@ -265,6 +265,7 @@ void hssp_server::handle_request(
 					THROW(("Missing sequence parameters"));
 				
 				string seq = req.payload.substr(p + 4);
+				seq = zeep::http::decode_url(seq);
 				
 				string result;
 				GetHSSPForSequence(seq, result);

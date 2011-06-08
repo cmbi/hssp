@@ -51,6 +51,7 @@ namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
 int nrOfThreads = boost::thread::hardware_concurrency();
+int MAX_HITS = 250;
 
 struct insertion
 {
@@ -71,7 +72,7 @@ struct hit
 	vector<insertion>
 				insertions;
 
-	bool		operator<(const hit& rhs) const 	{ return ide > rhs.ide; }
+	bool		operator<(const hit& rhs) const 	{ return ide > rhs.ide or (ide == rhs.ide and lali > rhs.lali); }
 	
 	bool		IdentityAboveThreshold() const;
 };
@@ -325,6 +326,7 @@ char SelectAlignedLetter(const vector<MSAInfo>& msas, hit_ptr hit, res_ptr res)
 			hit->ifir <= res->seqNr and hit->ilas >= res->seqNr)
 		{
 			result = hit->seq[res->pos];
+			break;
 		}
 	}
 	
@@ -342,7 +344,7 @@ void ChainToHits(
 	// blast parameters
 	float expect = 1.0;
 	bool filter = true, gapped = true;
-	int wordsize = 3, gapOpen = 11, gapExtend = 1, maxhits = 1500;
+	int wordsize = 3, gapOpen = 11, gapExtend = 1, maxhits = MAX_HITS;
 	string matrix = "BLOSUM62";
 
 	CDbAllDocIterator data(inDatabank.get());
@@ -355,21 +357,21 @@ void ChainToHits(
 		// now create the alignment using clustalo
 		mseq_t* msa;
 		NewMSeq(&msa);
-		vector<string> ids;
-		
+
 		AddSeq(&msa, const_cast<char*>(seqId.c_str()), const_cast<char*>(seq.c_str()));
 		
 		foreach (const CBlastHit& hit, hits)
 		{
-			string seq, id;
+			const CBlastHsp hsp(hit.Hsps().front());
+			
+			string s, id;
 
 			inDatabank->GetSequence(hit.DocumentNr(),
 				inDatabank->GetSequenceNr(hit.DocumentNr(), hit.SequenceID()),
-				seq);
+				s);
 			id = hit.DocumentID();
 			
-			ids.push_back(id);
-			AddSeq(&msa, const_cast<char*>(id.c_str()), const_cast<char*>(seq.c_str()));
+			AddSeq(&msa, const_cast<char*>(id.c_str()), const_cast<char*>(s.c_str()));
 		}
 		
 		msa->seqtype = SEQTYPE_PROTEIN;
@@ -383,6 +385,9 @@ void ChainToHits(
 		
 		for (int i = 1; i < msa->nseqs; ++i)
 		{
+			if (msa->sqinfo[i].name == seqId)
+				continue;
+			
 			hit_ptr hit = CreateHit(msa->sqinfo[i].name, msa->seq[0], msa->seq[i]);
 
 			if (hit->IdentityAboveThreshold())
@@ -608,11 +613,11 @@ void CreateHSSP(CDatabankPtr inDatabank, const string& inProtein, opts_t& coo, o
 	string seq = inProtein;
 	ba::erase_all(seq, "\r\n");
 	ba::erase_all(seq, "\n");
-	
-	ChainToHits(inDatabank, inProtein, "UNKN", coo, hits, res);
+
+	ChainToHits(inDatabank, seq, "UNKN", coo, hits, res);
 
 	vector<MSAInfo> msas;
-	msas.push_back(MSAInfo(inProtein, 'A', hits, res));
+	msas.push_back(MSAInfo(seq, 'A', hits, res));
 	
 	sort(hits.begin(), hits.end(), compare_hit());
 	uint32 nr = 1;
@@ -628,7 +633,7 @@ void CreateHSSP(CDatabankPtr inDatabank, const string& inProtein, opts_t& coo, o
 	   << "SEQBASE    " << inDatabank->GetVersion() << endl
 	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + 5" << endl
 	   << "CONTACT    New version by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
-	   << boost::format("SEQLENGTH  %4.4d") % inProtein.length() << endl
+	   << boost::format("SEQLENGTH  %4.4d") % seq.length() << endl
 	   << "NCHAIN     1 chain(s) in data set" << endl
 	   << boost::format("NALIGN     %4.4d") % hits.size() << endl
 	   << endl
@@ -685,7 +690,7 @@ void CreateHSSP(CDatabankPtr inDatabank, const string& inProtein, opts_t& coo, o
 			for (uint32 j = i; j < n; ++j)
 				aln += SelectAlignedLetter(msas, hits[j], ri);
 			
-			os << boost::format("  %4.4d %4.4d A %c                    %4.4d %4.4d  ")
+			os << boost::format("  %4.4d %4.4d A %c                         %4.4d %4.4d  ")
 				% seqNr % seqNr % ri->letter % ri->nocc % ri->var << aln << endl;
 
 			++seqNr;
