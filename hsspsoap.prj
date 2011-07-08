@@ -4,7 +4,7 @@
   </pkg-config>
   <syspaths>
     <path>../libzeep</path>
-    <path>../clustal-omega/include/clustalo</path>
+    <path>/usr/include</path>
   </syspaths>
   <userpaths>
     <path>src</path>
@@ -13,7 +13,6 @@
   <libpaths>
     <path>../mrs/lib</path>
     <path>../libzeep</path>
-    <path>../clustal-omega/lib</path>
   </libpaths>
   <files>
     <group name="Sources">
@@ -39,7 +38,6 @@
       <link>bz2</link>
       <link>boost_math_c99</link>
       <link>boost_system</link>
-      <link>clustalo</link>
       <link>z</link>
     </group>
   </files>
@@ -80,9 +78,9 @@
         <define>BOOST_FILESYSTEM_VERSION=2</define>
       </defines>
       <cflags>
+        <cflag>-fopenmp</cflag>
         <cflag>-O3</cflag>
         <cflag>-pthread</cflag>
-        <cflag>-fopenmp</cflag>
         <cflag>-std=c++0x</cflag>
       </cflags>
       <warnings>

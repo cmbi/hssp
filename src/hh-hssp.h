@@ -14,11 +14,13 @@ namespace hh
 
 void CreateHSSP(
 	CDatabankPtr				inDatabank,
+	const std::string&			inClustalO,
 	MProtein&					inProtein,
 	std::ostream&				outHSSP);
 
 void CreateHSSP(
 	CDatabankPtr				inDatabank,
+	const std::string&			inClustalO,
 	const std::string&			inProtein,
 	std::ostream&				outHSSP);
 

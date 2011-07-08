@@ -19,29 +19,13 @@
 #include "dssp.h"
 #include "structure.h"
 #include "maxhom-hssp.h"
+#include "utils.h"
 
 using namespace std;
 namespace ba = boost::algorithm;
 
 namespace maxhom
 {
-
-void WriteToFD(
-	int						inFD,
-	string					inText)
-{
-	inText += '\n';
-	
-	for (;;)
-	{
-		int r = write(inFD, inText.c_str(), inText.length());
-		if (r == -1 and errno == EAGAIN)
-			continue;
-		if (r != static_cast<int>(inText.length()))
-			THROW(("Failed to write maxhom command"));
-		break;
-	}		 
-}
 
 void GetHSSPForHitsAndDSSP(
 	CDatabankPtr			inDatabank,

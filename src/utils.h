@@ -64,3 +64,7 @@ struct stats
 	uint32 m_max, m_count, m_cumm;
 };
 #endif
+
+// --------------------------------------------------------------------
+
+void WriteToFD(int inFD, const std::string& inText);

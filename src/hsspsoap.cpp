@@ -50,8 +50,6 @@ namespace po = boost::program_options;
 
 // globals
 
-fs::path gMaxHom;
-
 void GetDSSPForSequence(
 	const string&		inSequence,
 	string&				outDSSP)
@@ -155,7 +153,7 @@ void GetPDBFileFromPayload(
 class hssp_server : public zeep::server
 {
   public:
-					hssp_server();
+					hssp_server(const fs::path& inProgram);
 
 	virtual void	handle_request(
 						const zeep::http::request&	req,
@@ -174,10 +172,12 @@ class hssp_server : public zeep::server
 						string&			hssp);
 
 	CDatabankTable	mDBTable;
+	fs::path		mProgram;
 };
 
-hssp_server::hssp_server()
+hssp_server::hssp_server(const fs::path& inProgram)
 	: zeep::server("http://www.cmbi.ru.nl/hsspsoap", "hsspsoap")
+	, mProgram(inProgram)
 {
 	const char* kGetDSSPForPDBFileParameterNames[] = {
 		"pdbfile", "dssp"
@@ -333,7 +333,7 @@ void hssp_server::GetHSSPForPDBFile(
 
 	// and the final HSSP file
 	io::filtering_ostream out2(io::back_inserter(hssp));
-	maxhom::GetHSSPForHitsAndDSSP(db, gMaxHom.string(), a.GetID(), hits, dssp, 1500, out2);
+	maxhom::GetHSSPForHitsAndDSSP(db, mProgram.string(), a.GetID(), hits, dssp, 1500, out2);
 }
 
 void hssp_server::GetHSSPForSequence(
@@ -349,7 +349,7 @@ void hssp_server::GetHSSPForSequence(
 	BlastSequence(db, sequence, hits);
 	
 	io::filtering_ostream out(io::back_inserter(hssp));
-	maxhom::GetHSSPForHitsAndDSSP(db, gMaxHom.string(), "UNKN", hits, dssp, 1500, out);
+	maxhom::GetHSSPForHitsAndDSSP(db, mProgram.string(), "UNKN", hits, dssp, 1500, out);
 }
 
 // --------------------------------------------------------------------
@@ -360,7 +360,7 @@ void hssp_server::GetHSSPForSequence(
 class hssp2_server : public hssp_server
 {
   public:
-					hssp2_server();
+					hssp2_server(const fs::path& inProgram);
 
 	virtual void	GetHSSPForPDBFile(
 						const string&	pdbfile,
@@ -371,7 +371,8 @@ class hssp2_server : public hssp_server
 						string&			hssp);
 };
 
-hssp2_server::hssp2_server()
+hssp2_server::hssp2_server(const fs::path& inProgram)
+	: hssp_server(inProgram)
 {
 }
 
@@ -392,7 +393,7 @@ void hssp2_server::GetHSSPForPDBFile(
 	// finally, create the HSSP
 	CDatabankPtr db = mDBTable.Load("uniprot");
 	io::filtering_ostream out(io::back_inserter(hssp));
-	hh::CreateHSSP(db, a, out);
+	hh::CreateHSSP(db, mProgram.string(), a, out);
 }
 
 void hssp2_server::GetHSSPForSequence(
@@ -402,7 +403,7 @@ void hssp2_server::GetHSSPForSequence(
 	CDatabankPtr db = mDBTable.Load("uniprot");
 
 	io::filtering_ostream out(io::back_inserter(hssp));
-	hh::CreateHSSP(db, sequence, out);
+	hh::CreateHSSP(db, mProgram.string(), sequence, out);
 }
 
 // --------------------------------------------------------------------
@@ -504,6 +505,7 @@ int main(int argc, char* argv[])
 		("location2,n",	po::value<string>(),	"location advertised in wsdl (version 2)")
 		("user,u",		po::value<string>(),	"user to run as")
 		("maxhom",		po::value<string>(),	"Path to the maxhom application")
+		("clustalo",	po::value<string>(),	"Path to the clustalo application")
 		("threads,a",	po::value<int>(),		"Number of threads to use (default is nr of CPU's)")
 		("no-daemon,D",							"do not fork a daemon")
 		;
@@ -545,21 +547,30 @@ int main(int argc, char* argv[])
 	if (vm.count("user"))
 		user = vm["user"].as<string>();
 
-	string maxhom = "maxhom";
+	string maxhom = "/usr/local/bin/maxhom";
 	if (vm.count("maxhom"))
 		maxhom = vm["maxhom"].as<string>();
-
-	BLAST_THREADS = boost::thread::hardware_concurrency();
-	if (vm.count("threads"))
-		BLAST_THREADS = vm["threads"].as<int>();
 	
-	gMaxHom = maxhom;
-	if (not fs::exists(gMaxHom))
+	if (not fs::exists(maxhom))
 	{
 		cerr << "No maxhom found" << endl;
 		exit(1);
 	}
 
+	string clustalo = "/usr/local/bin/clustalo";
+	if (vm.count("clustalo"))
+		clustalo = vm["clustalo"].as<string>();
+
+	if (not fs::exists(clustalo))
+	{
+		cerr << "No clustalo found" << endl;
+		exit(1);
+	}
+
+	BLAST_THREADS = boost::thread::hardware_concurrency();
+	if (vm.count("threads"))
+		BLAST_THREADS = vm["threads"].as<int>();
+	
 	if (vm.count("no-daemon"))
 		daemon = false;
 
@@ -576,14 +587,14 @@ int main(int argc, char* argv[])
 #endif
 	
 	// old server
-	hssp_server server;
+	hssp_server server(maxhom);
 	server.bind(address, port);
 	
 	if (not location.empty())
 		server.set_location(location);
 	
 	// new server
-	hssp2_server server2;
+	hssp2_server server2(clustalo);
 	server2.bind(address, port + 1);
 
 	if (not location2.empty())

@@ -188,3 +188,36 @@ stats::~stats()
 		cerr << endl << "max: " << m_max << " count: " << m_count << " average: " << (m_cumm / m_count) << endl;
 }
 #endif
+
+// --------------------------------------------------------------------
+
+void WriteToFD(int inFD, const std::string& inText)
+{
+	const char kEOLN[] = "\n";
+	const char* s = inText.c_str();
+	uint32 l = inText.length();
+	
+	while (l > 0)
+	{
+		int r = write(inFD, s, l);
+
+		if (r >= 0)
+		{
+			l -= r;
+			if (l == 0 and s != kEOLN)
+			{
+				s = kEOLN;
+				l = 1;
+			}
+			continue;
+		}
+		
+		if (r == -1 and errno == EAGAIN)
+			continue;
+
+		throw mas_exception("Failed to write to file descriptor");
+
+		break;
+	}		 
+}
+

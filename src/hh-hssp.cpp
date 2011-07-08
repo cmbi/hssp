@@ -22,6 +22,7 @@
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 #include <boost/program_options.hpp>
@@ -41,105 +42,164 @@
 #include "structure.h"
 #include "utils.h"
 
-extern "C" {
-#include "clustal-omega.h"
-}
-
 using namespace std;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
-int nrOfThreads = boost::thread::hardware_concurrency();
-int MAX_HITS = 250;
+int	nrOfThreads = boost::thread::hardware_concurrency(),
+	MAX_HITS = 250;
 
-//namespace hh2
-//{
-//	
-//struct Hit
-//{
-//	string		seq;
-//	uint32		ifir, ilas, jfir, jlas;
-//	
-//	
-//};
-//
-//class MSA
-//{
-//  public:
-//				MSA();
-//				~MSA();
-//
-//	void		Build(const string& id, const string& seq, CDatabankPtr db);
-//
-//  private:
-//	
-//	void		AppendSequence(const string& id, const string& seq);
-//
-//	mseq_t*		mSA;
-//	opts_t		mOpts;
-//};
-//
-//MSA::MSA()
-//	: mSA(nil)
-//{
-//	SetDefaultAlnOpts(&mOpts);
-//}
-//
-//MSA::~MSA()
-//{
-//	FreeMSeq(&mSA);
-//}
-//
-//void MSA::Build(const string& id, const string& seq, CDatabankPtr inDatabank)
-//{
-//	NewMSeq(&mSA);
-////	AppendSequence(id, seq);
-//	AddSeq(&mSA, const_cast<char*>(id.c_str()), const_cast<char*>(seq.c_str()));
-//
-//	// blast parameters
-//	float expect = 1.0;
-//	bool filter = true, gapped = true;
-//	int wordsize = 3, gapOpen = 11, gapExtend = 1, maxhits = MAX_HITS;
-//	string matrix = "BLOSUM62";
-//
-//	CDbAllDocIterator data(inDatabank.get());
-//	CBlast blast(seq, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
-//	
-//	if (blast.Find(*inDatabank, data, nrOfThreads))
-//	{
-//		CBlastHitList hits(blast.Hits());
-//		
-//		foreach (const CBlastHit& hit, hits)
-//		{
-//			const CBlastHsp hsp(hit.Hsps().front());
-//			
-//			uint32 docNr = hit.DocumentNr();
-//			
-//			string seq;
-//			inDatabank->GetSequence(docNr, inDatabank->GetSequenceNr(docNr, hit.SequenceID()), seq);
-//			AppendSequence(hit.DocumentID(), seq);
-//		}
-//	}
-//}
-//
-//void MSA::AppendSequence(const string& id, const string& seq)
-//{
-//	mseq_t* nmsa;
-//	NewMSeq(&nmsa);
-//	AddSeq(&nmsa, const_cast<char*>(id.c_str()), const_cast<char*>(seq.c_str()));
-//	if (Align(nmsa, mSA, &mOpts))
-//		THROW(("Failure creating multiple sequence alignment"));
-//	
-//	assert(nmsa->nseqs == mSA->nseqs + 1);
-//	FreeMSeq(&mSA);
-//	mSA = nmsa;
-//}
-//	
-//}
+namespace hh
+{
 
+struct seq
+{
+				seq() {}
+	
+				seq(const string& id, const string& seq)
+					: m_id(id), m_seq(seq) {}
 
+	string		m_id;
+	string		m_seq;
+};
 
+typedef vector<seq>	mseq;
+
+void AlignWithClustalOmega(const string& inClustalO, mseq& seqs)
+{
+	HUuid uuid;
+	
+	fs::path rundir("/tmp/hssp-2/");
+	rundir /= boost::lexical_cast<string>(uuid);
+	fs::create_directories(rundir);
+	
+	// start a clustalo
+	int ifd[2];
+	int ofd[2];
+	
+	if (pipe(ifd) != 0)
+		THROW(("Failed to create pipe: %s", strerror(errno)));
+
+	if (pipe(ofd) != 0)
+	{
+		close(ifd[0]);
+		close(ifd[1]);
+		THROW(("Failed to create pipe: %s", strerror(errno)));
+	}
+	
+	int pid = fork();
+	
+	if (pid == -1)
+	{
+		close(ifd[0]);
+		close(ifd[1]);
+		close(ofd[0]);
+		close(ofd[1]);
+		
+		THROW(("fork failed: %s", strerror(errno)));
+	}
+	
+	if (pid == 0)	// the child process (will be clustalo)
+	{
+		fs::current_path(rundir);
+		
+		setpgid(0, 0);
+		
+		dup2(ifd[0], STDIN_FILENO);
+		close(ifd[0]);
+		close(ifd[1]);
+		
+		int fd = open("clustalo.log", O_CREAT | O_RDWR | O_APPEND, 0666);
+//		dup2(fd, STDOUT_FILENO);
+		dup2(fd, STDERR_FILENO);
+		
+		dup2(ofd[1], STDOUT_FILENO);
+		close(ofd[0]);
+		close(ofd[1]);
+		
+		char* argv[] = {
+			const_cast<char*>(inClustalO.c_str()),
+			const_cast<char*>("-i"),
+			const_cast<char*>("-"),
+			nil
+		};
+		
+		(void)execve(inClustalO.c_str(), argv, environ);
+	}
+
+	close(ofd[1]);
+	close(ifd[0]);
+	int fd = ifd[1];
+	
+	// ClustalO is running and waiting for a FastA file on stdin
+	foreach (const seq& s, seqs)
+	{
+		stringstream ss;
+		ss << '>' << s.m_id << endl;
+		
+		for (uint32 o = 0; o < s.m_seq.length(); o += 80)
+		{
+			uint32 n = s.m_seq.length() - o;
+			if (n > 80)
+				n = 80;
+			
+			ss << s.m_seq.substr(o, n) << endl;
+		}
+
+		WriteToFD(fd, ss.str());
+	}
+
+	close(fd);	// Closing fd will tell ClustalO we're done feeding input
+	
+	// now read in the result
+	
+	mseq result;
+	
+	io::filtering_istream is;
+	is.push(io::file_descriptor_source(ofd[0]));
+	
+	for (;;)
+	{
+		string line;
+		getline(is, line);
+
+		if (line.empty() and is.eof())
+			break;
+
+		if (ba::starts_with(line, ">>"))
+		{
+			cerr << "Invalid clustalo output, crash?" << endl;
+			break;
+		}
+		
+		if (ba::starts_with(line, ">"))
+		{
+			result.push_back(seq());
+			result.back().m_id = line.substr(1);
+			continue;
+		}
+		
+		if (result.empty())
+		{
+			cerr << "Invalid clustalo output" << endl;
+			break;
+		}
+		
+		result.back().m_seq.append(line);
+	}
+	
+	close(ofd[0]);
+
+	int status;
+	waitpid(pid, &status, 0);
+	
+	if (status != 0)
+		THROW(("clustalo exited with status %d", status));
+	
+	swap(seqs, result);
+}
+	
 struct insertion
 {
 	uint32		ipos, jpos;
@@ -422,9 +482,9 @@ char SelectAlignedLetter(const vector<MSAInfo>& msas, hit_ptr hit, res_ptr res)
 
 void ChainToHits(
 	CDatabankPtr		inDatabank,
+	const string&		inClustalO,
 	const string&		seq,
 	const string&		seqId,
-	opts_t&				coo,
 	vector<hit_ptr>&	hssp,
 	vector<res_ptr>&	residues)
 {
@@ -434,109 +494,80 @@ void ChainToHits(
 	int wordsize = 3, gapOpen = 11, gapExtend = 1, maxhits = MAX_HITS;
 	string matrix = "BLOSUM62";
 
-	CDbAllDocIterator data(inDatabank.get());
-	CBlast blast(seq, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
+	CBlastResult* result = PerformBlastSearch(*inDatabank, seq, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
 	
-	if (blast.Find(*inDatabank, data, nrOfThreads))
+	if (result != nil)
 	{
-		CBlastHitList hits(blast.Hits());
+		CBlastHitList& hits = result->hits;
 		
 		// now create the alignment using clustalo
-		mseq_t* msa;
-		NewMSeq(&msa);
-
-		AddSeq(&msa, const_cast<char*>(seqId.c_str()), const_cast<char*>(seq.c_str()));
+		hh::mseq msa;
+		msa.push_back(hh::seq(seqId, seq));
 		
 		foreach (const CBlastHit& hit, hits)
 		{
-			const CBlastHsp hsp(hit.Hsps().front());
+			const CBlastHsp hsp(hit.hsps.front());
 			
 			string s, id;
 
-			inDatabank->GetSequence(hit.DocumentNr(),
-				inDatabank->GetSequenceNr(hit.DocumentNr(), hit.SequenceID()),
+			inDatabank->GetSequence(hit.documentNr,
+				inDatabank->GetSequenceNr(hit.documentNr, hit.sequenceID),
 				s);
-			id = hit.DocumentID();
+			id = hit.documentID;
 			
-			AddSeq(&msa, const_cast<char*>(id.c_str()), const_cast<char*>(s.c_str()));
+			msa.push_back(hh::seq(id, s));
 		}
 		
-		msa->seqtype = SEQTYPE_PROTEIN;
-		msa->aligned = false;
+		hh::AlignWithClustalOmega(inClustalO, msa);
 		
-		if (Align(msa, nil, &coo))
+		for (int i = 1; i < msa.size(); ++i)
 		{
-			FreeMSeq(&msa);
-			throw mas_exception("Fatal error creating alignment");
-		}
-		
-		for (int i = 1; i < msa->nseqs; ++i)
-		{
-			if (msa->sqinfo[i].name == seqId)
-				continue;
-			
-			hit_ptr hit = CreateHit(msa->sqinfo[i].name, msa->seq[0], msa->seq[i]);
+			hit_ptr hit = CreateHit(msa[i].m_id, msa[0].m_seq, msa[i].m_seq);
 
 			if (hit->IdentityAboveThreshold())
 				hssp.push_back(hit);
 		}
 		
-		if (hssp.size() + 1 < msa->nseqs)	// repeat alignment with the new, smaller set of remaining hits
+		if (hssp.size() + 1 < msa.size())	// repeat alignment with the new, smaller set of remaining hits
 		{
-			mseq_t* rs;
-			NewMSeq(&rs);
-			
-			string s = seq;
-			ba::erase_all(s, "-");
-			
-			AddSeq(&rs, const_cast<char*>(seqId.c_str()), const_cast<char*>(s.c_str()));
+			msa.clear();
+
+			msa.push_back(hh::seq(seqId, seq));
 
 			foreach (hit_ptr h, hssp)
 			{
-				s = h->seq;
+				string s = h->seq;
 				ba::erase_all(s, "-");
 				
-				AddSeq(&rs, const_cast<char*>(h->id.c_str()), const_cast<char*>(s.c_str()));
-			}
-
-			rs->seqtype = SEQTYPE_PROTEIN;
-			rs->aligned = false;
-			
-			if (Align(rs, nil, &coo))
-			{
-				FreeMSeq(&msa);
-				FreeMSeq(&rs);
-				throw mas_exception("Fatal error creating alignment");
+				msa.push_back(hh::seq(h->id, s));
 			}
 			
-			FreeMSeq(&msa);
-			msa = rs;
-			
+			hh::AlignWithClustalOmega(inClustalO, msa);
 			hssp.clear();
-			for (int i = 1; i < msa->nseqs; ++i)
+			
+			for (int i = 1; i < msa.size(); ++i)
 			{
-				hit_ptr hit = CreateHit(msa->sqinfo[i].name, msa->seq[0], msa->seq[i]);
-				
+				hit_ptr hit = CreateHit(msa[i].m_id, msa[0].m_seq, msa[i].m_seq);
+	
 				if (hit->IdentityAboveThreshold())
 					hssp.push_back(hit);
 			}
 		}
 
 		uint32 seqNr = 1;
-		for (char* si = msa->seq[0]; *si; ++si)
+		string s = msa.front().m_seq;
+		for (uint32 i = 0; i < s.length(); ++i)
 		{
-			if (*si != '-' and *si != ' ')
+			if (s[i] != '-' and s[i] != ' ')
 			{
-				residues.push_back(CreateResidueHInfo(*si, seqNr, hssp, si - msa->seq[0]));
+				residues.push_back(CreateResidueHInfo(s[i], seqNr, hssp, i));
 				++seqNr;
 			}
 		}
-		
-		FreeMSeq(&msa);
 	}
 }
 
-void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostream& os)
+void CreateHSSP(CDatabankPtr inDatabank, const string& inClustalO, MProtein& inProtein, ostream& os)
 {
 	uint32 nchain = 0, kchain = 0, seqlength = 0;
 
@@ -571,7 +602,7 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 
 		vector<hit_ptr> c_hits;
 		
-		ChainToHits(inDatabank, seq, inProtein.GetID(), coo, c_hits, res);
+		ChainToHits(inDatabank, inClustalO, seq, inProtein.GetID(), c_hits, res);
 		if (not c_hits.empty() and not res.empty())
 		{
 			assert(res.size() == residues.size());
@@ -692,7 +723,7 @@ void CreateHSSP(CDatabankPtr inDatabank, MProtein& inProtein, opts_t& coo, ostre
 	os << "//" << endl;
 }
 
-void CreateHSSP(CDatabankPtr inDatabank, const string& inProtein, opts_t& coo, ostream& os)
+void CreateHSSP(CDatabankPtr inDatabank, const string& inClustalO, const string& inProtein, ostream& os)
 {
 	vector<hit_ptr> hits;
 	vector<res_ptr> res;
@@ -701,7 +732,7 @@ void CreateHSSP(CDatabankPtr inDatabank, const string& inProtein, opts_t& coo, o
 	ba::erase_all(seq, "\r\n");
 	ba::erase_all(seq, "\n");
 
-	ChainToHits(inDatabank, seq, "UNKN", coo, hits, res);
+	ChainToHits(inDatabank, inClustalO, seq, "UNKN", hits, res);
 
 	vector<MSAInfo> msas;
 	msas.push_back(MSAInfo(seq, 'A', hits, res));
@@ -801,53 +832,6 @@ void CreateHSSP(CDatabankPtr inDatabank, const string& inProtein, opts_t& coo, o
 	}
 	
 	os << "//" << endl;
-}
-
-namespace hh
-{
-
-void Init()
-{
-	static bool sInited = false;
-	if (not sInited)
-	{
-		sInited = true;
-
-	    LogDefaultSetup(&rLog);
-
-#if 1 // DEBUG
-	    rLog.iLogLevelEnabled = LOG_VERBOSE;
-	    VERBOSE = 1;
-#endif
-
-		InitClustalOmega(BLAST_THREADS);
-	}
-}
-
-void CreateHSSP(
-	CDatabankPtr				inDatabank,
-	MProtein&					inProtein,
-	std::ostream&				outHSSP)
-{
-	Init();
-
-	opts_t coo;
-	SetDefaultAlnOpts(&coo);
-	
-	CreateHSSP(inDatabank, inProtein, coo, outHSSP);
-}
-
-void CreateHSSP(
-	CDatabankPtr				inDatabank,
-	const std::string&			inProtein,
-	std::ostream&				outHSSP)
-{
-	Init();
-	
-	opts_t coo;
-	SetDefaultAlnOpts(&coo);
-	
-	CreateHSSP(inDatabank, inProtein, coo, outHSSP);
 }
 
 }
