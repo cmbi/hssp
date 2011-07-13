@@ -23,7 +23,7 @@
       <file>structure.cpp</file>
       <file>utils.cpp</file>
       <file>dssp.cpp</file>
-      <file>hh-hssp.cpp</file>
+      <file>hmmer-hssp.cpp</file>
       <file>sto2hssp.cpp</file>
     </group>
     <group name="Libraries">

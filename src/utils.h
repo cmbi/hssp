@@ -8,6 +8,53 @@
 
 #include <time.h>
 #include <boost/thread.hpp>
+#include <boost/lexical_cast.hpp>
+
+// --------------------------------------------------------------------
+
+class arg_vector
+{
+  public:
+
+				arg_vector(const std::string& program)
+				{
+					m_args.push_back(program);
+				}
+
+	void		push(const std::string& option)
+				{
+					m_args.push_back(option);
+				}
+
+	template<class T>
+	void		push(const std::string& option, const T& value);
+
+				operator char* const*();
+
+  private:
+	friend std::ostream& operator<<(std::ostream& os, const arg_vector& argv);
+
+	std::vector<std::string>	m_args;
+	std::vector<const char*>	m_argv;
+};
+
+template<class T>
+inline
+void arg_vector::push(const std::string& option, const T& value)
+{
+	m_args.push_back(option);
+	m_args.push_back(boost::lexical_cast<std::string>(value));
+}
+
+template<>
+inline
+void arg_vector::push(const std::string& option, const std::string& value)
+{
+	m_args.push_back(option);
+	m_args.push_back(value);
+}
+
+std::ostream& operator<<(std::ostream& os, const arg_vector& argv);
 
 // --------------------------------------------------------------------
 

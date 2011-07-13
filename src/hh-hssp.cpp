@@ -415,7 +415,7 @@ res_ptr CreateResidueHInfo(char a, uint32 nr, vector<hit_ptr>& hits, uint32 pos)
 	
 	foreach (hit_ptr hit, hits)
 	{
-		if (hit->ifir > nr or hit->ilas < nr)
+		if (not hit->alwaysSelect and (hit->ifir > nr or hit->ilas < nr))
 			continue;
 		
 		ix = kIX.find(hit->seq[pos]);
@@ -567,11 +567,6 @@ void CreateHSSPOutput(
 	vector<MSAInfo>&	msas,
 	ostream&			os)
 {
-	sort(hits.begin(), hits.end(), compare_hit());
-	uint32 nr = 1;
-	foreach (hit_ptr h, hits)
-		h->nr = nr++;
-
 	using namespace boost::gregorian;
 	date today = day_clock::local_day();
 	
@@ -600,7 +595,7 @@ void CreateHSSPOutput(
 	   << "  NR.    ID         STRID   %IDE %WSIM IFIR ILAS JFIR JLAS LALI NGAP LGAP LSEQ2 ACCNUM     PROTEIN" << endl;
 	   
 	// print the first list
-	nr = 1;
+	uint32 nr = 1;
 	boost::format fmt1("%5.5d : %12.12s%4.4s    %4.2f  %4.2f %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d  %10.10s %s");
 	foreach (hit_ptr h, hits)
 	{
@@ -962,9 +957,23 @@ void CreateHSSPForAlignment(
 		hit->ilas = boost::lexical_cast<uint32>(sm.str(3));
 		hit->alwaysSelect = true;
 
+		for (string::iterator r = hit->seq.begin(); r != hit->seq.end() and *r == '-'; ++r)
+			*r = ' ';
+
+		for (string::reverse_iterator r = hit->seq.rbegin(); r != hit->seq.rend() and *r == '-'; ++r)
+			*r = ' ';
+
 		if (hit->IdentityAboveThreshold())
 			hits.push_back(hit);
 	}
+
+	sort(hits.begin(), hits.end(), compare_hit());
+	if (hits.size() > 9999)
+		hits.erase(hits.begin() + 9999, hits.end());
+	
+	uint32 nr = 1;
+	foreach (hit_ptr h, hits)
+		h->nr = nr++;
 	
 	string seq;
 	inProtein.GetChain(inChain).GetSequence(seq);

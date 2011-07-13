@@ -25,6 +25,34 @@ using namespace std;
 
 // --------------------------------------------------------------------
 
+arg_vector::operator char* const*()
+{
+	m_argv.clear();
+	foreach (string& s, m_args)
+	{
+		m_argv.push_back(s.c_str());
+		if (VERBOSE > 1)
+			cerr << m_argv.back() << ' ';
+	}
+	if (VERBOSE > 1)
+		cerr << endl;
+
+	m_argv.push_back(nil);
+	return const_cast<char*const*>(&m_argv[0]);
+}
+
+ostream& operator<<(ostream& os, const arg_vector& argv)
+{
+	os << "About to execute: " << endl;
+	foreach (const string& a, argv.m_args)
+		os << a << ' ';
+	os << endl;
+
+	return os;
+}
+
+// --------------------------------------------------------------------
+
 mas_exception::mas_exception(const string& msg)
 {
 	snprintf(m_msg, sizeof(m_msg), "%s", msg.c_str());
