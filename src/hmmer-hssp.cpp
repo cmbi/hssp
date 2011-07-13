@@ -446,7 +446,7 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 	return result;
 }
 
-res_ptr CreateResidueHInfo(char a, uint32 nr, vector<hit_ptr>& hits, uint32 pos)
+res_ptr CreateResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos)
 {
 	res_ptr r(new ResidueHInfo);
 	
@@ -454,7 +454,7 @@ res_ptr CreateResidueHInfo(char a, uint32 nr, vector<hit_ptr>& hits, uint32 pos)
 	
 	r->letter = a;
 	r->chain = 'A';
-	r->seqNr = nr;
+	r->seqNr = 0;
 	r->pos = pos;
 	r->nocc = 1;
 	r->ndel = r->nins = r->var = 0;
@@ -466,9 +466,6 @@ res_ptr CreateResidueHInfo(char a, uint32 nr, vector<hit_ptr>& hits, uint32 pos)
 	
 	foreach (hit_ptr hit, hits)
 	{
-		if (not hit->alwaysSelect and (hit->ifir > nr or hit->ilas < nr))
-			continue;
-		
 		ix = kIX.find(hit->seq[pos]);
 		if (ix != string::npos)
 		{
@@ -486,7 +483,7 @@ res_ptr CreateResidueHInfo(char a, uint32 nr, vector<hit_ptr>& hits, uint32 pos)
 struct MSAInfo
 {
 	string				seq;
-	vector<char>		chainNames;
+	vector<string>		chainNames;
 	set<hit_ptr>		hits;
 	set<res_ptr>		residues;
 
@@ -497,7 +494,9 @@ struct MSAInfo
 							assert(not h.empty());
 							assert(not r.empty());
 							
-							chainNames.push_back(chainName);
+							string n(1, chainName);
+							
+							chainNames.push_back(n);
 							hits.insert(h.begin(), h.end());
 							residues.insert(r.begin(), r.end());
 						}
@@ -524,8 +523,9 @@ void CreateHSSPOutput(
 	const MProtein&		inProtein,
 	const string&		inDatabankVersion,
 	uint32				inSeqLength,
-	uint32				inKChain,
 	uint32				inNChain,
+	uint32				inKChain,
+	const string&		inUsedChains,
 	vector<hit_ptr>&	hits,
 	vector<res_ptr>&	res,
 	vector<MSAInfo>&	msas,
@@ -550,7 +550,7 @@ void CreateHSSPOutput(
 	
 	if (inKChain != inNChain)
 	{
-		os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % inKChain << endl;
+		os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % inKChain << inUsedChains << endl;
 	}
 	
 	os << boost::format("NALIGN     %4.4d") % hits.size() << endl
@@ -606,8 +606,19 @@ void CreateHSSPOutput(
 		   << boost::format(" SeqNo  PDBNo AA STRUCTURE BP1 BP2  ACC NOCC  VAR  ....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d")
 		   					% k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << endl;
 
+		res_ptr last;
+		uint32 seqNr = 1;
 		foreach (res_ptr ri, res)
 		{
+			if (last and last->seqNr + 1 != ri->seqNr)
+			{
+				os << boost::format(" %5.5d        !  !           0   0    0    0    0") % seqNr << endl;
+				++seqNr;
+			}
+
+			last = ri;
+			++seqNr;
+			
 			string aln;
 			
 			for (uint32 j = i; j < n; ++j)
@@ -622,8 +633,17 @@ void CreateHSSPOutput(
 	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
 	
 	uint32 seqNr = 1;
+	res_ptr last;
 	foreach (res_ptr r, res)
 	{
+		if (last and last->seqNr + 1 != r->seqNr)
+		{
+			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
+				% seqNr << endl;
+			++seqNr;
+		}
+		last = r;
+
 		os << boost::format(" %4.4d %4.4d %c") % seqNr % seqNr % r->chain;
 		++seqNr;
 
@@ -634,7 +654,6 @@ void CreateHSSPOutput(
 	}
 	
 	os << "//" << endl;
-	
 }
 
 void ChainToHits(CDatabankPtr inDatabank, const string& inSequence,
@@ -676,15 +695,49 @@ void ChainToHits(CDatabankPtr inDatabank, const string& inSequence,
 		}
 	}
 
-	uint32 seqNr = residues.front()->GetSeqNumber();
-	string s = msa.front().m_seq;
+	string& s = msa.front().m_seq;
 	for (uint32 i = 0; i < s.length(); ++i)
 	{
 		if (s[i] != '-' and s[i] != ' ')
+			res.push_back(CreateResidueHInfo(s[i], hits, i));
+	}
+}
+
+// Find the minimal set of overlapping sequences
+// Only search fully contained subsequences, no idea what to do with
+// sequences that overlap and each have a tail. What residue number to use in that case? What chain ID?
+void ClusterSequences(vector<string>& s, vector<uint32>& ix)
+{
+	for (;;)
+	{
+		bool found = false;
+		for (uint32 i = 0; not found and i < s.size() - 1; ++i)
 		{
-			res.push_back(CreateResidueHInfo(s[i], seqNr, hits, i));
-			++seqNr;
+			for (uint32 j = i + 1; not found and j < s.size(); ++j)
+			{
+				string& a = s[i];
+				string& b = s[j];
+
+				if (a.empty() or b.empty())
+					continue;
+
+				if (ba::contains(b, a)) // i fully contained in j
+				{
+					s[i].clear();
+					ix[i] = j;
+					found = true;
+				}
+				else if (ba::contains(a, b)) // j fully contained in i
+				{
+					s[j].clear();
+					ix[j] = i;
+					found = true;
+				}
+			}
 		}
+		
+		if (not found)
+			break;
 	}
 }
 
@@ -699,37 +752,49 @@ void CreateHSSP(
 	MProtein&					inProtein,
 	const string&				inJackHmmer,
 	uint32						inIterations,
+	uint32						inMinSeqLength,
 	ostream&					outHSSP)
 {
-	uint32 nchain = 0, kchain = 0, seqlength = 0;
+	uint32 seqlength = 0;
 
 	vector<hit_ptr> hits;
 	vector<res_ptr> res;
-	vector<MSAInfo> msas;
+
+	// construct a set of unique sequences, containing only the largest ones in case of overlap
+	vector<string> seqset;
+	vector<uint32> ix;
+	vector<const MChain*> chains;
 	
 	foreach (const MChain* chain, inProtein.GetChains())
 	{
-		const vector<MResidue*>& residues(chain->GetResidues());
-		
 		string seq;
 		chain->GetSequence(seq);
 		
-		++nchain;
-		
-		bool newSequence = true;
-		foreach (MSAInfo& msa, msas)
-		{
-			if (msa.seq == seq)
-			{
-				msa.chainNames.push_back(chain->GetChainID());
-				newSequence = false;
-			}
-		}
-
-		if (not newSequence)
+		if (seq.length() < inMinSeqLength)
 			continue;
 		
-		++kchain;
+		chains.push_back(chain);
+		seqset.push_back(seq);
+		ix.push_back(ix.size());
+	}
+	
+	if (seqset.empty())
+		THROW(("Not enough sequences in DSSP file of length %d", inMinSeqLength));
+
+	if (seqset.size() > 1)
+		ClusterSequences(seqset, ix);
+	
+	vector<MSAInfo> msas;
+	for (uint32 i = 0; i < chains.size(); ++i)
+	{
+		if (ix[i] != i)
+			continue;
+
+		const MChain* chain = chains[i];
+		const vector<MResidue*>& residues(chain->GetResidues());
+		
+		string& seq = seqset[i];
+		assert(not seq.empty());
 		seqlength += seq.length();
 
 		vector<hit_ptr> c_hits;
@@ -742,7 +807,7 @@ void CreateHSSP(
 			for (uint32 i = 0; i < c_res.size(); ++i)
 			{
 				assert(kResidueInfo[residues[i]->GetType()].code == c_res[i]->letter);
-				assert(residues[i]->GetSeqNumber() == c_res[i]->seqNr);
+				c_res[i]->seqNr = residues[i]->GetSeqNumber();
 				c_res[i]->chain = chain->GetChainID();
 				c_res[i]->dssp = ResidueToDSSPLine(inProtein, *residues[i]).substr(0, 39);
 			}
@@ -750,6 +815,13 @@ void CreateHSSP(
 			msas.push_back(MSAInfo(seq, chain->GetChainID(), c_hits, c_res));
 			hits.insert(hits.end(), c_hits.begin(), c_hits.end());
 			res.insert(res.end(), c_res.begin(), c_res.end());
+		}
+		
+		// collect other chain names
+		for (uint32 j = 0; j < ix.size(); ++j)
+		{
+			if (j != i and ix[j] == i)
+				msas.back().chainNames.push_back(string(1, chains[j]->GetChainID()));
 		}
 	}
 
@@ -761,7 +833,19 @@ void CreateHSSP(
 	foreach (hit_ptr h, hits)
 		h->nr = nr++;
 	
-	CreateHSSPOutput(inProtein, inDatabank->GetVersion(), seqlength, nchain, kchain, hits, res, msas, outHSSP);
+	string usedChains;
+	for (int i = 0; i < ix.size(); ++i)
+	{
+		if (ix[i] == i)
+		{
+			if (not usedChains.empty())
+				usedChains += ',';
+			usedChains += chains[i]->GetChainID();
+		}
+	}
+	
+	CreateHSSPOutput(inProtein, inDatabank->GetVersion(), seqlength,
+		chains.size(), msas.size(), usedChains, hits, res, msas, outHSSP);
 }
 
 }

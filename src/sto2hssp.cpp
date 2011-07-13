@@ -144,10 +144,10 @@ int main(int argc, char* argv[])
 			vector<char> hssp;
 			
 			io::filtering_ostream os(io::back_inserter(hssp));
-			hmmer::CreateHSSP(db, a, jackhmmer, iterations, out);
+			hmmer::CreateHSSP(db, a, jackhmmer, iterations, 25, out);
 		}
 		else
-			hmmer::CreateHSSP(db, a, jackhmmer, iterations, cout);
+			hmmer::CreateHSSP(db, a, jackhmmer, iterations, 25, cout);
 
 //		// and the final HSSP file
 //		// (we use a temporary stringstream, to avoid

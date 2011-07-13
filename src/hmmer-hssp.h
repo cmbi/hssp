@@ -18,6 +18,7 @@ void CreateHSSP(
 	MProtein&					inProtein,
 	const std::string&			inJackHmmer,
 	uint32						inIterations,
+	uint32						inMinSeqLength,
 	std::ostream&				outHSSP);
 
 void CreateHSSP(
