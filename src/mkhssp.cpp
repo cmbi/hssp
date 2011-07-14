@@ -57,9 +57,9 @@ int main(int argc, char* argv[])
 			("input,i",		po::value<string>(), "Input PDB file")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("databank,b",	po::value<string>(), "Databank to use (default is uniprot)")
-			("verbose,v",						 "Verbose output")
-			("jackhmmer",	po::value<string>(), "Jackhmmer executable path")
+			("jackhmmer",	po::value<string>(), "Jackhmmer executable path (default=/usr/local/bin/jackhmmer)")
 			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
+			("verbose,v",						 "Verbose output")
 			("debug,d",		po::value<int>(),	 "Debug level (for even more verbose output)")
 			;
 	
@@ -85,7 +85,7 @@ int main(int argc, char* argv[])
 		if (vm.count("databank"))
 			databank = vm["databank"].as<string>();
 			
-		string jackhmmer = "/usr/bin/jackhmmer";
+		string jackhmmer = "/usr/local/bin/jackhmmer";
 		if (vm.count("jackhmmer"))
 			jackhmmer = vm["jackhmmer"].as<string>();
 			
