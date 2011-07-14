@@ -4,7 +4,6 @@
   </pkg-config>
   <syspaths>
     <path>../libzeep</path>
-    <path>../clustal-omega/include/clustalo</path>
   </syspaths>
   <userpaths>
     <path>src</path>
@@ -13,8 +12,6 @@
   <libpaths>
     <path>../mrs/lib</path>
     <path>../libzeep</path>
-    <path>/usr/local/lib</path>
-    <path>../clustal-omega/lib</path>
   </libpaths>
   <files>
     <group name="Sources">
@@ -23,6 +20,7 @@
       <file>structure.cpp</file>
       <file>utils.cpp</file>
       <file>dssp.cpp</file>
+      <file>hmmer-hssp.cpp</file>
       <file>mkhssp.cpp</file>
     </group>
     <group name="Libraries">
@@ -37,13 +35,12 @@
       <link>bz2</link>
       <link>z</link>
       <link>zeep</link>
-      <link>clustalo</link>
     </group>
   </files>
   <targets>
     <target kind="Executable">
       <name>hssp-Debug</name>
-      <linkTarget>hssp-2</linkTarget>
+      <linkTarget>mkhssp</linkTarget>
       <compiler>/usr/bin/g++</compiler>
       <defines>
         <define>DEBUG</define>
@@ -64,7 +61,7 @@
     </target>
     <target kind="Executable">
       <name>hssp-Release</name>
-      <linkTarget>hssp-2</linkTarget>
+      <linkTarget>mkhssp</linkTarget>
       <compiler>/usr/bin/g++</compiler>
       <defines>
         <define>NDEBUG</define>
@@ -72,10 +69,10 @@
         <define>USE_COMPRESSION</define>
       </defines>
       <cflags>
-        <cflag>-O3</cflag>
         <cflag>-pthread</cflag>
         <cflag>-fopenmp</cflag>
         <cflag>-std=c++0x</cflag>
+        <cflag>-O3</cflag>
       </cflags>
       <warnings>
         <warning>all</warning>

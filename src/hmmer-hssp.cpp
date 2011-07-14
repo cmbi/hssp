@@ -237,7 +237,8 @@ void RunJackHmmer(const string& seq, uint32 iterations, const string& jackhmmer,
 	fs::ifstream is(rundir / "output.sto");
 	ReadStockholm(is, msa);
 	
-	fs::remove_all(rundir);
+	if (not VERBOSE)
+		fs::remove_all(rundir);
 }
 	
 struct insertion
@@ -248,8 +249,6 @@ struct insertion
 
 struct hit
 {
-				hit(const string& id, const string& seq) : nr(0), id(id), seq(seq), alwaysSelect(false) {}
-
 	uint32		nr;
 	string		id, acc, seq, desc, pdb;
 	uint32		ifir, ilas, jfir, jlas, lali, ngap, lgap, lseq2;
@@ -257,7 +256,6 @@ struct hit
 	uint32		identical, similar;
 	vector<insertion>
 				insertions;
-	bool		alwaysSelect;
 
 	bool		operator<(const hit& rhs) const 	{ return ide > rhs.ide or (ide == rhs.ide and lali > rhs.lali); }
 	
@@ -324,6 +322,9 @@ bool hit::IdentityAboveThreshold() const
 	return kHomologyThreshold[l] < ide;
 }
 
+// Create a hit object based on a jackhmmer alignment pair
+// first is the original query sequence, with gaps introduced.
+// second is the hit sequence
 hit_ptr CreateHit(const string& id, const string& q, const string& s)
 {
 	hit_ptr result;
@@ -356,32 +357,34 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 	sequence::iterator qb = sq.begin(), qe = sq.end(),
 					   sb = ss.begin(), se = ss.end();
 
-	result.reset(new hit(id, s));
+	result.reset(new hit);
 	hit& h = *result;
-	h.lseq2 = ss.length();
-	h.lgap = h.ngap = h.identical = h.similar = 0;
 
-	h.ifir = h.jfir = 1;
-	h.ilas = h.jlas = sq.length();
+	// parse out the position
+	static const boost::regex re("([a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
+	boost::smatch sm;
+
+	if (not boost::regex_match(id, sm, re))
+		throw mas_exception("Alignment ID should contain position");
+	
+	h.id = sm.str(1);
+	h.seq = s;
+	
+	h.ifir = 1;
+	h.ilas = sq.length();
+
+	// jfir/jlas can be taken over from jackhmmer output
+	h.jfir = boost::lexical_cast<uint32>(sm.str(2));
+	h.jlas = boost::lexical_cast<uint32>(sm.str(3));
+
+	h.lgap = h.ngap = h.identical = h.similar = 0;
 	
 	while (qb != qe)
 	{
 		if (*qb == kSignalGapCode)
-		{
-			++h.jfir;
 			--h.ilas;
-		}
 		else if (*sb == kSignalGapCode)
-		{
 			++h.ifir;
-			--h.jlas;
-			--h.lseq2;
-		}
-		else if (m(*qb, *sb) <= 0)
-		{
-			++h.ifir;
-			++h.jfir;
-		}
 		else
 			break;
 		
@@ -392,13 +395,9 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 	sq.erase(sq.begin(), qb); qb = sq.begin(); qe = sq.end();
 	ss.erase(ss.begin(), sb); sb = ss.begin(); se = ss.end();
 
-	while (qe != qb and (*(qe - 1) == kSignalGapCode or *(se - 1) == kSignalGapCode or m(*(qe - 1), *(se - 1)) <= 0))
+	while (qe != qb and (*(qe - 1) == kSignalGapCode or *(se - 1) == kSignalGapCode))
 	{
-		if (*(se - 1) == kSignalGapCode)
-			--h.lseq2;
-
 		--h.ilas;
-		--h.jlas;
 		--qe;
 		--se;
 	}
@@ -417,7 +416,6 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 				++h.ngap;
 			gap = true;
 			++h.lgap;
-			--h.lseq2;
 		}
 		else if (*qi == kSignalGapCode)
 		{
@@ -483,20 +481,15 @@ res_ptr CreateResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos)
 struct MSAInfo
 {
 	string				seq;
-	vector<string>		chainNames;
 	set<hit_ptr>		hits;
 	set<res_ptr>		residues;
 
-						MSAInfo(const string& seq, char chainName,
-							vector<hit_ptr>& h, vector<res_ptr>& r)
+						MSAInfo(const string& seq, vector<hit_ptr>& h, vector<res_ptr>& r)
 							: seq(seq)
 						{
 							assert(not h.empty());
 							assert(not r.empty());
-							
-							string n(1, chainName);
-							
-							chainNames.push_back(n);
+
 							hits.insert(h.begin(), h.end());
 							residues.insert(r.begin(), r.end());
 						}
@@ -508,8 +501,7 @@ char SelectAlignedLetter(const vector<MSAInfo>& msas, hit_ptr hit, res_ptr res)
 	
 	foreach (const MSAInfo& msa, msas)
 	{
-		if (msa.hits.count(hit) and msa.residues.count(res) and
-			(hit->alwaysSelect or (hit->ifir <= res->seqNr and hit->ilas >= res->seqNr)))
+		if (msa.hits.count(hit) and msa.residues.count(res))
 		{
 			result = hit->seq[res->pos];
 			break;
@@ -624,7 +616,7 @@ void CreateHSSPOutput(
 			for (uint32 j = i; j < n; ++j)
 				aln += SelectAlignedLetter(msas, hits[j], ri);
 			
-			os << ' ' << ri->dssp << boost::format("%4.4d %4.4d  ") % ri->nocc % ri->var << aln << endl;
+			os << ' ' << boost::format("%5.5d%s%4.4d %4.4d  ") % ri->seqNr % ri->dssp % ri->nocc % ri->var << aln << endl;
 		}
 	}
 	
@@ -656,29 +648,22 @@ void CreateHSSPOutput(
 	os << "//" << endl;
 }
 
-void ChainToHits(CDatabankPtr inDatabank, const string& inSequence,
-	const string& inJackHmmer, uint32 inIterations,
+void ChainToHits(CDatabankPtr inDatabank, const mseq& msa,
 	vector<hit_ptr>& hits, const vector<MResidue*>& residues, vector<res_ptr>& res)
 {
-	mseq msa;
-	
-	RunJackHmmer(inSequence, inIterations, inJackHmmer, inDatabank->GetID(), msa);
-	
-	boost::regex re("([a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
-
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
 		hit_ptr hit = CreateHit(msa[i].m_id, msa[0].m_seq, msa[i].m_seq);
 
-		// parse out the position
-		boost::smatch sm;
-		if (not boost::regex_match(msa[i].m_id, sm, re))
-			throw mas_exception("Alignment ID should contain position");
-		
-		hit->id = sm.str(1);
-		hit->ifir = boost::lexical_cast<uint32>(sm.str(2));
-		hit->ilas = boost::lexical_cast<uint32>(sm.str(3));
-		hit->alwaysSelect = true;
+//		// parse out the position
+//		boost::smatch sm;
+//		if (not boost::regex_match(msa[i].m_id, sm, re))
+//			throw mas_exception("Alignment ID should contain position");
+//		
+//		hit->id = sm.str(1);
+//		hit->jfir = boost::lexical_cast<uint32>(sm.str(2));
+//		hit->jlas = boost::lexical_cast<uint32>(sm.str(3));
+//		hit->alwaysSelect = true;
 
 		for (string::iterator r = hit->seq.begin(); r != hit->seq.end() and *r == '-'; ++r)
 			*r = ' ';
@@ -688,14 +673,17 @@ void ChainToHits(CDatabankPtr inDatabank, const string& inSequence,
 
 		if (hit->IdentityAboveThreshold())
 		{
-			hit->desc = inDatabank->GetMetaData(hit->id, "title");
-			hit->acc = inDatabank->GetMetaData(hit->id, "acc");
+			uint32 docNr = inDatabank->GetDocumentNr(hit->id);
+			
+			hit->desc = inDatabank->GetMetaData(docNr, "title");
+			hit->acc = inDatabank->GetMetaData(docNr, "acc");
+			hit->lseq2 = inDatabank->GetSequence(docNr, 0).length();
 			
 			hits.push_back(hit);
 		}
 	}
 
-	string& s = msa.front().m_seq;
+	const string& s = msa.front().m_seq;
 	for (uint32 i = 0; i < s.length(); ++i)
 	{
 		if (s[i] != '-' and s[i] != ' ')
@@ -721,16 +709,16 @@ void ClusterSequences(vector<string>& s, vector<uint32>& ix)
 				if (a.empty() or b.empty())
 					continue;
 
-				if (ba::contains(b, a)) // i fully contained in j
-				{
-					s[i].clear();
-					ix[i] = j;
-					found = true;
-				}
-				else if (ba::contains(a, b)) // j fully contained in i
+				if (ba::contains(a, b)) // j fully contained in i
 				{
 					s[j].clear();
 					ix[j] = i;
+					found = true;
+				}
+				else if (ba::contains(b, a)) // i fully contained in j
+				{
+					s[i].clear();
+					ix[i] = j;
 					found = true;
 				}
 			}
@@ -783,8 +771,18 @@ void CreateHSSP(
 
 	if (seqset.size() > 1)
 		ClusterSequences(seqset, ix);
+
+	vector<mseq> alignments;
+	for (uint32 i = 0; i < ix.size(); ++i)
+	{
+		alignments.push_back(mseq());
+		if (ix[i] != i)	// if remapped (double) skip
+			continue;
+		RunJackHmmer(seqset[i], inIterations, inJackHmmer, inDatabank->GetID(), alignments.back());
+	}
 	
 	vector<MSAInfo> msas;
+	uint32 seqNr = 1;
 	for (uint32 i = 0; i < chains.size(); ++i)
 	{
 		if (ix[i] != i)
@@ -799,29 +797,30 @@ void CreateHSSP(
 
 		vector<hit_ptr> c_hits;
 		vector<res_ptr> c_res;
+
+		ChainToHits(inDatabank, alignments[i], c_hits, residues, c_res);
 		
-		ChainToHits(inDatabank, seq, inJackHmmer, inIterations, c_hits, residues, c_res);
 		if (not c_hits.empty() and not c_res.empty())
 		{
 			assert(c_res.size() == residues.size());
+			
 			for (uint32 i = 0; i < c_res.size(); ++i)
 			{
 				assert(kResidueInfo[residues[i]->GetType()].code == c_res[i]->letter);
-				c_res[i]->seqNr = residues[i]->GetSeqNumber();
+				
+				if (i > 0 and residues[i - 1]->GetNumber() + 1 != residues[i]->GetNumber())
+					++seqNr;
+					
+				c_res[i]->seqNr = seqNr;
+				++seqNr;
+
 				c_res[i]->chain = chain->GetChainID();
-				c_res[i]->dssp = ResidueToDSSPLine(inProtein, *residues[i]).substr(0, 39);
+				c_res[i]->dssp = ResidueToDSSPLine(inProtein, *residues[i]).substr(5, 34);
 			}
 			
-			msas.push_back(MSAInfo(seq, chain->GetChainID(), c_hits, c_res));
+			msas.push_back(MSAInfo(seq, c_hits, c_res));
 			hits.insert(hits.end(), c_hits.begin(), c_hits.end());
 			res.insert(res.end(), c_res.begin(), c_res.end());
-		}
-		
-		// collect other chain names
-		for (uint32 j = 0; j < ix.size(); ++j)
-		{
-			if (j != i and ix[j] == i)
-				msas.back().chainNames.push_back(string(1, chains[j]->GetChainID()));
 		}
 	}
 
