@@ -14,22 +14,21 @@ BOOST_INC_DIR		= $(HOME)/projects/boost/include
 ZEEP_DIR			= $(HOME)/projects/libzeep/
 
 DEST_DIR			?= /usr/local/
-LIB_DIR				= $(DEST_DIR)lib $(HOME)/projects/mrs/lib \
-					  $(ZEEP_DIR) $(BOOST_LIB_DIR)
+LIB_DIR				= $(BOOST_LIB_DIR) $(ZEEP_DIR) $(DEST_DIR)lib $(HOME)/projects/mrs/lib
 INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
 					  $(ZEEP_DIR) src/
 MAN_DIR				= $(DEST_DIR)man/man3
 
 BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
-LIBS				= zeep $(BOOST_LIBS) z bz2
+LIBS				= mrs zeep $(BOOST_LIBS) z bz2
 LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
 CC					?= c++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources -DBOOST_FILESYSTEM_VERSION=2 \
 					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread \
-					  -DBOOST_FILESYSTEM_VERSION=2
+					  -DBOOST_FILESYSTEM_VERSION=2 -std=c++0x
 OPT					= -O3 -DNDEBUG # -march=native
 
 include make.config
@@ -59,7 +58,7 @@ dssp-2: obj/mkdssp.o obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o
 	@ c++ -static -o $@ $? $(LDOPTS)
 	@ echo OK
 
-mkhssp: obj/mkhssp.o obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
+mkhssp: obj/mkhssp.o obj/dssp.o obj/hmmer-hssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
 	@ echo linking $@
 	@ c++ -o $@ $^ $(LDOPTS)
 	@ echo OK
