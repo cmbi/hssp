@@ -26,7 +26,7 @@
 
 using namespace std;
 
-string ResidueToDSSPLine(const MProtein& protein, const MResidue& residue)
+string ResidueToDSSPLine(const MResidue& residue)
 {
 /*   
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA 
@@ -229,7 +229,7 @@ void WriteDSSP(MProtein& protein, ostream& os)
 				breaktype = '*';
 			os << (kDSSPResidueLine % (last->GetNumber() + 1) % breaktype) << endl;
 		}
-		os << ResidueToDSSPLine(protein, *residue) << endl;
+		os << ResidueToDSSPLine(*residue) << endl;
 		last = residue;
 //
 //		if (chain != protein.GetChains().back())

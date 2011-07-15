@@ -412,12 +412,13 @@ bool Hit::IdentityAboveThreshold() const
 
 struct ResidueHInfo
 {
-					ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos);
+					ResidueHInfo(uint32 seqNr);
+					ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr, const string& dssp);
 	
 	char			letter;
 	char			chain;
 	string			dssp;
-	uint32			seqNr;
+	uint32			seqNr, pdbNr;
 	uint32			pos;
 	uint32			nocc, ndel, nins;
 	float			entropy, weight;
@@ -434,10 +435,19 @@ typedef shared_ptr<ResidueHInfo>	res_ptr;
 
 const string ResidueHInfo::kIX("VLIMFWYGAPSTCHRKQEND");
 
-ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos)
+// first constructor is for a 'chain-break'
+ResidueHInfo::ResidueHInfo(uint32 seqNr)
+	: letter(0)
+	, seqNr(seqNr)
+{
+}
+
+ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr, const string& dssp)
 	: letter(a)
-	, chain(0)
-	, seqNr(0)
+	, chain(chain)
+	, dssp(dssp)
+	, seqNr(seqNr)
+	, pdbNr(pdbNr)
 	, pos(pos)
 	, nocc(1)
 	, ndel(0)
@@ -555,33 +565,28 @@ void CreateHSSPOutput(
 		   					% k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << endl;
 
 		res_ptr last;
-		uint32 seqNr = 1;
 		foreach (res_ptr ri, res)
 		{
-			if (last and last->seqNr + 1 != ri->seqNr)
+			if (ri->letter == 0)
+				os << boost::format(" %5.5d        !  !           0   0    0    0    0") % ri->seqNr << endl;
+			else
 			{
-				os << boost::format(" %5.5d        !  !           0   0    0    0    0") % seqNr << endl;
-				++seqNr;
-			}
-
-			last = ri;
-			++seqNr;
-			
-			string aln;
-			
-			for (uint32 j = i; j < n; ++j)
-			{
-				if (hits[j]->chain == ri->chain)
+				string aln;
+				
+				for (uint32 j = i; j < n; ++j)
 				{
-					uint32 p = ri->pos;
-					uint32 i = hits[j]->ix;
-					aln += hits[j]->msa[i].m_seq[p];
+					if (hits[j]->chain == ri->chain)
+					{
+						uint32 p = ri->pos;
+						uint32 i = hits[j]->ix;
+						aln += hits[j]->msa[i].m_seq[p];
+					}
+					else
+						aln += ' ';
 				}
-				else
-					aln += ' ';
+				
+				os << ' ' << boost::format("%5.5d%s%4.4d %4.4d  ") % ri->seqNr % ri->dssp % ri->nocc % ri->var << aln << endl;
 			}
-			
-			os << ' ' << boost::format("%5.5d%s%4.4d %4.4d  ") % ri->seqNr % ri->dssp % ri->nocc % ri->var << aln << endl;
 		}
 	}
 	
@@ -589,25 +594,23 @@ void CreateHSSPOutput(
 	os << "## SEQUENCE PROFILE AND ENTROPY" << endl
 	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
 	
-	uint32 seqNr = 1;
 	res_ptr last;
 	foreach (res_ptr r, res)
 	{
-		if (last and last->seqNr + 1 != r->seqNr)
+		if (r->letter == 0)
 		{
 			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
-				% seqNr << endl;
-			++seqNr;
+				% r->seqNr << endl;
 		}
-		last = r;
+		else
+		{
+			os << boost::format(" %4.4d %4.4d %c") % r->seqNr % r->pdbNr % r->chain;
 
-		os << boost::format(" %4.4d %4.4d %c") % seqNr % seqNr % r->chain;
-		++seqNr;
-
-		for (uint32 i = 0; i < 20; ++i)
-			os << boost::format("%4.4d") % r->dist[i];
-		
-		os << "  " << boost::format("%4.4d %4.4d %4.4d") % r->nocc % r->ndel % r->nins << endl;
+			for (uint32 i = 0; i < 20; ++i)
+				os << boost::format("%4.4d") % r->dist[i];
+			
+			os << "  " << boost::format("%4.4d %4.4d %4.4d") % r->nocc % r->ndel % r->nins << endl;
+		}
 	}
 	
 	os << "//" << endl;
@@ -617,12 +620,12 @@ void CreateHSSPOutput(
 // Convert a multiple sequence alignment as created by jackhmmer to 
 // a set of information as used by HSSP.
 
-void ChainToHits(CDatabankPtr inDatabank, mseq& msa, char inChain,
-	vector<hit_ptr>& hits, const vector<MResidue*>& residues, vector<res_ptr>& res)
+void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
+	vector<hit_ptr>& hits, vector<res_ptr>& res)
 {
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
-		hit_ptr h(new Hit(msa, inChain, 0, i));
+		hit_ptr h(new Hit(msa, chain.GetChainID(), 0, i));
 
 		if (h->IdentityAboveThreshold())
 		{
@@ -639,13 +642,28 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, char inChain,
 			hits.push_back(h);
 		}
 	}
+	
+	const vector<MResidue*>& residues = chain.GetResidues();
+	vector<MResidue*>::const_iterator ri = residues.begin();
 
 	const string& s = msa.front().m_seq;
 	for (uint32 i = 0; i < s.length(); ++i)
 	{
 		if (s[i] != '-' and s[i] != ' ')
-			res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i)));
+		{
+			assert(ri != residues.end());
+			
+			if (ri != residues.begin() and (*ri)->GetNumber() > (*(ri - 1))->GetNumber() + 1)
+				res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
+			
+			string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
+			res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i, chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp)));
+
+			++ri;
+		}
 	}
+	
+	assert(ri == residues.end());
 }
 
 // Find the minimal set of overlapping sequences
@@ -724,56 +742,28 @@ void CreateHSSP(
 
 	if (seqset.size() > 1)
 		ClusterSequences(seqset, ix);
-
-	vector<mseq> alignments;
-	for (uint32 i = 0; i < ix.size(); ++i)
-	{
-		alignments.push_back(mseq());
-		if (ix[i] != i)	// if remapped (double) skip
-			continue;
-		RunJackHmmer(seqset[i], inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignments.back());
-	}
 	
-	uint32 seqNr = 1;
-	for (uint32 i = 0; i < chains.size(); ++i)
-	{
-		if (ix[i] != i)
-			continue;
+	// only take the unique sequences
+	ix.erase(unique(ix.begin(), ix.end()), ix.end());
 
+	// Maybe we should change this code to run jackhmmer only once 
+	vector<mseq> alignments(seqset.size());
+	foreach (uint32 i, ix)
+		RunJackHmmer(seqset[i], inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignments[i]);
+	
+	foreach (uint32 i, ix)
+	{
 		const MChain* chain = chains[i];
-		const vector<MResidue*>& residues(chain->GetResidues());
 		
 		string& seq = seqset[i];
 		assert(not seq.empty());
 		seqlength += seq.length();
 
-		vector<hit_ptr> c_hits;
-		vector<res_ptr> c_res;
+		if (not res.empty())
+			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
 
-		ChainToHits(inDatabank, alignments[i], chain->GetChainID(), c_hits, residues, c_res);
-		
-		if (not c_hits.empty() and not c_res.empty())
-		{
-			assert(c_res.size() == residues.size());
-			
-			for (uint32 i = 0; i < c_res.size(); ++i)
-			{
-				assert(kResidueInfo[residues[i]->GetType()].code == c_res[i]->letter);
-				
-				if (i > 0 and residues[i - 1]->GetNumber() + 1 != residues[i]->GetNumber())
-					++seqNr;
-					
-				c_res[i]->seqNr = seqNr;
-				++seqNr;
-
-				c_res[i]->chain = chain->GetChainID();
-				c_res[i]->dssp = ResidueToDSSPLine(inProtein, *residues[i]).substr(5, 34);
-			}
-			
-			hits.insert(hits.end(), c_hits.begin(), c_hits.end());
-			res.insert(res.end(), c_res.begin(), c_res.end());
-			++kchain;
-		}
+		ChainToHits(inDatabank, alignments[i], *chain, hits, res);
+		++kchain;
 	}
 
 	sort(hits.begin(), hits.end(), compare_hit());
@@ -785,14 +775,11 @@ void CreateHSSP(
 		h->nr = nr++;
 	
 	string usedChains;
-	for (int i = 0; i < ix.size(); ++i)
+	foreach (uint32 i, ix)
 	{
-		if (ix[i] == i)
-		{
-			if (not usedChains.empty())
-				usedChains += ',';
-			usedChains += chains[i]->GetChainID();
-		}
+		if (not usedChains.empty())
+			usedChains += ',';
+		usedChains += chains[i]->GetChainID();
 	}
 	
 	CreateHSSPOutput(inProtein, inDatabank->GetVersion(), seqlength,
