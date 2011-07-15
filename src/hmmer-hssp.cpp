@@ -5,41 +5,23 @@
 
 #include "MRS.h"
 
-#include <iostream>
-#include <set>
 #include <wait.h>
 
-#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
-#include <boost/format.hpp>
-#include <boost/iostreams/filtering_streambuf.hpp>
-#include <boost/iostreams/filter/zlib.hpp>
-#include <boost/iostreams/device/back_inserter.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
-#include <boost/iostreams/filter/bzip2.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
-#include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
-#include <boost/program_options.hpp>
-#include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/date_clock_device.hpp>
 #include <boost/regex.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
 
 #include "CDatabank.h"
-#include "CDatabankTable.h"
-#include "CBlast.h"
-#include "CQuery.h"
 
-#include "mas.h"
 #include "matrix.h"
 #include "dssp.h"
-#include "blast.h"
 #include "structure.h"
 #include "utils.h"
 #include "hmmer-hssp.h"
@@ -47,32 +29,38 @@
 using namespace std;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
-namespace po = boost::program_options;
 
 namespace hmmer
 {
+
+// --------------------------------------------------------------------
+// utility routine
 	
 inline bool is_gap(char aa)
 {
 	return aa == '-' or aa == '~' or aa == '.' or aa == '_';
 }
 
+// --------------------------------------------------------------------
+// basic named sequence type and a multiple sequence alignment container
+	
 struct seq
 {
-	std::string		m_id;
-	std::string		m_seq;
+	string		m_id;
+	string		m_seq;
 	
-					seq() {}
+				seq() {}
 
-					seq(const std::string& id, const std::string& seq)
-						: m_id(id)
-						, m_seq(seq)
-					{
-					}
+				seq(const string& id, const string& seq)
+					: m_id(id)
+					, m_seq(seq)
+				{
+				}
 };
 
-typedef std::vector<seq> mseq;
+typedef vector<seq> mseq;
 
+// --------------------------------------------------------------------
 // ReadStockholm is a function that reads a multiple sequence alignment from
 // a Stockholm formatted file. Restriction is that this Stockholm file has
 // a #=GF field at the second line containing the ID of the query used in
@@ -159,6 +147,9 @@ void ReadStockholm(istream& is, mseq& msa)
 	}
 }
 
+// --------------------------------------------------------------------
+// Run the Jackhmmer application
+
 void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
 	const string& db, mseq& msa)
 {
@@ -244,66 +235,152 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		fs::remove_all(rundir);
 }
 	
-struct insertion
-{
-	uint32		ipos, jpos;
-	string		seq;
-};
-
-struct hit
-{
-				hit(const mseq& msa, uint32 ix)
-					: msa(msa), ix(ix) {}
-
-	const mseq&	msa;
-	uint32		nr, ix;
-	string		id, acc, desc, pdb;
-	uint32		ifir, ilas, jfir, jlas, lali, ngap, lgap, lseq2;
-	float		ide, wsim;
-	uint32		identical, similar;
-	vector<insertion>
-				insertions;
-
-	bool		operator<(const hit& rhs) const 	{ return ide > rhs.ide or (ide == rhs.ide and lali > rhs.lali); }
+// --------------------------------------------------------------------
+// Hit is a class to store hit information and all of its statistics.
 	
-	bool		IdentityAboveThreshold() const;
-};
-
-typedef shared_ptr<hit> hit_ptr;
-
-struct ResidueHInfo
+struct Hit
 {
-	char			letter;
+					Hit(mseq& msa, char chain, uint32 qix, uint32 six);
+
+	const mseq&		msa;
 	char			chain;
-	string			dssp;
-	uint32			seqNr;
-	uint32			pos;
-	uint32			nocc, ndel, nins;
-	float			entropy, weight;
-	uint32			relent;
-	uint32			var;
-	uint32			dist[20];
+	uint32			nr, ix;
+	string			id, acc, desc, pdb;
+	uint32			ifir, ilas, jfir, jlas, lali, ngap, lgap, lseq2;
+	float			ide, wsim;
+	uint32			identical, similar;
+	bool			insertions;
+
+	bool			operator<(const Hit& rhs) const 	{ return ide > rhs.ide or (ide == rhs.ide and lali > rhs.lali); }
+	
+	bool			IdentityAboveThreshold() const;
 };
 
-typedef shared_ptr<ResidueHInfo>	res_ptr;
+typedef shared_ptr<Hit> hit_ptr;
+
+// Create a Hit object based on a jackhmmer alignment pair
+// first is the original query sequence, with gaps introduced.
+// second is the hit sequence.
+// Since this is jackhmmer output, we can safely assume the
+// alignment does not contain gaps at the start or end of the query.
+// (However, being paranoid, I do check this...)
+Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
+	: msa(msa)
+	, chain(chain)
+	, ix(six)
+	, insertions(false)
+{
+	string& q = msa[qix].m_seq;
+	string& s = msa[six].m_seq;
+	
+	if (q.empty() or s.empty())
+		THROW(("Invalid (empty) sequence"));
+	
+	if (is_gap(q[0]) or is_gap(q[q.length() - 1]))
+		THROW(("Leading (or trailing) gaps found in query sequence"));
+	
+	assert(q.length() == s.length());
+
+	// parse out the position
+	static const boost::regex re("([a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
+	boost::smatch sm;
+
+	if (not boost::regex_match(msa[six].m_id, sm, re))
+		throw mas_exception("Alignment ID should contain position");
+	
+	id = sm.str(1);
+	
+	ifir = 1;
+	ilas = q.length();
+
+	// jfir/jlas can be taken over from jackhmmer output
+	jfir = boost::lexical_cast<uint32>(sm.str(2));
+	jlas = boost::lexical_cast<uint32>(sm.str(3));
+
+	lgap = ngap = identical = similar = 0;
+	
+	string::iterator qb = q.begin(), qe = q.end(), sb = s.begin(), se = s.end();
+
+	while (qb != qe)
+	{
+		if (is_gap(*sb))
+		{
+			*sb = ' ';
+			++ifir;
+		}
+		else
+			break;
+		
+		++qb;
+		++sb;
+	}
+	
+	while (qe != qb and is_gap(*(se - 1)))
+	{
+		--ilas;
+		--qe;
+		--se;
+		*se = ' ';
+	}
+
+	lali = s.length();
+	
+	bool sgap = false, qgap = false;
+	const substitution_matrix m("BLOSUM62");
+	for (string::iterator si = sb, qi = qb; si != se; ++si, ++qi)
+	{
+		if (is_gap(*si) and is_gap(*qi))
+		{
+			// a common gap
+			--lali;
+		}
+		else if (is_gap(*si))
+		{
+			if (not (sgap or qgap))
+				++ngap;
+			sgap = true;
+			++lgap;
+		}
+		else if (is_gap(*qi))
+		{
+			if (not qgap)
+				*(si - 1) = tolower(*(si - 1));
+			
+			if (not (sgap or qgap))
+				++ngap;
+
+			insertions = true;
+			qgap = true;
+			++lgap;
+		}
+		else
+		{
+			if (qgap)
+				*si = tolower(*si);
+			
+			sgap = false;
+			qgap = false;
+
+			if (*qi == *si)
+			{
+				++identical;
+				++similar;
+			}
+			else if (m(*qi, *si) > 0)
+				++similar;
+		}
+	}
+
+	ide = float(identical) / float(lali);
+	wsim = float(similar) / float(lali);
+}
 
 struct compare_hit
 {
 	bool operator()(hit_ptr a, hit_ptr b) const { return *a < *b; }
 };
 
-ostream& operator<<(ostream& os, const hit& h)
-{
-	static boost::format fmt("%5.5d : %12.12s%4.4s    %4.2f  %4.2f %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d ");
-	
-	os << fmt % h.nr % h.id % h.pdb
-			  % h.ide % h.wsim % h.ifir % h.ilas % h.jfir % h.jlas % h.lali
-			  % h.ngap % h.lgap % h.lseq2;
-	
-	return os;
-}
-
-bool hit::IdentityAboveThreshold() const
+bool Hit::IdentityAboveThreshold() const
 {
 	static vector<double> kHomologyThreshold;
 	if (kHomologyThreshold.empty())
@@ -329,196 +406,67 @@ bool hit::IdentityAboveThreshold() const
 	return kHomologyThreshold[l] < ide;
 }
 
-// Create a hit object based on a jackhmmer alignment pair
-// first is the original query sequence, with gaps introduced.
-// second is the hit sequence.
-// Since this is jackhmmer output, we can safely assume the
-// alignment does not contain gaps at the start or end of the query.
-// (However, being paranoid, I do check this...)
-hit_ptr CreateHit(mseq& msa, uint32 qix, uint32 six)
+// --------------------------------------------------------------------
+// ResidueHInfo is a class to store information about a residue in the
+// original query sequence, along with statistics.
+
+struct ResidueHInfo
 {
-	hit_ptr result;
+					ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos);
 	
-	string& q = msa[qix].m_seq;
-	string& s = msa[six].m_seq;
-	string& id = msa[six].m_id;
-	
-	if (q.empty() or s.empty())
-		THROW(("Invalid (empty) sequence"));
-	
-	if (is_gap(q[0]) or is_gap(q[q.length() - 1]))
-		THROW(("Leading (or trailing) gaps found in query sequence"));
-	
-	assert(q.length() == s.length());
+	char			letter;
+	char			chain;
+	string			dssp;
+	uint32			seqNr;
+	uint32			pos;
+	uint32			nocc, ndel, nins;
+	float			entropy, weight;
+	uint32			relent;
+	uint32			var;
+	uint32			dist[20];
 
-	result.reset(new hit(msa, six));
-	hit& h = *result;
+	static const string kIX;
+};
 
-	// parse out the position
-	static const boost::regex re("([a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
-	boost::smatch sm;
+typedef shared_ptr<ResidueHInfo>	res_ptr;
 
-	if (not boost::regex_match(id, sm, re))
-		throw mas_exception("Alignment ID should contain position");
-	
-	h.id = sm.str(1);
-	
-	h.ifir = 1;
-	h.ilas = q.length();
+// --------------------------------------------------------------------
 
-	// jfir/jlas can be taken over from jackhmmer output
-	h.jfir = boost::lexical_cast<uint32>(sm.str(2));
-	h.jlas = boost::lexical_cast<uint32>(sm.str(3));
+const string ResidueHInfo::kIX("VLIMFWYGAPSTCHRKQEND");
 
-	h.lgap = h.ngap = h.identical = h.similar = 0;
-	
-	string::iterator qb = q.begin(), qe = q.end(), sb = s.begin(), se = s.end();
-
-	while (qb != qe)
-	{
-		if (is_gap(*sb))
-		{
-			*sb = ' ';
-			++h.ifir;
-		}
-		else
-			break;
-		
-		++qb;
-		++sb;
-	}
-	
-	while (qe != qb and is_gap(*(se - 1)))
-	{
-		--h.ilas;
-		--qe;
-		--se;
-		*se = ' ';
-	}
-
-	h.lali = s.length();
-	
-	bool gap = true;
-	const substitution_matrix m("BLOSUM62");
-	for (string::iterator si = sb, qi = qb; si != se; ++si, ++qi)
-	{
-		if (is_gap(*si) and is_gap(*qi))
-		{
-			// a common gap
-			--h.lali;
-		}
-		else if (is_gap(*si))
-		{
-			if (not gap)
-				++h.ngap;
-			gap = true;
-			++h.lgap;
-		}
-		else if (is_gap(*qi))
-		{
-			if (not gap)
-				++h.ngap;
-			gap = true;
-			++h.lgap;
-		}
-		else
-		{
-			gap = false;
-
-			if (*qi == *si)
-			{
-				++h.identical;
-				++h.similar;
-			}
-			else if (m(*qi, *si) > 0)
-				++h.similar;
-		}
-	}
-
-	h.ide = float(h.identical) / float(h.lali);
-	h.wsim = float(h.similar) / float(h.lali);
-	
-	return result;
-}
-
-res_ptr CreateResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos)
+ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos)
+	: letter(a)
+	, chain(0)
+	, seqNr(0)
+	, pos(pos)
+	, nocc(1)
+	, ndel(0)
+	, nins(0)
+	, var(0)
 {
-	res_ptr r(new ResidueHInfo);
-	
-	const string kIX("VLIMFWYGAPSTCHRKQEND");
-	
-	r->letter = a;
-	r->chain = 'A';
-	r->seqNr = 0;
-	r->pos = pos;
-	r->nocc = 1;
-	r->ndel = r->nins = r->var = 0;
-	fill(r->dist, r->dist + 20, 0);
+	fill(dist, dist + 20, 0);
 	
 	string::size_type ix = kIX.find(a);
 	assert(ix != string::npos);
-	r->dist[ix] = 1;
+	if (ix != string::npos)
+		dist[ix] = 1;
 	
 	foreach (hit_ptr hit, hits)
 	{
 		ix = kIX.find(hit->msa[hit->ix].m_seq[pos]);
 		if (ix != string::npos)
 		{
-			++r->nocc;
-			r->dist[ix] += 1;
+			++nocc;
+			dist[ix] += 1;
 		}
 	}
 	
 	for (uint32 a = 0; a < 20; ++a)
-		r->dist[a] = uint32(((100.0 * r->dist[a]) / r->nocc) + 0.5);
-
-	return r;
+		dist[a] = uint32(((100.0 * dist[a]) / nocc) + 0.5);
 }
 
-struct MSAInfo
-{
-	string				seq;
-	set<hit_ptr>		hits;
-	set<res_ptr>		residues;
-
-						MSAInfo(const string& seq, vector<hit_ptr>& h, vector<res_ptr>& r)
-							: seq(seq)
-						{
-							assert(not h.empty());
-							assert(not r.empty());
-
-							hits.insert(h.begin(), h.end());
-							residues.insert(r.begin(), r.end());
-						}
-};
-
-char SelectAlignedLetter(const vector<MSAInfo>& msas, hit_ptr hit, res_ptr res)
-{
-	char result = ' ';
-	
-	foreach (const MSAInfo& msa, msas)
-	{
-		if (msa.hits.count(hit) and msa.residues.count(res))
-		{
-			uint32 p = res->pos;
-			uint32 i = hit->ix;
-			
-			const string& q = hit->msa[0].m_seq;
-			const string& s = hit->msa[i].m_seq;
-			
-			result = s[p];
-
-			if (not is_gap(result) and
-				((p > 0 and is_gap(q[p - 1]) and not is_gap(s[p - 1])) or
-				 (p + 1 < q.length() and is_gap(q[p + 1]) and not is_gap(s[p + 1]))))
-				result = tolower(result);
-			
-			break;
-		}
-	}
-	
-	return result;
-}
+// --------------------------------------------------------------------
+// Write collected information as a HSSP file to the output stream
 
 void CreateHSSPOutput(
 	const MProtein&		inProtein,
@@ -529,7 +477,6 @@ void CreateHSSPOutput(
 	const string&		inUsedChains,
 	vector<hit_ptr>&	hits,
 	vector<res_ptr>&	res,
-	vector<MSAInfo>&	msas,
 	ostream&			os)
 {
 	using namespace boost::gregorian;
@@ -623,7 +570,16 @@ void CreateHSSPOutput(
 			string aln;
 			
 			for (uint32 j = i; j < n; ++j)
-				aln += SelectAlignedLetter(msas, hits[j], ri);
+			{
+				if (hits[j]->chain == ri->chain)
+				{
+					uint32 p = ri->pos;
+					uint32 i = hits[j]->ix;
+					aln += hits[j]->msa[i].m_seq[p];
+				}
+				else
+					aln += ' ';
+			}
 			
 			os << ' ' << boost::format("%5.5d%s%4.4d %4.4d  ") % ri->seqNr % ri->dssp % ri->nocc % ri->var << aln << endl;
 		}
@@ -657,32 +613,30 @@ void CreateHSSPOutput(
 	os << "//" << endl;
 }
 
-void ChainToHits(CDatabankPtr inDatabank, mseq& msa,
+// --------------------------------------------------------------------
+// Convert a multiple sequence alignment as created by jackhmmer to 
+// a set of information as used by HSSP.
+
+void ChainToHits(CDatabankPtr inDatabank, mseq& msa, char inChain,
 	vector<hit_ptr>& hits, const vector<MResidue*>& residues, vector<res_ptr>& res)
 {
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
-		hit_ptr hit = CreateHit(msa, 0, i);
+		hit_ptr h(new Hit(msa, inChain, 0, i));
 
-//		for (string::iterator r = hit->seq.begin(); r != hit->seq.end() and *r == '-'; ++r)
-//			*r = ' ';
-//
-//		for (string::reverse_iterator r = hit->seq.rbegin(); r != hit->seq.rend() and *r == '-'; ++r)
-//			*r = ' ';
-
-		if (hit->IdentityAboveThreshold())
+		if (h->IdentityAboveThreshold())
 		{
-			uint32 docNr = inDatabank->GetDocumentNr(hit->id);
+			uint32 docNr = inDatabank->GetDocumentNr(h->id);
 			
-			hit->desc = inDatabank->GetMetaData(docNr, "title");
+			h->desc = inDatabank->GetMetaData(docNr, "title");
 			try
 			{
-				hit->acc = inDatabank->GetMetaData(docNr, "acc");
+				h->acc = inDatabank->GetMetaData(docNr, "acc");
 			}
 			catch (...) {}
-			hit->lseq2 = inDatabank->GetSequence(docNr, 0).length();
+			h->lseq2 = inDatabank->GetSequence(docNr, 0).length();
 			
-			hits.push_back(hit);
+			hits.push_back(h);
 		}
 	}
 
@@ -690,7 +644,7 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa,
 	for (uint32 i = 0; i < s.length(); ++i)
 	{
 		if (s[i] != '-' and s[i] != ' ')
-			res.push_back(CreateResidueHInfo(s[i], hits, i));
+			res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i)));
 	}
 }
 
@@ -733,12 +687,6 @@ void ClusterSequences(vector<string>& s, vector<uint32>& ix)
 }
 
 void CreateHSSP(
-	const std::string&			inProtein,
-	std::ostream&				outHSSP)
-{
-}
-
-void CreateHSSP(
 	CDatabankPtr				inDatabank,
 	MProtein&					inProtein,
 	const fs::path&				inFastaDir,
@@ -756,6 +704,7 @@ void CreateHSSP(
 	vector<string> seqset;
 	vector<uint32> ix;
 	vector<const MChain*> chains;
+	uint32 kchain = 0;
 	
 	foreach (const MChain* chain, inProtein.GetChains())
 	{
@@ -785,7 +734,6 @@ void CreateHSSP(
 		RunJackHmmer(seqset[i], inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignments.back());
 	}
 	
-	vector<MSAInfo> msas;
 	uint32 seqNr = 1;
 	for (uint32 i = 0; i < chains.size(); ++i)
 	{
@@ -802,7 +750,7 @@ void CreateHSSP(
 		vector<hit_ptr> c_hits;
 		vector<res_ptr> c_res;
 
-		ChainToHits(inDatabank, alignments[i], c_hits, residues, c_res);
+		ChainToHits(inDatabank, alignments[i], chain->GetChainID(), c_hits, residues, c_res);
 		
 		if (not c_hits.empty() and not c_res.empty())
 		{
@@ -822,9 +770,9 @@ void CreateHSSP(
 				c_res[i]->dssp = ResidueToDSSPLine(inProtein, *residues[i]).substr(5, 34);
 			}
 			
-			msas.push_back(MSAInfo(seq, c_hits, c_res));
 			hits.insert(hits.end(), c_hits.begin(), c_hits.end());
 			res.insert(res.end(), c_res.begin(), c_res.end());
+			++kchain;
 		}
 	}
 
@@ -848,7 +796,7 @@ void CreateHSSP(
 	}
 	
 	CreateHSSPOutput(inProtein, inDatabank->GetVersion(), seqlength,
-		chains.size(), msas.size(), usedChains, hits, res, msas, outHSSP);
+		chains.size(), kchain, usedChains, hits, res, outHSSP);
 }
 
 }
