@@ -49,10 +49,13 @@ namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
-fs::path gFastaDir("/data/fasta");
-
 namespace hmmer
 {
+	
+inline bool is_gap(char aa)
+{
+	return aa == '-' or aa == '~' or aa == '.' or aa == '_';
+}
 
 struct seq
 {
@@ -156,7 +159,7 @@ void ReadStockholm(istream& is, mseq& msa)
 	}
 }
 
-void RunJackHmmer(const string& seq, uint32 iterations, const string& jackhmmer,
+void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
 	const string& db, mseq& msa)
 {
 	HUuid uuid;
@@ -197,19 +200,19 @@ void RunJackHmmer(const string& seq, uint32 iterations, const string& jackhmmer,
 		dup2(fd, STDOUT_FILENO);
 		dup2(fd, STDERR_FILENO);
 		
-		arg_vector argv(jackhmmer);
+		arg_vector argv(jackhmmer.string());
 		
 		argv.push("-N", iterations);
 		argv.push("--noali");
 //		argv.push("-o", "/dev/null");
 		argv.push("-A", "output.sto");
 		argv.push("input.fa");
-		argv.push((gFastaDir / (db + ".fa")).string());
+		argv.push((fastadir / (db + ".fa")).string());
 		
 		if (VERBOSE)
 			cerr << argv << endl;
 		
-		(void)execve(jackhmmer.c_str(), argv, environ);
+		(void)execve(jackhmmer.string().c_str(), argv, environ);
 		cerr << "Failed to run " << jackhmmer << endl << " err: " << strerror(errno) << endl;
 		exit(-1);
 	}
@@ -249,8 +252,12 @@ struct insertion
 
 struct hit
 {
-	uint32		nr;
-	string		id, acc, seq, desc, pdb;
+				hit(const mseq& msa, uint32 ix)
+					: msa(msa), ix(ix) {}
+
+	const mseq&	msa;
+	uint32		nr, ix;
+	string		id, acc, desc, pdb;
 	uint32		ifir, ilas, jfir, jlas, lali, ngap, lgap, lseq2;
 	float		ide, wsim;
 	uint32		identical, similar;
@@ -324,40 +331,27 @@ bool hit::IdentityAboveThreshold() const
 
 // Create a hit object based on a jackhmmer alignment pair
 // first is the original query sequence, with gaps introduced.
-// second is the hit sequence
-hit_ptr CreateHit(const string& id, const string& q, const string& s)
+// second is the hit sequence.
+// Since this is jackhmmer output, we can safely assume the
+// alignment does not contain gaps at the start or end of the query.
+// (However, being paranoid, I do check this...)
+hit_ptr CreateHit(mseq& msa, uint32 qix, uint32 six)
 {
 	hit_ptr result;
 	
+	string& q = msa[qix].m_seq;
+	string& s = msa[six].m_seq;
+	string& id = msa[six].m_id;
+	
+	if (q.empty() or s.empty())
+		THROW(("Invalid (empty) sequence"));
+	
+	if (is_gap(q[0]) or is_gap(q[q.length() - 1]))
+		THROW(("Leading (or trailing) gaps found in query sequence"));
+	
 	assert(q.length() == s.length());
 
-	sequence sq = encode(q);
-	sequence ss = encode(s);
-
-	// first remove common gaps
-	sequence::iterator qi = sq.begin(), qj = qi, si = ss.begin(), sj = si;
-	while (qi != sq.end())
-	{
-		if (*qi == kSignalGapCode and *si == kSignalGapCode)
-		{
-			++qi;
-			++si;
-			continue;
-		}
-		
-		*qj++ = *qi++;
-		*sj++ = *si++;
-	}
-	
-	sq.erase(qj, sq.end());
-	ss.erase(sj, ss.end());
-	
-	const substitution_matrix m("BLOSUM62");
-	
-	sequence::iterator qb = sq.begin(), qe = sq.end(),
-					   sb = ss.begin(), se = ss.end();
-
-	result.reset(new hit);
+	result.reset(new hit(msa, six));
 	hit& h = *result;
 
 	// parse out the position
@@ -368,10 +362,9 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 		throw mas_exception("Alignment ID should contain position");
 	
 	h.id = sm.str(1);
-	h.seq = s;
 	
 	h.ifir = 1;
-	h.ilas = sq.length();
+	h.ilas = q.length();
 
 	// jfir/jlas can be taken over from jackhmmer output
 	h.jfir = boost::lexical_cast<uint32>(sm.str(2));
@@ -379,12 +372,15 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 
 	h.lgap = h.ngap = h.identical = h.similar = 0;
 	
+	string::iterator qb = q.begin(), qe = q.end(), sb = s.begin(), se = s.end();
+
 	while (qb != qe)
 	{
-		if (*qb == kSignalGapCode)
-			--h.ilas;
-		else if (*sb == kSignalGapCode)
+		if (is_gap(*sb))
+		{
+			*sb = ' ';
 			++h.ifir;
+		}
 		else
 			break;
 		
@@ -392,32 +388,33 @@ hit_ptr CreateHit(const string& id, const string& q, const string& s)
 		++sb;
 	}
 	
-	sq.erase(sq.begin(), qb); qb = sq.begin(); qe = sq.end();
-	ss.erase(ss.begin(), sb); sb = ss.begin(); se = ss.end();
-
-	while (qe != qb and (*(qe - 1) == kSignalGapCode or *(se - 1) == kSignalGapCode))
+	while (qe != qb and is_gap(*(se - 1)))
 	{
 		--h.ilas;
 		--qe;
 		--se;
+		*se = ' ';
 	}
-	
-	sq.erase(qe, sq.end());	qb = sq.begin(); qe = sq.end();
-	ss.erase(se, ss.end());	sb = ss.begin(); se = ss.end();
 
-	h.lali = ss.length();
+	h.lali = s.length();
 	
 	bool gap = true;
-	for (sequence::iterator si = sb, qi = qb; si != se; ++si, ++qi)
+	const substitution_matrix m("BLOSUM62");
+	for (string::iterator si = sb, qi = qb; si != se; ++si, ++qi)
 	{
-		if (*si == kSignalGapCode)
+		if (is_gap(*si) and is_gap(*qi))
+		{
+			// a common gap
+			--h.lali;
+		}
+		else if (is_gap(*si))
 		{
 			if (not gap)
 				++h.ngap;
 			gap = true;
 			++h.lgap;
 		}
-		else if (*qi == kSignalGapCode)
+		else if (is_gap(*qi))
 		{
 			if (not gap)
 				++h.ngap;
@@ -464,7 +461,7 @@ res_ptr CreateResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos)
 	
 	foreach (hit_ptr hit, hits)
 	{
-		ix = kIX.find(hit->seq[pos]);
+		ix = kIX.find(hit->msa[hit->ix].m_seq[pos]);
 		if (ix != string::npos)
 		{
 			++r->nocc;
@@ -503,7 +500,19 @@ char SelectAlignedLetter(const vector<MSAInfo>& msas, hit_ptr hit, res_ptr res)
 	{
 		if (msa.hits.count(hit) and msa.residues.count(res))
 		{
-			result = hit->seq[res->pos];
+			uint32 p = res->pos;
+			uint32 i = hit->ix;
+			
+			const string& q = hit->msa[0].m_seq;
+			const string& s = hit->msa[i].m_seq;
+			
+			result = s[p];
+
+			if (not is_gap(result) and
+				((p > 0 and is_gap(q[p - 1]) and not is_gap(s[p - 1])) or
+				 (p + 1 < q.length() and is_gap(q[p + 1]) and not is_gap(s[p + 1]))))
+				result = tolower(result);
+			
 			break;
 		}
 	}
@@ -648,35 +657,29 @@ void CreateHSSPOutput(
 	os << "//" << endl;
 }
 
-void ChainToHits(CDatabankPtr inDatabank, const mseq& msa,
+void ChainToHits(CDatabankPtr inDatabank, mseq& msa,
 	vector<hit_ptr>& hits, const vector<MResidue*>& residues, vector<res_ptr>& res)
 {
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
-		hit_ptr hit = CreateHit(msa[i].m_id, msa[0].m_seq, msa[i].m_seq);
+		hit_ptr hit = CreateHit(msa, 0, i);
 
-//		// parse out the position
-//		boost::smatch sm;
-//		if (not boost::regex_match(msa[i].m_id, sm, re))
-//			throw mas_exception("Alignment ID should contain position");
-//		
-//		hit->id = sm.str(1);
-//		hit->jfir = boost::lexical_cast<uint32>(sm.str(2));
-//		hit->jlas = boost::lexical_cast<uint32>(sm.str(3));
-//		hit->alwaysSelect = true;
-
-		for (string::iterator r = hit->seq.begin(); r != hit->seq.end() and *r == '-'; ++r)
-			*r = ' ';
-
-		for (string::reverse_iterator r = hit->seq.rbegin(); r != hit->seq.rend() and *r == '-'; ++r)
-			*r = ' ';
+//		for (string::iterator r = hit->seq.begin(); r != hit->seq.end() and *r == '-'; ++r)
+//			*r = ' ';
+//
+//		for (string::reverse_iterator r = hit->seq.rbegin(); r != hit->seq.rend() and *r == '-'; ++r)
+//			*r = ' ';
 
 		if (hit->IdentityAboveThreshold())
 		{
 			uint32 docNr = inDatabank->GetDocumentNr(hit->id);
 			
 			hit->desc = inDatabank->GetMetaData(docNr, "title");
-			hit->acc = inDatabank->GetMetaData(docNr, "acc");
+			try
+			{
+				hit->acc = inDatabank->GetMetaData(docNr, "acc");
+			}
+			catch (...) {}
 			hit->lseq2 = inDatabank->GetSequence(docNr, 0).length();
 			
 			hits.push_back(hit);
@@ -738,7 +741,8 @@ void CreateHSSP(
 void CreateHSSP(
 	CDatabankPtr				inDatabank,
 	MProtein&					inProtein,
-	const string&				inJackHmmer,
+	const fs::path&				inFastaDir,
+	const fs::path&				inJackHmmer,
 	uint32						inIterations,
 	uint32						inMinSeqLength,
 	ostream&					outHSSP)
@@ -778,7 +782,7 @@ void CreateHSSP(
 		alignments.push_back(mseq());
 		if (ix[i] != i)	// if remapped (double) skip
 			continue;
-		RunJackHmmer(seqset[i], inIterations, inJackHmmer, inDatabank->GetID(), alignments.back());
+		RunJackHmmer(seqset[i], inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignments.back());
 	}
 	
 	vector<MSAInfo> msas;

@@ -10,6 +10,7 @@ typedef std::basic_string<aa>	sequence;
 
 std::string decode(const sequence& s);
 sequence encode(const std::string& s);
+aa encode(char r);
 
 const uint8 kAA[] = {
 	'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G',

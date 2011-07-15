@@ -172,11 +172,13 @@ string decode(const sequence& s)
 	return result;
 }
 
-sequence encode(const string& s)
+namespace {
+
+bool sInited = false;
+uint8 kAA_Reverse[256];
+
+inline void init_reverse()
 {
-	static bool sInited = false;
-	static uint8 kAA_Reverse[256];
-	
 	if (not sInited)
 	{
 		// init global reverse mapping
@@ -188,13 +190,34 @@ sequence encode(const string& s)
 			kAA_Reverse[tolower(kAA[a])] = a;
 		}
 	}
+}
+
+}
+
+aa encode(char r)
+{
+	init_reverse();
+
+	if (r == '.' or r == '*' or r == '~' or r == '_')
+		r = '-';
+	
+	aa result = kAA_Reverse[static_cast<uint8>(r)];
+	if (result >= sizeof(kAA))
+		throw mas_exception(boost::format("invalid residue %1%") % r);
+	
+	return result;
+}
+
+sequence encode(const string& s)
+{
+	init_reverse();
 	
 	sequence result;
 	result.reserve(s.length());
 
 	foreach (char r, s)
 	{
-		if (r == '.' or r == '*' or r == '~')
+		if (r == '.' or r == '*' or r == '~' or r == '_')
 			r = '-';
 		
 		aa rc = kAA_Reverse[static_cast<uint8>(r)];

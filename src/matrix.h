@@ -319,6 +319,11 @@ class substitution_matrix
 							return m_matrix(a, b);
 						}
 
+	int8				operator()(char a, char b) const
+						{
+							return m_matrix(encode(a), encode(b));
+						}
+
 	float				mismatch_average() const		{ return m_mismatch_average; }
 	float				scale_factor() const			{ return m_scale_factor; }
 

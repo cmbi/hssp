@@ -56,6 +56,7 @@ int main(int argc, char* argv[])
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input PDB file")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
+			("fastadir,f",	po::value<string>(), "Directory containing fasta databank files)")
 			("databank,b",	po::value<string>(), "Databank to use (default is uniprot)")
 			("jackhmmer",	po::value<string>(), "Jackhmmer executable path (default=/usr/local/bin/jackhmmer)")
 			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
@@ -85,9 +86,17 @@ int main(int argc, char* argv[])
 		if (vm.count("databank"))
 			databank = vm["databank"].as<string>();
 			
-		string jackhmmer = "/usr/local/bin/jackhmmer";
+		fs::path jackhmmer("/usr/local/bin/jackhmmer");
 		if (vm.count("jackhmmer"))
-			jackhmmer = vm["jackhmmer"].as<string>();
+			jackhmmer = fs::path(vm["jackhmmer"].as<string>());
+		if (not fs::exists(jackhmmer))
+			throw mas_exception("Jackhmmer executable not found");
+			
+		fs::path fastadir("/data/fasta");
+		if (vm.count("fastadir"))
+			fastadir = fs::path(vm["fastadir"].as<string>());
+		if (not fs::exists(fastadir))
+			throw mas_exception("Fasta databank directory not found");
 			
 		uint32 iterations = 5;
 		if (vm.count("iterations"))
@@ -144,10 +153,10 @@ int main(int argc, char* argv[])
 			vector<char> hssp;
 			
 			io::filtering_ostream os(io::back_inserter(hssp));
-			hmmer::CreateHSSP(db, a, jackhmmer, iterations, 25, out);
+			hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
 		}
 		else
-			hmmer::CreateHSSP(db, a, jackhmmer, iterations, 25, cout);
+			hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, cout);
 	}
 	catch (exception& e)
 	{
