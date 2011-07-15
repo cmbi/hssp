@@ -479,7 +479,8 @@ ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain
 // Write collected information as a HSSP file to the output stream
 
 void CreateHSSPOutput(
-	const MProtein&		inProtein,
+	const string&		inProteinID,
+	const string&		inProteinDescription,
 	const string&		inDatabankVersion,
 	uint32				inSeqLength,
 	uint32				inNChain,
@@ -493,18 +494,15 @@ void CreateHSSPOutput(
 	date today = day_clock::local_day();
 	
 	// print the header
-	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0d1 2011" << endl
-	   << "PDBID      " << inProtein.GetID() << endl
+	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0d2 2011" << endl
+	   << "PDBID      " << inProteinID << endl
 	   << "DATE       file generated on " << to_iso_extended_string(today) << endl
 	   << "SEQBASE    " << inDatabankVersion << endl
 	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + 5" << endl
-	   << "CONTACT    New version by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
-	   << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl
-	   << "COMPND     " + inProtein.GetCompound().substr(10) << endl
-	   << "SOURCE     " + inProtein.GetSource().substr(10) << endl
-	   << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl
+	   << "CONTACT    This version: Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
+	   << inProteinDescription
 	   << boost::format("SEQLENGTH  %4.4d") % inSeqLength << endl
-	   << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProtein.GetID() << endl;
+	   << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
 	
 	if (inKChain != inNChain)
 	{
@@ -706,6 +704,34 @@ void ClusterSequences(vector<string>& s, vector<uint32>& ix)
 
 void CreateHSSP(
 	CDatabankPtr				inDatabank,
+	const string&				inProtein,
+	const fs::path&				inFastaDir,
+	const fs::path&				inJackHmmer,
+	uint32						inIterations,
+	ostream&					outHSSP)
+{
+	vector<hit_ptr> hits;
+	vector<res_ptr> res;
+	mseq alignment;
+
+	RunJackHmmer(inProtein, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignment);
+	
+	ChainToHits(inDatabank, alignment, 'A', hits, res);
+
+	sort(hits.begin(), hits.end(), compare_hit());
+	if (hits.size() > 9999)
+		hits.erase(hits.begin() + 9999, hits.end());
+	
+	uint32 nr = 1;
+	foreach (hit_ptr h, hits)
+		h->nr = nr++;
+
+	CreateHSSPOutput("UNKN", "", inDatabank->GetVersion(), inProtein.length(),
+		1, 1, "A", hits, res, outHSSP);
+}
+
+void CreateHSSP(
+	CDatabankPtr				inDatabank,
 	MProtein&					inProtein,
 	const fs::path&				inFastaDir,
 	const fs::path&				inJackHmmer,
@@ -782,7 +808,14 @@ void CreateHSSP(
 		usedChains += chains[i]->GetChainID();
 	}
 	
-	CreateHSSPOutput(inProtein, inDatabank->GetVersion(), seqlength,
+	stringstream desc;
+	desc	
+	   << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl
+	   << "COMPND     " + inProtein.GetCompound().substr(10) << endl
+	   << "SOURCE     " + inProtein.GetSource().substr(10) << endl
+	   << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
+
+	CreateHSSPOutput(inProtein.GetID(), desc.str(), inDatabank->GetVersion(), seqlength,
 		chains.size(), kchain, usedChains, hits, res, outHSSP);
 }
 

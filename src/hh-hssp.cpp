@@ -711,7 +711,7 @@ void CreateHSSP(CDatabankPtr inDatabank, const string& inClustalO, MProtein& inP
 				assert(kResidueInfo[residues[i]->GetType()].code == res[i]->letter);
 				assert(residues[i]->GetSeqNumber() == res[i]->seqNr);
 				res[i]->chain = chain->GetChainID();
-				res[i]->dssp = ResidueToDSSPLine(inProtein, *residues[i]).substr(0, 39);
+				res[i]->dssp = ResidueToDSSPLine(*residues[i]).substr(0, 39);
 			}
 			
 			msas.push_back(MSAInfo(seq, chain->GetChainID(), c_hits, res));
@@ -992,7 +992,7 @@ void CreateHSSPForAlignment(
 			assert(s[i] == seq[seqNr]);
 			res.back()->seqNr = residues[seqNr]->GetSeqNumber();
 			res.back()->chain = inChain;
-			res.back()->dssp = ResidueToDSSPLine(inProtein, *residues[seqNr]).substr(0, 39);
+			res.back()->dssp = ResidueToDSSPLine(*residues[seqNr]).substr(0, 39);
 
 			++seqNr;
 		}

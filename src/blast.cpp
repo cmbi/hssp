@@ -33,15 +33,18 @@ void BlastSequence(
 	if (threads < 1)
 		threads = boost::thread::hardware_concurrency();
 
-	auto_ptr<CDocIterator> data(new CDbAllDocIterator(inDatabank.get()));
-	CBlast blast(inSequence, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
+//	auto_ptr<CDocIterator> data(new CDbAllDocIterator(inDatabank.get()));
+//	CBlast blast(inSequence, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
+
+	CBlastResult* results = inDatabank->PerformBlastSearch(
+		inSequence, "blastp", matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
 	
-	if (blast.Find(*inDatabank, *data, threads))
+	if (results != nil)
 	{
-		CBlastHitList hits(blast.Hits());
+		foreach (const CBlastHit& hit, results->hits)
+			outHits.push_back(hit.documentNr);
 		
-		foreach (const CBlastHit& hit, hits)
-			outHits.push_back(hit.DocumentNr());
+		delete results;
 	}
 }
 

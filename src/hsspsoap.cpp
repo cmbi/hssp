@@ -39,6 +39,7 @@
 #include "dssp.h"
 #include "maxhom-hssp.h"
 #include "hh-hssp.h"
+#include "hmmer-hssp.h"
 
 #define HSSPSOAP_PID_FILE	"/var/run/hsspsoap.pid"
 #define HSSPSOAP_LOG_FILE	"/var/log/hsspsoap.log"
@@ -408,6 +409,60 @@ void hssp2_server::GetHSSPForSequence(
 
 // --------------------------------------------------------------------
 //
+//	HMMER_HSSP server
+// 
+
+class hmmer_hssp_server : public hssp_server
+{
+  public:
+					hmmer_hssp_server(const fs::path& inProgram);
+
+	virtual void	GetHSSPForPDBFile(
+						const string&	pdbfile,
+						string&			hssp);
+		
+	virtual void	GetHSSPForSequence(
+						const string&	sequence,
+						string&			hssp);
+};
+
+hmmer_hssp_server::hmmer_hssp_server(const fs::path& inProgram)
+	: hssp_server(inProgram)
+{
+}
+
+void hmmer_hssp_server::GetHSSPForPDBFile(
+	const string&				pdbfile,
+	string&						hssp)
+{
+	io::filtering_istream in;
+	in.push(io::newline_filter(io::newline::posix));
+	in.push(boost::make_iterator_range(pdbfile));
+	
+	// OK, we've got the file, now create a protein
+	MProtein a(in);
+	
+	// then calculate the secondary structure
+	a.CalculateSecondaryStructure();
+
+	// finally, create the HSSP
+	CDatabankPtr db = mDBTable.Load("uniprot");
+	io::filtering_ostream out(io::back_inserter(hssp));
+	hmmer::CreateHSSP(db, a, "/data/fasta/", mProgram.string(), 5, 25, out);
+}
+
+void hmmer_hssp_server::GetHSSPForSequence(
+	const string&				sequence,
+	string&						hssp)
+{
+	CDatabankPtr db = mDBTable.Load("uniprot");
+
+	io::filtering_ostream out(io::back_inserter(hssp));
+	hmmer::CreateHSSP(db, sequence, "/data/fasta/", mProgram.string(), 5, out);
+}
+
+// --------------------------------------------------------------------
+//
 //	Daemonize
 // 
 
@@ -503,9 +558,11 @@ int main(int argc, char* argv[])
 		("port,p",		po::value<uint16>(),	"port to bind to")
 		("location,l",	po::value<string>(),	"location advertised in wsdl")
 		("location2,n",	po::value<string>(),	"location advertised in wsdl (version 2)")
+		("location3,m",	po::value<string>(),	"location advertised in wsdl (hmmer version)")
 		("user,u",		po::value<string>(),	"user to run as")
 		("maxhom",		po::value<string>(),	"Path to the maxhom application")
 		("clustalo",	po::value<string>(),	"Path to the clustalo application")
+		("jackhmmer",	po::value<string>(),	"Path to the jackhmmer application")
 		("threads,a",	po::value<int>(),		"Number of threads to use (default is nr of CPU's)")
 		("no-daemon,D",							"do not fork a daemon")
 		;
@@ -513,6 +570,7 @@ int main(int argc, char* argv[])
 	string
 		location = "http://mrs.cmbi.ru.nl/hsspsoap/wsdl",
 		location2 = "http://mrs.cmbi.ru.nl/hsspsoap2/wsdl",
+		location3 = "http://mrs.cmbi.ru.nl/hsspsoap3/wsdl",
 		address = "0.0.0.0",
 		user = "nobody";
 
@@ -541,6 +599,9 @@ int main(int argc, char* argv[])
 	if (vm.count("location2"))
 		location2 = vm["location2"].as<string>();
 
+	if (vm.count("location3"))
+		location3 = vm["location3"].as<string>();
+
 	if (vm.count("port"))
 		port = vm["port"].as<uint16>();
 
@@ -550,7 +611,7 @@ int main(int argc, char* argv[])
 	string maxhom = "/usr/local/bin/maxhom";
 	if (vm.count("maxhom"))
 		maxhom = vm["maxhom"].as<string>();
-	
+
 	if (not fs::exists(maxhom))
 	{
 		cerr << "No maxhom found" << endl;
@@ -564,6 +625,16 @@ int main(int argc, char* argv[])
 	if (not fs::exists(clustalo))
 	{
 		cerr << "No clustalo found" << endl;
+		exit(1);
+	}
+
+	string jackhmmer = "/usr/local/bin/jackhmmer";
+	if (vm.count("jackhmmer"))
+		jackhmmer = vm["jackhmmer"].as<string>();
+
+	if (not fs::exists(jackhmmer))
+	{
+		cerr << "No jackhmmer found" << endl;
 		exit(1);
 	}
 
@@ -599,10 +670,18 @@ int main(int argc, char* argv[])
 
 	if (not location2.empty())
 		server2.set_location(location2);
+
+	// even newer server
+	hmmer_hssp_server server3(jackhmmer);
+	server3.bind(address, port + 2);
+
+	if (not location3.empty())
+		server3.set_location(location3);
 	
     boost::thread_group t;
     t.create_thread(boost::bind(&hssp_server::run, &server, 1));
     t.create_thread(boost::bind(&hssp2_server::run, &server2, 1));
+    t.create_thread(boost::bind(&hmmer_hssp_server::run, &server3, 1));
 
 #ifndef _MSC_VER
     pthread_sigmask(SIG_SETMASK, &old_mask, 0);

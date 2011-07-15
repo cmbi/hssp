@@ -21,13 +21,14 @@
       <file>hsspsoap.cpp</file>
       <file>matrix.cpp</file>
       <file>hh-hssp.cpp</file>
+      <file>hmmer-hssp.cpp</file>
       <file>maxhom-hssp.cpp</file>
       <file>primitives-3d.cpp</file>
       <file>structure.cpp</file>
       <file>utils.cpp</file>
     </group>
     <group name="Libraries">
-      <link>mrs</link>
+      <link>mrsd</link>
       <link>zeep</link>
       <link>boost_date_time</link>
       <link>boost_filesystem</link>
