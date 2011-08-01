@@ -7,6 +7,8 @@
 
 #include <wait.h>
 
+#include <cmath>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -249,7 +251,6 @@ struct Hit
 	uint32			ifir, ilas, jfir, jlas, lali, ngap, lgap, lseq2;
 	float			ide, wsim;
 	uint32			identical, similar;
-	bool			insertions;
 
 	bool			operator<(const Hit& rhs) const 	{ return ide > rhs.ide or (ide == rhs.ide and lali > rhs.lali); }
 	
@@ -268,7 +269,6 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 	: msa(msa)
 	, chain(chain)
 	, ix(six)
-	, insertions(false)
 {
 	string& q = msa[qix].m_seq;
 	string& s = msa[six].m_seq;
@@ -349,7 +349,6 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 			if (not (sgap or qgap))
 				++ngap;
 
-			insertions = true;
 			qgap = true;
 			++lgap;
 		}
@@ -422,7 +421,6 @@ struct ResidueHInfo
 	uint32			pos;
 	uint32			nocc, ndel, nins;
 	float			entropy, weight;
-	uint32			relent;
 	uint32			var;
 	uint32			dist[20];
 
@@ -471,8 +469,16 @@ ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain
 		}
 	}
 	
+	entropy = 0;
 	for (uint32 a = 0; a < 20; ++a)
-		dist[a] = uint32(((100.0 * dist[a]) / nocc) + 0.5);
+	{
+		double freq = double(dist[a]) / nocc;
+		
+		dist[a] = uint32((100.0 * freq) + 0.5);
+		
+		if (freq > 0)
+			entropy -= freq * log(freq);
+	}
 }
 
 // --------------------------------------------------------------------
@@ -607,7 +613,8 @@ void CreateHSSPOutput(
 			for (uint32 i = 0; i < 20; ++i)
 				os << boost::format("%4.4d") % r->dist[i];
 			
-			os << "  " << boost::format("%4.4d %4.4d %4.4d") % r->nocc % r->ndel % r->nins << endl;
+			uint32 relent = uint32(100 * r->entropy / log(20));
+			os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d") % r->nocc % r->ndel % r->nins % r->entropy % relent << endl;
 		}
 	}
 	
