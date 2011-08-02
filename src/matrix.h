@@ -165,14 +165,24 @@ class symmetric_matrix : public matrix_base<T>
 	typedef typename matrix_base<T>::value_type value_type;
 
 						symmetric_matrix(uint32 n)
-							: m_n(n)
+							: m_owner(true)
+							, m_n(n)
 						{
 							m_data = new value_type[(m_n * (m_n + 1)) / 2];
 						}
 
+						symmetric_matrix(const T* data, uint32 n)
+							: m_owner(false)
+							, m_data(const_cast<T*>(data))
+							, m_n(n)
+						{
+						}
+
+
 	virtual				~symmetric_matrix()
 						{
-							delete[] m_data;
+							if (m_owner)
+								delete[] m_data;
 						}
 	
 	virtual uint32		dim_m() const					{ return m_n; }
@@ -198,6 +208,7 @@ class symmetric_matrix : public matrix_base<T>
 	void				erase_2(uint32 i, uint32 j);
 
   private:
+	bool				m_owner;
 	value_type*			m_data;
 	uint32				m_n;
 };

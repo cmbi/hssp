@@ -240,6 +240,12 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 // --------------------------------------------------------------------
 // Hit is a class to store hit information and all of its statistics.
 	
+struct insertion
+{
+	uint32			ipos, jpos;
+	string			seq;
+};
+	
 struct Hit
 {
 					Hit(mseq& msa, char chain, uint32 qix, uint32 six);
@@ -255,6 +261,8 @@ struct Hit
 	bool			operator<(const Hit& rhs) const 	{ return ide > rhs.ide or (ide == rhs.ide and lali > rhs.lali); }
 	
 	bool			IdentityAboveThreshold() const;
+	vector<insertion>
+					insertions;
 };
 
 typedef shared_ptr<Hit> hit_ptr;
@@ -327,6 +335,9 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 	
 	bool sgap = false, qgap = false;
 	const substitution_matrix m("BLOSUM62");
+	uint32 ipos = ifir, jpos = jfir;
+	insertion ins;
+	
 	for (string::iterator si = sb, qi = qb; si != se; ++si, ++qi)
 	{
 		if (is_gap(*si) and is_gap(*qi))
@@ -340,22 +351,41 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 				++ngap;
 			sgap = true;
 			++lgap;
+			++jpos;
 		}
 		else if (is_gap(*qi))
 		{
 			if (not qgap)
-				*(si - 1) = tolower(*(si - 1));
+			{
+				assert(si != sb);
+				string::iterator gsi = si - 1;
+				while (gsi != sb and is_gap(*gsi))
+					--gsi;
+				
+				*gsi = tolower(*gsi);
+				ins.ipos = ipos;
+				ins.jpos = jpos - 1;
+				ins.seq.assign(gsi, gsi + 1);
+				ins.seq += *si;
+			}
+			else
+				ins.seq += *si;
 			
 			if (not (sgap or qgap))
 				++ngap;
 
 			qgap = true;
 			++lgap;
+			++ipos;
 		}
 		else
 		{
 			if (qgap)
+			{
 				*si = tolower(*si);
+				ins.seq += *si;
+				insertions.push_back(ins);
+			}
 			
 			sgap = false;
 			qgap = false;
@@ -367,6 +397,9 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 			}
 			else if (m(*qi, *si) > 0)
 				++similar;
+			
+			++ipos;
+			++jpos;
 		}
 	}
 
@@ -412,7 +445,8 @@ bool Hit::IdentityAboveThreshold() const
 struct ResidueHInfo
 {
 					ResidueHInfo(uint32 seqNr);
-					ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr, const string& dssp);
+					ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
+						const string& dssp, uint32 var);
 	
 	char			letter;
 	char			chain;
@@ -440,7 +474,8 @@ ResidueHInfo::ResidueHInfo(uint32 seqNr)
 {
 }
 
-ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr, const string& dssp)
+ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
+		const string& dssp, uint32 var)
 	: letter(a)
 	, chain(chain)
 	, dssp(dssp)
@@ -450,7 +485,7 @@ ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain
 	, nocc(1)
 	, ndel(0)
 	, nins(0)
-	, var(0)
+	, var(var)
 {
 	fill(dist, dist + 20, 0);
 	
@@ -478,6 +513,23 @@ ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain
 		
 		if (freq > 0)
 			entropy -= freq * log(freq);
+	}
+	
+	// calculate ndel and nins
+	const mseq& msa = hits.front()->msa;
+	const string& q = msa[0].m_seq;
+	
+	bool gap = pos + 1 < q.length() and is_gap(q[pos + 1]);
+	
+	foreach (hit_ptr hit, hits)
+	{
+		const string& t = msa[hit->ix].m_seq;
+		
+		if (is_gap(t[pos]))
+			++ndel;
+		
+		if (gap > 0 and t[pos] >= 'a' and t[pos] <= 'y')
+			++nins;
 	}
 }
 
@@ -596,7 +648,7 @@ void CreateHSSPOutput(
 	
 	// ## SEQUENCE PROFILE AND ENTROPY
 	os << "## SEQUENCE PROFILE AND ENTROPY" << endl
-	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
+	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT" << endl;
 	
 	res_ptr last;
 	foreach (res_ptr r, res)
@@ -618,7 +670,99 @@ void CreateHSSPOutput(
 		}
 	}
 	
+	// insertion list
+	
+	os << "## INSERTION LIST" << endl
+	   << " AliNo  IPOS  JPOS   Len Sequence" << endl;
+
+	const mseq& msa = hits.front()->msa;
+	foreach (hit_ptr h, hits)
+	{
+		foreach (insertion& ins, h->insertions)
+			os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->nr % ins.ipos % ins.jpos % (ins.seq.length() - 2) << ins.seq << endl;
+	}
+	
 	os << "//" << endl;
+}
+
+// --------------------------------------------------------------------
+// Calculate the variability of a residue, based on dayhoff similarity
+// and weights
+
+// Dayhoff matrix as used by maxhom
+const float kDayhoffData[] = {
+	 1.5,																													// V
+	 0.8,  1.5,                                                                                                             // L
+	 1.1,  0.8,  1.5,                                                                                                       // I
+	 0.6,  1.3,  0.6,  1.5,                                                                                                 // M
+	 0.2,  1.2,  0.7,  0.5,  1.5,                                                                                           // F
+	-0.8,  0.5, -0.5, -0.3,  1.3,  1.5,                                                                                     // W
+	-0.1,  0.3,  0.1, -0.1,  1.4,  1.1,  1.5,                                                                               // Y
+	 0.2, -0.5, -0.3, -0.3, -0.6, -1.0, -0.7,  1.5,                                                                         // G
+	 0.2, -0.1,  0.0,  0.0, -0.5, -0.8, -0.3,  0.7,  1.5,                                                                   // A
+	 0.1, -0.3, -0.2, -0.2, -0.7, -0.8, -0.8,  0.3,  0.5,  1.5,                                                             // P
+	-0.1, -0.4, -0.1, -0.3, -0.3,  0.3, -0.4,  0.6,  0.4,  0.4,  1.5,                                                       // S
+	 0.2, -0.1,  0.2,  0.0, -0.3, -0.6, -0.3,  0.4,  0.4,  0.3,  0.3,  1.5,                                                 // T
+	 0.2, -0.8,  0.2, -0.6, -0.1, -1.2,  1.0,  0.2,  0.3,  0.1,  0.7,  0.2,  1.5,                                           // C
+	-0.3, -0.2, -0.3, -0.3, -0.1, -0.1,  0.3, -0.2, -0.1,  0.2, -0.2, -0.1, -0.1,  1.5,                                     // H
+	-0.3, -0.4, -0.3,  0.2, -0.5,  1.4, -0.6, -0.3, -0.3,  0.3,  0.1, -0.1, -0.3,  0.5,  1.5,                               // R
+	-0.2, -0.3, -0.2,  0.2, -0.7,  0.1, -0.6, -0.1,  0.0,  0.1,  0.2,  0.2, -0.6,  0.1,  0.8,  1.5,                         // K
+	-0.2, -0.1, -0.3,  0.0, -0.8, -0.5, -0.6,  0.2,  0.2,  0.3, -0.1, -0.1, -0.6,  0.7,  0.4,  0.4,  1.5,                   // Q
+	-0.2, -0.3, -0.2, -0.2, -0.7, -1.1, -0.5,  0.5,  0.3,  0.1,  0.2,  0.2, -0.6,  0.4,  0.0,  0.3,  0.7,  1.5,             // E
+	-0.3, -0.4, -0.3, -0.3, -0.5, -0.3, -0.1,  0.4,  0.2,  0.0,  0.3,  0.2, -0.3,  0.5,  0.1,  0.4,  0.4,  0.5,  1.5,       // N
+	-0.2, -0.5, -0.2, -0.4, -1.0, -1.1, -0.5,  0.7,  0.3,  0.1,  0.2,  0.2, -0.5,  0.4,  0.0,  0.3,  0.7,  1.0,  0.7,  1.5  // D
+	};
+
+float CalculateConservation(const mseq& msa, uint32 r, const symmetric_matrix<float>& w)
+{
+	static const symmetric_matrix<float> D(kDayhoffData, 20);
+	
+	float weight = 0, conservation = 0;
+	
+	for (uint32 i = 0; i + 1 < msa.size(); ++i)
+	{
+		const string& si = msa[i].m_seq;
+		string::size_type ri = ResidueHInfo::kIX.find(toupper(si[r]));
+		if (ri == string::npos)
+			continue;
+		
+		for (uint32 j = i + 1; j < msa.size(); ++j)
+		{
+			const string& sj = msa[j].m_seq;
+			string::size_type rj = ResidueHInfo::kIX.find(toupper(sj[r]));
+			if (rj == string::npos)
+				continue;
+			
+			conservation +=	w(i, j) * D(ri, rj);
+			weight +=		w(i, j) * 1.5;
+		}
+	}
+	
+	return conservation / weight;
+}
+
+// --------------------------------------------------------------------
+// Calculate the weight of a pair of aligned sequences
+
+float CalculateWeight(const mseq& msa, uint32 i, uint32 j)
+{
+	const string& sq = msa[0].m_seq;
+	const string& si = msa[i].m_seq;		assert(si.length() == sq.length());
+	const string& sj = msa[j].m_seq;		assert(sj.length() == sq.length());
+	
+	uint32 L = 0, d = 0;
+	
+	for (uint32 k = 0; k < sq.length(); ++k)
+	{
+		if (not is_gap(sq[k]))
+		{
+			++L;
+			if (si[k] == sj[k] and not is_gap(si[k]))
+				++d;
+		}
+	}
+	
+	return 1.0 - float(d) / float(L);
 }
 
 // --------------------------------------------------------------------
@@ -648,6 +792,14 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 		}
 	}
 	
+	// calculate the weight matrix for the hits
+	symmetric_matrix<float> w(msa.size());
+	for (uint32 i = 0; i + 1 < msa.size(); ++i)
+	{
+		for (uint32 j = i + 1; j < msa.size(); ++j)
+			w(i, j) = CalculateWeight(msa, i, j);
+	}
+	
 	const vector<MResidue*>& residues = chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
 
@@ -662,7 +814,9 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 				res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
 			
 			string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
-			res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i, chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp)));
+			uint32 ivar = uint32(100 * (1 - CalculateConservation(msa, i, w)));
+			
+			res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i, chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp, ivar)));
 
 			++ri;
 		}
