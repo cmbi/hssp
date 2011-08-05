@@ -168,7 +168,9 @@ class symmetric_matrix : public matrix_base<T>
 							: m_owner(true)
 							, m_n(n)
 						{
-							m_data = new value_type[(m_n * (m_n + 1)) / 2];
+							uint32 N = (m_n * (m_n + 1)) / 2;
+							m_data = new value_type[N];
+							std::fill(m_data, m_data + N, 0);
 						}
 
 						symmetric_matrix(const T* data, uint32 n)

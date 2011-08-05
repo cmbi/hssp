@@ -37,8 +37,8 @@
 #include "blast.h"
 #include "structure.h"
 #include "dssp.h"
-#include "maxhom-hssp.h"
-#include "hh-hssp.h"
+//#include "maxhom-hssp.h"
+//#include "hh-hssp.h"
 #include "hmmer-hssp.h"
 
 #define HSSPSOAP_PID_FILE	"/var/run/hsspsoap.pid"
@@ -154,7 +154,9 @@ void GetPDBFileFromPayload(
 class hssp_server : public zeep::server
 {
   public:
-					hssp_server(const fs::path& inProgram);
+					hssp_server(
+						const fs::path&	inJackhmmer,
+						const fs::path&	inFastaDir);
 
 	virtual void	handle_request(
 						const zeep::http::request&	req,
@@ -173,12 +175,13 @@ class hssp_server : public zeep::server
 						string&			hssp);
 
 	CDatabankTable	mDBTable;
-	fs::path		mProgram;
+	fs::path		mJackhmmer, mFastaDir;
 };
 
-hssp_server::hssp_server(const fs::path& inProgram)
+hssp_server::hssp_server(const fs::path& inJackhmmer, const fs::path& inFastaDir)
 	: zeep::server("http://www.cmbi.ru.nl/hsspsoap", "hsspsoap")
-	, mProgram(inProgram)
+	, mJackhmmer(inJackhmmer)
+	, mFastaDir(inFastaDir)
 {
 	const char* kGetDSSPForPDBFileParameterNames[] = {
 		"pdbfile", "dssp"
@@ -323,18 +326,10 @@ void hssp_server::GetHSSPForPDBFile(
 	// then calculate the secondary structure
 	a.CalculateSecondaryStructure();
 
-	string dssp;
-	io::filtering_ostream out1(io::back_inserter(dssp));
-	WriteDSSP(a, out1);
-
-	// Blast
+	// finally, create the HSSP
 	CDatabankPtr db = mDBTable.Load("uniprot");
-	vector<uint32> hits;
-	BlastProtein(db, a, hits);
-
-	// and the final HSSP file
-	io::filtering_ostream out2(io::back_inserter(hssp));
-	maxhom::GetHSSPForHitsAndDSSP(db, mProgram.string(), a.GetID(), hits, dssp, 1500, out2);
+	io::filtering_ostream out(io::back_inserter(hssp));
+	hmmer::CreateHSSP(db, a, mFastaDir.string(), mJackhmmer.string(), 5, 25, out);
 }
 
 void hssp_server::GetHSSPForSequence(
@@ -343,122 +338,8 @@ void hssp_server::GetHSSPForSequence(
 {
 	CDatabankPtr db = mDBTable.Load("uniprot");
 
-	string dssp;
-	::GetDSSPForSequence(sequence, dssp);
-	
-	vector<uint32> hits;
-	BlastSequence(db, sequence, hits);
-	
 	io::filtering_ostream out(io::back_inserter(hssp));
-	maxhom::GetHSSPForHitsAndDSSP(db, mProgram.string(), "UNKN", hits, dssp, 1500, out);
-}
-
-// --------------------------------------------------------------------
-//
-//	HSSP-2 server
-// 
-
-class hssp2_server : public hssp_server
-{
-  public:
-					hssp2_server(const fs::path& inProgram);
-
-	virtual void	GetHSSPForPDBFile(
-						const string&	pdbfile,
-						string&			hssp);
-		
-	virtual void	GetHSSPForSequence(
-						const string&	sequence,
-						string&			hssp);
-};
-
-hssp2_server::hssp2_server(const fs::path& inProgram)
-	: hssp_server(inProgram)
-{
-}
-
-void hssp2_server::GetHSSPForPDBFile(
-	const string&				pdbfile,
-	string&						hssp)
-{
-	io::filtering_istream in;
-	in.push(io::newline_filter(io::newline::posix));
-	in.push(boost::make_iterator_range(pdbfile));
-	
-	// OK, we've got the file, now create a protein
-	MProtein a(in);
-	
-	// then calculate the secondary structure
-	a.CalculateSecondaryStructure();
-
-	// finally, create the HSSP
-	CDatabankPtr db = mDBTable.Load("uniprot");
-	io::filtering_ostream out(io::back_inserter(hssp));
-	hh::CreateHSSP(db, mProgram.string(), a, out);
-}
-
-void hssp2_server::GetHSSPForSequence(
-	const string&				sequence,
-	string&						hssp)
-{
-	CDatabankPtr db = mDBTable.Load("uniprot");
-
-	io::filtering_ostream out(io::back_inserter(hssp));
-	hh::CreateHSSP(db, mProgram.string(), sequence, out);
-}
-
-// --------------------------------------------------------------------
-//
-//	HMMER_HSSP server
-// 
-
-class hmmer_hssp_server : public hssp_server
-{
-  public:
-					hmmer_hssp_server(const fs::path& inProgram);
-
-	virtual void	GetHSSPForPDBFile(
-						const string&	pdbfile,
-						string&			hssp);
-		
-	virtual void	GetHSSPForSequence(
-						const string&	sequence,
-						string&			hssp);
-};
-
-hmmer_hssp_server::hmmer_hssp_server(const fs::path& inProgram)
-	: hssp_server(inProgram)
-{
-}
-
-void hmmer_hssp_server::GetHSSPForPDBFile(
-	const string&				pdbfile,
-	string&						hssp)
-{
-	io::filtering_istream in;
-	in.push(io::newline_filter(io::newline::posix));
-	in.push(boost::make_iterator_range(pdbfile));
-	
-	// OK, we've got the file, now create a protein
-	MProtein a(in);
-	
-	// then calculate the secondary structure
-	a.CalculateSecondaryStructure();
-
-	// finally, create the HSSP
-	CDatabankPtr db = mDBTable.Load("uniprot");
-	io::filtering_ostream out(io::back_inserter(hssp));
-	hmmer::CreateHSSP(db, a, "/data/fasta/", mProgram.string(), 5, 25, out);
-}
-
-void hmmer_hssp_server::GetHSSPForSequence(
-	const string&				sequence,
-	string&						hssp)
-{
-	CDatabankPtr db = mDBTable.Load("uniprot");
-
-	io::filtering_ostream out(io::back_inserter(hssp));
-	hmmer::CreateHSSP(db, sequence, "/data/fasta/", mProgram.string(), 5, out);
+	hmmer::CreateHSSP(db, sequence, mFastaDir.string(), mJackhmmer.string(), 5, out);
 }
 
 // --------------------------------------------------------------------
@@ -557,20 +438,15 @@ int main(int argc, char* argv[])
 		("address,a",	po::value<string>(),	"address to bind to")
 		("port,p",		po::value<uint16>(),	"port to bind to")
 		("location,l",	po::value<string>(),	"location advertised in wsdl")
-		("location2,n",	po::value<string>(),	"location advertised in wsdl (version 2)")
-		("location3,m",	po::value<string>(),	"location advertised in wsdl (hmmer version)")
 		("user,u",		po::value<string>(),	"user to run as")
-		("maxhom",		po::value<string>(),	"Path to the maxhom application")
-		("clustalo",	po::value<string>(),	"Path to the clustalo application")
 		("jackhmmer",	po::value<string>(),	"Path to the jackhmmer application")
-		("threads,a",	po::value<int>(),		"Number of threads to use (default is nr of CPU's)")
+		("fasta-dir",	po::value<string>(),	"Directory containing FastA formatted uniprot databank")
 		("no-daemon,D",							"do not fork a daemon")
+		("verbose,v",							"Verbose mode")
 		;
 	
 	string
 		location = "http://mrs.cmbi.ru.nl/hsspsoap/wsdl",
-		location2 = "http://mrs.cmbi.ru.nl/hsspsoap2/wsdl",
-		location3 = "http://mrs.cmbi.ru.nl/hsspsoap3/wsdl",
 		address = "0.0.0.0",
 		user = "nobody";
 
@@ -596,37 +472,14 @@ int main(int argc, char* argv[])
 	if (vm.count("location"))
 		location = vm["location"].as<string>();
 
-	if (vm.count("location2"))
-		location2 = vm["location2"].as<string>();
-
-	if (vm.count("location3"))
-		location3 = vm["location3"].as<string>();
-
 	if (vm.count("port"))
 		port = vm["port"].as<uint16>();
 
 	if (vm.count("user"))
 		user = vm["user"].as<string>();
 
-	string maxhom = "/usr/local/bin/maxhom";
-	if (vm.count("maxhom"))
-		maxhom = vm["maxhom"].as<string>();
-
-	if (not fs::exists(maxhom))
-	{
-		cerr << "No maxhom found" << endl;
-		exit(1);
-	}
-
-	string clustalo = "/usr/local/bin/clustalo";
-	if (vm.count("clustalo"))
-		clustalo = vm["clustalo"].as<string>();
-
-	if (not fs::exists(clustalo))
-	{
-		cerr << "No clustalo found" << endl;
-		exit(1);
-	}
+	if (vm.count("verbose"))
+		VERBOSE = 1;
 
 	string jackhmmer = "/usr/local/bin/jackhmmer";
 	if (vm.count("jackhmmer"))
@@ -635,6 +488,16 @@ int main(int argc, char* argv[])
 	if (not fs::exists(jackhmmer))
 	{
 		cerr << "No jackhmmer found" << endl;
+		exit(1);
+	}
+
+	string fastadir = "/data/fasta";
+	if (vm.count("fasta-dir"))
+		fastadir = vm["fasta-dir"].as<string>();
+
+	if (not fs::exists(fastadir) or not fs::is_directory(fastadir))
+	{
+		cerr << "FastA directory '" << fastadir << "' not found" << endl;
 		exit(1);
 	}
 
@@ -657,31 +520,15 @@ int main(int argc, char* argv[])
     pthread_sigmask(SIG_BLOCK, &new_mask, &old_mask);
 #endif
 	
-	// old server
-	hssp_server server(maxhom);
+	// create server
+	hssp_server server(jackhmmer, fastadir);
 	server.bind(address, port);
 	
 	if (not location.empty())
 		server.set_location(location);
 	
-	// new server
-	hssp2_server server2(clustalo);
-	server2.bind(address, port + 1);
-
-	if (not location2.empty())
-		server2.set_location(location2);
-
-	// even newer server
-	hmmer_hssp_server server3(jackhmmer);
-	server3.bind(address, port + 2);
-
-	if (not location3.empty())
-		server3.set_location(location3);
-	
     boost::thread_group t;
     t.create_thread(boost::bind(&hssp_server::run, &server, 1));
-    t.create_thread(boost::bind(&hssp2_server::run, &server2, 1));
-    t.create_thread(boost::bind(&hmmer_hssp_server::run, &server3, 1));
 
 #ifndef _MSC_VER
     pthread_sigmask(SIG_SETMASK, &old_mask, 0);
@@ -697,7 +544,6 @@ int main(int argc, char* argv[])
 	sigwait(&wait_mask, &sig);
 	
 	server.stop();
-	server2.stop();
 #endif
 
 	t.join_all();

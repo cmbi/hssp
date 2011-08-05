@@ -35,6 +35,18 @@ namespace io = boost::iostreams;
 namespace hmmer
 {
 
+// precalculated threshold table for identity values between 10 and 80
+const double kHomologyThreshold[] = {
+	0.845468, 0.80398,  0.767997, 0.736414, 0.708413, 0.683373, 0.660811, 0.640351, 0.621688, 0.604579,
+	0.58882,  0.574246, 0.560718, 0.548117, 0.536344, 0.525314, 0.514951, 0.505194, 0.495984, 0.487275,
+	0.479023, 0.471189, 0.463741, 0.456647, 0.449882, 0.44342,  0.43724,  0.431323, 0.425651, 0.420207,
+	0.414976, 0.409947, 0.405105, 0.40044,  0.395941, 0.391599, 0.387406, 0.383352, 0.379431, 0.375636,
+	0.37196,  0.368396, 0.364941, 0.361587, 0.358331, 0.355168, 0.352093, 0.349103, 0.346194, 0.343362,
+	0.340604, 0.337917, 0.335298, 0.332744, 0.330252, 0.327821, 0.325448, 0.323129, 0.320865, 0.318652,
+	0.316488, 0.314372, 0.312302, 0.310277, 0.308294, 0.306353, 0.304452, 0.302589, 0.300764, 0.298975,
+	0.297221,
+};
+
 // --------------------------------------------------------------------
 // utility routine
 	
@@ -147,6 +159,39 @@ void ReadStockholm(istream& is, mseq& msa)
 			msa[i->second].m_seq += seq;
 		}
 	}
+	
+	if (msa.size() < 2)
+		THROW(("Insufficient sequences in Stockholm MSA"));
+	
+	// Remove all hits that are not above the threshold here
+	const string& q = msa.front().m_seq;
+	mseq::iterator mi = msa.begin() + 1;
+	while (mi != msa.end())
+	{
+		uint32 ide = 0, len = q.length();
+		const string& s = mi->m_seq;
+		
+		for (string::const_iterator qi = q.begin(), si = s.begin(); qi != q.end(); ++qi, ++si)
+		{
+			if (not is_gap(*qi) and *qi == *si)
+				++ide;
+			
+			if (is_gap(*qi) and is_gap(*si))
+				--len;
+		}
+		
+		float score = float(ide) / float(len);
+		uint32 ix = max(10U, min(len, 80U)) - 10;
+		if (score < kHomologyThreshold[ix])
+		{
+			if (VERBOSE > 1)
+				cerr << "dropping " << mi->m_id << " because identity " << score << " is below threshold " << kHomologyThreshold[ix] << endl;
+			
+			mi = msa.erase(mi);
+		}
+		else
+			++mi;
+	}
 }
 
 // --------------------------------------------------------------------
@@ -155,11 +200,17 @@ void ReadStockholm(istream& is, mseq& msa)
 void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
 	const string& db, mseq& msa)
 {
+	if (seq.empty())
+		THROW(("Empty sequence in RunJackHmmer"));
+	
 	HUuid uuid;
 	
 	fs::path rundir("/tmp/hssp-2/");
 	rundir /= boost::lexical_cast<string>(uuid);
 	fs::create_directories(rundir);
+	
+	if (VERBOSE)
+		cerr << "Running jackhmmer (" << uuid << ")...";
 	
 	// write fasta file
 	
@@ -235,6 +286,8 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 	
 	if (not VERBOSE)
 		fs::remove_all(rundir);
+	else
+		cerr << " done" << endl;
 }
 	
 // --------------------------------------------------------------------
@@ -260,7 +313,6 @@ struct Hit
 
 	bool			operator<(const Hit& rhs) const 	{ return ide > rhs.ide or (ide == rhs.ide and lali > rhs.lali); }
 	
-	bool			IdentityAboveThreshold() const;
 	vector<insertion>
 					insertions;
 };
@@ -412,32 +464,6 @@ struct compare_hit
 	bool operator()(hit_ptr a, hit_ptr b) const { return *a < *b; }
 };
 
-bool Hit::IdentityAboveThreshold() const
-{
-	static vector<double> kHomologyThreshold;
-	if (kHomologyThreshold.empty())
-	{
-		kHomologyThreshold.reserve(71);
-		for (uint32 i = 10; i <= 80; ++i)
-			kHomologyThreshold.push_back(2.9015 * pow(i, -0.562) + 0.05);
-	}
-	
-	uint32 l = lali;
-	if (l < 10)
-		l = 0;
-	else if (l > 80)
-		l = 70;
-	else
-		l -= 10;
-	
-	assert(l < kHomologyThreshold.size());
-
-	if (VERBOSE and kHomologyThreshold[l] >= ide)
-		cerr << "dropping " << id << " because identity " << ide << " is below threshold " << kHomologyThreshold[l] << endl;
-
-	return kHomologyThreshold[l] < ide;
-}
-
 // --------------------------------------------------------------------
 // ResidueHInfo is a class to store information about a residue in the
 // original query sequence, along with statistics.
@@ -457,15 +483,35 @@ struct ResidueHInfo
 	float			entropy, weight;
 	uint32			var;
 	uint32			dist[20];
-
-	static const string kIX;
+	static int8		kIX[256];
 };
 
 typedef shared_ptr<ResidueHInfo>	res_ptr;
 
 // --------------------------------------------------------------------
 
-const string ResidueHInfo::kIX("VLIMFWYGAPSTCHRKQEND");
+//const string ResidueHInfo::kIX("VLIMFWYGAPSTCHRKQEND");
+
+int8 ResidueHInfo::kIX[256] = {
+	//   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  0
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  1
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  2 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  3 
+	-1,  8, -1, 12, 19, 17,  4,  7, 13,  2, -1, 15,  1,  3, 18, -1, //  4 
+	 9, 16, 14, 10, 11, -1,  0,  5, -1,  6, -1, -1, -1, -1, -1, -1, //  5 
+	-1,  8, -1, 12, 19, 17,  4,  7, 13,  2, -1, 15,  1,  3, 18, -1, //  4 
+	 9, 16, 14, 10, 11, -1,  0,  5, -1,  6, -1, -1, -1, -1, -1, -1, //  5 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  8 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  9 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 10 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 11 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 12 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 13 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 14 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1  // 15 
+};
+
 
 // first constructor is for a 'chain-break'
 ResidueHInfo::ResidueHInfo(uint32 seqNr)
@@ -489,15 +535,15 @@ ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain
 {
 	fill(dist, dist + 20, 0);
 	
-	string::size_type ix = kIX.find(a);
-	assert(ix != string::npos);
-	if (ix != string::npos)
+	int8 ix = kIX[uint8(a)];
+	assert(ix != -1);
+	if (ix != -1)
 		dist[ix] = 1;
 	
 	foreach (hit_ptr hit, hits)
 	{
-		ix = kIX.find(hit->msa[hit->ix].m_seq[pos]);
-		if (ix != string::npos)
+		ix = kIX[uint8(hit->msa[hit->ix].m_seq[pos])];
+		if (ix != -1)
 		{
 			++nocc;
 			dist[ix] += 1;
@@ -655,7 +701,7 @@ void CreateHSSPOutput(
 	{
 		if (r->letter == 0)
 		{
-			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
+			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0")
 				% r->seqNr << endl;
 		}
 		else
@@ -675,11 +721,30 @@ void CreateHSSPOutput(
 	os << "## INSERTION LIST" << endl
 	   << " AliNo  IPOS  JPOS   Len Sequence" << endl;
 
-	const mseq& msa = hits.front()->msa;
 	foreach (hit_ptr h, hits)
 	{
 		foreach (insertion& ins, h->insertions)
-			os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->nr % ins.ipos % ins.jpos % (ins.seq.length() - 2) << ins.seq << endl;
+		{
+			string s = ins.seq;
+			
+			if (s.length() <= 100)
+				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->nr % ins.ipos % ins.jpos % (ins.seq.length() - 2) << s << endl;
+			else
+			{
+				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->nr % ins.ipos % ins.jpos % (ins.seq.length() - 2) << s.substr(0, 100) << endl;
+				s.erase(0, 100);
+				
+				while (not s.empty())
+				{
+					uint32 n = s.length();
+					if (n > 100)
+						n = 100;
+					
+					os << boost::format("     +                   ") % h->nr % ins.ipos % ins.jpos % (ins.seq.length() - 2) << s.substr(0, n) << endl;
+					s.erase(0, n);
+				}
+			}
+		}			
 	}
 	
 	os << "//" << endl;
@@ -722,15 +787,15 @@ float CalculateConservation(const mseq& msa, uint32 r, const symmetric_matrix<fl
 	for (uint32 i = 0; i + 1 < msa.size(); ++i)
 	{
 		const string& si = msa[i].m_seq;
-		string::size_type ri = ResidueHInfo::kIX.find(toupper(si[r]));
-		if (ri == string::npos)
+		int8 ri = ResidueHInfo::kIX[uint8(si[r])];
+		if (ri == -1)
 			continue;
 		
 		for (uint32 j = i + 1; j < msa.size(); ++j)
 		{
 			const string& sj = msa[j].m_seq;
-			string::size_type rj = ResidueHInfo::kIX.find(toupper(sj[r]));
-			if (rj == string::npos)
+			int8 rj = ResidueHInfo::kIX[uint8(sj[r])];
+			if (rj == -1)
 				continue;
 			
 			conservation +=	w(i, j) * D(ri, rj);
@@ -776,21 +841,22 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	{
 		hit_ptr h(new Hit(msa, chain.GetChainID(), 0, i));
 
-		if (h->IdentityAboveThreshold())
+		uint32 docNr = inDatabank->GetDocumentNr(h->id);
+		
+		h->desc = inDatabank->GetMetaData(docNr, "title");
+		try
 		{
-			uint32 docNr = inDatabank->GetDocumentNr(h->id);
-			
-			h->desc = inDatabank->GetMetaData(docNr, "title");
-			try
-			{
-				h->acc = inDatabank->GetMetaData(docNr, "acc");
-			}
-			catch (...) {}
-			h->lseq2 = inDatabank->GetSequence(docNr, 0).length();
-			
-			hits.push_back(h);
+			h->acc = inDatabank->GetMetaData(docNr, "acc");
 		}
+		catch (...) {}
+		h->lseq2 = inDatabank->GetSequence(docNr, 0).length();
+		
+		hits.push_back(h);
 	}
+	
+	if (VERBOSE)
+		cerr << "Continuing with " << hits.size() << " hits" << endl
+			 << "Calculating weights...";
 	
 	// calculate the weight matrix for the hits
 	symmetric_matrix<float> w(msa.size());
@@ -799,6 +865,10 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 		for (uint32 j = i + 1; j < msa.size(); ++j)
 			w(i, j) = CalculateWeight(msa, i, j);
 	}
+
+	if (VERBOSE)
+		cerr << " done" << endl
+			 << "Calculating residue info...";
 	
 	const vector<MResidue*>& residues = chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
@@ -821,6 +891,9 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 			++ri;
 		}
 	}
+	
+	if (VERBOSE)
+		cerr << " done" << endl;
 	
 	assert(ri == residues.end());
 }

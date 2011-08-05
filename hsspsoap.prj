@@ -16,13 +16,11 @@
   </libpaths>
   <files>
     <group name="Sources">
+      <file>hsspsoap.cpp</file>
       <file>blast.cpp</file>
       <file>dssp.cpp</file>
-      <file>hsspsoap.cpp</file>
       <file>matrix.cpp</file>
-      <file>hh-hssp.cpp</file>
       <file>hmmer-hssp.cpp</file>
-      <file>maxhom-hssp.cpp</file>
       <file>primitives-3d.cpp</file>
       <file>structure.cpp</file>
       <file>utils.cpp</file>

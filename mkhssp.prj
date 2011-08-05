@@ -24,7 +24,7 @@
       <file>mkhssp.cpp</file>
     </group>
     <group name="Libraries">
-      <link>mrs</link>
+      <link>mrsd</link>
       <link>boost_date_time</link>
       <link>boost_filesystem</link>
       <link>boost_iostreams</link>

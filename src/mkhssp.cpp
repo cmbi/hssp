@@ -49,6 +49,15 @@ namespace po = boost::program_options;
 
 int main(int argc, char* argv[])
 {
+	// enable the dumping of cores to enable postmortem debugging
+	rlimit l;
+	if (getrlimit(RLIMIT_CORE, &l) == 0)
+	{
+		l.rlim_cur = l.rlim_max;
+		if (l.rlim_cur == 0 or setrlimit(RLIMIT_CORE, &l) < 0)
+			cerr << "Failed to set rlimit" << endl;
+	}
+
 	try
 	{
 		po::options_description desc("MKHSSP options");
@@ -153,7 +162,17 @@ int main(int argc, char* argv[])
 			vector<char> hssp;
 			
 			io::filtering_ostream os(io::back_inserter(hssp));
-			hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
+			
+			try
+			{
+				hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
+			}
+			catch (...)
+			{
+				outfile.close();
+				fs::remove(output);
+				throw;
+			}
 		}
 		else
 			hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, cout);
