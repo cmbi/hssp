@@ -62,12 +62,14 @@ struct seq
 {
 	string		m_id;
 	string		m_seq;
+	uint32		m_identical, m_length;
 	
 				seq() {}
 
-				seq(const string& id, const string& seq)
+				seq(const string& id)
 					: m_id(id)
-					, m_seq(seq)
+					, m_identical(0)
+					, m_length(0)
 				{
 				}
 };
@@ -82,7 +84,7 @@ typedef vector<seq> mseq;
 
 void ReadStockholm(istream& is, mseq& msa)
 {
-	string line;
+	string line, qseq;
 	getline(is, line);
 	if (line != "# STOCKHOLM 1.0")
 		throw mas_exception("Not a stockholm file");
@@ -98,11 +100,8 @@ void ReadStockholm(istream& is, mseq& msa)
 	if (boost::regex_match(id, sm, re))
 		id = sm.str(1);
 
-	map<string,uint32> ix;
-	
-	// fill the index
-	msa.push_back(seq(id, ""));
-	ix[id] = 0;
+	msa.push_back(seq(id));
+	uint32 ix = 0;
 	
 	for (;;)
 	{
@@ -120,8 +119,6 @@ void ReadStockholm(istream& is, mseq& msa)
 		
 		if (ba::starts_with(line, "#=GS "))
 		{
-			uint32 n = msa.size();
-			msa.push_back(hmmer::seq());
 			
 			string id = line.substr(5);
 			string::size_type s = id.find("DE ");
@@ -129,8 +126,7 @@ void ReadStockholm(istream& is, mseq& msa)
 				id = id.substr(0, s);
 			
 			ba::trim(id);
-			msa[n].m_id = id;
-			ix[id] = n;
+			msa.push_back(hmmer::seq(id));
 			continue;
 		}
 		
@@ -147,16 +143,32 @@ void ReadStockholm(istream& is, mseq& msa)
 			
 			string seq = line.substr(s);
 			
-			map<string,uint32>::iterator i = ix.find(id);
-			if (i == ix.end())
+			if (id == msa[0].m_id)
 			{
-				ix.insert(make_pair(id, msa.size()));
-				msa.push_back(hmmer::seq());
-				msa.back().m_id = id;
-				i = ix.find(id);
+				ix = 0;
+				msa[0].m_seq += seq;
+				qseq = seq;
 			}
-			
-			msa[i->second].m_seq += seq;
+			else
+			{
+				++ix;
+				if (ix >= msa.size())
+					msa.push_back(hmmer::seq(id));
+
+				assert(ix < msa.size());
+				assert(id == msa[ix].m_id);
+				
+				msa[ix].m_seq += seq;
+				
+				for (string::const_iterator qi = qseq.begin(), si = seq.begin(); qi != qseq.end(); ++qi, ++si)
+				{
+					if (not is_gap(*qi) and *qi == *si)
+						++msa[ix].m_identical;
+					
+					if (not is_gap(*qi) or not is_gap(*si))
+						++msa[ix].m_length;
+				}
+			}
 		}
 	}
 	
@@ -164,24 +176,11 @@ void ReadStockholm(istream& is, mseq& msa)
 		THROW(("Insufficient sequences in Stockholm MSA"));
 	
 	// Remove all hits that are not above the threshold here
-	const string& q = msa.front().m_seq;
 	mseq::iterator mi = msa.begin() + 1;
 	while (mi != msa.end())
 	{
-		uint32 ide = 0, len = q.length();
-		const string& s = mi->m_seq;
-		
-		for (string::const_iterator qi = q.begin(), si = s.begin(); qi != q.end(); ++qi, ++si)
-		{
-			if (not is_gap(*qi) and *qi == *si)
-				++ide;
-			
-			if (is_gap(*qi) and is_gap(*si))
-				--len;
-		}
-		
-		float score = float(ide) / float(len);
-		uint32 ix = max(10U, min(len, 80U)) - 10;
+		float score = float(mi->m_identical) / float(mi->m_length);
+		uint32 ix = max(10U, min(mi->m_length, 80U)) - 10;
 		if (score < kHomologyThreshold[ix])
 		{
 			if (VERBOSE > 1)
@@ -876,20 +875,20 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	const string& s = msa.front().m_seq;
 	for (uint32 i = 0; i < s.length(); ++i)
 	{
-		if (s[i] != '-' and s[i] != ' ')
-		{
-			assert(ri != residues.end());
-			
-			if (ri != residues.begin() and (*ri)->GetNumber() > (*(ri - 1))->GetNumber() + 1)
-				res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
-			
-			string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
-			uint32 ivar = uint32(100 * (1 - CalculateConservation(msa, i, w)));
-			
-			res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i, chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp, ivar)));
+		if (is_gap(s[i]))
+			continue;
 
-			++ri;
-		}
+		assert(ri != residues.end());
+		
+		if (ri != residues.begin() and (*ri)->GetNumber() > (*(ri - 1))->GetNumber() + 1)
+			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
+		
+		string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
+		uint32 ivar = uint32(100 * (1 - CalculateConservation(msa, i, w)));
+		
+		res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i, chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp, ivar)));
+
+		++ri;
 	}
 	
 	if (VERBOSE)
