@@ -500,10 +500,6 @@ int main(int argc, char* argv[])
 		cerr << "FastA directory '" << fastadir << "' not found" << endl;
 		exit(1);
 	}
-
-	BLAST_THREADS = boost::thread::hardware_concurrency();
-	if (vm.count("threads"))
-		BLAST_THREADS = vm["threads"].as<int>();
 	
 	if (vm.count("no-daemon"))
 		daemon = false;

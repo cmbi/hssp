@@ -147,24 +147,19 @@ int main(int argc, char* argv[])
 			ofstream outfile(output.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
 			if (not outfile.is_open())
 				throw runtime_error("could not create output file");
-#if defined USE_COMPRESSION
-			io::filtering_stream<io::output> out;
-			if (ba::ends_with(output, ".bz2"))
-				out.push(io::bzip2_compressor());
-			else if (ba::ends_with(output, ".gz"))
-				out.push(io::gzip_compressor());
-#endif
-			out.push(outfile);
-
-			// and the final HSSP file
-			// (we use a temporary stringstream, to avoid
-			// creating empty files if something goes wrong.
-			vector<char> hssp;
-			
-			io::filtering_ostream os(io::back_inserter(hssp));
 			
 			try
 			{
+#if defined USE_COMPRESSION
+				io::filtering_stream<io::output> out;
+				if (ba::ends_with(output, ".bz2"))
+					out.push(io::bzip2_compressor());
+				else if (ba::ends_with(output, ".gz"))
+					out.push(io::gzip_compressor());
+#endif
+				out.push(outfile);
+	
+				// and the final HSSP file
 				hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
 			}
 			catch (...)
