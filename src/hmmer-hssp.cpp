@@ -71,6 +71,7 @@ struct seq
 					, m_identical(0)
 					, m_length(0)
 				{
+					m_seq.reserve(5000);
 				}
 };
 
