@@ -351,7 +351,7 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 	id = sm.str(1);
 	
 	ifir = 1;
-	ilas = q.length();
+	ilas = 0;
 
 	// jfir/jlas can be taken over from jackhmmer output
 	jfir = boost::lexical_cast<uint32>(sm.str(2));
@@ -367,6 +367,7 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 		{
 			*sb = ' ';
 			++ifir;
+			++ilas;
 		}
 		else
 			break;
@@ -377,7 +378,6 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 	
 	while (qe != qb and is_gap(*(se - 1)))
 	{
-		--ilas;
 		--qe;
 		--se;
 		*se = ' ';
@@ -402,6 +402,7 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 			if (not (sgap or qgap))
 				++ngap;
 			sgap = true;
+			++ilas;
 			++lgap;
 			++jpos;
 		}
@@ -450,6 +451,7 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 			else if (m(*qi, *si) > 0)
 				++similar;
 			
+			++ilas;
 			++ipos;
 			++jpos;
 		}
@@ -740,7 +742,7 @@ void CreateHSSPOutput(
 					if (n > 100)
 						n = 100;
 					
-					os << boost::format("     +                   ") % h->nr % ins.ipos % ins.jpos % (ins.seq.length() - 2) << s.substr(0, n) << endl;
+					os << "     +                   " << s.substr(0, n) << endl;
 					s.erase(0, n);
 				}
 			}
