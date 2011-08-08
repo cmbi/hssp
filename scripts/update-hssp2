@@ -1,0 +1,49 @@
+# hssp2 makefile
+
+firstTarget: hssp2
+
+include hssp2.config
+
+# basics
+RAWDIR			?= /data/raw/
+FASTADIR		?= /data/fasta/
+HSSP2DIR		?= /data/raw/hssp2/
+HSSP2FADIR		= $(HSSP2DIR)/fasta/
+HSSP2STODIR		= $(HSSP2DIR)/sto/
+
+# source data
+UNIREF			?= $(FASTADIR)/uniref100.fa
+DSSP_FILES		?= $(wildcard $(RAWDIR)dssp/*.dssp)
+DSSP_IDS		= $(DSSP_IDS:$(RAWDIR)dssp/%.dssp=%)
+
+VPATH			= :$(HSSP2DIR):
+
+# Intermediate files
+
+
+# The HSSP2 files we need to create
+
+
+
+# The Stockholm files we need:
+
+FASTA_FILES		= $(wildcard $(HSSP_TMP_DIR)*.fa)
+TBL_FILES		= $(FASTA_FILES:%.fa=%.tbl)
+
+$(FASTADIR)%.fa: $(RAWDIR)uniprot_%.dat.gz
+	zcat $< | /home/maarten/projects/swiss2fasta > $@
+
+$(UNIPROT): $(FASTADIR)sprot.fa $(FASTADIR)trembl.fa
+	cat $^ > $@
+
+hssp2: tables
+
+tables: $(TBL_FILES)
+
+%.sto.bz2: %.sto
+	bzip2 $<
+
+%.sto: %.fa
+	jackhmmer --noali -o /dev/null -A $@ $< $(UNIREF)
+
+test1: $(FIRST_10_TBL)
