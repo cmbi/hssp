@@ -1,3 +1,4 @@
+#!/usr/bin/make -f
 # hssp2 makefile
 
 firstTarget: hssp2
@@ -7,21 +8,33 @@ include hssp2.config
 # basics
 RAWDIR			?= /data/raw/
 FASTADIR		?= /data/fasta/
+DSSPDIR			?= /data/raw/dssp/
 HSSP2DIR		?= /data/raw/hssp2/
-HSSP2FADIR		= $(HSSP2DIR)/fasta/
-HSSP2STODIR		= $(HSSP2DIR)/sto/
+HSSP2DATADIR	= $(HSSP2DIR)data/
+
+# programs
+CDHIT			?= cd-hit
+PERL			?= perl
+
+# 
+DIRS			= $(HSSP2DATADIR)
 
 # source data
 UNIREF			?= $(FASTADIR)/uniref100.fa
-DSSP_FILES		?= $(wildcard $(RAWDIR)dssp/*.dssp)
-DSSP_IDS		= $(DSSP_IDS:$(RAWDIR)dssp/%.dssp=%)
+DSSP_FILES		?= $(wildcard $(DSSPDIR)*.dssp)
+DSSP_IDS		= $(DSSP_FILES:$(DSSPDIR)%.dssp=%)
 
-VPATH			= :$(HSSP2DIR):
+VPATH			= :$(HSSP2DATADIR):
 
 # Intermediate files
 
 
+
+
+
 # The HSSP2 files we need to create
+
+HSSP2_FILES		= $(DSSP_IDS:%=$(HSSP2DIR)%.hssp.bz2)
 
 
 
@@ -30,20 +43,27 @@ VPATH			= :$(HSSP2DIR):
 FASTA_FILES		= $(wildcard $(HSSP_TMP_DIR)*.fa)
 TBL_FILES		= $(FASTA_FILES:%.fa=%.tbl)
 
-$(FASTADIR)%.fa: $(RAWDIR)uniprot_%.dat.gz
-	zcat $< | /home/maarten/projects/swiss2fasta > $@
+hssp2: $(HSSP2DIR)dssp-nr-100.fa $(HSSP2_FILES)
 
-$(UNIPROT): $(FASTADIR)sprot.fa $(FASTADIR)trembl.fa
-	cat $^ > $@
+$(HSSP2DIR)dssp.fa: $(DSSP_FILES)
+	$(PERL) dssp2fasta.pl $(DSSPDIR) $@ $(HSSP2DATADIR)
 
-hssp2: tables
+$(HSSP2DIR)dssp-nr-100.fa $(HSSP2DATADIR)hssp2.depends: $(HSSP2DIR)dssp.fa
+	$(CDHIT) -i $< -o $@ -c 1.0 -T 0 -s 0.9
+	$(PERL) split-fasta.pl $@ $(HSSP2DATADIR)
 
-tables: $(TBL_FILES)
+$(HSSP2DATADIR)%.sto.bz2: $(HSSP2DATADIR)%.fa
+	jackhmmer --noali -o /dev/null -A $(@:.bz2=) $< $(UNIREF)
+	bzip2 $(@:.bz2=)
 
-%.sto.bz2: %.sto
-	bzip2 $<
-
-%.sto: %.fa
-	jackhmmer --noali -o /dev/null -A $@ $< $(UNIREF)
+$(HSSP2DIR)%.hssp.bz2::
+	touch $@
 
 test1: $(FIRST_10_TBL)
+
+dirs: $(DIRS)
+
+include $(HSSP2DATADIR)hssp2.depends
+
+$(DIRS):
+	mkdir -p $@
