@@ -951,14 +951,25 @@ void CreateHSSP(
 	mseq alignment;
 
 	RunJackHmmer(inProtein, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignment);
+
+	MChain chain('A');
+	vector<MResidue*>& residues = chain.GetResidues();
+	MResidue* last = nil;
+	uint32 nr = 1;
+	foreach (char r, inProtein)
+	{
+		residues.push_back(new MResidue(nr, r, last));
+		++nr;
+		last = residues.back();
+	}
 	
-	ChainToHits(inDatabank, alignment, 'A', hits, res);
+	ChainToHits(inDatabank, alignment, chain, hits, res);
 
 	sort(hits.begin(), hits.end(), compare_hit());
 	if (hits.size() > 9999)
 		hits.erase(hits.begin() + 9999, hits.end());
 	
-	uint32 nr = 1;
+	nr = 1;
 	foreach (hit_ptr h, hits)
 		h->nr = nr++;
 

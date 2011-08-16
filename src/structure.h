@@ -145,6 +145,7 @@ class MResidue
 {
   public:
 						MResidue(const MResidue& residue);
+						MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious);
 						MResidue(uint32 inNumber,
 							MResidue* inPrevious, const std::vector<MAtom>& inAtoms);
 

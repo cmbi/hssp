@@ -154,6 +154,22 @@ MResidueType MapResidue(string inName)
 	return result;
 }
 
+MResidueType MapResidue(char inCode)
+{
+	MResidueType result = kUnknownResidue;
+	
+	for (uint32 i = 0; i < kResidueTypeCount; ++i)
+	{
+		if (inCode == kResidueInfo[i].code)
+		{
+			result = kResidueInfo[i].type;
+			break;
+		}
+	}
+	
+	return result;
+}
+
 // --------------------------------------------------------------------
 
 double ParseFloat(const string& s)
@@ -401,6 +417,35 @@ MResidue::MResidue(uint32 inNumber,
 	mCenter.mX = (mBox[0].mX + mBox[1].mX) / 2;
 	mCenter.mY = (mBox[0].mY + mBox[1].mY) / 2;
 	mCenter.mZ = (mBox[0].mZ + mBox[1].mZ) / 2;
+}
+
+MResidue::MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious)
+	: mChainID(0)
+	, mPrev(nil)
+	, mNext(nil)
+	, mSeqNumber(inNumber)
+	, mNumber(inNumber)
+	, mInsertionCode(' ')
+	, mType(MapResidue(inTypeCode))
+	, mSSBridgeNr(0)
+	, mAccessibility(0)
+	, mSecondaryStructure(loop)
+	, mSheet(0)
+	, mBend(false)
+{
+	fill(mHelixFlags, mHelixFlags + 3, helixNone);
+	
+	mBetaPartner[0].residue = mBetaPartner[1].residue = nil;
+	
+	mHBondDonor[0].energy = mHBondDonor[1].energy = mHBondAcceptor[0].energy = mHBondAcceptor[1].energy = 0;
+	mHBondDonor[0].residue = mHBondDonor[1].residue = mHBondAcceptor[0].residue = mHBondAcceptor[1].residue = nil;
+
+	static const MAtom kNullAtom = {};
+	mN = mCA = mC = mO = kNullAtom;
+	
+	mCA.mICode = ' ';
+	mCA.mResSeq = inTypeCode;
+	mCA.mChainID = 'A';
 }
 
 MResidue::MResidue(const MResidue& residue)
