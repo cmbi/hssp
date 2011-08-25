@@ -442,6 +442,7 @@ int main(int argc, char* argv[])
 		("jackhmmer",	po::value<string>(),	"Path to the jackhmmer application")
 		("fasta-dir",	po::value<string>(),	"Directory containing FastA formatted uniprot databank")
 		("no-daemon,D",							"do not fork a daemon")
+		("max-runtime",	po::value<uint16>(),	"Maximum runtime for jackhmmer in seconds")
 		("verbose,v",							"Verbose mode")
 		;
 	
@@ -477,6 +478,9 @@ int main(int argc, char* argv[])
 
 	if (vm.count("user"))
 		user = vm["user"].as<string>();
+
+	if (vm.count("max-runtime"))
+		hmmer::SetMaxRunTime(vm["max-runtime"].as<uint16>());
 
 	if (vm.count("verbose"))
 		VERBOSE = 1;
@@ -524,7 +528,7 @@ int main(int argc, char* argv[])
 		server.set_location(location);
 	
     boost::thread_group t;
-    t.create_thread(boost::bind(&hssp_server::run, &server, 1));
+    t.create_thread(boost::bind(&hssp_server::run, &server, 4));
 
 #ifndef _MSC_VER
     pthread_sigmask(SIG_SETMASK, &old_mask, 0);

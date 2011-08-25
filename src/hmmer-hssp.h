@@ -14,6 +14,9 @@ class MProtein;
 
 namespace hmmer
 {
+
+void SetMaxRunTime(
+	uint32							inSeconds);
 	
 void CreateHSSP(
 	CDatabankPtr					inDatabank,

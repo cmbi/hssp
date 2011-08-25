@@ -21,6 +21,7 @@
 #include <boost/ptr_container/ptr_vector.hpp>
 
 #include "CDatabank.h"
+#include "CUtils.h"
 
 #include "matrix.h"
 #include "dssp.h"
@@ -34,6 +35,9 @@ namespace io = boost::iostreams;
 
 namespace hmmer
 {
+
+// global, 5 minutes
+uint32 gMaxRunTime = 300;
 
 // precalculated threshold table for identity values between 10 and 80
 const double kHomologyThreshold[] = {
@@ -53,6 +57,11 @@ const double kHomologyThreshold[] = {
 inline bool is_gap(char aa)
 {
 	return aa == '-' or aa == '~' or aa == '.' or aa == '_';
+}
+
+void SetMaxRunTime(uint32 inSeconds)
+{
+	gMaxRunTime = inSeconds;
 }
 
 // --------------------------------------------------------------------
@@ -211,7 +220,7 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 	
 	if (VERBOSE)
 		cerr << "Running jackhmmer (" << uuid << ")...";
-	
+		
 	// write fasta file
 	
 	fs::ofstream input(rundir / "input.fa");
@@ -248,6 +257,7 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		
 		argv.push("-N", iterations);
 		argv.push("--noali");
+		argv.push("--cpu", "2");
 //		argv.push("-o", "/dev/null");
 		argv.push("-A", "output.sto");
 		argv.push("input.fa");
@@ -261,17 +271,55 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		exit(-1);
 	}
 
-	// wait for jackhmmer to finish
+	// wait for jackhmmer to finish or time out
+	double startTime = system_time();
 	int status;
-	waitpid(pid, &status, 0);
+
+	for (;;)
+	{
+		int err = waitpid(pid, &status, WNOHANG);
+		if (err == -1 or err == pid)
+			break;
+		
+		if (system_time() > startTime + gMaxRunTime)
+		{
+			err = kill(pid, SIGKILL);
+			if (err == 0)
+				err = waitpid(pid, &status, 0);
+			
+			THROW(("Timeout waiting for jackhmmer result"));
+		}
+		
+		sleep(1);
+	}
 	
 	if (status != 0)
 	{
 		if (fs::exists(rundir / "jackhmmer.log"))
 		{
 			fs::ifstream log(rundir / "jackhmmer.log");
+			
 			if (log.is_open())
-				io::copy(log, cerr);
+			{
+				// only print the last 10 lines
+				deque<string> lines;
+			
+				for (;;)
+				{
+					string line;
+					getline(log, line);
+					
+					if (line.empty() and log.eof())
+						break;
+					
+					lines.push_back(line);
+					if (lines.size() > 10)
+						lines.pop_front();
+				}
+				
+				foreach (string& line, lines)
+					cerr << line;
+			}
 		}
 		
 		THROW(("jackhmmer exited with status %d", status));
