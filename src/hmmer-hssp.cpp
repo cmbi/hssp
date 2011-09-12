@@ -1199,7 +1199,7 @@ void CreateHSSP(
 
 		fs::path sfp = inDataDir / (ch.substr(2) + ".sto.bz2");
 		if (not fs::exists(sfp))
-			THROW(("Stockholm file '%' not found", sfp.string().c_str()));
+			THROW(("Stockholm file '%s' not found", sfp.string().c_str()));
 
 		fs::ifstream sf(sfp, ios::binary);
 		if (not sf.is_open())

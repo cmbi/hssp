@@ -129,7 +129,7 @@ int main(int argc, char* argv[])
 
 		fs::path datadir(".");
 		if (vm.count("datadir"))
-			fastadir = fs::path(vm["datadir"].as<string>());
+			datadir = fs::path(vm["datadir"].as<string>());
 		if (not fs::exists(datadir))
 			throw mas_exception("Data directory not found");
 
