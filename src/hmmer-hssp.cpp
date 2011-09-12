@@ -5,14 +5,19 @@
 
 #include "MRS.h"
 
+#if P_UNIX
 #include <wait.h>
+#endif
 
 #include <cmath>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 #include <boost/date_time/gregorian/gregorian.hpp>
@@ -136,7 +141,8 @@ void ReadStockholm(istream& is, mseq& msa)
 				id = id.substr(0, s);
 			
 			ba::trim(id);
-			msa.push_back(hmmer::seq(id));
+			if (msa.size() > 1 or msa.front().m_id != id)
+				msa.push_back(hmmer::seq(id));
 			continue;
 		}
 		
@@ -203,6 +209,45 @@ void ReadStockholm(istream& is, mseq& msa)
 	}
 }
 
+void CheckAlignmentForChain(
+	mseq&			inMSA,
+	const MChain*	inChain)
+{
+	string sa, sc;
+
+	foreach (char r, inMSA.front().m_seq)
+	{
+		if (not is_gap(r))
+			sa += r;
+	}
+
+	inChain->GetSequence(sc);
+
+	if (sa != sc)
+	{
+		if (sa.length() < sc.length())
+			THROW(("Query used for Stockholm file is too short for the chain"));
+
+		string::size_type offset = sa.find(sc);
+		if (offset == string::npos)
+			THROW(("Invalid Stockholm file for chain"));
+
+		if (offset > 0)
+		{
+			foreach (seq& s, inMSA)
+				s.m_seq.erase(0, offset);
+		}
+
+		if (sa.length() > sc.length() + offset)
+		{
+			uint32 n = sa.length() - (sc.length() + offset);
+			foreach (seq& s, inMSA)
+				s.m_seq.erase(s.m_seq.length() - n, n);
+		}
+	}
+}
+
+#if P_UNIX
 // --------------------------------------------------------------------
 // Run the Jackhmmer application
 
@@ -337,7 +382,9 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 	else
 		cerr << " done" << endl;
 }
-	
+
+#endif
+
 // --------------------------------------------------------------------
 // Hit is a class to store hit information and all of its statistics.
 	
@@ -390,7 +437,7 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 	assert(q.length() == s.length());
 
 	// parse out the position
-	static const boost::regex re("([a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
+	static const boost::regex re("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
 	boost::smatch sm;
 
 	if (not boost::regex_match(msa[six].m_id, sm, re))
@@ -522,7 +569,7 @@ struct ResidueHInfo
 {
 					ResidueHInfo(uint32 seqNr);
 					ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
-						const string& dssp, uint32 var);
+						const string& dssp, float consweight);
 	
 	char			letter;
 	char			chain;
@@ -530,8 +577,7 @@ struct ResidueHInfo
 	uint32			seqNr, pdbNr;
 	uint32			pos;
 	uint32			nocc, ndel, nins;
-	float			entropy, weight;
-	uint32			var;
+	float			entropy, consweight;
 	uint32			dist[20];
 	static int8		kIX[256];
 };
@@ -571,7 +617,7 @@ ResidueHInfo::ResidueHInfo(uint32 seqNr)
 }
 
 ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
-		const string& dssp, uint32 var)
+		const string& dssp, float consweight)
 	: letter(a)
 	, chain(chain)
 	, dssp(dssp)
@@ -581,7 +627,7 @@ ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain
 	, nocc(1)
 	, ndel(0)
 	, nins(0)
-	, var(var)
+	, consweight(consweight)
 {
 	fill(dist, dist + 20, 0);
 	
@@ -608,7 +654,7 @@ ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain
 		dist[a] = uint32((100.0 * freq) + 0.5);
 		
 		if (freq > 0)
-			entropy -= freq * log(freq);
+			entropy -= static_cast<float>(freq * log(freq));
 	}
 	
 	// calculate ndel and nins
@@ -624,7 +670,7 @@ ResidueHInfo::ResidueHInfo(char a, vector<hit_ptr>& hits, uint32 pos, char chain
 		if (is_gap(t[pos]))
 			++ndel;
 		
-		if (gap > 0 and t[pos] >= 'a' and t[pos] <= 'y')
+		if (gap and t[pos] >= 'a' and t[pos] <= 'y')
 			++nins;
 	}
 }
@@ -665,7 +711,7 @@ void CreateHSSPOutput(
 	
 	os << boost::format("NALIGN     %4.4d") % hits.size() << endl
 	   << endl
-	   << "## PROTEINS : EMBL/SWISSPROT identifier and alignment statistics" << endl
+	   << "## PROTEINS : identifier and alignment statistics" << endl
 	   << "  NR.    ID         STRID   %IDE %WSIM IFIR ILAS JFIR JLAS LALI NGAP LGAP LSEQ2 ACCNUM     PROTEIN" << endl;
 	   
 	// print the first list
@@ -737,14 +783,16 @@ void CreateHSSPOutput(
 						aln += ' ';
 				}
 				
-				os << ' ' << boost::format("%5.5d%s%4.4d %4.4d  ") % ri->seqNr % ri->dssp % ri->nocc % ri->var << aln << endl;
+				uint32 ivar = uint32(100 * (1 - ri->consweight));
+
+				os << ' ' << boost::format("%5.5d%s%4.4d %4.4d  ") % ri->seqNr % ri->dssp % ri->nocc % ivar << aln << endl;
 			}
 		}
 	}
 	
 	// ## SEQUENCE PROFILE AND ENTROPY
 	os << "## SEQUENCE PROFILE AND ENTROPY" << endl
-	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT" << endl;
+	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
 	
 	res_ptr last;
 	foreach (res_ptr r, res)
@@ -760,9 +808,11 @@ void CreateHSSPOutput(
 
 			for (uint32 i = 0; i < 20; ++i)
 				os << boost::format("%4.4d") % r->dist[i];
-			
-			uint32 relent = uint32(100 * r->entropy / log(20));
-			os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d") % r->nocc % r->ndel % r->nins % r->entropy % relent << endl;
+
+			cerr << "consweight: " << r->consweight << endl;
+
+			uint32 relent = uint32(100 * r->entropy / log(20.0));
+			os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % r->nocc % r->ndel % r->nins % r->entropy % relent % r->consweight << endl;
 		}
 	}
 	
@@ -805,28 +855,29 @@ void CreateHSSPOutput(
 // and weights
 
 // Dayhoff matrix as used by maxhom
-const float kDayhoffData[] = {
-	 1.5,																													// V
-	 0.8,  1.5,                                                                                                             // L
-	 1.1,  0.8,  1.5,                                                                                                       // I
-	 0.6,  1.3,  0.6,  1.5,                                                                                                 // M
-	 0.2,  1.2,  0.7,  0.5,  1.5,                                                                                           // F
-	-0.8,  0.5, -0.5, -0.3,  1.3,  1.5,                                                                                     // W
-	-0.1,  0.3,  0.1, -0.1,  1.4,  1.1,  1.5,                                                                               // Y
-	 0.2, -0.5, -0.3, -0.3, -0.6, -1.0, -0.7,  1.5,                                                                         // G
-	 0.2, -0.1,  0.0,  0.0, -0.5, -0.8, -0.3,  0.7,  1.5,                                                                   // A
-	 0.1, -0.3, -0.2, -0.2, -0.7, -0.8, -0.8,  0.3,  0.5,  1.5,                                                             // P
-	-0.1, -0.4, -0.1, -0.3, -0.3,  0.3, -0.4,  0.6,  0.4,  0.4,  1.5,                                                       // S
-	 0.2, -0.1,  0.2,  0.0, -0.3, -0.6, -0.3,  0.4,  0.4,  0.3,  0.3,  1.5,                                                 // T
-	 0.2, -0.8,  0.2, -0.6, -0.1, -1.2,  1.0,  0.2,  0.3,  0.1,  0.7,  0.2,  1.5,                                           // C
-	-0.3, -0.2, -0.3, -0.3, -0.1, -0.1,  0.3, -0.2, -0.1,  0.2, -0.2, -0.1, -0.1,  1.5,                                     // H
-	-0.3, -0.4, -0.3,  0.2, -0.5,  1.4, -0.6, -0.3, -0.3,  0.3,  0.1, -0.1, -0.3,  0.5,  1.5,                               // R
-	-0.2, -0.3, -0.2,  0.2, -0.7,  0.1, -0.6, -0.1,  0.0,  0.1,  0.2,  0.2, -0.6,  0.1,  0.8,  1.5,                         // K
-	-0.2, -0.1, -0.3,  0.0, -0.8, -0.5, -0.6,  0.2,  0.2,  0.3, -0.1, -0.1, -0.6,  0.7,  0.4,  0.4,  1.5,                   // Q
-	-0.2, -0.3, -0.2, -0.2, -0.7, -1.1, -0.5,  0.5,  0.3,  0.1,  0.2,  0.2, -0.6,  0.4,  0.0,  0.3,  0.7,  1.5,             // E
-	-0.3, -0.4, -0.3, -0.3, -0.5, -0.3, -0.1,  0.4,  0.2,  0.0,  0.3,  0.2, -0.3,  0.5,  0.1,  0.4,  0.4,  0.5,  1.5,       // N
-	-0.2, -0.5, -0.2, -0.4, -1.0, -1.1, -0.5,  0.7,  0.3,  0.1,  0.2,  0.2, -0.5,  0.4,  0.0,  0.3,  0.7,  1.0,  0.7,  1.5  // D
-	};
+const float kDayhoffData[] =
+{
+     1.5f,                                                                                                                  // V
+     0.8f, 1.5f,                                                                                                            // L
+     1.1f, 0.8f, 1.5f,                                                                                                      // I
+     0.6f, 1.3f, 0.6f, 1.5f,                                                                                                // M
+     0.2f, 1.2f, 0.7f, 0.5f, 1.5f,                                                                                          // F
+    -0.8f, 0.5f,-0.5f,-0.3f, 1.3f, 1.5f,                                                                                    // W
+    -0.1f, 0.3f, 0.1f,-0.1f, 1.4f, 1.1f, 1.5f,                                                                              // Y
+     0.2f,-0.5f,-0.3f,-0.3f,-0.6f,-1.0f,-0.7f, 1.5f,                                                                        // G
+     0.2f,-0.1f, 0.0f, 0.0f,-0.5f,-0.8f,-0.3f, 0.7f, 1.5f,                                                                  // A
+     0.1f,-0.3f,-0.2f,-0.2f,-0.7f,-0.8f,-0.8f, 0.3f, 0.5f, 1.5f,                                                            // P
+    -0.1f,-0.4f,-0.1f,-0.3f,-0.3f, 0.3f,-0.4f, 0.6f, 0.4f, 0.4f, 1.5f,                                                      // S
+     0.2f,-0.1f, 0.2f, 0.0f,-0.3f,-0.6f,-0.3f, 0.4f, 0.4f, 0.3f, 0.3f, 1.5f,                                                // T
+     0.2f,-0.8f, 0.2f,-0.6f,-0.1f,-1.2f, 1.0f, 0.2f, 0.3f, 0.1f, 0.7f, 0.2f, 1.5f,                                          // C
+    -0.3f,-0.2f,-0.3f,-0.3f,-0.1f,-0.1f, 0.3f,-0.2f,-0.1f, 0.2f,-0.2f,-0.1f,-0.1f, 1.5f,                                    // H
+    -0.3f,-0.4f,-0.3f, 0.2f,-0.5f, 1.4f,-0.6f,-0.3f,-0.3f, 0.3f, 0.1f,-0.1f,-0.3f, 0.5f, 1.5f,                              // R
+    -0.2f,-0.3f,-0.2f, 0.2f,-0.7f, 0.1f,-0.6f,-0.1f, 0.0f, 0.1f, 0.2f, 0.2f,-0.6f, 0.1f, 0.8f, 1.5f,                        // K
+    -0.2f,-0.1f,-0.3f, 0.0f,-0.8f,-0.5f,-0.6f, 0.2f, 0.2f, 0.3f,-0.1f,-0.1f,-0.6f, 0.7f, 0.4f, 0.4f, 1.5f,                  // Q
+    -0.2f,-0.3f,-0.2f,-0.2f,-0.7f,-1.1f,-0.5f, 0.5f, 0.3f, 0.1f, 0.2f, 0.2f,-0.6f, 0.4f, 0.0f, 0.3f, 0.7f, 1.5f,            // E
+    -0.3f,-0.4f,-0.3f,-0.3f,-0.5f,-0.3f,-0.1f, 0.4f, 0.2f, 0.0f, 0.3f, 0.2f,-0.3f, 0.5f, 0.1f, 0.4f, 0.4f, 0.5f, 1.5f,      // N
+    -0.2f,-0.5f,-0.2f,-0.4f,-1.0f,-1.1f,-0.5f, 0.7f, 0.3f, 0.1f, 0.2f, 0.2f,-0.5f, 0.4f, 0.0f, 0.3f, 0.7f, 1.0f, 0.7f, 1.5f // D
+};
 
 float CalculateConservation(const mseq& msa, uint32 r, const symmetric_matrix<float>& w)
 {
@@ -849,11 +900,15 @@ float CalculateConservation(const mseq& msa, uint32 r, const symmetric_matrix<fl
 				continue;
 			
 			conservation +=	w(i, j) * D(ri, rj);
-			weight +=		w(i, j) * 1.5;
+			weight +=		w(i, j) * 1.5f;
 		}
 	}
 	
-	return conservation / weight;
+	float result = 1.0;
+	if (weight != 0)
+		result = conservation / weight;
+
+	return result;
 }
 
 // --------------------------------------------------------------------
@@ -877,7 +932,7 @@ float CalculateWeight(const mseq& msa, uint32 i, uint32 j)
 		}
 	}
 	
-	return 1.0 - float(d) / float(L);
+	return 1.0f - float(d) / float(L);
 }
 
 // --------------------------------------------------------------------
@@ -896,7 +951,10 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 		h->desc = inDatabank->GetMetaData(docNr, "title");
 		try
 		{
-			h->acc = inDatabank->GetMetaData(docNr, "acc");
+			if (ba::starts_with(h->id, "UniRef100_"))
+				h->acc = h->id = h->id.substr(10);
+			else
+				h->acc = inDatabank->GetMetaData(docNr, "acc");
 		}
 		catch (...) {}
 		h->lseq2 = inDatabank->GetSequence(docNr, 0).length();
@@ -935,9 +993,9 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
 		
 		string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
-		uint32 ivar = uint32(100 * (1 - CalculateConservation(msa, i, w)));
 		
-		res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i, chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp, ivar)));
+		res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i,
+			chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp, CalculateConservation(msa, i, w))));
 
 		++ri;
 	}
@@ -985,6 +1043,8 @@ void ClusterSequences(vector<string>& s, vector<uint32>& ix)
 			break;
 	}
 }
+
+#if P_UNIX
 
 void CreateHSSP(
 	CDatabankPtr				inDatabank,
@@ -1101,6 +1161,86 @@ void CreateHSSP(
 		if (not usedChains.empty())
 			usedChains += ',';
 		usedChains += chains[i]->GetChainID();
+	}
+	
+	stringstream desc;
+	desc	
+	   << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl
+	   << "COMPND     " + inProtein.GetCompound().substr(10) << endl
+	   << "SOURCE     " + inProtein.GetSource().substr(10) << endl
+	   << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
+
+	CreateHSSPOutput(inProtein.GetID(), desc.str(), inDatabank->GetVersion(), seqlength,
+		chains.size(), kchain, usedChains, hits, res, outHSSP);
+}
+
+#endif
+
+void CreateHSSP(
+	CDatabankPtr		inDatabank,
+	const MProtein&		inProtein,
+	const fs::path&		inDataDir,
+	vector<string>		inStockholmIds,
+	ostream&			outHSSP)
+{
+	uint32 seqlength = 0;
+
+	vector<hit_ptr> hits;
+	vector<res_ptr> res;
+
+	vector<mseq> alignments(inStockholmIds.size());
+	vector<const MChain*> chains;
+
+	uint32 kchain = 0;
+	foreach (string ch, inStockholmIds)
+	{
+		if (ch.length() < 3 or ch[1] != '=')
+			THROW(("Invalid chain/stockholm pair specified: '%s'", ch.c_str()));
+
+		fs::path sfp = inDataDir / (ch.substr(2) + ".sto.bz2");
+		if (not fs::exists(sfp))
+			THROW(("Stockholm file '%' not found", sfp.string().c_str()));
+
+		fs::ifstream sf(sfp, ios::binary);
+		if (not sf.is_open())
+			THROW(("Could not open stockholm file '%s'", sfp.string().c_str()));
+
+		io::filtering_stream<io::input> in;
+		in.push(io::bzip2_decompressor());
+		in.push(sf);
+
+		ReadStockholm(in, alignments[kchain]);
+
+		const MChain& chain = inProtein.GetChain(ch[0]);
+		chains.push_back(&chain);
+		
+		// check to see if we need to 'cut' the alignment a bit
+		// can happen if the stockholm file was created using a query
+		// sequence that was a few residues longer than this chain.
+
+		CheckAlignmentForChain(alignments[kchain], chains[kchain]);
+
+		if (not res.empty())
+			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
+
+		ChainToHits(inDatabank, alignments[kchain], chain, hits, res);
+		++kchain;
+	}
+
+	sort(hits.begin(), hits.end(), compare_hit());
+	if (hits.size() > 9999)
+		hits.erase(hits.begin() + 9999, hits.end());
+	
+	uint32 nr = 1;
+	foreach (hit_ptr h, hits)
+		h->nr = nr++;
+	
+	string usedChains;
+	foreach (const MChain* chain, chains)
+	{
+		if (not usedChains.empty())
+			usedChains += ',';
+		usedChains += chain->GetChainID();
 	}
 	
 	stringstream desc;

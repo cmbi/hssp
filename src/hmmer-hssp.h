@@ -35,4 +35,11 @@ void CreateHSSP(
 	uint32							inIterations,
 	std::ostream&					outHSSP);
 
+void CreateHSSP(
+	CDatabankPtr					inDatabank,
+	const MProtein&					inProtein,
+	const boost::filesystem::path&	inDataDir,		// for the stockholm files
+	std::vector<std::string>		inStockholmIds,
+	std::ostream&					outHSSP);
+
 }

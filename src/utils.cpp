@@ -113,7 +113,7 @@ void progress::run()
 	bool first = true;
 
 	// first, get the current terminal width
-	int32 width = get_terminal_width();
+	uint32 width = get_terminal_width();
 	if (width < 10)
 		return;
 
@@ -242,6 +242,7 @@ stats::~stats()
 
 // --------------------------------------------------------------------
 
+#if P_UNIX
 void WriteToFD(int inFD, const std::string& inText)
 {
 	const char kEOLN[] = "\n";
@@ -271,4 +272,4 @@ void WriteToFD(int inFD, const std::string& inText)
 		break;
 	}		 
 }
-
+#endif
