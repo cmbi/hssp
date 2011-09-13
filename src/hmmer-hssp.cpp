@@ -7,6 +7,8 @@
 
 #if P_UNIX
 #include <wait.h>
+#elif P_WIN
+#include <Windows.h>
 #endif
 
 #include <cmath>
@@ -25,9 +27,12 @@
 #include <boost/regex.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 
+// MRS includes
 #include "CDatabank.h"
 #include "CUtils.h"
+#include "CConfig.h"
 
+// our includes
 #include "matrix.h"
 #include "dssp.h"
 #include "structure.h"
@@ -376,6 +381,187 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 	
 	fs::ifstream is(rundir / "output.sto");
 	ReadStockholm(is, msa);
+	
+	if (not VERBOSE)
+		fs::remove_all(rundir);
+	else
+		cerr << " done" << endl;
+}
+
+#elif P_WIN
+
+void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
+	const string& db, mseq& msa)
+{
+	// Jackhmmer as downloaded from http://hmmer.janelia.org/software is a cygwin application
+	// this means we can use 
+
+	if (seq.empty())
+		THROW(("Empty sequence in RunJackHmmer"));
+	
+	HUuid uuid;
+	
+	fs::path rundir(gScratchDir / "hssp-2");
+	rundir /= boost::lexical_cast<string>(uuid);
+	fs::create_directories(rundir);
+	
+	if (VERBOSE)
+		cerr << "Running jackhmmer (" << uuid << ")...";
+		
+	// write fasta file
+	
+	fs::ofstream input(rundir / "input.fa");
+	if (not input.is_open())
+		throw mas_exception("Failed to create jackhmmer input file");
+		
+	input << '>' << "input" << endl;
+	for (uint32 o = 0; o < seq.length(); o += 72)
+	{
+		uint32 k = seq.length() - o;
+		if (k > 72)
+			k = 72;
+		input << seq.substr(o, k) << endl;
+	}
+	input.close();
+	
+	static int sSerial = 1;
+
+	// fork/exec a jackhmmer to do the work
+	if (not fs::exists(jackhmmer))
+		THROW(("The jackhmmer executable '%s' does not seem to exist", jackhmmer.string().c_str()));
+
+	// first create a fasta formatted 'file'
+	int maxRunTime = 7200;	// two hours
+//	if (CConfigFile::Instance()->GetSetting("//servers/server[service='jackhmmer']/max-run-time", s))
+//		maxRunTime = atoi(s.c_str());
+	double startTime = system_time();
+	
+	// ready to roll
+	SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES) };
+	sa.bInheritHandle = true;
+
+	enum { i_read, i_write, i_write2 };
+	HANDLE ifd[3], ofd[3], efd[3];
+
+	::CreatePipe(&ifd[i_read], &ifd[i_write], &sa, 0);
+	::DuplicateHandle(::GetCurrentProcess(), ifd[i_write],
+		::GetCurrentProcess(), &ifd[i_write2], 0, false,
+		DUPLICATE_SAME_ACCESS);
+	::CloseHandle(ifd[i_write]);
+
+	::CreatePipe(&ofd[i_read], &ofd[i_write], &sa, 0);
+	::DuplicateHandle(::GetCurrentProcess(), ofd[i_read],
+		::GetCurrentProcess(), &ofd[i_write2], 0, false,
+		DUPLICATE_SAME_ACCESS);
+	::CloseHandle(ofd[i_read]);
+
+	::CreatePipe(&efd[i_read], &efd[i_write], &sa, 0);
+	::DuplicateHandle(::GetCurrentProcess(), efd[i_read],
+		::GetCurrentProcess(), &efd[i_write2], 0, false,
+		DUPLICATE_SAME_ACCESS);
+	::CloseHandle(efd[i_read]);
+
+	STARTUPINFOA si = { sizeof(STARTUPINFOA) };
+	si.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+	si.hStdInput = ifd[i_read];
+	si.hStdOutput = ofd[i_write];
+	si.hStdError = efd[i_write];
+
+	string cwd = rundir.string();
+
+	stringstream scmd;
+	scmd << jackhmmer << ' '
+		<< "-N " << iterations << ' '
+		<< "--noali" << ' '
+//		<< "--cpu " << 2 << ' '
+		<< "-A " << (rundir / "output.sto") << ' '
+		<< (rundir / "input.fa") << ' '
+		<< (fastadir / (db + ".fa"));
+	string cmd = scmd.str();
+
+	PROCESS_INFORMATION pi;
+	::CreateProcessA(nil, const_cast<char*>(cmd.c_str()), nil, nil, true,
+		CREATE_NEW_PROCESS_GROUP, nil, const_cast<char*>(cwd.c_str()), &si, &pi);
+
+	::CloseHandle(ifd[i_read]);
+	::CloseHandle(ofd[i_write]);
+	::CloseHandle(efd[i_write]);
+
+	HANDLE proc = pi.hProcess;
+	HANDLE thread = pi.hThread;
+	DWORD pid = pi.dwProcessId;
+	DWORD tid = pi.dwThreadId;
+
+	DWORD rr, avail;
+
+	// OK, so now the executable is started and the pipes are set up
+	// write the sequences and read from the pipes until done.
+	bool errDone = false, outDone = false, killed = false;
+	string error, out;
+	
+	while (not errDone and not outDone)
+	{
+		::Sleep(100);
+
+		char buffer[1024];
+
+		while (not outDone)
+		{
+			if (not ::PeekNamedPipe(ofd[i_write2], nil, 0, nil, &avail, nil))
+			{
+				unsigned int err = ::GetLastError();
+				if (err == ERROR_HANDLE_EOF or err == ERROR_BROKEN_PIPE)
+					outDone = true;
+			}
+			else if (avail > 0 and ::ReadFile(ofd[i_write2], buffer, sizeof(buffer), &rr, nil))
+				out.append(buffer, buffer + rr);
+			else
+				break;
+		}
+
+		while (not errDone)
+		{
+			if (not ::PeekNamedPipe(efd[i_write2], nil, 0, nil, &avail, nil))
+			{
+				unsigned int err = ::GetLastError();
+				if (err == ERROR_HANDLE_EOF or err == ERROR_BROKEN_PIPE)
+					errDone = true;
+			}
+			else if (avail > 0 and ::ReadFile(efd[i_write2], buffer, sizeof(buffer), &rr, nil))
+				error.append(buffer, buffer + rr);
+			else
+				break;
+		}
+
+		if (not errDone and not outDone and not killed and startTime + maxRunTime < system_time())
+		{
+			::TerminateProcess(proc, 1);
+
+			// is this enough?
+			::CloseHandle(ofd[i_write2]);
+			::CloseHandle(efd[i_write2]);
+			::CloseHandle(proc);
+			::CloseHandle(thread);
+
+			THROW(("jackhmmer was killed since its runtime exceeded the limit of %d seconds", maxRunTime));
+		}
+	}
+
+	::CloseHandle(ofd[i_write2]);
+	::CloseHandle(efd[i_write2]);
+	::CloseHandle(proc);
+	::CloseHandle(thread);
+
+	if (not error.empty())
+		cerr << error << endl;
+
+	// read in the result
+	if (not fs::exists(rundir / "output.sto"))
+		THROW(("Output Stockholm file is missing"));
+	
+	fs::ifstream is(rundir / "output.sto");
+	ReadStockholm(is, msa);
+	is.close();
 	
 	if (not VERBOSE)
 		fs::remove_all(rundir);
@@ -809,8 +995,6 @@ void CreateHSSPOutput(
 			for (uint32 i = 0; i < 20; ++i)
 				os << boost::format("%4.4d") % r->dist[i];
 
-			cerr << "consweight: " << r->consweight << endl;
-
 			uint32 relent = uint32(100 * r->entropy / log(20.0));
 			os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % r->nocc % r->ndel % r->nins % r->entropy % relent % r->consweight << endl;
 		}
@@ -1044,8 +1228,6 @@ void ClusterSequences(vector<string>& s, vector<uint32>& ix)
 	}
 }
 
-#if P_UNIX
-
 void CreateHSSP(
 	CDatabankPtr				inDatabank,
 	const string&				inProtein,
@@ -1173,8 +1355,6 @@ void CreateHSSP(
 	CreateHSSPOutput(inProtein.GetID(), desc.str(), inDatabank->GetVersion(), seqlength,
 		chains.size(), kchain, usedChains, hits, res, outHSSP);
 }
-
-#endif
 
 void CreateHSSP(
 	CDatabankPtr		inDatabank,

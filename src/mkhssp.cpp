@@ -73,11 +73,11 @@ int main(int argc, char* argv[])
 			("input,i",		po::value<string>(), "Input PDB file")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("databank,b",	po::value<string>(), "Databank to use (default is uniprot)")
-#if P_UNIX
 			("fastadir,f",	po::value<string>(), "Directory containing fasta databank files)")
 			("jackhmmer",	po::value<string>(), "Jackhmmer executable path (default=/usr/local/bin/jackhmmer)")
 			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
-#endif
+			("dssp-id",		po::value<string>(), "Calculate HSSP for a specific DSSP ID")
+
 			("datadir",		po::value<string>(), "Data directory containing stockholm files")
 			("chain",		po::value<vector<string>>(),
 												 "Mappings for chain => stockholm file")
@@ -178,9 +178,9 @@ int main(int argc, char* argv[])
 				out.push(outfile);
 	
 				// and the final HSSP file
-				//if (chains.empty())
-				//	hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
-				//else
+				if (chains.empty())
+					hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
+				else
 					hmmer::CreateHSSP(db, a, datadir, chains, out);
 			}
 			catch (...)
@@ -192,9 +192,9 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			//if (chains.empty())
-			//	hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, cout);
-			//else
+			if (chains.empty())
+				hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, cout);
+			else
 				hmmer::CreateHSSP(db, a, datadir, chains, cout);
 		}
 	}
