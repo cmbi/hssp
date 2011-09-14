@@ -27,6 +27,25 @@
     <ClCompile Include="..\src\structure.cpp" />
     <ClCompile Include="..\src\utils.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\align-2d.h" />
+    <ClInclude Include="..\src\align-3d.h" />
+    <ClInclude Include="..\src\blast.h" />
+    <ClInclude Include="..\src\buffer.h" />
+    <ClInclude Include="..\src\dssp.h" />
+    <ClInclude Include="..\src\guide.h" />
+    <ClInclude Include="..\src\hh-hssp.h" />
+    <ClInclude Include="..\src\hmmer-hssp.h" />
+    <ClInclude Include="..\src\ioseq.h" />
+    <ClInclude Include="..\src\mas.h" />
+    <ClInclude Include="..\src\matrix.h" />
+    <ClInclude Include="..\src\maxhom-hssp.h" />
+    <ClInclude Include="..\src\mrsrc.h" />
+    <ClInclude Include="..\src\primitives-3d.h" />
+    <ClInclude Include="..\src\sequence.h" />
+    <ClInclude Include="..\src\structure.h" />
+    <ClInclude Include="..\src\utils.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{B7419271-9974-48FB-936A-F8E517800744}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>

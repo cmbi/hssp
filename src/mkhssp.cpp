@@ -30,6 +30,7 @@
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 #include <boost/program_options.hpp>
+#include <boost/program_options/config.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/date_clock_device.hpp>
@@ -90,6 +91,14 @@ int main(int argc, char* argv[])
 	
 		po::variables_map vm;
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+
+		fs::path home = get_home();
+		if (fs::exists(home / ".mkhssprc"))
+		{
+			fs::ifstream rc(home / ".mkhssprc");
+			po::store(po::parse_config_file(rc, desc), vm);
+		}
+
 		po::notify(vm);
 
 		if (vm.count("help") or not vm.count("input"))

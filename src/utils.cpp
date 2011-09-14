@@ -1,5 +1,6 @@
 // utility routines for mas
 
+#include "MRS.h"
 #include "mas.h"
 
 #include <cstdio>
@@ -22,6 +23,7 @@
 #include "utils.h"
 
 using namespace std;
+namespace fs = boost::filesystem;
 
 // --------------------------------------------------------------------
 
@@ -232,7 +234,7 @@ sequence encode(const string& s)
 
 // --------------------------------------------------------------------
 
-#ifdef DEBUG
+#ifndef NDEBUG
 stats::~stats()
 {
 	if (VERBOSE) 
@@ -272,4 +274,30 @@ void WriteToFD(int inFD, const std::string& inText)
 		break;
 	}		 
 }
+#endif
+
+// --------------------------------------------------------------------
+
+#if P_WIN
+
+fs::path get_home()
+{
+	const char* home = getenv("HOME");
+	if (home == nil)
+		home = getenv("HOMEPATH");
+	if (home == nil)
+		throw mas_exception("No home defined");
+	return fs::path(home);
+}
+
+#elif P_UNIX
+
+fs::path get_home()
+{
+	const char* home = getenv("HOME");
+	if (home == nil)
+		throw mas_exception("No home defined");
+	return fs::path(home);
+}
+
 #endif

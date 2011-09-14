@@ -10,6 +10,7 @@
 #include <boost/thread.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
+#include <boost/filesystem.hpp>
 
 // --------------------------------------------------------------------
 
@@ -116,3 +117,4 @@ struct stats
 // --------------------------------------------------------------------
 
 void WriteToFD(int inFD, const std::string& inText);
+boost::filesystem::path get_home();
