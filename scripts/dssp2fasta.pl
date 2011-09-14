@@ -2,7 +2,10 @@
 
 use strict;
 use warnings;
+use English;
 use Data::Dumper;
+
+$OUTPUT_AUTOFLUSH = 1;
 
 # some configuration globals
 my $MINIMAL_SEQUENCE_LENGTH = 25;
@@ -17,7 +20,7 @@ my $out_tmp = "$out-$$";
 open(my $oh, ">$out_tmp") or die "Could not create FastA file\n";
 
 opendir(my $dh, $in) or die "Could not read directory $in\n";
-foreach my $file (readdir($dh)) {
+foreach my $file (sort readdir($dh)) {
 	&process_dssp($file) if -f "$in/$file" and $file =~ m/\.dssp$/;
 }
 closedir($dh);
