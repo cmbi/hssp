@@ -20,6 +20,7 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 #include <boost/date_time/gregorian/gregorian.hpp>
@@ -390,8 +391,7 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 
 #elif P_WIN
 
-void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
-	const string& db, mseq& msa)
+fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer, const string& db)
 {
 	// Jackhmmer as downloaded from http://hmmer.janelia.org/software is a cygwin application
 	// this means we can use 
@@ -555,13 +555,49 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 	if (not error.empty())
 		cerr << error << endl;
 
-	// read in the result
 	if (not fs::exists(rundir / "output.sto"))
 		THROW(("Output Stockholm file is missing"));
-	
+
+	return rundir;
+}
+
+void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
+	const string& db, fs::path dst)
+{
+	fs::path rundir = RunJackHmmer(seq, iterations, fastadir, jackhmmer, db);
+
+	// copy the result
+
+	fs::ifstream in(rundir / "output.sto");
+	fs::ofstream outfile(dst, ios_base::binary);
+
+	io::filtering_stream<io::output> out;
+	if (dst.extension() == ".bz2")
+		out.push(io::bzip2_compressor());
+	else if (dst.extension() == ".gz")
+		out.push(io::gzip_compressor());
+	out.push(outfile);
+
+	io::copy(in, out);
+
+	if (not VERBOSE)
+		fs::remove_all(rundir);
+	else
+		cerr << " done" << endl;
+}
+
+void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
+	const string& db, mseq& msa)
+{
+	fs::path rundir = RunJackHmmer(seq, iterations, fastadir, jackhmmer, db);
+
 	fs::ifstream is(rundir / "output.sto");
 	ReadStockholm(is, msa);
 	is.close();
+
+	// read in the result
+	if (not fs::exists(rundir / "output.sto"))
+		THROW(("Output Stockholm file is missing"));
 	
 	if (not VERBOSE)
 		fs::remove_all(rundir);
@@ -1360,6 +1396,9 @@ void CreateHSSP(
 	CDatabankPtr		inDatabank,
 	const MProtein&		inProtein,
 	const fs::path&		inDataDir,
+	const fs::path&		inFastaDir,
+	const fs::path&		inJackHmmer,
+	uint32				inIterations,
 	vector<string>		inStockholmIds,
 	ostream&			outHSSP)
 {
@@ -1379,7 +1418,14 @@ void CreateHSSP(
 
 		fs::path sfp = inDataDir / (ch.substr(2) + ".sto.bz2");
 		if (not fs::exists(sfp))
-			THROW(("Stockholm file '%s' not found", sfp.string().c_str()));
+		{
+			// Stockholm file does not exist, create it
+			const MChain& chain = inProtein.GetChain(ch[0]);
+			string seq;
+			chain.GetSequence(seq);
+
+			RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), sfp);
+		}
 
 		fs::ifstream sf(sfp, ios::binary);
 		if (not sf.is_open())

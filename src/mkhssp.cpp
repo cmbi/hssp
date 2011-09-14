@@ -217,7 +217,7 @@ int main(int argc, char* argv[])
 				if (chains.empty())
 					hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
 				else
-					hmmer::CreateHSSP(db, a, datadir, chains, out);
+					hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, chains, out);
 			}
 			catch (...)
 			{
@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 			if (chains.empty())
 				hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, cout);
 			else
-				hmmer::CreateHSSP(db, a, datadir, chains, cout);
+				hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, chains, cout);
 		}
 	}
 	catch (exception& e)
