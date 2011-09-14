@@ -70,13 +70,12 @@ int main(int argc, char* argv[])
 		po::options_description desc("MKHSSP options");
 		desc.add_options()
 			("help,h",							 "Display help message")
-			("input,i",		po::value<string>(), "Input PDB file")
+			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
-			("databank,b",	po::value<string>(), "Databank to use (default is uniprot)")
+			("databank,b",	po::value<string>(), "Databank to use (default is uniref100)")
 			("fastadir,f",	po::value<string>(), "Directory containing fasta databank files)")
 			("jackhmmer",	po::value<string>(), "Jackhmmer executable path (default=/usr/local/bin/jackhmmer)")
 			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
-			("dssp-id",		po::value<string>(), "Calculate HSSP for a specific DSSP ID")
 
 			("datadir",		po::value<string>(), "Data directory containing stockholm files")
 			("chain",		po::value<vector<string>>(),
@@ -103,7 +102,7 @@ int main(int argc, char* argv[])
 		if (vm.count("debug"))
 			VERBOSE = vm["debug"].as<int>();
 		
-		string databank = "uniprot";
+		string databank = "uniref100";
 		if (vm.count("databank"))
 			databank = vm["databank"].as<string>();
 			
@@ -140,23 +139,51 @@ int main(int argc, char* argv[])
 
 		// what input to use
 		string input = vm["input"].as<string>();
+		io::filtering_stream<io::input> in;
 
 		ifstream infile(input.c_str(), ios_base::in | ios_base::binary);
-		if (not infile.is_open())
-			throw runtime_error("No such file");
-		
-		io::filtering_stream<io::input> in;
-		if (ba::ends_with(input, ".bz2"))
-			in.push(io::bzip2_decompressor());
-		else if (ba::ends_with(input, ".gz"))
-			in.push(io::gzip_decompressor());
-		in.push(infile);
+		istringstream indata;
+
+		// first see if input is a local file, otherwise it might be a
+		// PDB ID.
+		if (not infile.is_open() and input.length() == 4)
+		{
+			CDatabankPtr pdb = sDBTable.Load("pdb");
+			uint32 docNr;
+			if (not pdb->GetDocumentNr(input, docNr))
+				THROW(("Entry %s not found in PDB", input.c_str()));
+			indata.str(pdb->GetDocument(docNr));
+			in.push(indata);
+		}
+		else
+		{
+			if (ba::ends_with(input, ".bz2"))
+				in.push(io::bzip2_decompressor());
+			else if (ba::ends_with(input, ".gz"))
+				in.push(io::gzip_decompressor());
+			in.push(infile);
+		}
 
 		// OK, we've got the file, now create a protein
 		MProtein a(in);
 		
 		// then calculate the secondary structure
 		a.CalculateSecondaryStructure();
+
+		// see if we have per-chain information for this protein
+		if (chains.empty())
+		{
+			try
+			{
+				CDatabankPtr ix = sDBTable.Load("hssp2ix");
+
+				string chaininfo = ix->GetDocument(a.GetID());
+				ba::split(chains, chaininfo, ba::is_any_of("\n"));
+
+				chains.erase(remove_if(chains.begin(), chains.end(), boost::bind(&string::empty, _1)), chains.end());
+			}
+			catch (...) {}
+		}
 
 		// Where to write our HSSP file to:
 		// either to cout or an (optionally compressed) file.
@@ -207,6 +234,7 @@ int main(int argc, char* argv[])
 #if P_WIN && P_DEBUG
 	cerr << "Press any key to quit application ";
 	char ch = _getch();
+	cerr << endl;
 #endif
 	
 	return 0;
