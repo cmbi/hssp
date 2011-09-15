@@ -113,6 +113,9 @@ typedef boost::ptr_vector<seq> mseq;
 
 void ReadStockholm(istream& is, mseq& msa)
 {
+	if (VERBOSE)
+		cerr << "Reading stockholm file...";
+
 	string line, qseq;
 	getline(is, line);
 	if (line != "# STOCKHOLM 1.0")
@@ -204,10 +207,14 @@ void ReadStockholm(istream& is, mseq& msa)
 	
 	if (msa.size() < 2)
 		THROW(("Insufficient sequences in Stockholm MSA"));
+
+	if (VERBOSE)
+		cerr << " done" << endl << "Checking for threshold...";
 	
 	// for our query
+	string& q = msa.front().m_seq;
 	msa.front().m_begin = 0;
-	msa.front().m_end = msa.front().m_seq.length();
+	msa.front().m_end = q.length();
 
 	// Remove all hits that are not above the threshold here
 	mseq::iterator mi = msa.begin() + 1;
@@ -224,22 +231,31 @@ void ReadStockholm(istream& is, mseq& msa)
 		}
 		else
 		{
+			string& s = mi->m_seq;
+			
 			// update begin/end here
-			string::const_iterator b = mi->m_seq.begin();
-			for (string::const_iterator si = b; si != mi->m_seq.end(); ++si)
+			for (uint32 i = 0; i < s.length(); ++i)
 			{
-				if (is_gap(*si))
+				if (is_gap(s[i]))
 					continue;
 
-				if (mi->m_begin == 0 and si != b)
-					mi->m_begin = si - b;
+				if (mi->m_begin == 0 and i != 0)
+					mi->m_begin = i;
 				
-				mi->m_end = si - b + 1;
+				mi->m_end = i + 1;
+				assert(mi->m_end <= s.length());
+				assert(mi->m_end <= q.length());
 			}
-			
+
+			assert(mi->m_end <= s.length());
+			assert(mi->m_end <= q.length());
+
 			++mi;
 		}
 	}
+
+	if (VERBOSE)
+		cerr << "done" << endl;
 }
 
 void CheckAlignmentForChain(
@@ -268,14 +284,34 @@ void CheckAlignmentForChain(
 		if (offset > 0)
 		{
 			foreach (seq& s, inMSA)
+			{
 				s.m_seq.erase(0, offset);
+				if (s.m_begin > offset)
+					s.m_begin -= offset;
+				else
+					s.m_begin = 0;
+				
+				if (s.m_end > offset)
+					s.m_end -= offset;
+				else
+					s.m_end = 0;
+			}
 		}
 
 		if (sa.length() > sc.length() + offset)
 		{
 			uint32 n = sa.length() - (sc.length() + offset);
 			foreach (seq& s, inMSA)
-				s.m_seq.erase(s.m_seq.length() - n, n);
+			{
+				uint32 o = s.m_seq.length() - n;
+				
+				s.m_seq.erase(o, n);
+				
+				if (s.m_begin > o)
+					s.m_begin = o;
+				if (s.m_end > o)
+					s.m_end = o;
+			}
 		}
 	}
 }
@@ -669,6 +705,9 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 
 	uint32 b = msa[six].m_begin;
 	uint32 e = msa[six].m_end;
+
+	assert(b < q.length());
+	assert(e <= q.length());
 
 	assert(not q.empty() and not s.empty());
 	assert(not is_gap(q[0]) and not is_gap(q[q.length() - 1]));
@@ -1102,6 +1141,9 @@ const float kDayhoffData[] =
 void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	vector<hit_ptr>& hits, vector<res_ptr>& res)
 {
+	if (VERBOSE)
+		cerr << "Creating hits...";
+
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
 		hit_ptr h(new Hit(msa, chain.GetChainID(), 0, i));
@@ -1123,7 +1165,8 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	}
 	
 	if (VERBOSE)
-		cerr << "Continuing with " << hits.size() << " hits" << endl
+		cerr << " done" << endl
+			 << "Continuing with " << hits.size() << " hits" << endl
 			 << "Calculating conservation weights...";
 
 	const string& s = msa.front().m_seq;
@@ -1156,8 +1199,11 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 
 					int8 ri = ResidueHInfo::kIX[uint8(si[k])];
 					int8 rj = ResidueHInfo::kIX[uint8(sj[k])];
-
-					simval[k] = D(ri, rj);
+					
+					if (ri != -1 and rj != -1)
+						simval[k] = D(ri, rj);
+					else
+						simval[k] = numeric_limits<float>::min();
 				}
 			}
 
@@ -1166,8 +1212,11 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 				float distance = 1 - (float(agr) / float(len));
 				for (uint32 k = b; k < e; ++k)
 				{
-					sumvar[k] += distance * simval[k];
-					sumdist[k] += distance * 1.5f;
+					if (simval[k] != numeric_limits<float>::min())
+					{
+						sumvar[k] += distance * simval[k];
+						sumdist[k] += distance * 1.5f;
+					}
 				}
 			}
 		}
