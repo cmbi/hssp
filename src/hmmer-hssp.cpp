@@ -1095,68 +1095,6 @@ const float kDayhoffData[] =
     -0.2f,-0.5f,-0.2f,-0.4f,-1.0f,-1.1f,-0.5f, 0.7f, 0.3f, 0.1f, 0.2f, 0.2f,-0.5f, 0.4f, 0.0f, 0.3f, 0.7f, 1.0f, 0.7f, 1.5f // D
 };
 
-float CalculateConservation(const mseq& msa, uint32 r, const symmetric_matrix<float>& w)
-{
-	static const symmetric_matrix<float> D(kDayhoffData, 20);
-	
-	float weight = 0, conservation = 0;
-	
-	for (uint32 i = 0; i + 1 < msa.size(); ++i)
-	{
-		const string& si = msa[i].m_seq;
-		int8 ri = ResidueHInfo::kIX[uint8(si[r])];
-		if (ri == -1)
-			continue;
-		
-		for (uint32 j = i + 1; j < msa.size(); ++j)
-		{
-			const string& sj = msa[j].m_seq;
-			int8 rj = ResidueHInfo::kIX[uint8(sj[r])];
-			if (rj == -1)
-				continue;
-			
-			conservation +=	w(i, j) * D(ri, rj);
-			weight +=		w(i, j) * 1.5f;
-		}
-	}
-	
-	float result = 1.0;
-	if (weight != 0)
-		result = conservation / weight;
-
-	return result;
-}
-
-// --------------------------------------------------------------------
-// Calculate the weight of a pair of aligned sequences
-
-float CalculateWeight(const mseq& msa, uint32 i, uint32 j)
-{
-	const string& si = msa[i].m_seq;
-	const string& sj = msa[j].m_seq;
-	
-	uint32 b = msa[i].m_begin;
-	if (b < msa[j].m_begin)
-		b = msa[j].m_begin;
-	
-	uint32 e = msa[i].m_end;
-	if (e > msa[j].m_end)
-		e = msa[j].m_end;
-	
-	uint32 equal = 0;
-	for (uint32 k = b; k < e; ++k)
-	{
-		if (si[k] == sj[k] and not is_gap(si[k]))
-			++equal;
-	}
-	
-	float result = 1.0f;
-	if (equal > 0)
-		result -= float(equal) / float(e - b);
-	
-	return result;
-}
-
 // --------------------------------------------------------------------
 // Convert a multiple sequence alignment as created by jackhmmer to 
 // a set of information as used by HSSP.
@@ -1164,9 +1102,6 @@ float CalculateWeight(const mseq& msa, uint32 i, uint32 j)
 void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	vector<hit_ptr>& hits, vector<res_ptr>& res)
 {
-	double start = system_time();
-cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
-	
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
 		hit_ptr h(new Hit(msa, chain.GetChainID(), 0, i));
@@ -1189,7 +1124,7 @@ cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 	
 	if (VERBOSE)
 		cerr << "Continuing with " << hits.size() << " hits" << endl
-			 << "Calculating weights...";
+			 << "Calculating conservation weights...";
 
 	const string& s = msa.front().m_seq;
 	vector<float> sumvar(s.length()), sumdist(s.length()), simval(s.length());
@@ -1238,22 +1173,10 @@ cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 		}
 	}
 
-cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
-	
-	//// calculate the weight matrix for the hits
-	//symmetric_matrix<float> w(msa.size());
-	//for (uint32 i = 0; i + 1 < msa.size(); ++i)
-	//{
-	//	for (uint32 j = i + 1; j < msa.size(); ++j)
-	//		w(i, j) = CalculateWeight(msa, i, j);
-	//}
-
 	if (VERBOSE)
 		cerr << " done" << endl
 			 << "Calculating residue info...";
 
-cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
-	
 	const vector<MResidue*>& residues = chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
 
@@ -1268,9 +1191,6 @@ cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
 		
 		string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
-		
-//cerr << "weight oud: " << CalculateConservation(msa, i, w)
-//	 << " weight nieuw: " << ( sumdist[i] > 0 ? sumvar[i] / sumdist[i] : 1 ) << endl;
 
 		float weight = 1.0f;
 		if (sumdist[i] > 0)
@@ -1284,8 +1204,6 @@ cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 	
 	if (VERBOSE)
 		cerr << " done" << endl;
-
-cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 	
 	assert(ri == residues.end());
 }
