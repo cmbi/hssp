@@ -678,47 +678,22 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 	
 	id = sm.str(1);
 	
-	ifir = 1;
-	ilas = 0;
+	ifir = b + 1;
+	ilas = b;
 
 	// jfir/jlas can be taken over from jackhmmer output
 	jfir = boost::lexical_cast<uint32>(sm.str(2));
 	jlas = boost::lexical_cast<uint32>(sm.str(3));
 
 	lgap = ngap = identical = similar = 0;
+	lali = s.length();
 	
 	string::iterator qb = q.begin() + b, qe = q.begin() + e,
 					 sb = s.begin() + b, se = s.begin() + e;
 
-//	while (qb != qe)
-//	{
-//		if (is_gap(*sb))
-//		{
-//			*sb = ' ';
-//			++ifir;
-//			++ilas;
-//		}
-//		else
-//			break;
-//		
-//		++qb;
-//		++sb;
-//	}
-//	
-//	while (qe != qb and is_gap(*(se - 1)))
-//	{
-//		--qe;
-//		--se;
-//		*se = ' ';
-//	}
-//
-//assert(qb == q.begin() + b);
-//assert(qe == q.begin() + e);
-//assert(sb == s.begin() + b);
-//assert(se == s.begin() + e);
+	fill(s.begin(), sb, ' ');
+	fill(se, s.end(), ' ');
 
-	lali = s.length();
-	
 	bool sgap = false, qgap = false;
 	const substitution_matrix m("BLOSUM62");
 	uint32 ipos = ifir, jpos = jfir;
