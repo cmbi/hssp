@@ -50,27 +50,27 @@ OBJECTS = \
 
 mas: $(OBJECTS)
 	@ echo linking $@
-	@ c++ -o $@ $(OBJECTS) $(LDOPTS)
+	@ $(CC) -o $@ $(OBJECTS) $(LDOPTS)
 	@ echo OK
 
 dssp-2: obj/mkdssp.o obj/dssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
 	@ echo linking $@
-	@ c++ -static -o $@ $? $(LDOPTS)
+	@ $(CC) -static -o $@ $? $(LDOPTS)
 	@ echo OK
 
 mkhssp: obj/mkhssp.o obj/dssp.o obj/hmmer-hssp.o obj/matrix.o obj/primitives-3d.o obj/structure.o obj/utils.o
 	@ echo linking $@
-	@ c++ -o $@ $^ $(LDOPTS)
+	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
 hsspsoap: obj/blast.o obj/dssp.o obj/hsspsoap.o obj/matrix.o obj/maxhom-hssp.o obj/primitives-3d.o obj/structure.o obj/utils.o
 	@ echo linking $@
-	@ c++ -o $@ $^ $(LDOPTS)
+	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
 obj/%.o: %.cpp
 	@ echo compiling $@
-	@ c++ -MD -c -o $@ $< $(CFLAGS)
+	@ $(CC) -MD -c -o $@ $< $(CFLAGS)
 
 obj/matrix.o: mtrx/matrices.h
 

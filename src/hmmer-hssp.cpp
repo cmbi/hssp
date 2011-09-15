@@ -88,6 +88,7 @@ struct seq
 	string		m_id;
 	string		m_seq;
 	uint32		m_identical, m_length;
+	uint32		m_begin, m_end;
 	
 				seq() {}
 
@@ -95,12 +96,14 @@ struct seq
 					: m_id(id)
 					, m_identical(0)
 					, m_length(0)
+					, m_begin(0)
+					, m_end(0)
 				{
 					m_seq.reserve(5000);
 				}
 };
 
-typedef vector<seq> mseq;
+typedef boost::ptr_vector<seq> mseq;
 
 // --------------------------------------------------------------------
 // ReadStockholm is a function that reads a multiple sequence alignment from
@@ -126,7 +129,7 @@ void ReadStockholm(istream& is, mseq& msa)
 	if (boost::regex_match(id, sm, re))
 		id = sm.str(1);
 
-	msa.push_back(seq(id));
+	msa.push_back(new seq(id));
 	uint32 ix = 0;
 	
 	for (;;)
@@ -153,7 +156,7 @@ void ReadStockholm(istream& is, mseq& msa)
 			
 			ba::trim(id);
 			if (msa.size() > 1 or msa.front().m_id != id)
-				msa.push_back(hmmer::seq(id));
+				msa.push_back(new seq(id));
 			continue;
 		}
 		
@@ -180,7 +183,7 @@ void ReadStockholm(istream& is, mseq& msa)
 			{
 				++ix;
 				if (ix >= msa.size())
-					msa.push_back(hmmer::seq(id));
+					msa.push_back(new hmmer::seq(id));
 
 				assert(ix < msa.size());
 				assert(id == msa[ix].m_id);
@@ -216,7 +219,22 @@ void ReadStockholm(istream& is, mseq& msa)
 			mi = msa.erase(mi);
 		}
 		else
+		{
+			// update begin/end here
+			string::const_iterator b = mi->m_seq.begin();
+			for (string::const_iterator si = b; si != mi->m_seq.end(); ++si)
+			{
+				if (is_gap(*si))
+					continue;
+
+				if (mi->m_begin == 0 and si != b)
+					mi->m_begin = si - b;
+				
+				mi->m_end = si - b + 1;
+			}
+			
 			++mi;
+		}
 	}
 }
 
@@ -635,7 +653,6 @@ typedef shared_ptr<Hit> hit_ptr;
 // second is the hit sequence.
 // Since this is jackhmmer output, we can safely assume the
 // alignment does not contain gaps at the start or end of the query.
-// (However, being paranoid, I do check this...)
 Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 	: msa(msa)
 	, chain(chain)
@@ -643,15 +660,15 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 {
 	string& q = msa[qix].m_seq;
 	string& s = msa[six].m_seq;
-	
-	if (q.empty() or s.empty())
-		THROW(("Invalid (empty) sequence"));
-	
-	if (is_gap(q[0]) or is_gap(q[q.length() - 1]))
-		THROW(("Leading (or trailing) gaps found in query sequence"));
-	
+
 	assert(q.length() == s.length());
 
+	uint32 b = msa[six].m_begin;
+	uint32 e = msa[six].m_end;
+
+	assert(not q.empty() and not s.empty());
+	assert(not is_gap(q[0]) and not is_gap(q[q.length() - 1]));
+	
 	// parse out the position
 	static const boost::regex re("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
 	boost::smatch sm;
@@ -693,6 +710,11 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 		--se;
 		*se = ' ';
 	}
+
+assert(qb == q.begin() + b);
+assert(qe == q.end() + e);
+assert(sb == s.begin() + b);
+assert(se == s.end() + e);
 
 	lali = s.length();
 	
@@ -1130,23 +1152,29 @@ float CalculateConservation(const mseq& msa, uint32 r, const symmetric_matrix<fl
 
 float CalculateWeight(const mseq& msa, uint32 i, uint32 j)
 {
-	const string& sq = msa[0].m_seq;
 	const string& si = msa[i].m_seq;		assert(si.length() == sq.length());
 	const string& sj = msa[j].m_seq;		assert(sj.length() == sq.length());
 	
-	uint32 L = 0, d = 0;
+	uint32 b = msa[i].m_begin;
+	if (b < msa[j].m_begin)
+		b = msa[j].m_begin;
 	
-	for (uint32 k = 0; k < sq.length(); ++k)
+	uint32 e = msa[i].m_end;
+	if (e > msa[j].m_end)
+		e = msa[j].m_end;
+	
+	uint32 equal = 0;
+	for (uint32 k = b; k < e; ++k)
 	{
-		if (not is_gap(sq[k]))
-		{
-			++L;
-			if (si[k] == sj[k] and not is_gap(si[k]))
-				++d;
-		}
+		if (si[k] == sj[k] and not is_gap(si[k]))
+			++equal;
 	}
 	
-	return 1.0f - float(d) / float(L);
+	float result = 1.0f;
+	if (equal > 0)
+		result -= float(equal) / float(e - b);
+	
+	return result;
 }
 
 // --------------------------------------------------------------------
@@ -1156,6 +1184,15 @@ float CalculateWeight(const mseq& msa, uint32 i, uint32 j)
 void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	vector<hit_ptr>& hits, vector<res_ptr>& res)
 {
+	// loopings
+	
+	for (uint32 i = 
+	
+	
+	
+	double start = system_time();
+cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
+	
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
 		hit_ptr h(new Hit(msa, chain.GetChainID(), 0, i));
@@ -1179,6 +1216,8 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	if (VERBOSE)
 		cerr << "Continuing with " << hits.size() << " hits" << endl
 			 << "Calculating weights...";
+
+cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 	
 	// calculate the weight matrix for the hits
 	symmetric_matrix<float> w(msa.size());
@@ -1191,6 +1230,8 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	if (VERBOSE)
 		cerr << " done" << endl
 			 << "Calculating residue info...";
+
+cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 	
 	const vector<MResidue*>& residues = chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
@@ -1216,6 +1257,8 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	
 	if (VERBOSE)
 		cerr << " done" << endl;
+
+cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 	
 	assert(ri == residues.end());
 }

@@ -190,21 +190,8 @@ class symmetric_matrix : public matrix_base<T>
 	virtual uint32		dim_m() const					{ return m_n; }
 	virtual uint32		dim_n() const					{ return m_n; }
 
-	value_type			operator()(uint32 i, uint32 j) const
-						{
-							if (i > j)
-								std::swap(i, j);
-							assert(j < m_n);
-							return m_data[(j * (j + 1)) / 2 + i];
-						}
-
-	virtual value_type&	operator()(uint32 i, uint32 j)
-						{
-							if (i > j)
-								std::swap(i, j);
-							assert(j < m_n);
-							return m_data[(j * (j + 1)) / 2 + i];
-						}
+	T					operator()(uint32 i, uint32 j) const;
+	virtual T&			operator()(uint32 i, uint32 j);
 	
 	// erase two rows, add one at the end (for neighbour joining)
 	void				erase_2(uint32 i, uint32 j);
@@ -214,6 +201,29 @@ class symmetric_matrix : public matrix_base<T>
 	value_type*			m_data;
 	uint32				m_n;
 };
+
+template<typename T>
+inline
+T symmetric_matrix<T>::operator()(uint32 i, uint32 j) const
+{
+	return i < j
+		? m_data[(j * (j + 1)) / 2 + i]
+		: m_data[(i * (i + 1)) / 2 + j];
+//	if (i > j)
+//		std::swap(i, j);
+//	assert(j < m_n);
+//	return m_data[(j * (j + 1)) / 2 + i];
+}
+
+template<typename T>
+inline
+T& symmetric_matrix<T>::operator()(uint32 i, uint32 j)
+{
+	if (i > j)
+		std::swap(i, j);
+	assert(j < m_n);
+	return m_data[(j * (j + 1)) / 2 + i];
+}
 
 template<typename T>
 void symmetric_matrix<T>::erase_2(uint32 di, uint32 dj)
