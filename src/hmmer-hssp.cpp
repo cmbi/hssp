@@ -48,7 +48,7 @@ namespace hmmer
 {
 
 // global, 5 minutes
-uint32 gMaxRunTime = 300;
+uint32 gMaxRunTime = 300, gNrOfThreads = boost::thread::hardware_concurrency();
 
 // precalculated threshold table for identity values between 10 and 80
 const double kHomologyThreshold[] = {
@@ -73,6 +73,11 @@ inline bool is_gap(char aa)
 void SetMaxRunTime(uint32 inSeconds)
 {
 	gMaxRunTime = inSeconds;
+}
+
+void SetNrOfThreads(uint32 inThreads)
+{
+	gNrOfThreads = inThreads;
 }
 
 // --------------------------------------------------------------------
@@ -257,8 +262,8 @@ void CheckAlignmentForChain(
 // --------------------------------------------------------------------
 // Run the Jackhmmer application
 
-void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
-	const string& db, mseq& msa)
+fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir,
+	const fs::path& jackhmmer, const string& db)
 {
 	if (seq.empty())
 		THROW(("Empty sequence in RunJackHmmer"));
@@ -273,7 +278,6 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		cerr << "Running jackhmmer (" << uuid << ")...";
 		
 	// write fasta file
-	
 	fs::ofstream input(rundir / "input.fa");
 	if (not input.is_open())
 		throw mas_exception("Failed to create jackhmmer input file");
@@ -308,7 +312,7 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		
 		argv.push("-N", iterations);
 		argv.push("--noali");
-		argv.push("--cpu", "2");
+		argv.push("--cpu", gNrOfThreads);
 //		argv.push("-o", "/dev/null");
 		argv.push("-A", "output.sto");
 		argv.push("input.fa");
@@ -376,22 +380,16 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		THROW(("jackhmmer exited with status %d", status));
 	}
 
-	// read in the result
 	if (not fs::exists(rundir / "output.sto"))
 		THROW(("Output Stockholm file is missing"));
-	
-	fs::ifstream is(rundir / "output.sto");
-	ReadStockholm(is, msa);
-	
-	if (not VERBOSE)
-		fs::remove_all(rundir);
-	else
-		cerr << " done" << endl;
+
+	return rundir;
 }
 
 #elif P_WIN
 
-fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer, const string& db)
+fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir,
+	const fs::path& jackhmmer, const string& db)
 {
 	// Jackhmmer as downloaded from http://hmmer.janelia.org/software is a cygwin application
 	// this means we can use 
@@ -430,10 +428,6 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 	if (not fs::exists(jackhmmer))
 		THROW(("The jackhmmer executable '%s' does not seem to exist", jackhmmer.string().c_str()));
 
-	// first create a fasta formatted 'file'
-	int maxRunTime = 7200;	// two hours
-//	if (CConfigFile::Instance()->GetSetting("//servers/server[service='jackhmmer']/max-run-time", s))
-//		maxRunTime = atoi(s.c_str());
 	double startTime = system_time();
 	
 	// ready to roll
@@ -473,7 +467,7 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 	scmd << jackhmmer << ' '
 		<< "-N " << iterations << ' '
 		<< "--noali" << ' '
-//		<< "--cpu " << 2 << ' '
+		<< "--cpu " << gNrOfThreads << ' '
 		<< "-A " << (rundir / "output.sto") << ' '
 		<< (rundir / "input.fa") << ' '
 		<< (fastadir / (db + ".fa"));
@@ -533,7 +527,7 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 				break;
 		}
 
-		if (not errDone and not outDone and not killed and startTime + maxRunTime < system_time())
+		if (not errDone and not outDone and not killed and startTime + gMaxRunTime < system_time())
 		{
 			::TerminateProcess(proc, 1);
 
@@ -543,7 +537,7 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 			::CloseHandle(proc);
 			::CloseHandle(thread);
 
-			THROW(("jackhmmer was killed since its runtime exceeded the limit of %d seconds", maxRunTime));
+			THROW(("jackhmmer was killed since its runtime exceeded the limit of %d seconds", gMaxRunTime));
 		}
 	}
 
@@ -560,6 +554,8 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 
 	return rundir;
 }
+
+#endif
 
 void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
 	const string& db, fs::path dst)
@@ -604,8 +600,6 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 	else
 		cerr << " done" << endl;
 }
-
-#endif
 
 // --------------------------------------------------------------------
 // Hit is a class to store hit information and all of its statistics.

@@ -18,6 +18,9 @@ namespace hmmer
 void SetMaxRunTime(
 	uint32							inSeconds);
 	
+void SetNrOfThreads(
+	uint32							inThreads);
+	
 void CreateHSSP(
 	CDatabankPtr					inDatabank,
 	MProtein&						inProtein,

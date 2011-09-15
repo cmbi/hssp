@@ -15,6 +15,8 @@ HSSP2DATADIR	= $(HSSP2DIR)data/
 # programs
 CDHIT			?= cd-hit
 PERL			?= perl
+MRS_BUILD		?= /usr/local/bin/mrs-build
+MKHSSP			?= /home/maarten/projects/mas/mkhssp
 
 # 
 DIRS			= $(HSSP2DATADIR)
@@ -47,6 +49,7 @@ hssp2: $(HSSP2DIR)dssp-nr-100.fa $(HSSP2_FILES)
 
 $(HSSP2DIR)dssp.fa: $(DSSP_FILES)
 	$(PERL) dssp2fasta.pl $(DSSPDIR) $@ $(HSSP2DATADIR)
+	$(MRS_BUILD) -d hssp2ix -fv
 
 $(HSSP2DIR)dssp-nr-100.fa $(HSSP2DATADIR)hssp2.depends: $(HSSP2DIR)dssp.fa
 	$(CDHIT) -i $< -o $@ -c 1.0 -T 0 -s 0.9
@@ -57,7 +60,7 @@ $(HSSP2DATADIR)%.sto.bz2: $(HSSP2DATADIR)%.fa
 	bzip2 $(@:.bz2=)
 
 $(HSSP2DIR)%.hssp.bz2::
-	touch $@
+	$(MKHSSP) --fastadir=$(FASTADIR) --datadir=$(HSSP2DATADIR) $(@F:.hssp.bz2=) $@
 
 test1: $(FIRST_10_TBL)
 

@@ -44,13 +44,18 @@ sub Parse
 	my ($doc);
 	my $data = $self->file;
 
-	my %data;
+	my (%data, %cluster, $cluster);
 
 	while (my $line = <$data>)
 	{
-		next if ($line =~ m/^>Cluster (\d+)/);
+		if ($line =~ m/^>Cluster (\d+)/)
+		{
+			$cluster = $1;
+			next;
+		}
 		
 		my ($nr, $l, $p, $t) = ($line =~ m/^(\d+)\s+(\d+)aa, >(....-\d+)... (\*|at .+)/);
+		$cluster{$cluster} = $p if $t eq '*';
 
 		die "Missing id in map: $p\nline: $line\n\n" unless defined $mapped{$p};
 		
@@ -59,12 +64,19 @@ sub Parse
 		
 		my $pdb = substr($p, 0, 4);
 		
-		$data{$pdb} .= "$chains[0]=$p\n";
+		$data{$pdb}{$chains[0]} = $cluster;
 	}
 	
 	# Now create documents
 	foreach my $pdb (sort keys %data) {
-		$self->Store($data{$pdb});
+		my $doc = '';
+		foreach my $chain (keys %{$data{$pdb}}) {
+			my $main = $cluster{$data{$pdb}{$chain}};
+			die "Undefined main\n" unless defined $main;
+			$doc .= "$chain=$main\n";
+		}
+		
+		$self->Store($doc);
 		$self->IndexValue('id', $pdb);
 		$self->FlushDocument;
 	}

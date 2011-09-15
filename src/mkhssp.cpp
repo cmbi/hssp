@@ -76,6 +76,8 @@ int main(int argc, char* argv[])
 			("databank,b",	po::value<string>(), "Databank to use (default is uniref100)")
 			("fastadir,f",	po::value<string>(), "Directory containing fasta databank files)")
 			("jackhmmer",	po::value<string>(), "Jackhmmer executable path (default=/usr/local/bin/jackhmmer)")
+			("max-runtime",	po::value<uint32>(), "Max runtime in seconds for jackhmmer (default = 3600)")
+			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
 			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
 
 			("datadir",		po::value<string>(), "Data directory containing stockholm files")
@@ -124,6 +126,18 @@ int main(int argc, char* argv[])
 			jackhmmer = fs::path(vm["jackhmmer"].as<string>());
 		if (chains.empty() and not fs::exists(jackhmmer))
 			throw mas_exception("Jackhmmer executable not found");
+		
+		uint32 maxruntime = 3600;
+		if (vm.count("max-runtime"))
+			maxruntime = vm["max-runtime"].as<uint32>();
+		hmmer::SetMaxRunTime(maxruntime);
+		
+		uint32 threads = boost::thread::hardware_concurrency();
+		if (vm.count("threads"))
+			threads = vm["threads"].as<uint32>();
+		if (threads < 1)
+			threads = 1;
+		hmmer::SetNrOfThreads(threads);
 			
 		fs::path fastadir("/data/fasta");
 		if (vm.count("fastadir"))
@@ -191,7 +205,10 @@ int main(int argc, char* argv[])
 
 				chains.erase(remove_if(chains.begin(), chains.end(), boost::bind(&string::empty, _1)), chains.end());
 			}
-			catch (...) {}
+			catch (exception& e)
+			{
+				cerr << "Missing hssp2ix file: " << e.what() << endl;
+			}
 		}
 
 		// Where to write our HSSP file to:
