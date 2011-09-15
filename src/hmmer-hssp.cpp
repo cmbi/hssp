@@ -205,6 +205,10 @@ void ReadStockholm(istream& is, mseq& msa)
 	if (msa.size() < 2)
 		THROW(("Insufficient sequences in Stockholm MSA"));
 	
+	// for our query
+	msa.front().m_begin = 0;
+	msa.front().m_end = msa.front().m_seq.length();
+
 	// Remove all hits that are not above the threshold here
 	mseq::iterator mi = msa.begin() + 1;
 	while (mi != msa.end())
@@ -1160,12 +1164,6 @@ float CalculateWeight(const mseq& msa, uint32 i, uint32 j)
 void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	vector<hit_ptr>& hits, vector<res_ptr>& res)
 {
-	// loopings
-	
-//	for (uint32 i = 
-	
-	
-	
 	double start = system_time();
 cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 	
@@ -1193,15 +1191,62 @@ cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 		cerr << "Continuing with " << hits.size() << " hits" << endl
 			 << "Calculating weights...";
 
-cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
-	
-	// calculate the weight matrix for the hits
-	symmetric_matrix<float> w(msa.size());
+	const string& s = msa.front().m_seq;
+	vector<float> sumvar(s.length()), sumdist(s.length()), simval(s.length());
+	static const symmetric_matrix<float> D(kDayhoffData, 20);
+
 	for (uint32 i = 0; i + 1 < msa.size(); ++i)
 	{
 		for (uint32 j = i + 1; j < msa.size(); ++j)
-			w(i, j) = CalculateWeight(msa, i, j);
+		{
+			const string& si = msa[i].m_seq;
+			const string& sj = msa[j].m_seq;
+
+			uint32 b = msa[i].m_begin;
+			if (b < msa[j].m_begin)
+				b = msa[j].m_begin;
+			
+			uint32 e = msa[i].m_end;
+			if (e > msa[j].m_end)
+				e = msa[j].m_end;
+
+			uint32 len = 0, agr = 0;
+			for (uint32 k = b; k < e; ++k)
+			{
+				if (not is_gap(si[k]) and not is_gap(sj[k]))
+				{
+					++len;
+					if (si[k] == sj[k])
+						++agr;
+
+					int8 ri = ResidueHInfo::kIX[uint8(si[k])];
+					int8 rj = ResidueHInfo::kIX[uint8(sj[k])];
+
+					simval[k] = D(ri, rj);
+				}
+			}
+
+			if (len > 0)
+			{
+				float distance = 1 - (float(agr) / float(len));
+				for (uint32 k = b; k < e; ++k)
+				{
+					sumvar[k] += distance * simval[k];
+					sumdist[k] += distance * 1.5f;
+				}
+			}
+		}
 	}
+
+cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
+	
+	//// calculate the weight matrix for the hits
+	//symmetric_matrix<float> w(msa.size());
+	//for (uint32 i = 0; i + 1 < msa.size(); ++i)
+	//{
+	//	for (uint32 j = i + 1; j < msa.size(); ++j)
+	//		w(i, j) = CalculateWeight(msa, i, j);
+	//}
 
 	if (VERBOSE)
 		cerr << " done" << endl
@@ -1212,7 +1257,6 @@ cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 	const vector<MResidue*>& residues = chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
 
-	const string& s = msa.front().m_seq;
 	for (uint32 i = 0; i < s.length(); ++i)
 	{
 		if (is_gap(s[i]))
@@ -1225,8 +1269,15 @@ cerr << endl << " ++ " << __LINE__ << ": " << system_time() - start << endl;
 		
 		string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
 		
+//cerr << "weight oud: " << CalculateConservation(msa, i, w)
+//	 << " weight nieuw: " << ( sumdist[i] > 0 ? sumvar[i] / sumdist[i] : 1 ) << endl;
+
+		float weight = 1.0f;
+		if (sumdist[i] > 0)
+			weight = sumvar[i] / sumdist[i];
+
 		res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i,
-			chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp, CalculateConservation(msa, i, w))));
+			chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp, weight)));
 
 		++ri;
 	}
