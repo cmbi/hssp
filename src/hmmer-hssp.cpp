@@ -687,34 +687,35 @@ Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
 
 	lgap = ngap = identical = similar = 0;
 	
-	string::iterator qb = q.begin(), qe = q.end(), sb = s.begin(), se = s.end();
+	string::iterator qb = q.begin() + b, qe = q.begin() + e,
+					 sb = s.begin() + b, se = s.begin() + e;
 
-	while (qb != qe)
-	{
-		if (is_gap(*sb))
-		{
-			*sb = ' ';
-			++ifir;
-			++ilas;
-		}
-		else
-			break;
-		
-		++qb;
-		++sb;
-	}
-	
-	while (qe != qb and is_gap(*(se - 1)))
-	{
-		--qe;
-		--se;
-		*se = ' ';
-	}
-
-assert(qb == q.begin() + b);
-assert(qe == q.end() + e);
-assert(sb == s.begin() + b);
-assert(se == s.end() + e);
+//	while (qb != qe)
+//	{
+//		if (is_gap(*sb))
+//		{
+//			*sb = ' ';
+//			++ifir;
+//			++ilas;
+//		}
+//		else
+//			break;
+//		
+//		++qb;
+//		++sb;
+//	}
+//	
+//	while (qe != qb and is_gap(*(se - 1)))
+//	{
+//		--qe;
+//		--se;
+//		*se = ' ';
+//	}
+//
+//assert(qb == q.begin() + b);
+//assert(qe == q.begin() + e);
+//assert(sb == s.begin() + b);
+//assert(se == s.begin() + e);
 
 	lali = s.length();
 	
@@ -1152,8 +1153,8 @@ float CalculateConservation(const mseq& msa, uint32 r, const symmetric_matrix<fl
 
 float CalculateWeight(const mseq& msa, uint32 i, uint32 j)
 {
-	const string& si = msa[i].m_seq;		assert(si.length() == sq.length());
-	const string& sj = msa[j].m_seq;		assert(sj.length() == sq.length());
+	const string& si = msa[i].m_seq;
+	const string& sj = msa[j].m_seq;
 	
 	uint32 b = msa[i].m_begin;
 	if (b < msa[j].m_begin)
@@ -1186,7 +1187,7 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 {
 	// loopings
 	
-	for (uint32 i = 
+//	for (uint32 i = 
 	
 	
 	
