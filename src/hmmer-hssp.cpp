@@ -987,7 +987,7 @@ void CreateHSSPOutput(
 			acc.erase(10, string::npos);
 		else if (acc.length() < 10)
 			acc.append(10 - acc.length(), ' ');
-		
+
 		os << fmt1 % nr
 				   % id % h->pdb
 				   % h->ide % h->wsim % h->ifir % h->ilas % h->jfir % h->jlas % h->lali
@@ -1143,6 +1143,8 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 {
 	if (VERBOSE)
 		cerr << "Creating hits...";
+	
+	vector<hit_ptr> nhits;
 
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
@@ -1161,12 +1163,16 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 		catch (...) {}
 		h->lseq2 = inDatabank->GetSequence(docNr, 0).length();
 		
-		hits.push_back(h);
+		// update number now that we know how far we are
+		h->ifir += res.size();
+		h->ilas += res.size();
+		
+		nhits.push_back(h);
 	}
 	
 	if (VERBOSE)
 		cerr << " done" << endl
-			 << "Continuing with " << hits.size() << " hits" << endl
+			 << "Continuing with " << nhits.size() << " hits" << endl
 			 << "Calculating conservation weights...";
 
 	const string& s = msa.front().m_seq;
@@ -1245,7 +1251,7 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 		if (sumdist[i] > 0)
 			weight = sumvar[i] / sumdist[i];
 
-		res.push_back(res_ptr(new ResidueHInfo(s[i], hits, i,
+		res.push_back(res_ptr(new ResidueHInfo(s[i], nhits, i,
 			chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp, weight)));
 
 		++ri;
@@ -1255,6 +1261,7 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 		cerr << " done" << endl;
 	
 	assert(ri == residues.end());
+	hits.insert(hits.end(), nhits.begin(), nhits.end());
 }
 
 // Find the minimal set of overlapping sequences
@@ -1508,7 +1515,7 @@ void CreateHSSP(
 	   << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
 
 	CreateHSSPOutput(inProtein.GetID(), desc.str(), inDatabank->GetVersion(), seqlength,
-		chains.size(), kchain, usedChains, hits, res, outHSSP);
+		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
 }
 
 }
