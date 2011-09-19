@@ -52,7 +52,7 @@ struct entry
 
 	uint32			nr() const						{ return m_nr; }
 	float			weight() const					{ return m_weight; }
-	uint32			length() const					{ return m_seq.length(); }
+	uint32			length() const					{ return static_cast<uint32>(m_seq.length()); }
 
 	bool			has_gaps() const				{ return std::find(m_seq.begin(), m_seq.end(), kSignalGapCode) != m_seq.end(); }
 
@@ -145,7 +145,7 @@ struct leaf_node : public base_node
 							m_entry.m_weight += w;
 						}
 
-	virtual uint32		length() const		{ return m_entry.m_seq.length(); }
+	virtual uint32		length() const		{ return static_cast<uint32>(m_entry.m_seq.length()); }
 
 	entry&				m_entry;
 };

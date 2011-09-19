@@ -27,6 +27,7 @@ void CreateHSSP(
 	const boost::filesystem::path&	inFastaDir,
 	const boost::filesystem::path&	inJackHmmer,
 	uint32							inIterations,
+	uint32							inMaxHits,
 	uint32							inMinSeqLength,
 	std::ostream&					outHSSP);
 
@@ -35,6 +36,7 @@ void CreateHSSP(
 	const std::string&				inProtein,
 	const boost::filesystem::path&	inFastaDir,
 	const boost::filesystem::path&	inJackHmmer,
+	uint32							inMaxHits,
 	uint32							inIterations,
 	std::ostream&					outHSSP);
 
@@ -45,6 +47,7 @@ void CreateHSSP(
 	const boost::filesystem::path&	inFastaDir,
 	const boost::filesystem::path&	inJackHmmer,
 	uint32							inIterations,
+	uint32							inMaxHits,
 	std::vector<std::string>		inStockholmIds,
 	std::ostream&					outHSSP);
 

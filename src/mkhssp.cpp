@@ -80,6 +80,8 @@ int main(int argc, char* argv[])
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
 			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
 
+			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 2500)")
+
 			("datadir",		po::value<string>(), "Data directory containing stockholm files")
 			("chain",		po::value<vector<string>>(),
 												 "Mappings for chain => stockholm file")
@@ -132,6 +134,10 @@ int main(int argc, char* argv[])
 			maxruntime = vm["max-runtime"].as<uint32>();
 		hmmer::SetMaxRunTime(maxruntime);
 		
+		uint32 maxhits = 2500;
+		if (vm.count("max-hits"))
+			maxhits= vm["max-hits"].as<uint32>();
+
 		uint32 threads = boost::thread::hardware_concurrency();
 		if (vm.count("threads"))
 			threads = vm["threads"].as<uint32>();
@@ -231,10 +237,10 @@ int main(int argc, char* argv[])
 				out.push(outfile);
 	
 				// and the final HSSP file
-				if (chains.empty())
-					hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
-				else
-					hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, chains, out);
+				//if (chains.empty())
+				//	hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
+				//else
+					hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhits, chains, out);
 			}
 			catch (...)
 			{
@@ -245,10 +251,10 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			if (chains.empty())
-				hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, cout);
-			else
-				hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, chains, cout);
+			//if (chains.empty())
+			//	hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, cout);
+			//else
+				hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhits, chains, cout);
 		}
 	}
 	catch (exception& e)
