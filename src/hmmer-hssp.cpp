@@ -40,6 +40,10 @@
 #include "utils.h"
 #include "hmmer-hssp.h"
 
+#if P_WIN
+#pragma warning (disable: 4267)
+#endif
+
 using namespace std;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
@@ -134,16 +138,27 @@ void SetNrOfThreads(uint32 inThreads)
 
 // --------------------------------------------------------------------
 // basic named sequence type and a multiple sequence alignment container
+
+struct insertion
+{
+	uint32			m_ipos, m_jpos;
+	string			m_seq;
+};
 	
 struct seq
 {
-	string		m_id;
+	string		m_id, m_id2;
 	string		m_seq;
+	uint32		m_ifir, m_ilas, m_ipos, m_jfir, m_jlas, m_jpos;
 	uint32		m_identical, m_similar, m_length;
 	float		m_score;
 	uint32		m_begin, m_end;
-	bool		m_pruned;
-	
+	bool		m_qgap, m_sgap;
+	uint32		m_qgaps, m_qgapn, m_sgaps, m_sgapn;
+	insertion	m_ins;
+	vector<insertion>
+				m_insertions;
+
 				seq() {}
 
 				seq(const string& id)
@@ -153,22 +168,57 @@ struct seq
 					, m_length(0)
 					, m_begin(numeric_limits<uint32>::max())
 					, m_end(0)
-					, m_pruned(false)
+					, m_qgap(false)
+					, m_sgap(false)
+					, m_qgaps(0)
+					, m_qgapn(0)
+					, m_sgaps(0)
+					, m_sgapn(0)
 				{
+					m_ifir = m_ilas = m_jfir = m_jlas = 0;
+					m_ipos = m_jpos = 1;
+
+					static const boost::regex re("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
+					boost::smatch sm;
+
+					if (boost::regex_match(m_id, sm, re))
+					{
+						// jfir/jlas can be taken over from jackhmmer output
+						m_jpos = m_jfir = boost::lexical_cast<uint32>(sm.str(2));
+						m_jlas = boost::lexical_cast<uint32>(sm.str(3));
+
+						m_id2 = sm.str(1);
+					}
+
 					m_seq.reserve(5000);
 				}
 
-	void		swap(seq& o)
-				{
-					std::swap(m_id, o.m_id);
-					std::swap(m_seq, o.m_seq);
-					std::swap(m_identical, o.m_identical);
-					std::swap(m_similar, o.m_similar);
-					std::swap(m_length, o.m_length);
-					std::swap(m_begin, o.m_begin);
-					std::swap(m_end, o.m_end);
-					std::swap(m_pruned, o.m_pruned);
-				}
+	//void		swap(seq& o)
+	//			{
+	//				std::swap(m_id, o.m_id);
+	//				std::swap(m_seq, o.m_seq);
+
+	//				std::swap(m_qgap, o.m_qgap);
+	//				std::swap(m_qgap, o.m_qgap);
+	//				std::swap(m_qgap, o.m_qgap);
+	//				std::swap(m_qgap, o.m_qgap);
+	//				std::swap(m_qgap, o.m_qgap);
+	//				std::swap(m_qgap, o.m_qgap);
+
+
+	//				std::swap(m_identical, o.m_identical);
+	//				std::swap(m_similar, o.m_similar);
+	//				std::swap(m_length, o.m_length);
+	//				std::swap(m_begin, o.m_begin);
+	//				std::swap(m_end, o.m_end);
+	//				std::swap(m_qgap, o.m_qgap);
+	//				std::swap(m_sgap, o.m_sgap);
+	//				std::swap(m_qgaps, o.m_qgaps);
+	//				std::swap(m_qgapn, o.m_qgapn);
+	//				std::swap(m_sgaps, o.m_sgaps);
+	//				std::swap(m_sgapn, o.m_sgapn);
+	//				std::swap(m_insertions, o.m_insertions);
+	//			}
 
 	void		append(const string& seq, const string& qseq);
 	
@@ -189,14 +239,70 @@ void seq::append(const string& seq, const string& qseq)
 
 	for (string::const_iterator qi = qseq.begin(), si = seq.begin(); qi != qseq.end(); ++qi, ++si, ++i)
 	{
-		if (is_gap(*qi) and is_gap(*si))
+		bool qgap = is_gap(*qi);
+		bool sgap = is_gap(*si);
+
+		if (qgap and sgap)
 			continue;
 
 		++m_length;
 
-		if (is_gap(*si))
+		if (sgap)
+		{
+			if (not (m_sgap or m_qgap))
+				++m_sgaps;
+			m_sgap = true;
+			++m_sgapn;
+			++m_ipos;
+
 			continue;
-		
+		}
+		else if (qgap)
+		{
+			if (not m_qgap)
+			{
+				uint32 gsi = i - 1;
+				while (gsi > 0 and is_gap(m_seq[gsi]))
+					--gsi;
+				
+				m_seq[gsi] = tolower(m_seq[gsi]);
+				m_ins.m_ipos = m_ipos;
+				m_ins.m_jpos = m_jpos;
+				m_ins.m_seq = m_seq[gsi];
+			}
+
+			m_ins.m_seq += *si;
+			
+			if (not (m_sgap or m_qgap))
+				++m_qgaps;
+
+			m_qgap = true;
+			++m_sgapn;
+			++m_jpos;
+		}
+		else
+		{
+			if (m_qgap)
+			{
+				m_seq[i] = tolower(m_seq[i]);
+				m_ins.m_seq += m_seq[i];
+				m_insertions.push_back(m_ins);
+			}
+			
+			m_sgap = false;
+			m_qgap = false;
+
+			if (m_ifir == 0)
+				m_ipos = m_ifir = m_ilas = i + 1;
+			else
+			{
+				++m_ipos;
+				m_ilas = m_ipos;
+			}
+
+			++m_jpos;
+		}
+
 		if (*qi == *si)
 			++m_identical;
 		
@@ -228,19 +334,19 @@ bool seq::drop() const
 	return result;
 }
 
-}
-
-namespace std
-{
-	template<>
-	void swap(hmmer::seq& a, hmmer::seq& b)
-	{
-		a.swap(b);
-	}
-}
-
-
-namespace hmmer {
+//}
+//
+//namespace std
+//{
+//	template<>
+//	void swap(hmmer::seq& a, hmmer::seq& b)
+//	{
+//		a.swap(b);
+//	}
+//}
+//
+//
+//namespace hmmer {
 
 // --------------------------------------------------------------------
 // ReadStockholm is a function that reads a multiple sequence alignment from
@@ -342,7 +448,7 @@ void ReadStockholm(istream& is, mseq& msa)
 	// for our query
 	string& q = msa.front().m_seq;
 	msa.front().m_begin = 0;
-	msa.front().m_end = q.length();
+	msa.front().m_end = static_cast<uint32>(q.length());
 
 	// Remove all hits that are not above the threshold here
 	msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
@@ -758,28 +864,22 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 // --------------------------------------------------------------------
 // Hit is a class to store hit information and all of its statistics.
 	
-struct insertion
-{
-	uint32			ipos, jpos;
-	string			seq;
-};
-	
 struct Hit
 {
-					Hit(mseq& msa, char chain, uint32 qix, uint32 six);
+					Hit(CDatabankPtr inDatabank, const seq& s, const seq& q, char chain);
 
-	mseq&			msa;
-	char			chain;
-	uint32			nr, ix;
-	string			id, acc, desc, pdb;
-	uint32			ifir, ilas, jfir, jlas, lali, ngap, lgap, lseq2;
-	float			ide, wsim;
-	uint32			identical, similar;
+	const seq&		m_seq;
+	const seq&		m_qseq;
+	char			m_chain;
+	uint32			m_nr;
+	string			m_acc, m_desc, m_pdb;
+	uint32			m_lseq2;
+	float			m_ide, m_wsim;
 
-	bool			operator<(const Hit& rhs) const 	{ return ide > rhs.ide or (ide == rhs.ide and lali > rhs.lali); }
-	
-	vector<insertion>
-					insertions;
+	bool			operator<(const Hit& rhs) const
+					{
+						return m_ide > rhs.m_ide or (m_ide == rhs.m_ide and m_seq.m_length > rhs.m_seq.m_length);
+					}
 };
 
 typedef shared_ptr<Hit> hit_ptr;
@@ -790,124 +890,29 @@ typedef vector<hit_ptr>	hit_list;
 // second is the hit sequence.
 // Since this is jackhmmer output, we can safely assume the
 // alignment does not contain gaps at the start or end of the query.
-Hit::Hit(mseq& msa, char chain, uint32 qix, uint32 six)
-	: msa(msa)
-	, chain(chain)
-	, ix(six)
+Hit::Hit(CDatabankPtr inDatabank, const seq& s, const seq& q, char chain)
+	: m_seq(s)
+	, m_qseq(q)
+	, m_chain(chain)
+	, m_nr(0)
 {
-	string& q = msa[qix].m_seq;
-	string& s = msa[six].m_seq;
+	string id = m_seq.m_id2;
 
-	assert(q.length() == s.length());
+	uint32 docNr = inDatabank->GetDocumentNr(id);
+	m_desc = inDatabank->GetMetaData(docNr, "title");
 
-	uint32 b = msa[six].m_begin;
-	uint32 e = msa[six].m_end;
-
-	assert(b < q.length());
-	assert(e <= q.length());
-
-	assert(not q.empty() and not s.empty());
-	assert(not is_gap(q[0]) and not is_gap(q[q.length() - 1]));
-	
-	// parse out the position
-	static const boost::regex re("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
-	boost::smatch sm;
-
-	if (not boost::regex_match(msa[six].m_id, sm, re))
-		throw mas_exception("Alignment ID should contain position");
-	
-	id = sm.str(1);
-	
-	ifir = b + 1;
-	ilas = b;
-
-	// jfir/jlas can be taken over from jackhmmer output
-	jfir = boost::lexical_cast<uint32>(sm.str(2));
-	jlas = boost::lexical_cast<uint32>(sm.str(3));
-
-	lgap = ngap = identical = similar = 0;
-	
-	string::iterator qb = q.begin() + b, qe = q.begin() + e,
-					 sb = s.begin() + b, se = s.begin() + e;
-
-	//fill(s.begin(), sb, ' ');
-	//fill(se, s.end(), ' ');
-
-	bool sgap = false, qgap = false;
-	const substitution_matrix m("BLOSUM62");
-	uint32 ipos = ifir, jpos = jfir;
-	insertion ins;
-	
-	for (string::iterator si = sb, qi = qb; si != se; ++si, ++qi)
+	try
 	{
-		if (is_gap(*si) and is_gap(*qi))
-			continue;
-
-		if (is_gap(*si))
-		{
-			if (not (sgap or qgap))
-				++ngap;
-			sgap = true;
-			++ilas;
-			++lgap;
-			++jpos;
-		}
-		else if (is_gap(*qi))
-		{
-			if (not qgap)
-			{
-				assert(si != sb);
-				string::iterator gsi = si - 1;
-				while (gsi != sb and is_gap(*gsi))
-					--gsi;
-				
-				*gsi = tolower(*gsi);
-				ins.ipos = ipos;
-				ins.jpos = jpos - 1;
-				ins.seq.assign(gsi, gsi + 1);
-				ins.seq += *si;
-			}
-			else
-				ins.seq += *si;
-			
-			if (not (sgap or qgap))
-				++ngap;
-
-			qgap = true;
-			++lgap;
-			++ipos;
-		}
+		if (ba::starts_with(id, "UniRef100_"))
+			m_acc = id.substr(10);
 		else
-		{
-			if (toupper(*qi) == toupper(*si))
-			{
-				++identical;
-				++similar;
-			}
-			else if (m(*qi, *si) > 0)
-				++similar;
-			
-			if (qgap)
-			{
-				*si = tolower(*si);
-				ins.seq += *si;
-				insertions.push_back(ins);
-			}
-			
-			sgap = false;
-			qgap = false;
-
-			++ilas;
-			++ipos;
-			++jpos;
-		}
+			m_acc = inDatabank->GetMetaData(docNr, "acc");
 	}
+	catch (...) {}
+	m_lseq2 = inDatabank->GetSequence(docNr, 0).length();
 
-	//assert(lali == msa[six].m_length);
-	assert(identical == msa[six].m_identical);
-
-	ide = float(identical) / float(lali);
-	wsim = float(similar) / float(lali);
+	m_ide = float(m_seq.m_identical) / float(m_seq.m_length);
+	m_wsim = float(m_seq.m_similar) / float(m_seq.m_length);
 }
 
 struct compare_hit
@@ -969,7 +974,7 @@ ResidueHInfo::ResidueHInfo(char a, hit_list& hits, uint32 pos, char chain, uint3
 	
 	foreach (hit_ptr hit, hits)
 	{
-		ix = kResidueIX[uint8(hit->msa[hit->ix].m_seq[pos])];
+		ix = kResidueIX[uint8(hit->m_seq.m_seq[pos])];
 		if (ix != -1)
 		{
 			++nocc;
@@ -989,14 +994,13 @@ ResidueHInfo::ResidueHInfo(char a, hit_list& hits, uint32 pos, char chain, uint3
 	}
 	
 	// calculate ndel and nins
-	const mseq& msa = hits.front()->msa;
-	const string& q = msa[0].m_seq;
+	const string& q = hits.front()->m_qseq.m_seq;
 	
 	bool gap = pos + 1 < q.length() and is_gap(q[pos + 1]);
 	
 	foreach (hit_ptr hit, hits)
 	{
-		const string& t = msa[hit->ix].m_seq;
+		const string& t = hit->m_seq.m_seq;
 		
 		if (is_gap(t[pos]))
 			++ndel;
@@ -1050,23 +1054,25 @@ void CreateHSSPOutput(
 	boost::format fmt1("%5.5d : %12.12s%4.4s    %4.2f  %4.2f %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d  %10.10s %s");
 	foreach (hit_ptr h, hits)
 	{
-		string id = h->id;
+		const seq& s(h->m_seq);
+
+		string id = s.m_id2;
 		if (id.length() > 12)
 			id.erase(12, string::npos);
 		else if (id.length() < 12)
 			id.append(12 - id.length(), ' ');
 		
-		string acc = h->acc;
+		string acc = h->m_acc;
 		if (acc.length() > 10)
 			acc.erase(10, string::npos);
 		else if (acc.length() < 10)
 			acc.append(10 - acc.length(), ' ');
 		
 		os << fmt1 % nr
-				   % id % h->pdb
-				   % h->ide % h->wsim % h->ifir % h->ilas % h->jfir % h->jlas % h->lali
-				   % h->ngap % h->lgap % h->lseq2
-				   % acc % h->desc
+				   % id % h->m_pdb
+				   % h->m_ide % h->m_wsim % s.m_ifir % s.m_ilas % s.m_jfir % s.m_jlas % s.m_length
+				   % (s.m_sgapn + s.m_qgapn) % (s.m_sgaps + s.m_qgaps) % h->m_lseq2
+				   % acc % h->m_desc
 		   << endl;
 		
 		++nr;
@@ -1102,13 +1108,13 @@ void CreateHSSPOutput(
 			{
 				string aln;
 				
-				for (uint32 j = i; j < n; ++j)
+				//for (uint32 j = i; j < n; ++j)
+				foreach (hit_ptr hit, boost::make_iterator_range(hits.begin() + i, hits.begin() + n))
 				{
-					if (hits[j]->chain == ri->chain)
+					if (hit->m_chain == ri->chain and ri->pos >= hit->m_seq.m_begin and ri->pos < hit->m_seq.m_end)
 					{
 						uint32 p = ri->pos;
-						uint32 i = hits[j]->ix;
-						aln += hits[j]->msa[i].m_seq[p];
+						aln += hit->m_seq.m_seq[p];
 					}
 					else
 						aln += ' ';
@@ -1152,15 +1158,16 @@ void CreateHSSPOutput(
 
 	foreach (hit_ptr h, hits)
 	{
-		foreach (insertion& ins, h->insertions)
+		//foreach (insertion& ins, h->insertions)
+		foreach (const insertion& ins, h->m_seq.m_insertions)
 		{
-			string s = ins.seq;
+			string s = ins.m_seq;
 			
 			if (s.length() <= 100)
-				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->nr % ins.ipos % ins.jpos % (ins.seq.length() - 2) << s << endl;
+				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->m_nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
 			else
 			{
-				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->nr % ins.ipos % ins.jpos % (ins.seq.length() - 2) << s.substr(0, 100) << endl;
+				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->m_nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
 				s.erase(0, 100);
 				
 				while (not s.empty())
@@ -1193,24 +1200,12 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
-		hit_ptr h(new Hit(msa, chain.GetChainID(), 0, i));
+		hit_ptr h(new Hit(inDatabank, msa[i], msa[0], chain.GetChainID()));
 
-		uint32 docNr = inDatabank->GetDocumentNr(h->id);
-		
-		h->desc = inDatabank->GetMetaData(docNr, "title");
-		try
-		{
-			if (ba::starts_with(h->id, "UniRef100_"))
-				h->acc = h->id = h->id.substr(10);
-			else
-				h->acc = inDatabank->GetMetaData(docNr, "acc");
-		}
-		catch (...) {}
-		h->lseq2 = inDatabank->GetSequence(docNr, 0).length();
-		
-		// update number now that we know how far we are
-		h->ifir += res.size();
-		h->ilas += res.size();
+		//
+		//// update number now that we know how far we are
+		//h->ifir += res.size();
+		//h->ilas += res.size();
 		
 		nhits.push_back(h);
 	}
@@ -1254,16 +1249,11 @@ void PruneHits(hit_list& hits, uint32 inMaxHits)
 	sort(hits.begin(), hits.end(), compare_hit());
 
 	if (hits.size() > inMaxHits)
-	{
-		for (hit_list::iterator h = hits.begin() + inMaxHits; h != hits.end(); ++h)
-			(*h)->msa[(*h)->ix].m_pruned = true;
-
 		hits.erase(hits.begin() + inMaxHits, hits.end());
-	}
 	
 	uint32 nr = 1;
 	foreach (hit_ptr h, hits)
-		h->nr = nr++;
+		h->m_nr = nr++;
 }
 
 void CalculateConservation(mseq& msa, const MChain& chain, res_range res)
@@ -1580,8 +1570,6 @@ void CreateHSSP(
 			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
 		
 		mseq& msa = alignments[kchain];
-		msa.erase(remove_if(msa.begin(), msa.end(), [](seq& s) { return s.m_pruned; }), msa.end());
-
 		ChainToHits(inDatabank, msa, *chain, hits, res);
 
 		if (not usedChains.empty())
