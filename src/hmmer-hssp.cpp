@@ -154,6 +154,7 @@ struct seq
 	uint32		m_identical, m_similar, m_length;
 	float		m_score;
 	uint32		m_begin, m_end;
+	bool		m_pruned;
 	bool		m_qgap, m_sgap;
 	uint32		m_qgaps, m_qgapn, m_sgaps, m_sgapn;
 	insertion	m_ins;
@@ -169,6 +170,7 @@ struct seq
 					, m_length(0)
 					, m_begin(numeric_limits<uint32>::max())
 					, m_end(0)
+					, m_pruned(false)
 					, m_qgap(false)
 					, m_sgap(false)
 					, m_qgaps(0)
@@ -433,7 +435,7 @@ void ReadStockholm(istream& is, mseq& msa)
 
 				assert(ix < msa.size());
 				if (id != msa[ix].m_id)
-					THROW(("Invalid Stockholm file, ID does not match (%s != %s)", id.c_str(), msa[ix].m_id));
+					THROW(("Invalid Stockholm file, ID does not match (%s != %s)", id.c_str(), msa[ix].m_id.c_str()));
 				
 				msa[ix].append(sseq, qseq);
 			}
@@ -867,14 +869,12 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 	
 struct Hit
 {
-					Hit(CDatabankPtr inDatabank, const seq& s, const seq& q, char chain);
+					Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain);
 
-	const seq&		m_seq;
-	const seq&		m_qseq;
+	seq&			m_seq;
+	seq&			m_qseq;
 	char			m_chain;
 	uint32			m_nr;
-	string			m_acc, m_desc, m_pdb;
-	uint32			m_lseq2;
 	float			m_ide, m_wsim;
 
 	bool			operator<(const Hit& rhs) const
@@ -891,26 +891,13 @@ typedef vector<hit_ptr>	hit_list;
 // second is the hit sequence.
 // Since this is jackhmmer output, we can safely assume the
 // alignment does not contain gaps at the start or end of the query.
-Hit::Hit(CDatabankPtr inDatabank, const seq& s, const seq& q, char chain)
+Hit::Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain)
 	: m_seq(s)
 	, m_qseq(q)
 	, m_chain(chain)
 	, m_nr(0)
 {
 	string id = m_seq.m_id2;
-
-	uint32 docNr = inDatabank->GetDocumentNr(id);
-	m_desc = inDatabank->GetMetaData(docNr, "title");
-
-	try
-	{
-		if (ba::starts_with(id, "UniRef100_"))
-			m_acc = id.substr(10);
-		else
-			m_acc = inDatabank->GetMetaData(docNr, "acc");
-	}
-	catch (...) {}
-	m_lseq2 = inDatabank->GetSequence(docNr, 0).length();
 
 	m_ide = float(m_seq.m_identical) / float(m_seq.m_length);
 	m_wsim = float(m_seq.m_similar) / float(m_seq.m_length);
@@ -1015,9 +1002,9 @@ ResidueHInfo::ResidueHInfo(char a, hit_list& hits, uint32 pos, char chain, uint3
 // Write collected information as a HSSP file to the output stream
 
 void CreateHSSPOutput(
+	CDatabankPtr		inDatabank,
 	const string&		inProteinID,
 	const string&		inProteinDescription,
-	const string&		inDatabankVersion,
 	uint32				inSeqLength,
 	uint32				inNChain,
 	uint32				inKChain,
@@ -1033,7 +1020,7 @@ void CreateHSSPOutput(
 	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0d2 2011" << endl
 	   << "PDBID      " << inProteinID << endl
 	   << "DATE       file generated on " << to_iso_extended_string(today) << endl
-	   << "SEQBASE    " << inDatabankVersion << endl
+	   << "SEQBASE    " << inDatabank->GetVersion() << endl
 	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + 5" << endl
 	   << "CONTACT    This version: Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
 	   << inProteinDescription
@@ -1041,9 +1028,7 @@ void CreateHSSPOutput(
 	   << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
 	
 	if (inKChain != inNChain)
-	{
 		os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % inKChain << inUsedChains << endl;
-	}
 	
 	os << boost::format("NALIGN     %4.4d") % hits.size() << endl
 	   << endl
@@ -1058,22 +1043,35 @@ void CreateHSSPOutput(
 		const seq& s(h->m_seq);
 
 		string id = s.m_id2;
+		uint32 docNr = inDatabank->GetDocumentNr(id);
+		string desc = inDatabank->GetMetaData(docNr, "title");
+		string acc, pdb;
+
+		try
+		{
+			if (ba::starts_with(id, "UniRef100_"))
+				acc = id.substr(10);
+			else
+				acc = inDatabank->GetMetaData(docNr, "acc");
+		}
+		catch (...) {}
+
+		uint32 lseq2 = inDatabank->GetSequence(docNr, 0).length();
 		if (id.length() > 12)
 			id.erase(12, string::npos);
 		else if (id.length() < 12)
 			id.append(12 - id.length(), ' ');
 		
-		string acc = h->m_acc;
 		if (acc.length() > 10)
 			acc.erase(10, string::npos);
 		else if (acc.length() < 10)
 			acc.append(10 - acc.length(), ' ');
 		
 		os << fmt1 % nr
-				   % id % h->m_pdb
+				   % id % pdb
 				   % h->m_ide % h->m_wsim % s.m_ifir % s.m_ilas % s.m_jfir % s.m_jlas % s.m_length
-				   % (s.m_sgapn + s.m_qgapn) % (s.m_sgaps + s.m_qgaps) % h->m_lseq2
-				   % acc % h->m_desc
+				   % (s.m_sgapn + s.m_qgapn) % (s.m_sgaps + s.m_qgaps) % lseq2
+				   % acc % desc
 		   << endl;
 		
 		++nr;
@@ -1265,11 +1263,14 @@ void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& cs
 	transform(sumdist.begin(), sumdist.end(), csumdist.begin(), csumdist.begin(), plus<uint32>());
 }
 
-void CalculateConservation(const mseq& msa, boost::iterator_range<res_list::iterator>& res)
+void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>& res)
 {
 	if (VERBOSE)
 		cerr << "Calculating conservation weights...";
-	
+
+	// first remove pruned seqs from msa
+	msa.erase(remove_if(msa.begin(), msa.end(), [](seq& s) { return s.m_pruned; }), msa.end());
+
 	const string& s = msa.front().m_seq;
 	vector<float> sumvar(s.length()), sumdist(s.length());
 	
@@ -1323,10 +1324,9 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	{
 		hit_ptr h(new Hit(inDatabank, msa[i], msa[0], chain.GetChainID()));
 
-		//
-		//// update number now that we know how far we are
-		//h->ifir += res.size();
-		//h->ilas += res.size();
+		// update number now that we know how far we are
+		h->m_seq.m_ifir += res.size();
+		h->m_seq.m_ilas += res.size();
 		
 		nhits.push_back(h);
 	}
@@ -1370,7 +1370,12 @@ void PruneHits(hit_list& hits, uint32 inMaxHits)
 	sort(hits.begin(), hits.end(), compare_hit());
 
 	if (hits.size() > inMaxHits)
+	{
+		foreach (hit_ptr hit, boost::make_iterator_range(hits.begin() + inMaxHits, hits.end()))
+			hit->m_seq.m_pruned = true;
+		
 		hits.erase(hits.begin() + inMaxHits, hits.end());
+	}
 	
 	uint32 nr = 1;
 	foreach (hit_ptr h, hits)
@@ -1647,7 +1652,7 @@ void CreateHSSP(
 	if (inProtein.GetAuthor().length() > 10)
 		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
 
-	CreateHSSPOutput(inProtein.GetID(), desc.str(), inDatabank->GetVersion(), seqlength,
+	CreateHSSPOutput(inDatabank, inProtein.GetID(), desc.str(), seqlength,
 		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
 }
 

@@ -80,7 +80,7 @@ int main(int argc, char* argv[])
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
 			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
 
-			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 2500)")
+			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 
 			("datadir",		po::value<string>(), "Data directory containing stockholm files")
 			("chain",		po::value<vector<string>>(),
@@ -134,7 +134,7 @@ int main(int argc, char* argv[])
 			maxruntime = vm["max-runtime"].as<uint32>();
 		hmmer::SetMaxRunTime(maxruntime);
 		
-		uint32 maxhits = 2500;
+		uint32 maxhits = 1500;
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
 
