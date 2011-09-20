@@ -34,6 +34,7 @@
 #include "CConfig.h"
 
 // our includes
+#include "buffer.h"
 #include "matrix.h"
 #include "dssp.h"
 #include "structure.h"
@@ -229,8 +230,8 @@ struct seq
 	bool		operator<(const seq& o) const		{ return m_score > o.m_score; }
 };
 
-//typedef boost::ptr_vector<seq> mseq;
-typedef vector<seq>				mseq;
+typedef boost::ptr_vector<seq> mseq;
+//typedef vector<seq>				mseq;
 
 void seq::append(const string& seq, const string& qseq)
 {
@@ -375,7 +376,7 @@ void ReadStockholm(istream& is, mseq& msa)
 	if (boost::regex_match(id, sm, re))
 		id = sm.str(1);
 
-	msa.push_back(seq(id));
+	msa.push_back(new seq(id));
 	uint32 ix = 0;
 	
 	for (;;)
@@ -401,7 +402,7 @@ void ReadStockholm(istream& is, mseq& msa)
 			
 			ba::trim(id);
 			if (msa.size() > 1 or msa.front().m_id != id)
-				msa.push_back(seq(id));
+				msa.push_back(new seq(id));
 			continue;
 		}
 		
@@ -428,7 +429,7 @@ void ReadStockholm(istream& is, mseq& msa)
 			{
 				++ix;
 				if (ix >= msa.size())
-					msa.push_back(seq(id));
+					msa.push_back(new seq(id));
 
 				assert(ix < msa.size());
 				if (id != msa[ix].m_id)
@@ -1187,6 +1188,126 @@ void CreateHSSPOutput(
 }
 
 // --------------------------------------------------------------------
+// Calculate the variability of a residue, based on dayhoff similarity
+// and weights
+
+uint32 kSentinel = numeric_limits<uint32>::max();
+boost::mutex sSumLock;
+
+void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& csumvar, vector<float>& csumdist)
+{
+	if (VERBOSE)
+		cerr << "Calculating conservation weights...";
+
+	const string& s = msa.front().m_seq;
+	vector<float> sumvar(s.length()), sumdist(s.length()), simval(s.length());
+
+	for (;;)
+	{
+		uint32 i = b.get();
+		if (i == kSentinel)
+			break;
+
+		const string& si = msa[i].m_seq;
+		
+		for (uint32 j = i + 1; j < msa.size(); ++j)
+		{
+			const string& sj = msa[j].m_seq;
+	
+			uint32 b = msa[i].m_begin;
+			if (b < msa[j].m_begin)
+				b = msa[j].m_begin;
+			
+			uint32 e = msa[i].m_end;
+			if (e > msa[j].m_end)
+				e = msa[j].m_end;
+	
+			uint32 len = 0, agr = 0;
+			for (uint32 k = b; k < e; ++k)
+			{
+				if (not is_gap(si[k]) and not is_gap(sj[k]))
+				{
+					++len;
+					if (si[k] == sj[k])
+						++agr;
+
+					int8 ri = kResidueIX[uint8(si[k])];
+					int8 rj = kResidueIX[uint8(sj[k])];
+					
+					if (ri != -1 and rj != -1)
+						simval[k] = kD(ri, rj);
+					else
+						simval[k] = numeric_limits<float>::min();
+				}
+			}
+
+			if (len > 0)
+			{
+				float distance = 1 - (float(agr) / float(len));
+				for (uint32 k = b; k < e; ++k)
+				{
+					if (simval[k] != numeric_limits<float>::min())
+					{
+						sumvar[k] += distance * simval[k];
+						sumdist[k] += distance * 1.5f;
+					}
+				}
+			}
+		}
+	}
+
+	b.put(kSentinel);
+	
+	// accumulate our data
+	boost::mutex::scoped_lock l(sSumLock);
+	
+	transform(sumvar.begin(), sumvar.end(), csumvar.begin(), csumvar.begin(), plus<uint32>());
+	transform(sumdist.begin(), sumdist.end(), csumdist.begin(), csumdist.begin(), plus<uint32>());
+}
+
+void CalculateConservation(const mseq& msa, boost::iterator_range<res_list::iterator>& res)
+{
+	if (VERBOSE)
+		cerr << "Calculating conservation weights...";
+	
+	const string& s = msa.front().m_seq;
+	vector<float> sumvar(s.length()), sumdist(s.length());
+	
+	// Calculate conservation weights in multiple threads to gain speed.
+	buffer<uint32> b;
+	boost::thread_group threads;
+	for (uint32 t = 0; t < gNrOfThreads; ++t)
+	{
+		threads.create_thread(boost::bind(&CalculateConservation, boost::ref(msa),
+			boost::ref(b), boost::ref(sumvar), boost::ref(sumdist)));
+	}
+		
+	for (uint32 i = 0; i + 1 < msa.size(); ++i)
+		b.put(i);
+	
+	b.put(kSentinel);
+	threads.join_all();
+
+	res_list::iterator ri = res.begin();
+	for (uint32 i = 0; i < s.length(); ++i)
+	{
+		if (is_gap(s[i]))
+			continue;
+
+		float weight = 1.0f;
+		if (sumdist[i] > 0)
+			weight = sumvar[i] / sumdist[i];
+		
+		(*ri)->consweight = weight;
+		++ri;
+	}
+	assert(ri == res.end());
+
+	if (VERBOSE)
+		cerr << " done" << endl;
+}
+
+// --------------------------------------------------------------------
 // Convert a multiple sequence alignment as created by jackhmmer to 
 // a set of information as used by HSSP.
 
@@ -1254,82 +1375,6 @@ void PruneHits(hit_list& hits, uint32 inMaxHits)
 	uint32 nr = 1;
 	foreach (hit_ptr h, hits)
 		h->m_nr = nr++;
-}
-
-void CalculateConservation(mseq& msa, const MChain& chain, res_range res)
-{
-	if (VERBOSE)
-		cerr << "Calculating conservation weights...";
-
-	const string& s = msa.front().m_seq;
-	vector<float> sumvar(s.length()), sumdist(s.length()), simval(s.length());
-
-	for (uint32 i = 0; i + 1 < msa.size(); ++i)
-	{
-		for (uint32 j = i + 1; j < msa.size(); ++j)
-		{
-			const string& si = msa[i].m_seq;
-			const string& sj = msa[j].m_seq;
-
-			uint32 b = msa[i].m_begin;
-			if (b < msa[j].m_begin)
-				b = msa[j].m_begin;
-			
-			uint32 e = msa[i].m_end;
-			if (e > msa[j].m_end)
-				e = msa[j].m_end;
-
-			uint32 len = 0, agr = 0;
-			for (uint32 k = b; k < e; ++k)
-			{
-				if (not is_gap(si[k]) and not is_gap(sj[k]))
-				{
-					++len;
-					if (si[k] == sj[k])
-						++agr;
-
-					int8 ri = kResidueIX[uint8(si[k])];
-					int8 rj = kResidueIX[uint8(sj[k])];
-					
-					if (ri != -1 and rj != -1)
-						simval[k] = kD(ri, rj);
-					else
-						simval[k] = numeric_limits<float>::min();
-				}
-			}
-
-			if (len > 0)
-			{
-				float distance = 1 - (float(agr) / float(len));
-				for (uint32 k = b; k < e; ++k)
-				{
-					if (simval[k] != numeric_limits<float>::min())
-					{
-						sumvar[k] += distance * simval[k];
-						sumdist[k] += distance * 1.5f;
-					}
-				}
-			}
-		}
-	}
-
-	res_list::iterator ri = res.begin();
-	for (uint32 i = 0; i < s.length(); ++i)
-	{
-		if (is_gap(s[i]))
-			continue;
-
-		float weight = 1.0f;
-		if (sumdist[i] > 0)
-			weight = sumvar[i] / sumdist[i];
-		
-		(*ri)->consweight = weight;
-		++ri;
-	}
-	assert(ri == res.end());
-
-	if (VERBOSE)
-		cerr << " done" << endl;
 }
 
 // Find the minimal set of overlapping sequences
@@ -1491,11 +1536,14 @@ void CreateHSSP(
 	}
 	
 	stringstream desc;
-	desc	
-	   << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl
-	   << "COMPND     " + inProtein.GetCompound().substr(10) << endl
-	   << "SOURCE     " + inProtein.GetSource().substr(10) << endl
-	   << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
+	if (inProtein.GetHeader().length() >= 50)
+		desc << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl;
+	if (inProtein.GetCompound().length() > 10)
+		desc << "COMPND     " + inProtein.GetCompound().substr(10) << endl;
+	if (inProtein.GetSource().length() > 10)
+		desc << "SOURCE     " + inProtein.GetSource().substr(10) << endl;
+	if (inProtein.GetAuthor().length() > 10)
+		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
 
 	CreateHSSPOutput(inProtein.GetID(), desc.str(), inDatabank->GetVersion(), seqlength,
 		chains.size(), kchain, usedChains, hits, res, outHSSP);
@@ -1581,23 +1629,23 @@ void CreateHSSP(
 
 	PruneHits(hits, inMaxHits);
 
-	kchain = 0;
 	uint32 o = 0;
-	foreach (const MChain* chain, chains)
+	for (uint32 c = 0; c < kchain; ++c)
 	{
-		res_range r(res.begin() + o, res.begin() + o + chain_lengths[kchain]);
-		o += chain_lengths[kchain] + 1;
-
-		CalculateConservation(alignments[kchain], *chain, r);
-		++kchain;
+		res_range r(res.begin() + o, res.begin() + o + chain_lengths[c]);
+		o += chain_lengths[c] + 1;
+		CalculateConservation(alignments[c], r);
 	}
 	
 	stringstream desc;
-	desc	
-	   << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl
-	   << "COMPND     " + inProtein.GetCompound().substr(10) << endl
-	   << "SOURCE     " + inProtein.GetSource().substr(10) << endl
-	   << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
+	if (inProtein.GetHeader().length() >= 50)
+		desc << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl;
+	if (inProtein.GetCompound().length() > 10)
+		desc << "COMPND     " + inProtein.GetCompound().substr(10) << endl;
+	if (inProtein.GetSource().length() > 10)
+		desc << "SOURCE     " + inProtein.GetSource().substr(10) << endl;
+	if (inProtein.GetAuthor().length() > 10)
+		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
 
 	CreateHSSPOutput(inProtein.GetID(), desc.str(), inDatabank->GetVersion(), seqlength,
 		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
