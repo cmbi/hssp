@@ -227,7 +227,7 @@ struct seq
 	
 	float		score() const;
 	bool		drop() const;
-
+	bool		pruned() const						{ return m_pruned; }
 
 	bool		operator<(const seq& o) const		{ return m_score > o.m_score; }
 };
@@ -1194,9 +1194,6 @@ boost::mutex sSumLock;
 
 void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& csumvar, vector<float>& csumdist)
 {
-	if (VERBOSE)
-		cerr << "Calculating conservation weights...";
-
 	const string& s = msa.front().m_seq;
 	vector<float> sumvar(s.length()), sumdist(s.length()), simval(s.length());
 
@@ -1269,7 +1266,8 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 		cerr << "Calculating conservation weights...";
 
 	// first remove pruned seqs from msa
-	msa.erase(remove_if(msa.begin(), msa.end(), [](seq& s) { return s.m_pruned; }), msa.end());
+	//msa.erase(remove_if(msa.begin(), msa.end(), [](seq& s) { return s.m_pruned; }), msa.end());
+	msa.erase(remove_if(msa.begin(), msa.end(), boost::bind(&seq::pruned, _1)), msa.end());
 
 	const string& s = msa.front().m_seq;
 	vector<float> sumvar(s.length()), sumdist(s.length());
