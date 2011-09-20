@@ -60,7 +60,8 @@ $(HSSP2DATADIR)%.sto.bz2: $(HSSP2DATADIR)%.fa
 	bzip2 $(@:.bz2=)
 
 $(HSSP2DIR)%.hssp.bz2::
-	$(MKHSSP) --fastadir=$(FASTADIR) --datadir=$(HSSP2DATADIR) $(@F:.hssp.bz2=) $@
+	$(MKHSSP) --fastadir=$(FASTADIR) --datadir=$(HSSP2DATADIR) $(@F:.hssp.bz2=) $@ || \
+		echo $(@F:.hssp.bz2=) >> hssp2.skip
 
 test1: $(FIRST_10_TBL)
 

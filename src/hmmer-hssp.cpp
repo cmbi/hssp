@@ -323,7 +323,7 @@ void seq::append(const string& seq, const string& qseq)
 		m_end = i + 1;
 	}
 
-	assert(m_end == m_seq.length() or is_gap(m_seq.back()));
+//	assert(m_end == m_seq.length() or is_gap(m_seq.back()));
 
 	m_score = float(m_identical) / float(m_length);
 }

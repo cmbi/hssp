@@ -8,6 +8,8 @@
 # You may have to edit the first three defines on top of this
 # makefile to match your current installation.
 
+firstTarget: mkhssp
+
 #BOOST_LIB_SUFFIX	= -mt
 BOOST_LIB_DIR		= $(HOME)/projects/boost/lib
 BOOST_INC_DIR		= $(HOME)/projects/boost/include
