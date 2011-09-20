@@ -156,72 +156,13 @@ struct seq
 	uint32		m_begin, m_end;
 	bool		m_pruned;
 	bool		m_qgap, m_sgap;
-	uint32		m_qgaps, m_qgapn, m_sgaps, m_sgapn;
+	uint32		m_gaps, m_gapn;
 	insertion	m_ins;
 	vector<insertion>
 				m_insertions;
 
-				seq() {}
-
-				seq(const string& id)
-					: m_id(id)
-					, m_identical(0)
-					, m_similar(0)
-					, m_length(0)
-					, m_begin(numeric_limits<uint32>::max())
-					, m_end(0)
-					, m_pruned(false)
-					, m_qgap(false)
-					, m_sgap(false)
-					, m_qgaps(0)
-					, m_qgapn(0)
-					, m_sgaps(0)
-					, m_sgapn(0)
-				{
-					m_ifir = m_ilas = m_jfir = m_jlas = 0;
-					m_ipos = m_jpos = 1;
-
-					static const boost::regex re("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
-					boost::smatch sm;
-
-					if (boost::regex_match(m_id, sm, re))
-					{
-						// jfir/jlas can be taken over from jackhmmer output
-						m_jpos = m_jfir = boost::lexical_cast<uint32>(sm.str(2));
-						m_jlas = boost::lexical_cast<uint32>(sm.str(3));
-
-						m_id2 = sm.str(1);
-					}
-
-					m_seq.reserve(5000);
-				}
-
-	//void		swap(seq& o)
-	//			{
-	//				std::swap(m_id, o.m_id);
-	//				std::swap(m_seq, o.m_seq);
-
-	//				std::swap(m_qgap, o.m_qgap);
-	//				std::swap(m_qgap, o.m_qgap);
-	//				std::swap(m_qgap, o.m_qgap);
-	//				std::swap(m_qgap, o.m_qgap);
-	//				std::swap(m_qgap, o.m_qgap);
-	//				std::swap(m_qgap, o.m_qgap);
-
-
-	//				std::swap(m_identical, o.m_identical);
-	//				std::swap(m_similar, o.m_similar);
-	//				std::swap(m_length, o.m_length);
-	//				std::swap(m_begin, o.m_begin);
-	//				std::swap(m_end, o.m_end);
-	//				std::swap(m_qgap, o.m_qgap);
-	//				std::swap(m_sgap, o.m_sgap);
-	//				std::swap(m_qgaps, o.m_qgaps);
-	//				std::swap(m_qgapn, o.m_qgapn);
-	//				std::swap(m_sgaps, o.m_sgaps);
-	//				std::swap(m_sgapn, o.m_sgapn);
-	//				std::swap(m_insertions, o.m_insertions);
-	//			}
+				seq(const string& id);
+	void		swap(seq& o);
 
 	void		append(const string& seq, const string& qseq);
 	
@@ -230,10 +171,72 @@ struct seq
 	bool		pruned() const						{ return m_pruned; }
 
 	bool		operator<(const seq& o) const		{ return m_score > o.m_score; }
+
+private:
+				seq();
+	//seq&		operator=(const seq&);
 };
 
-typedef boost::ptr_vector<seq> mseq;
-//typedef vector<seq>				mseq;
+//typedef boost::ptr_vector<seq> mseq;
+typedef vector<seq>				mseq;
+
+seq::seq(const string& id)
+	: m_id(id)
+	, m_identical(0)
+	, m_similar(0)
+	, m_length(0)
+	, m_begin(numeric_limits<uint32>::max())
+	, m_end(0)
+	, m_pruned(false)
+	, m_qgap(false)
+	, m_sgap(false)
+	, m_gaps(0)
+	, m_gapn(0)
+{
+	m_ifir = m_ilas = m_jfir = m_jlas = 0;
+	m_ipos = m_jpos = 1;
+
+	static const boost::regex re("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
+	boost::smatch sm;
+
+	if (boost::regex_match(m_id, sm, re))
+	{
+		// jfir/jlas can be taken over from jackhmmer output
+		m_jpos = m_jfir = boost::lexical_cast<uint32>(sm.str(2));
+		m_jlas = boost::lexical_cast<uint32>(sm.str(3));
+
+		m_id2 = sm.str(1);
+	}
+
+	m_seq.reserve(5000);
+}
+
+void seq::swap(seq& o)
+{
+	std::swap(m_id, o.m_id);
+	std::swap(m_id2, o.m_id2);
+	std::swap(m_seq, o.m_seq);
+	std::swap(m_ifir, o.m_ifir);
+	std::swap(m_ilas, o.m_ilas);
+	std::swap(m_ipos, o.m_ipos);
+	std::swap(m_jfir, o.m_jfir);
+	std::swap(m_jlas, o.m_jlas);
+	std::swap(m_jpos, o.m_jpos);
+	std::swap(m_identical, o.m_identical);
+	std::swap(m_similar, o.m_similar);
+	std::swap(m_length, o.m_length);
+	std::swap(m_score, o.m_score);
+	std::swap(m_begin, o.m_begin);
+	std::swap(m_end, o.m_end);
+	std::swap(m_pruned, o.m_pruned);
+	std::swap(m_qgap, o.m_qgap);
+	std::swap(m_sgap, o.m_sgap);
+	std::swap(m_gaps, o.m_gaps);
+	std::swap(m_gapn, o.m_gapn);
+	std::swap(m_ins, o.m_ins);
+	std::swap(m_insertions, o.m_insertions);
+}
+
 
 void seq::append(const string& seq, const string& qseq)
 {
@@ -253,9 +256,9 @@ void seq::append(const string& seq, const string& qseq)
 		if (sgap)
 		{
 			if (not (m_sgap or m_qgap))
-				++m_sgaps;
+				++m_gaps;
 			m_sgap = true;
-			++m_sgapn;
+			++m_gapn;
 			++m_ipos;
 
 			continue;
@@ -277,10 +280,10 @@ void seq::append(const string& seq, const string& qseq)
 			m_ins.m_seq += *si;
 			
 			if (not (m_sgap or m_qgap))
-				++m_qgaps;
+				++m_gaps;
 
 			m_qgap = true;
-			++m_sgapn;
+			++m_gapn;
 			++m_jpos;
 		}
 		else
@@ -337,19 +340,19 @@ bool seq::drop() const
 	return result;
 }
 
-//}
-//
-//namespace std
-//{
-//	template<>
-//	void swap(hmmer::seq& a, hmmer::seq& b)
-//	{
-//		a.swap(b);
-//	}
-//}
-//
-//
-//namespace hmmer {
+}
+
+namespace std
+{
+	template<>
+	void swap(hmmer::seq& a, hmmer::seq& b)
+	{
+		a.swap(b);
+	}
+}
+
+
+namespace hmmer {
 
 // --------------------------------------------------------------------
 // ReadStockholm is a function that reads a multiple sequence alignment from
@@ -378,7 +381,7 @@ void ReadStockholm(istream& is, mseq& msa)
 	if (boost::regex_match(id, sm, re))
 		id = sm.str(1);
 
-	msa.push_back(new seq(id));
+	msa.push_back(seq(id));
 	uint32 ix = 0;
 	
 	for (;;)
@@ -404,7 +407,7 @@ void ReadStockholm(istream& is, mseq& msa)
 			
 			ba::trim(id);
 			if (msa.size() > 1 or msa.front().m_id != id)
-				msa.push_back(new seq(id));
+				msa.push_back(seq(id));
 			continue;
 		}
 		
@@ -431,7 +434,7 @@ void ReadStockholm(istream& is, mseq& msa)
 			{
 				++ix;
 				if (ix >= msa.size())
-					msa.push_back(new seq(id));
+					msa.push_back(seq(id));
 
 				assert(ix < msa.size());
 				if (id != msa[ix].m_id)
@@ -1070,7 +1073,7 @@ void CreateHSSPOutput(
 		os << fmt1 % nr
 				   % id % pdb
 				   % h->m_ide % h->m_wsim % s.m_ifir % s.m_ilas % s.m_jfir % s.m_jlas % s.m_length
-				   % (s.m_sgapn + s.m_qgapn) % (s.m_sgaps + s.m_qgaps) % lseq2
+				   % s.m_gapn % s.m_gaps % lseq2
 				   % acc % desc
 		   << endl;
 		
@@ -1203,10 +1206,15 @@ void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& cs
 		if (i == kSentinel)
 			break;
 
+		assert (msa[i].m_pruned == false);
+
 		const string& si = msa[i].m_seq;
 		
 		for (uint32 j = i + 1; j < msa.size(); ++j)
 		{
+			if (msa[j].m_pruned)
+				continue;
+
 			const string& sj = msa[j].m_seq;
 	
 			uint32 b = msa[i].m_begin;
@@ -1267,7 +1275,7 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 
 	// first remove pruned seqs from msa
 	//msa.erase(remove_if(msa.begin(), msa.end(), [](seq& s) { return s.m_pruned; }), msa.end());
-	msa.erase(remove_if(msa.begin(), msa.end(), boost::bind(&seq::pruned, _1)), msa.end());
+	//msa.erase(remove_if(msa.begin(), msa.end(), boost::bind(&seq::pruned, _1)), msa.end());
 
 	const string& s = msa.front().m_seq;
 	vector<float> sumvar(s.length()), sumdist(s.length());
@@ -1282,7 +1290,11 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 	}
 		
 	for (uint32 i = 0; i + 1 < msa.size(); ++i)
+	{
+		if (msa[i].m_pruned)
+			continue;
 		b.put(i);
+	}
 	
 	b.put(kSentinel);
 	threads.join_all();
