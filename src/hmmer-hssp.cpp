@@ -312,8 +312,8 @@ void seq::append(const string& seq, const string& qseq)
 		if (*qi == *si)
 			++m_identical;
 		
-		uint8 rq = kResidueIX[*qi];
-		uint8 rs = kResidueIX[*si];
+		uint8 rq = kResidueIX[static_cast<uint8>(*qi)];
+		uint8 rs = kResidueIX[static_cast<uint8>(*si)];
 		if (rq >= 0 and rs >= 0 and kD(rq, rs) >= 0)
 			++m_similar;
 
@@ -918,9 +918,11 @@ struct compare_hit
 struct ResidueHInfo
 {
 					ResidueHInfo(uint32 seqNr);
-					ResidueHInfo(char a, hit_list& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
+					ResidueHInfo(char a, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
 						const string& dssp);
-	
+
+	void			CalculateVariability(hit_list& hits);
+
 	char			letter;
 	char			chain;
 	string			dssp;
@@ -943,7 +945,7 @@ ResidueHInfo::ResidueHInfo(uint32 seqNr)
 {
 }
 
-ResidueHInfo::ResidueHInfo(char a, hit_list& hits, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
+ResidueHInfo::ResidueHInfo(char a, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
 		const string& dssp)
 	: letter(a)
 	, chain(chain)
@@ -956,15 +958,22 @@ ResidueHInfo::ResidueHInfo(char a, hit_list& hits, uint32 pos, char chain, uint3
 	, nins(0)
 	, consweight(1)
 {
+}
+
+void ResidueHInfo::CalculateVariability(hit_list& hits)
+{
 	fill(dist, dist + 20, 0);
 	
-	int8 ix = kResidueIX[uint8(a)];
+	int8 ix = kResidueIX[uint8(letter)];
 	assert(ix != -1);
 	if (ix != -1)
 		dist[ix] = 1;
 	
 	foreach (hit_ptr hit, hits)
 	{
+		if (hit->m_chain != chain)
+			continue;
+
 		ix = kResidueIX[uint8(hit->m_seq.m_seq[pos])];
 		if (ix != -1)
 		{
@@ -991,6 +1000,9 @@ ResidueHInfo::ResidueHInfo(char a, hit_list& hits, uint32 pos, char chain, uint3
 	
 	foreach (hit_ptr hit, hits)
 	{
+		if (hit->m_chain != chain)
+			continue;
+
 		const string& t = hit->m_seq.m_seq;
 		
 		if (is_gap(t[pos]))
@@ -1362,7 +1374,7 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 		
 		string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
 
-		res.push_back(res_ptr(new ResidueHInfo(s[i], nhits, i,
+		res.push_back(res_ptr(new ResidueHInfo(s[i], i,
 			chain.GetChainID(), res.size() + 1, (*ri)->GetNumber(), dssp)));
 
 		++ri;
@@ -1650,6 +1662,9 @@ void CreateHSSP(
 		res_range r(res.begin() + o, res.begin() + o + chain_lengths[c]);
 		o += chain_lengths[c] + 1;
 		CalculateConservation(alignments[c], r);
+
+		foreach (res_ptr ri, r)
+			ri->CalculateVariability(hits);
 	}
 	
 	stringstream desc;
