@@ -1035,7 +1035,7 @@ void CreateHSSPOutput(
 	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0d2 2011" << endl
 	   << "PDBID      " << inProteinID << endl
 	   << "DATE       file generated on " << to_iso_extended_string(today) << endl
-	   << "SEQBASE    " << inDatabank->GetVersion() << endl
+	   << "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << endl
 	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + 5" << endl
 	   << "CONTACT    This version: Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
 	   << inProteinDescription
