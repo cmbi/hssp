@@ -150,21 +150,20 @@ struct seq
 {
 	string		m_id, m_id2;
 	string		m_seq;
-	uint32		m_ifir, m_ilas, m_ipos, m_jfir, m_jlas, m_jpos;
+	uint32		m_ifir, m_ilas, m_jfir, m_jlas;
 	uint32		m_identical, m_similar, m_length;
 	float		m_score;
 	uint32		m_begin, m_end;
 	bool		m_pruned;
-	bool		m_qgap, m_sgap;
 	uint32		m_gaps, m_gapn;
-	insertion	m_ins;
 	vector<insertion>
 				m_insertions;
 
 				seq(const string& id);
 	void		swap(seq& o);
 
-	void		append(const string& seq, const string& qseq);
+	void		append(const string& seq);
+	void		update(const string& qseq);
 	
 	float		score() const;
 	bool		drop() const;
@@ -188,13 +187,10 @@ seq::seq(const string& id)
 	, m_begin(numeric_limits<uint32>::max())
 	, m_end(0)
 	, m_pruned(false)
-	, m_qgap(false)
-	, m_sgap(false)
 	, m_gaps(0)
 	, m_gapn(0)
 {
 	m_ifir = m_ilas = m_jfir = m_jlas = 0;
-	m_ipos = m_jpos = 1;
 
 	static const boost::regex re("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
 	boost::smatch sm;
@@ -202,7 +198,7 @@ seq::seq(const string& id)
 	if (boost::regex_match(m_id, sm, re))
 	{
 		// jfir/jlas can be taken over from jackhmmer output
-		m_jpos = m_jfir = boost::lexical_cast<uint32>(sm.str(2));
+		m_jfir = boost::lexical_cast<uint32>(sm.str(2));
 		m_jlas = boost::lexical_cast<uint32>(sm.str(3));
 
 		m_id2 = sm.str(1);
@@ -218,10 +214,8 @@ void seq::swap(seq& o)
 	std::swap(m_seq, o.m_seq);
 	std::swap(m_ifir, o.m_ifir);
 	std::swap(m_ilas, o.m_ilas);
-	std::swap(m_ipos, o.m_ipos);
 	std::swap(m_jfir, o.m_jfir);
 	std::swap(m_jlas, o.m_jlas);
-	std::swap(m_jpos, o.m_jpos);
 	std::swap(m_identical, o.m_identical);
 	std::swap(m_similar, o.m_similar);
 	std::swap(m_length, o.m_length);
@@ -229,21 +223,31 @@ void seq::swap(seq& o)
 	std::swap(m_begin, o.m_begin);
 	std::swap(m_end, o.m_end);
 	std::swap(m_pruned, o.m_pruned);
-	std::swap(m_qgap, o.m_qgap);
-	std::swap(m_sgap, o.m_sgap);
 	std::swap(m_gaps, o.m_gaps);
 	std::swap(m_gapn, o.m_gapn);
-	std::swap(m_ins, o.m_ins);
 	std::swap(m_insertions, o.m_insertions);
 }
 
 
-void seq::append(const string& seq, const string& qseq)
+void seq::append(const string& seq)
 {
-	uint32 i = static_cast<uint32>(m_seq.length());
 	m_seq += seq;
+}
 
-	for (string::const_iterator qi = qseq.begin(), si = seq.begin(); qi != qseq.end(); ++qi, ++si, ++i)
+void seq::update(const string& qseq)
+{
+	uint32 ipos = 1, jpos = m_jfir;
+	if (jpos == 0)
+		jpos = 1;
+
+	bool sgapf = false, qgapf = false;
+	
+	string::const_iterator qi = qseq.begin();
+	string::iterator si = m_seq.begin();
+	uint32 i = 0;
+	insertion ins = {};
+	
+	for (; qi != qseq.end(); ++qi, ++si, ++i)
 	{
 		bool qgap = is_gap(*qi);
 		bool sgap = is_gap(*si);
@@ -255,58 +259,57 @@ void seq::append(const string& seq, const string& qseq)
 
 		if (sgap)
 		{
-			if (not (m_sgap or m_qgap))
+			if (not (sgapf or qgapf))
 				++m_gaps;
-			m_sgap = true;
+			sgapf = true;
 			++m_gapn;
-			++m_ipos;
+			++ipos;
 
 			continue;
 		}
 		else if (qgap)
 		{
-			if (not m_qgap)
+			if (not qgapf)
 			{
-				uint32 gsi = i - 1;
-				while (gsi > 0 and is_gap(m_seq[gsi]))
+				string::iterator gsi = si - 1;
+				while (gsi != m_seq.begin() and is_gap(*gsi))
 					--gsi;
 				
-				m_seq[gsi] = tolower(m_seq[gsi]);
-				m_ins.m_ipos = m_ipos;
-				m_ins.m_jpos = m_jpos;
-				m_ins.m_seq = m_seq[gsi];
+				ins.m_ipos = ipos;
+				ins.m_jpos = jpos;
+				ins.m_seq = *gsi = tolower(*gsi);
 			}
 
-			m_ins.m_seq += *si;
+			ins.m_seq += *si;
 			
-			if (not (m_sgap or m_qgap))
+			if (not (sgapf or qgapf))
 				++m_gaps;
 
-			m_qgap = true;
+			qgapf = true;
 			++m_gapn;
-			++m_jpos;
+			++jpos;
 		}
 		else
 		{
-			if (m_qgap)
+			if (qgapf)
 			{
-				m_seq[i] = tolower(m_seq[i]);
-				m_ins.m_seq += m_seq[i];
-				m_insertions.push_back(m_ins);
+				*si = tolower(*si);
+				ins.m_seq += *si;
+				m_insertions.push_back(ins);
 			}
 			
-			m_sgap = false;
-			m_qgap = false;
+			sgapf = false;
+			qgapf = false;
 
 			if (m_ifir == 0)
-				m_ipos = m_ifir = m_ilas = i + 1;
+				ipos = m_ifir = m_ilas = i + 1;
 			else
 			{
-				++m_ipos;
-				m_ilas = m_ipos;
+				++ipos;
+				m_ilas = ipos;
 			}
 
-			++m_jpos;
+			++jpos;
 		}
 
 		if (*qi == *si)
@@ -322,8 +325,6 @@ void seq::append(const string& seq, const string& qseq)
 		
 		m_end = i + 1;
 	}
-
-//	assert(m_end == m_seq.length() or is_gap(m_seq.back()));
 
 	m_score = float(m_identical) / float(m_length);
 }
@@ -440,7 +441,7 @@ void ReadStockholm(istream& is, mseq& msa)
 				if (id != msa[ix].m_id)
 					THROW(("Invalid Stockholm file, ID does not match (%s != %s)", id.c_str(), msa[ix].m_id.c_str()));
 				
-				msa[ix].append(sseq, qseq);
+				msa[ix].append(sseq);
 			}
 		}
 	}
@@ -451,6 +452,10 @@ void ReadStockholm(istream& is, mseq& msa)
 	if (VERBOSE)
 		cerr << " done" << endl << "Checking for threshold...";
 	
+	// update seq counters
+	foreach (seq& s, boost::make_iterator_range(msa.begin() + 1, msa.end()))
+		s.update(msa.front().m_seq);
+
 	// for our query
 	string& q = msa.front().m_seq;
 	msa.front().m_begin = 0;
@@ -458,9 +463,6 @@ void ReadStockholm(istream& is, mseq& msa)
 
 	// Remove all hits that are not above the threshold here
 	msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
-	
-	// Sort remaining hits by score
-	//sort(msa.begin() + 1, msa.end());
 
 	if (VERBOSE)
 		cerr << "done" << endl;
