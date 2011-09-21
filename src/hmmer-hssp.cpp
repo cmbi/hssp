@@ -164,6 +164,7 @@ struct seq
 
 	void		append(const string& seq);
 	void		update(const string& qseq);
+	static void	update_all(buffer<seq*>& b, const string& qseq);
 	
 	float		score() const;
 	bool		drop() const;
@@ -232,6 +233,20 @@ void seq::swap(seq& o)
 void seq::append(const string& seq)
 {
 	m_seq += seq;
+}
+
+void seq::update_all(buffer<seq*>& b, const string& qseq)
+{
+	for (;;)
+	{
+		seq* s = b.get();
+		if (s == nil)
+			break;
+
+		s->update(qseq);
+	}
+
+	b.put(nil);
 }
 
 void seq::update(const string& qseq)
@@ -452,9 +467,25 @@ void ReadStockholm(istream& is, mseq& msa)
 	if (VERBOSE)
 		cerr << " done" << endl << "Checking for threshold...";
 	
-	// update seq counters
-	foreach (seq& s, boost::make_iterator_range(msa.begin() + 1, msa.end()))
-		s.update(msa.front().m_seq);
+	// update seq counters, try to do this multi threaded
+	if (gNrOfThreads > 1)
+	{
+		buffer<seq*> b;
+		boost::thread_group threads;
+		for (uint32 t = 0; t < gNrOfThreads; ++t)
+			threads.create_thread(boost::bind(&seq::update_all, boost::ref(b), boost::ref(msa.front().m_seq)));
+		
+		for (uint32 i = 1; i < msa.size(); ++i)
+			b.put(&msa[i]);
+	
+		b.put(nil);
+		threads.join_all();
+	}
+	else
+	{
+		foreach (seq& s, boost::make_iterator_range(msa.begin() + 1, msa.end()))
+			s.update(msa.front().m_seq);
+	}
 
 	// for our query
 	string& q = msa.front().m_seq;
