@@ -149,22 +149,23 @@ struct insertion
 struct seq
 {
 	string		m_id, m_id2;
-	string		m_seq;
 	uint32		m_ifir, m_ilas, m_jfir, m_jlas;
 	uint32		m_identical, m_similar, m_length;
 	float		m_score;
 	uint32		m_begin, m_end;
 	bool		m_pruned;
 	uint32		m_gaps, m_gapn;
-	vector<insertion>
+	list<insertion>
 				m_insertions;
 
 				seq(const string& id);
 	void		swap(seq& o);
 
 	void		append(const string& seq);
-	void		update(const string& qseq);
-	static void	update_all(buffer<seq*>& b, const string& qseq);
+	void		erase(uint32 pos, uint32 n);
+
+	void		update(const seq& qseq);
+	static void	update_all(buffer<seq*>& b, const seq& qseq);
 	
 	float		score() const;
 	bool		drop() const;
@@ -172,7 +173,50 @@ struct seq
 
 	bool		operator<(const seq& o) const		{ return m_score > o.m_score; }
 
-private:
+	uint32		length() const						{ return m_end - m_begin; }
+
+	char		operator[](uint32 o) const			{ return m_seq[o]; }
+
+	class iterator : public std::iterator<forward_iterator_tag,char>
+	{
+	  public:
+		typedef std::iterator<std::bidirectional_iterator_tag, char>	base_type;
+		typedef base_type::reference									reference;
+		typedef base_type::pointer										pointer;
+
+					iterator(seq& s) : m_iter(s.m_seq.begin()) {}
+					iterator(seq& s, int) : m_iter(s.m_seq.end()) {}
+					iterator(const iterator& o) : m_iter(o.m_iter) {}
+
+		iterator&	operator=(const iterator& o)
+					{
+						m_iter = o.m_iter;
+						return *this;
+					}
+
+		char		operator*() const			{ return *m_iter; }
+		char		operator->() const			{ return *m_iter; }
+
+		iterator&	operator++()				{ ++m_iter; return *this; }
+		iterator	operator++(int)				{ iterator iter(*this); operator++(); return iter; }
+
+		bool		operator==(const iterator& o) const
+												{ return m_iter == o.m_iter; }
+		bool		operator!=(const iterator& o) const
+												{ return m_iter != o.m_iter; }
+	
+	  private:
+		string::iterator
+					m_iter;
+	};
+
+	iterator	begin()							{ return iterator(*this); }
+	iterator	end()							{ return iterator(*this, 0); }
+
+  private:
+
+	string		m_seq;
+	
 				seq();
 	//seq&		operator=(const seq&);
 };
@@ -235,7 +279,12 @@ void seq::append(const string& seq)
 	m_seq += seq;
 }
 
-void seq::update_all(buffer<seq*>& b, const string& qseq)
+void seq::erase(uint32 pos, uint32 n)
+{
+	m_seq.erase(pos, n);
+}
+
+void seq::update_all(buffer<seq*>& b, const seq& qseq)
 {
 	for (;;)
 	{
@@ -249,7 +298,7 @@ void seq::update_all(buffer<seq*>& b, const string& qseq)
 	b.put(nil);
 }
 
-void seq::update(const string& qseq)
+void seq::update(const seq& qseq)
 {
 	uint32 ipos = 1, jpos = m_jfir;
 	if (jpos == 0)
@@ -257,12 +306,12 @@ void seq::update(const string& qseq)
 
 	bool sgapf = false, qgapf = false;
 	
-	string::const_iterator qi = qseq.begin();
+	string::const_iterator qi = qseq.m_seq.begin();
 	string::iterator si = m_seq.begin();
 	uint32 i = 0;
 	insertion ins = {};
 	
-	for (; qi != qseq.end(); ++qi, ++si, ++i)
+	for (; qi != qseq.m_seq.end(); ++qi, ++si, ++i)
 	{
 		bool qgap = is_gap(*qi);
 		bool sgap = is_gap(*si);
@@ -376,7 +425,7 @@ namespace hmmer {
 // a #=GF field at the second line containing the ID of the query used in
 // jackhmmer.	
 
-void ReadStockholm(istream& is, mseq& msa)
+void ReadStockholm(istream& is, uint32 inMaxHmmerHits, mseq& msa)
 {
 	if (VERBOSE)
 		cerr << "Reading stockholm file...";
@@ -398,7 +447,7 @@ void ReadStockholm(istream& is, mseq& msa)
 		id = sm.str(1);
 
 	msa.push_back(seq(id));
-	uint32 ix = 0;
+	uint32 ix = 0, n = 0;
 	
 	for (;;)
 	{
@@ -422,7 +471,7 @@ void ReadStockholm(istream& is, mseq& msa)
 				id = id.substr(0, s);
 			
 			ba::trim(id);
-			if (msa.size() > 1 or msa.front().m_id != id)
+			if (msa.size() < inMaxHmmerHits and (msa.size() > 1 or msa.front().m_id != id))
 				msa.push_back(seq(id));
 			continue;
 		}
@@ -443,21 +492,21 @@ void ReadStockholm(istream& is, mseq& msa)
 			if (id == msa[0].m_id)
 			{
 				ix = 0;
-				msa[0].m_seq += sseq;
 				qseq = sseq;
+				n += sseq.length();
 			}
 			else
 			{
 				++ix;
-				if (ix >= msa.size())
+				if (ix >= msa.size() and ix < inMaxHmmerHits)
 					msa.push_back(seq(id));
 
-				assert(ix < msa.size());
-				if (id != msa[ix].m_id)
+				if (ix < msa.size() and id != msa[ix].m_id)
 					THROW(("Invalid Stockholm file, ID does not match (%s != %s)", id.c_str(), msa[ix].m_id.c_str()));
-				
-				msa[ix].append(sseq);
 			}
+
+			if (ix < msa.size())
+				msa[ix].append(sseq);
 		}
 	}
 	
@@ -473,7 +522,7 @@ void ReadStockholm(istream& is, mseq& msa)
 		buffer<seq*> b;
 		boost::thread_group threads;
 		for (uint32 t = 0; t < gNrOfThreads; ++t)
-			threads.create_thread(boost::bind(&seq::update_all, boost::ref(b), boost::ref(msa.front().m_seq)));
+			threads.create_thread(boost::bind(&seq::update_all, boost::ref(b), boost::ref(msa.front())));
 		
 		for (uint32 i = 1; i < msa.size(); ++i)
 			b.put(&msa[i]);
@@ -482,15 +531,11 @@ void ReadStockholm(istream& is, mseq& msa)
 		threads.join_all();
 	}
 	else
-	{
-		foreach (seq& s, boost::make_iterator_range(msa.begin() + 1, msa.end()))
-			s.update(msa.front().m_seq);
-	}
+		for_each(msa.begin() + 1, msa.end(), boost::bind(&seq::update, _1, msa.front()));
 
 	// for our query
-	string& q = msa.front().m_seq;
 	msa.front().m_begin = 0;
-	msa.front().m_end = static_cast<uint32>(q.length());
+	msa.front().m_end = n;
 
 	// Remove all hits that are not above the threshold here
 	msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
@@ -505,10 +550,10 @@ void CheckAlignmentForChain(
 {
 	string sa, sc;
 
-	foreach (char r, inMSA.front().m_seq)
+	for (seq::iterator r = inMSA.front().begin(); r != inMSA.front().end(); ++r)
 	{
-		if (not is_gap(r))
-			sa += r;
+		if (not is_gap(*r))
+			sa += *r;
 	}
 
 	inChain->GetSequence(sc);
@@ -526,7 +571,7 @@ void CheckAlignmentForChain(
 		{
 			foreach (seq& s, inMSA)
 			{
-				s.m_seq.erase(0, offset);
+				s.erase(0, offset);
 				if (s.m_begin > offset)
 					s.m_begin -= offset;
 				else
@@ -544,9 +589,9 @@ void CheckAlignmentForChain(
 			uint32 n = sa.length() - (sc.length() + offset);
 			foreach (seq& s, inMSA)
 			{
-				uint32 o = s.m_seq.length() - n;
+				uint32 o = s.length() - n;
 				
-				s.m_seq.erase(o, n);
+				s.erase(o, n);
 				
 				if (s.m_begin > o)
 					s.m_begin = o;
@@ -881,13 +926,13 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		cerr << " done" << endl;
 }
 
-void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
-	const string& db, mseq& msa)
+void RunJackHmmer(const string& seq, uint32 iterations, uint32 inMaxHmmerHits,
+	const fs::path& fastadir, const fs::path& jackhmmer, const string& db, mseq& msa)
 {
 	fs::path rundir = RunJackHmmer(seq, iterations, fastadir, jackhmmer, db);
 
 	fs::ifstream is(rundir / "output.sto");
-	ReadStockholm(is, msa);
+	ReadStockholm(is, inMaxHmmerHits, msa);
 	is.close();
 
 	// read in the result
@@ -1007,7 +1052,7 @@ void ResidueHInfo::CalculateVariability(hit_list& hits)
 		if (hit->m_chain != chain)
 			continue;
 
-		ix = kResidueIX[uint8(hit->m_seq.m_seq[pos])];
+		ix = kResidueIX[uint8(hit->m_seq[pos])];
 		if (ix != -1)
 		{
 			++nocc;
@@ -1027,7 +1072,7 @@ void ResidueHInfo::CalculateVariability(hit_list& hits)
 	}
 	
 	// calculate ndel and nins
-	const string& q = hits.front()->m_qseq.m_seq;
+	const seq& q = hits.front()->m_qseq;
 	
 	bool gap = pos + 1 < q.length() and is_gap(q[pos + 1]);
 	
@@ -1036,7 +1081,7 @@ void ResidueHInfo::CalculateVariability(hit_list& hits)
 		if (hit->m_chain != chain)
 			continue;
 
-		const string& t = hit->m_seq.m_seq;
+		const seq& t = hit->m_seq;
 		
 		if (is_gap(t[pos]))
 			++ndel;
@@ -1161,7 +1206,7 @@ void CreateHSSPOutput(
 					if (hit->m_chain == ri->chain and ri->pos >= hit->m_seq.m_begin and ri->pos < hit->m_seq.m_end)
 					{
 						uint32 p = ri->pos;
-						aln += hit->m_seq.m_seq[p];
+						aln += hit->m_seq[p];
 					}
 					else
 						aln += ' ';
@@ -1242,7 +1287,7 @@ boost::mutex sSumLock;
 
 void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& csumvar, vector<float>& csumdist)
 {
-	const string& s = msa.front().m_seq;
+	const seq& s = msa.front();
 	vector<float> sumvar(s.length()), sumdist(s.length()), simval(s.length());
 
 	for (;;)
@@ -1253,14 +1298,14 @@ void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& cs
 
 		assert (msa[i].m_pruned == false);
 
-		const string& si = msa[i].m_seq;
+		const seq& si = msa[i];
 		
 		for (uint32 j = i + 1; j < msa.size(); ++j)
 		{
 			if (msa[j].m_pruned)
 				continue;
 
-			const string& sj = msa[j].m_seq;
+			const seq& sj = msa[j];
 	
 			uint32 b = msa[i].m_begin;
 			if (b < msa[j].m_begin)
@@ -1322,7 +1367,7 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 	//msa.erase(remove_if(msa.begin(), msa.end(), [](seq& s) { return s.m_pruned; }), msa.end());
 	//msa.erase(remove_if(msa.begin(), msa.end(), boost::bind(&seq::pruned, _1)), msa.end());
 
-	const string& s = msa.front().m_seq;
+	const seq& s = msa.front();
 	vector<float> sumvar(s.length()), sumdist(s.length());
 	
 	// Calculate conservation weights in multiple threads to gain speed.
@@ -1394,7 +1439,7 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	const vector<MResidue*>& residues = chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
 
-	const string& s = msa.front().m_seq;
+	const seq& s = msa.front();
 	for (uint32 i = 0; i < s.length(); ++i)
 	{
 		if (is_gap(s[i]))
@@ -1618,6 +1663,7 @@ void CreateHSSP(
 	const fs::path&		inFastaDir,
 	const fs::path&		inJackHmmer,
 	uint32				inIterations,
+	uint32				inMaxHmmerHits,
 	uint32				inMaxHits,
 	vector<string>		inStockholmIds,
 	ostream&			outHSSP)
@@ -1660,7 +1706,7 @@ void CreateHSSP(
 		in.push(io::bzip2_decompressor());
 		in.push(sf);
 
-		ReadStockholm(in, alignments[kchain]);
+		ReadStockholm(in, inMaxHmmerHits, alignments[kchain]);
 		
 		// check to see if we need to 'cut' the alignment a bit
 		// can happen if the stockholm file was created using a query

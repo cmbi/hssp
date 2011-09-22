@@ -79,6 +79,8 @@ int main(int argc, char* argv[])
 			("max-runtime",	po::value<uint32>(), "Max runtime in seconds for jackhmmer (default = 3600)")
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
 			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
+			("max-hmmer-hits",
+							po::value<uint32>(), "Maximum number of HMMER hits to read (default = 10000)")
 
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 
@@ -137,6 +139,10 @@ int main(int argc, char* argv[])
 		uint32 maxhits = 1500;
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
+
+		uint32 maxhmmerhits = 1500;
+		if (vm.count("max-hmmer-hits"))
+			maxhmmerhits = vm["max-hmmer-hits"].as<uint32>();
 
 		uint32 threads = boost::thread::hardware_concurrency();
 		if (vm.count("threads"))
@@ -240,7 +246,7 @@ int main(int argc, char* argv[])
 				//if (chains.empty())
 				//	hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
 				//else
-					hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhits, chains, out);
+					hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhmmerhits, maxhits, chains, out);
 			}
 			catch (...)
 			{
@@ -254,7 +260,7 @@ int main(int argc, char* argv[])
 			//if (chains.empty())
 			//	hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, cout);
 			//else
-				hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhits, chains, cout);
+				hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhmmerhits, maxhits, chains, cout);
 		}
 	}
 	catch (exception& e)
