@@ -427,7 +427,7 @@ namespace hmmer {
 // a #=GF field at the second line containing the ID of the query used in
 // jackhmmer.	
 
-void ReadStockholm(istream& is, uint32 inMaxHmmerHits, mseq& msa)
+void ReadStockholm(istream& is, mseq& msa)
 {
 	if (VERBOSE)
 		cerr << "Reading stockholm file...";
@@ -473,7 +473,7 @@ void ReadStockholm(istream& is, uint32 inMaxHmmerHits, mseq& msa)
 				id = id.substr(0, s);
 			
 			ba::trim(id);
-			if (msa.size() < inMaxHmmerHits and (msa.size() > 1 or msa.front().m_id != id))
+			if (msa.size() > 1 or msa.front().m_id != id)
 				msa.push_back(seq(id));
 			continue;
 		}
@@ -500,7 +500,7 @@ void ReadStockholm(istream& is, uint32 inMaxHmmerHits, mseq& msa)
 			else
 			{
 				++ix;
-				if (ix >= msa.size() and ix < inMaxHmmerHits)
+				if (ix >= msa.size())
 					msa.push_back(seq(id));
 
 				if (ix < msa.size() and id != msa[ix].m_id)
@@ -928,13 +928,13 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		cerr << " done" << endl;
 }
 
-void RunJackHmmer(const string& seq, uint32 iterations, uint32 inMaxHmmerHits,
+void RunJackHmmer(const string& seq, uint32 iterations,
 	const fs::path& fastadir, const fs::path& jackhmmer, const string& db, mseq& msa)
 {
 	fs::path rundir = RunJackHmmer(seq, iterations, fastadir, jackhmmer, db);
 
 	fs::ifstream is(rundir / "output.sto");
-	ReadStockholm(is, inMaxHmmerHits, msa);
+	ReadStockholm(is, msa);
 	is.close();
 
 	// read in the result
@@ -1667,7 +1667,6 @@ void CreateHSSP(
 	const fs::path&		inFastaDir,
 	const fs::path&		inJackHmmer,
 	uint32				inIterations,
-	uint32				inMaxHmmerHits,
 	uint32				inMaxHits,
 	vector<string>		inStockholmIds,
 	ostream&			outHSSP)
@@ -1710,7 +1709,7 @@ void CreateHSSP(
 		in.push(io::bzip2_decompressor());
 		in.push(sf);
 
-		ReadStockholm(in, inMaxHmmerHits, alignments[kchain]);
+		ReadStockholm(in, alignments[kchain]);
 		
 		// check to see if we need to 'cut' the alignment a bit
 		// can happen if the stockholm file was created using a query
