@@ -140,7 +140,7 @@ int main(int argc, char* argv[])
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
 
-		uint32 maxhmmerhits = 1500;
+		uint32 maxhmmerhits = 10000;
 		if (vm.count("max-hmmer-hits"))
 			maxhmmerhits = vm["max-hmmer-hits"].as<uint32>();
 

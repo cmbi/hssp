@@ -248,6 +248,8 @@ seq::seq(const string& id)
 
 		m_id2 = sm.str(1);
 	}
+	else
+		m_id2 = m_id;
 
 	m_seq.reserve(5000);
 }
@@ -960,7 +962,9 @@ struct Hit
 
 	bool			operator<(const Hit& rhs) const
 					{
-						return m_ide > rhs.m_ide or (m_ide == rhs.m_ide and m_seq.m_length > rhs.m_seq.m_length);
+						return m_ide > rhs.m_ide or
+							(m_ide == rhs.m_ide and m_seq.m_length > rhs.m_seq.m_length) or
+							(m_ide == rhs.m_ide and m_seq.m_length == rhs.m_seq.m_length and m_seq.m_id2 > rhs.m_seq.m_id2);
 					}
 };
 
