@@ -206,35 +206,33 @@ struct seq
 		typedef base_type::reference									reference;
 		typedef base_type::pointer										pointer;
 
-					iterator(seq* s, uint32 o) : m_seq(s), m_offset(o) {}
-					iterator(const iterator& o) : m_seq(o.m_seq), m_offset(o.m_offset) {}
+					iterator(char* s) : m_seq(s) {}
+					iterator(const iterator& o) : m_seq(o.m_seq) {}
 
 		iterator&	operator=(const iterator& o)
 					{
 						m_seq = o.m_seq;
-						m_offset = o.m_offset;
 						return *this;
 					}
 
-		char&		operator*()					{ return m_seq->operator[](m_offset); }
-		char&		operator->()				{ return m_seq->operator[](m_offset); }
+		char&		operator*()					{ return *m_seq; }
+		char&		operator->()				{ return *m_seq; }
 
-		iterator&	operator++()				{ ++m_offset; return *this; }
+		iterator&	operator++()				{ ++m_seq; return *this; }
 		iterator	operator++(int)				{ iterator iter(*this); operator++(); return iter; }
 
-		iterator&	operator--()				{ --m_offset; return *this; }
+		iterator&	operator--()				{ --m_seq; return *this; }
 		iterator	operator--(int)				{ iterator iter(*this); operator--(); return iter; }
 
 		bool		operator==(const iterator& o) const
-												{ return m_offset == o.m_offset; }
+												{ return m_seq == o.m_seq; }
 		bool		operator!=(const iterator& o) const
-												{ return m_offset != o.m_offset; }
+												{ return m_seq != o.m_seq; }
 	
 		friend iterator operator-(iterator, int);
 
 	  private:
-		seq*		m_seq;
-		uint32		m_offset;
+		char*		m_seq;
 	};
 
 	class const_iterator : public std::iterator<forward_iterator_tag,const char>
@@ -244,42 +242,40 @@ struct seq
 		typedef base_type::reference									reference;
 		typedef base_type::pointer										pointer;
 
-					const_iterator(const seq* s, uint32 o) : m_seq(s), m_offset(o) {}
-					const_iterator(const const_iterator& o) : m_seq(o.m_seq), m_offset(o.m_offset) {}
+					const_iterator(const char* s) : m_seq(s) {}
+					const_iterator(const const_iterator& o) : m_seq(o.m_seq) {}
 
 		const_iterator&
 					operator=(const const_iterator& o)
 					{
 						m_seq = o.m_seq;
-						m_offset = o.m_offset;
 						return *this;
 					}
 
-		char		operator*() const			{ return m_seq->operator[](m_offset); }
-		char		operator->() const			{ return m_seq->operator[](m_offset); }
+		char		operator*() const			{ return *m_seq; }
+		char		operator->() const			{ return *m_seq; }
 
 		const_iterator&
-					operator++()				{ ++m_offset; return *this; }
+					operator++()				{ ++m_seq; return *this; }
 		const_iterator
 					operator++(int)				{ const_iterator iter(*this); operator++(); return iter; }
 
 		bool		operator==(const const_iterator& o) const
-												{ return m_seq == o.m_seq and m_offset == o.m_offset; }
+												{ return m_seq == o.m_seq; }
 		bool		operator!=(const const_iterator& o) const
-												{ return m_seq != o.m_seq or m_offset != o.m_offset; }
+												{ return m_seq != o.m_seq; }
 	
 	  private:
-		const seq*	m_seq;
-		uint32		m_offset;
+		const char*	m_seq;
 	};
 
-	iterator	begin()							{ return iterator(this, 0); }
-	iterator	end()							{ return iterator(this, m_size); }
+	iterator	begin()							{ return iterator(m_seq); }
+	iterator	end()							{ return iterator(m_seq + m_size); }
 
 	const_iterator
-				begin() const					{ return const_iterator(this, 0); }
+				begin() const					{ return const_iterator(m_seq); }
 	const_iterator
-				end() const						{ return const_iterator(this, m_size); }
+				end() const						{ return const_iterator(m_seq + m_size); }
 
   private:
 
@@ -293,10 +289,10 @@ struct seq
 	//seq&		operator=(const seq&);
 };
 
-seq::iterator operator-(seq::iterator i, int o)
+inline seq::iterator operator-(seq::iterator i, int o)
 {
 	seq::iterator r(i);
-	r.m_offset -= o;
+	r.m_seq -= o;
 	return r;
 }
 
