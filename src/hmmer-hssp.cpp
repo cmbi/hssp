@@ -763,9 +763,32 @@ void CheckAlignmentForChain(
 		string::size_type offset = sa.find(sc);
 		if (offset == string::npos)
 			THROW(("Invalid Stockholm file for chain"));
+		
+		seq::iterator r;
+		uint32 pos = 0;
+		for (r = inMSA.front().begin(); r != inMSA.front().end(); ++r)
+		{
+			if (is_gap(*r) or offset-- > 0)
+			{
+				++pos;
+				continue;
+			}
+			break;
+		}
+		
+		uint32 n = 0, length = sc.length();
+		for (; r != inMSA.front().end(); ++r)
+		{
+			if (is_gap(*r) or length-- > 0)
+			{
+				++n;
+				continue;
+			}
+			break;
+		}
 
 		foreach (seq& s, inMSA)
-			s.cut(offset, sc.length());
+			s.cut(pos, n);
 	}
 }
 
