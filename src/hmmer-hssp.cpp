@@ -180,7 +180,7 @@ class seq
 				insertions() const					{ return m_impl->m_insertions; }
 
 	void		append(const string& seq);
-	void		erase(uint32 pos, uint32 n);
+	void		cut(uint32 pos, uint32 n);
 
 	void		update(const seq& qseq);
 	static void	update_all(buffer<seq*>& b, const seq& qseq);
@@ -296,7 +296,7 @@ class seq
 					~seq_impl();
 
 		void		update(const seq_impl& qseq);
-		void		erase(uint32 pos, uint32 n);
+		void		cut(uint32 pos, uint32 n);
 
 		iterator	begin()							{ return iterator(m_seq); }
 		iterator	end()							{ return iterator(m_seq + m_size); }
@@ -441,37 +441,31 @@ void seq::append(const string& seq)
 	//}
 }
 
-void seq::erase(uint32 pos, uint32 n)
+void seq::cut(uint32 pos, uint32 n)
 {
-	m_impl->erase(pos, n);
+	m_impl->cut(pos, n);
 }
 
-void seq::seq_impl::erase(uint32 pos, uint32 n)
+void seq::seq_impl::cut(uint32 pos, uint32 n)
 {
-	if (pos == 0)
-	{
-		m_seq += n;
-		m_space -= n;
+	assert(n <= m_size);
+	assert(pos < m_size);
 
-		if (m_begin > pos)
-			m_begin -= pos;
-		else
-			m_begin = 0;
-		
-		if (m_end > pos)
-			m_end -= pos;
-		else
-			m_end = 0;
-	}
+	m_seq += pos;
+	m_size = n;
+
+	if (m_begin > pos)
+		m_begin -= pos;
 	else
-	{
-		assert(pos + n == m_space);
+		m_begin = 0;
+	
+	if (m_end > pos)
+		m_end -= pos;
+	else
+		m_end = 0;
 
-		if (m_begin > pos)
-			m_begin = pos;
-		if (m_end > pos)
-			m_end = pos;
-	}
+	if (m_end > pos + n)
+		m_end = pos + n;
 }
 
 void seq::update_all(buffer<seq*>& b, const seq& qseq)
@@ -770,38 +764,8 @@ void CheckAlignmentForChain(
 		if (offset == string::npos)
 			THROW(("Invalid Stockholm file for chain"));
 
-		if (offset > 0)
-		{
-			foreach (seq& s, inMSA)
-			{
-				s.erase(0, offset);
-//				if (s.m_begin > offset)
-//					s.m_begin -= offset;
-//				else
-//					s.m_begin = 0;
-//				
-//				if (s.m_end > offset)
-//					s.m_end -= offset;
-//				else
-//					s.m_end = 0;
-			}
-		}
-
-		if (sa.length() > sc.length() + offset)
-		{
-			uint32 n = sa.length() - (sc.length() + offset);
-			foreach (seq& s, inMSA)
-			{
-				uint32 o = s.length() - n;
-				
-				s.erase(o, n);
-				
-//				if (s.m_begin > o)
-//					s.m_begin = o;
-//				if (s.m_end > o)
-//					s.m_end = o;
-			}
-		}
+		foreach (seq& s, inMSA)
+			s.cut(offset, sc.length());
 	}
 }
 
