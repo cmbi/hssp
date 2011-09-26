@@ -149,12 +149,12 @@ struct insertion
 	
 struct seq
 {
-	struct fragment
-	{
-		char	m_char[50];
-	};
+	//struct fragment
+	//{
+	//	char	m_char[50];
+	//};
 
-	typedef vector<fragment,boost::pool_allocator<fragment> > storage;
+	//typedef vector<fragment,boost::pool_allocator<fragment> > storage;
 	
 	string		m_id, m_id2;
 	uint32		m_ifir, m_ilas, m_jfir, m_jlas;
@@ -183,8 +183,21 @@ struct seq
 
 	uint32		length() const						{ return m_end - m_begin; }
 
-	char&		operator[](uint32 o);
-	char		operator[](uint32 o) const;
+	char&		operator[](uint32 offset)
+				{
+					assert(offset < m_size);
+					//uint32 ix = offset / sizeof(fragment);
+					//return m_seq[ix].m_char[offset % sizeof(fragment)];
+					return m_seq[offset];
+				}
+
+	char		operator[](uint32 offset) const
+				{
+					assert(offset < m_size);
+					//uint32 ix = offset / sizeof(fragment);
+					//return m_seq[ix].m_char[offset % sizeof(fragment)];
+					return m_seq[offset];
+				}
 
 	class iterator : public std::iterator<bidirectional_iterator_tag,char>
 	{
@@ -213,9 +226,9 @@ struct seq
 		iterator	operator--(int)				{ iterator iter(*this); operator--(); return iter; }
 
 		bool		operator==(const iterator& o) const
-												{ return m_seq == o.m_seq and m_offset == o.m_offset; }
+												{ return m_offset == o.m_offset; }
 		bool		operator!=(const iterator& o) const
-												{ return m_seq != o.m_seq or m_offset != o.m_offset; }
+												{ return m_offset != o.m_offset; }
 	
 		friend iterator operator-(iterator, int);
 
@@ -270,7 +283,10 @@ struct seq
 
   private:
 
-	storage		m_seq;
+
+	//storage		m_seq;
+	//string		m_seq;
+	char		m_seq[5000];
 	uint32		m_size;
 	
 				seq();
@@ -314,6 +330,8 @@ seq::seq(const string& id)
 	}
 	else
 		m_id2 = m_id;
+
+	//m_seq.reserve(100);
 }
 
 void seq::swap(seq& o)
@@ -342,46 +360,38 @@ void seq::swap(seq& o)
 
 void seq::append(const string& seq)
 {
-	const char* s = seq.c_str();
-	uint32 l = seq.length();
-	
-	while (l > 0)
-	{
-		uint32 o = m_size % sizeof(fragment);
-		
-		if (o == 0)
-			m_seq.push_back(fragment());
-		
-		uint32 k = l;
-		if (k > sizeof(fragment) - o)
-			k = sizeof(fragment) - o;
-		
-		char* d = m_seq.back().m_char;
-		memcpy(d + o, s, k);
-		
-		m_size += k;
-		l -= k;
-	}
+	if (m_size + seq.length() > sizeof(m_seq))
+		THROW(("Alignment width too large"));
+
+	memcpy(m_seq + m_size, seq.c_str(), seq.length());
+	m_size += seq.length();
+
+	//const char* s = seq.c_str();
+	//uint32 l = seq.length();
+	//
+	//while (l > 0)
+	//{
+	//	uint32 o = m_size % sizeof(fragment);
+	//	
+	//	if (o == 0)
+	//		m_seq.push_back(fragment());
+	//	
+	//	uint32 k = l;
+	//	if (k > sizeof(fragment) - o)
+	//		k = sizeof(fragment) - o;
+	//	
+	//	char* d = m_seq.back().m_char;
+	//	memcpy(d + o, s, k);
+	//	
+	//	m_size += k;
+	//	l -= k;
+	//}
 }
 
 void seq::erase(uint32 pos, uint32 n)
 {
 	assert(false);
 //	m_seq.erase(pos, n);
-}
-
-char& seq::operator[](uint32 offset)
-{
-	assert(offset < m_size);
-	uint32 ix = offset / sizeof(fragment);
-	return m_seq[ix].m_char[offset % sizeof(fragment)];
-}
-
-char seq::operator[](uint32 offset) const
-{
-	assert(offset < m_size);
-	uint32 ix = offset / sizeof(fragment);
-	return m_seq[ix].m_char[offset % sizeof(fragment)];
 }
 
 void seq::update_all(buffer<seq*>& b, const seq& qseq)
