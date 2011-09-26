@@ -1476,10 +1476,10 @@ void CreateHSSPOutput(
 uint32 kSentinel = numeric_limits<uint32>::max();
 boost::mutex sSumLock;
 
-void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& csumvar, vector<float>& csumdist)
+void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<double>& csumvar, vector<double>& csumdist)
 {
 	const seq& s = msa.front();
-	vector<float> sumvar(s.length()), sumdist(s.length()), simval(s.length());
+	vector<double> sumvar(s.length()), sumdist(s.length()), simval(s.length());
 
 	for (;;)
 	{
@@ -1521,16 +1521,16 @@ void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& cs
 					if (ri != -1 and rj != -1)
 						simval[k] = kD(ri, rj);
 					else
-						simval[k] = numeric_limits<float>::min();
+						simval[k] = numeric_limits<double>::min();
 				}
 			}
 
 			if (len > 0)
 			{
-				float distance = 1 - (float(agr) / float(len));
+				double distance = 1 - (double(agr) / double(len));
 				for (uint32 k = b; k < e; ++k)
 				{
-					if (simval[k] != numeric_limits<float>::min())
+					if (simval[k] != numeric_limits<double>::min())
 					{
 						sumvar[k] += distance * simval[k];
 						sumdist[k] += distance * 1.5f;
@@ -1545,8 +1545,8 @@ void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& cs
 	// accumulate our data
 	boost::mutex::scoped_lock l(sSumLock);
 	
-	transform(sumvar.begin(), sumvar.end(), csumvar.begin(), csumvar.begin(), plus<uint32>());
-	transform(sumdist.begin(), sumdist.end(), csumdist.begin(), csumdist.begin(), plus<uint32>());
+	transform(sumvar.begin(), sumvar.end(), csumvar.begin(), csumvar.begin(), plus<double>());
+	transform(sumdist.begin(), sumdist.end(), csumdist.begin(), csumdist.begin(), plus<double>());
 }
 
 void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>& res)
@@ -1559,7 +1559,7 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 	//msa.erase(remove_if(msa.begin(), msa.end(), boost::bind(&seq::pruned, _1)), msa.end());
 
 	const seq& s = msa.front();
-	vector<float> sumvar(s.length()), sumdist(s.length());
+	vector<double> sumvar(s.length()), sumdist(s.length());
 	
 	// Calculate conservation weights in multiple threads to gain speed.
 	buffer<uint32> b;
@@ -1586,7 +1586,7 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 		if (is_gap(s[i]))
 			continue;
 
-		float weight = 1.0f;
+		double weight = 1.0f;
 		if (sumdist[i] > 0)
 			weight = sumvar[i] / sumdist[i];
 		
