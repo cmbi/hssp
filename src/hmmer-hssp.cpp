@@ -764,9 +764,9 @@ void CheckAlignmentForChain(
 		if (offset == string::npos)
 			THROW(("Invalid Stockholm file for chain"));
 		
-		seq::iterator r;
+		seq::iterator r = inMSA.front().begin();
 		uint32 pos = 0;
-		for (r = inMSA.front().begin(); r != inMSA.front().end(); ++r)
+		for (; r != inMSA.front().end(); ++r)
 		{
 			if (is_gap(*r) or offset-- > 0)
 			{
