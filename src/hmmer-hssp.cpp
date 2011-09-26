@@ -147,27 +147,37 @@ struct insertion
 	string			m_seq;
 };
 	
-struct seq
+class seq
 {
-	//struct fragment
-	//{
-	//	char	m_char[50];
-	//};
-
-	//typedef vector<fragment,boost::pool_allocator<fragment> > storage;
-	
-	string		m_id, m_id2;
-	uint32		m_ifir, m_ilas, m_jfir, m_jlas;
-	uint32		m_identical, m_similar, m_length;
-	float		m_score;
-	uint32		m_begin, m_end;
-	bool		m_pruned;
-	uint32		m_gaps, m_gapn;
-	list<insertion>
-				m_insertions;
-
+  public:
+				seq(const seq&);
 				seq(const string& id);
+				~seq();
+				
+	seq&		operator=(const seq&);
+
 	void		swap(seq& o);
+
+	const string&
+				id() const							{ return m_impl->m_id; }
+	const string&
+				id2() const							{ return m_impl->m_id2; }
+
+	uint32		identical() const					{ return m_impl->m_identical; }
+	uint32		similar() const						{ return m_impl->m_similar; }
+
+	uint32		ifir() const						{ return m_impl->m_ifir; }
+	uint32		ilas() const						{ return m_impl->m_ilas; }
+	uint32		jfir() const						{ return m_impl->m_jfir; }
+	uint32		jlas() const						{ return m_impl->m_jlas; }
+	uint32		gapn() const						{ return m_impl->m_gapn; }
+	uint32		gaps() const						{ return m_impl->m_gaps; }
+	
+	uint32		alignment_begin() const				{ return m_impl->m_begin; }
+	uint32		alignment_end() const				{ return m_impl->m_end; }
+	
+	const list<insertion>&
+				insertions() const					{ return m_impl->m_insertions; }
 
 	void		append(const string& seq);
 	void		erase(uint32 pos, uint32 n);
@@ -177,26 +187,27 @@ struct seq
 	
 	float		score() const;
 	bool		drop() const;
-	bool		pruned() const						{ return m_pruned; }
+	bool		pruned() const						{ return m_impl->m_pruned; }
+	void		prune()								{ m_impl->m_pruned = true; }
 
-	bool		operator<(const seq& o) const		{ return m_score > o.m_score; }
+	bool		operator<(const seq& o) const		{ return m_impl->m_score > o.m_impl->m_score; }
 
-	uint32		length() const						{ return m_end - m_begin; }
+	uint32		length() const						{ return m_impl->m_end - m_impl->m_begin; }
 
 	char&		operator[](uint32 offset)
 				{
-					assert(offset < m_size);
+					assert(offset < m_impl->m_size);
 					//uint32 ix = offset / sizeof(fragment);
 					//return m_seq[ix].m_char[offset % sizeof(fragment)];
-					return m_seq[offset];
+					return m_impl->m_seq[offset];
 				}
 
 	char		operator[](uint32 offset) const
 				{
-					assert(offset < m_size);
+					assert(offset < m_impl->m_size);
 					//uint32 ix = offset / sizeof(fragment);
 					//return m_seq[ix].m_char[offset % sizeof(fragment)];
-					return m_seq[offset];
+					return m_impl->m_seq[offset];
 				}
 
 	class iterator : public std::iterator<bidirectional_iterator_tag,char>
@@ -269,24 +280,48 @@ struct seq
 		const char*	m_seq;
 	};
 
-	iterator	begin()							{ return iterator(m_seq); }
-	iterator	end()							{ return iterator(m_seq + m_size); }
+	iterator	begin()							{ return iterator(m_impl->m_seq); }
+	iterator	end()							{ return iterator(m_impl->m_seq + m_impl->m_size); }
 
 	const_iterator
-				begin() const					{ return const_iterator(m_seq); }
+				begin() const					{ return const_iterator(m_impl->m_seq); }
 	const_iterator
-				end() const						{ return const_iterator(m_seq + m_size); }
+				end() const						{ return const_iterator(m_impl->m_seq + m_impl->m_size); }
 
   private:
 
+	struct seq_impl
+	{
+					seq_impl(const string& id);
+					~seq_impl();
 
-	//storage		m_seq;
-	//string		m_seq;
-	char		m_seq[5000];
-	uint32		m_size;
+		void		update(const seq_impl& qseq);
+
+		iterator	begin()							{ return iterator(m_seq); }
+		iterator	end()							{ return iterator(m_seq + m_size); }
+	
+		const_iterator
+					begin() const					{ return const_iterator(m_seq); }
+		const_iterator
+					end() const						{ return const_iterator(m_seq + m_size); }
+
+		string		m_id, m_id2;
+		uint32		m_ifir, m_ilas, m_jfir, m_jlas;
+		uint32		m_identical, m_similar, m_length;
+		float		m_score;
+		uint32		m_begin, m_end;
+		bool		m_pruned;
+		uint32		m_gaps, m_gapn;
+		list<insertion>
+					m_insertions;
+		char*		m_seq;
+		uint32		m_refcount;
+		uint32		m_size, m_space;
+	};
+
+	seq_impl*	m_impl;
 	
 				seq();
-	//seq&		operator=(const seq&);
 };
 
 inline seq::iterator operator-(seq::iterator i, int o)
@@ -299,68 +334,88 @@ inline seq::iterator operator-(seq::iterator i, int o)
 //typedef boost::ptr_vector<seq> mseq;
 typedef vector<seq>				mseq;
 
-seq::seq(const string& id)
+seq::seq_impl::seq_impl(const string& id)
 	: m_id(id)
 	, m_identical(0)
 	, m_similar(0)
 	, m_length(0)
-	, m_begin(numeric_limits<uint32>::max())
+	, m_begin(0)
 	, m_end(0)
 	, m_pruned(false)
 	, m_gaps(0)
 	, m_gapn(0)
+	, m_seq(nil)
+	, m_refcount(1)
 	, m_size(0)
+	, m_space(5000)
 {
 	m_ifir = m_ilas = m_jfir = m_jlas = 0;
+	m_seq = new char[m_space];
+}
 
+seq::seq_impl::~seq_impl()
+{
+	assert(m_refcount == 0);
+	delete m_seq;
+}
+
+seq::seq(const seq& s)
+	: m_impl(s.m_impl)
+{
+	++m_impl->m_refcount;
+}
+
+seq::seq(const string& id)
+	: m_impl(new seq_impl(id))
+{
 	static const boost::regex re("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
 	boost::smatch sm;
 
-	if (boost::regex_match(m_id, sm, re))
+	if (boost::regex_match(m_impl->m_id, sm, re))
 	{
 		// jfir/jlas can be taken over from jackhmmer output
-		m_jfir = boost::lexical_cast<uint32>(sm.str(2));
-		m_jlas = boost::lexical_cast<uint32>(sm.str(3));
+		m_impl->m_jfir = boost::lexical_cast<uint32>(sm.str(2));
+		m_impl->m_jlas = boost::lexical_cast<uint32>(sm.str(3));
 
-		m_id2 = sm.str(1);
+		m_impl->m_id2 = sm.str(1);
 	}
 	else
-		m_id2 = m_id;
+		m_impl->m_id2 = m_impl->m_id;
+}
 
-	//m_seq.reserve(100);
+seq& seq::operator=(const seq& rhs)
+{
+	if (this != &rhs)
+	{
+		if (--m_impl->m_refcount == 0)
+			delete m_impl;
+		
+		m_impl = rhs.m_impl;
+		
+		++m_impl->m_refcount;
+	}
+
+	return *this;
+}
+
+seq::~seq()
+{
+	if (--m_impl->m_refcount == 0)
+		delete m_impl;
 }
 
 void seq::swap(seq& o)
 {
-	std::swap(m_id, o.m_id);
-	std::swap(m_id2, o.m_id2);
-	std::swap(m_ifir, o.m_ifir);
-	std::swap(m_ilas, o.m_ilas);
-	std::swap(m_jfir, o.m_jfir);
-	std::swap(m_jlas, o.m_jlas);
-	std::swap(m_identical, o.m_identical);
-	std::swap(m_similar, o.m_similar);
-	std::swap(m_length, o.m_length);
-	std::swap(m_score, o.m_score);
-	std::swap(m_begin, o.m_begin);
-	std::swap(m_end, o.m_end);
-	std::swap(m_pruned, o.m_pruned);
-	std::swap(m_gaps, o.m_gaps);
-	std::swap(m_gapn, o.m_gapn);
-	std::swap(m_insertions, o.m_insertions);
-
-	std::swap(m_seq, o.m_seq);
-	std::swap(m_size, o.m_size);
+	std::swap(m_impl, o.m_impl);
 }
-
 
 void seq::append(const string& seq)
 {
-	if (m_size + seq.length() > sizeof(m_seq))
+	if (m_impl->m_size + seq.length() > m_impl->m_space)
 		THROW(("Alignment width too large"));
 
-	memcpy(m_seq + m_size, seq.c_str(), seq.length());
-	m_size += seq.length();
+	memcpy(m_impl->m_seq + m_impl->m_size, seq.c_str(), seq.length());
+	m_impl->m_end = m_impl->m_size += seq.length();
 
 	//const char* s = seq.c_str();
 	//uint32 l = seq.length();
@@ -406,6 +461,11 @@ void seq::update_all(buffer<seq*>& b, const seq& qseq)
 
 void seq::update(const seq& qseq)
 {
+	m_impl->update(*qseq.m_impl);
+}
+
+void seq::seq_impl::update(const seq_impl& qseq)
+{
 	uint32 ipos = 1, jpos = m_jfir;
 	if (jpos == 0)
 		jpos = 1;
@@ -416,6 +476,9 @@ void seq::update(const seq& qseq)
 	iterator si = begin();
 	uint32 i = 0;
 	insertion ins = {};
+	
+	m_begin = numeric_limits<uint32>::max();
+	m_end = 0;
 	
 	for (; qi != qseq.end(); ++qi, ++si, ++i)
 	{
@@ -495,18 +558,23 @@ void seq::update(const seq& qseq)
 		
 		m_end = i + 1;
 	}
+	
+	for (i = 0; i < m_begin; ++i)
+		m_seq[i] = ' ';
+	for (i = m_end; i < m_size; ++i)
+		m_seq[i] = ' ';
 
 	m_score = float(m_identical) / float(m_length);
 }
 
 bool seq::drop() const
 {
-	uint32 ix = max(10U, min(m_length, 80U)) - 10;
+	uint32 ix = max(10U, min(m_impl->m_length, 80U)) - 10;
 	
-	bool result = m_score < kHomologyThreshold[ix];
+	bool result = m_impl->m_score < kHomologyThreshold[ix];
 	
 	if (result and VERBOSE > 2)
-		cerr << "dropping " << m_id << " because identity " << m_score << " is below threshold " << kHomologyThreshold[ix] << endl;
+		cerr << "dropping " << m_impl->m_id << " because identity " << m_impl->m_score << " is below threshold " << kHomologyThreshold[ix] << endl;
 	
 	return result;
 }
@@ -577,7 +645,7 @@ void ReadStockholm(istream& is, mseq& msa)
 				id = id.substr(0, s);
 			
 			ba::trim(id);
-			if (msa.size() > 1 or msa.front().m_id != id)
+			if (msa.size() > 1 or msa.front().id() != id)
 				msa.push_back(seq(id));
 			continue;
 		}
@@ -595,7 +663,7 @@ void ReadStockholm(istream& is, mseq& msa)
 			
 			string sseq = line.substr(s);
 			
-			if (id == msa[0].m_id)
+			if (id == msa[0].id())
 			{
 				ix = 0;
 				qseq = sseq;
@@ -607,8 +675,8 @@ void ReadStockholm(istream& is, mseq& msa)
 				if (ix >= msa.size())
 					msa.push_back(seq(id));
 
-				if (ix < msa.size() and id != msa[ix].m_id)
-					THROW(("Invalid Stockholm file, ID does not match (%s != %s)", id.c_str(), msa[ix].m_id.c_str()));
+				if (ix < msa.size() and id != msa[ix].id())
+					THROW(("Invalid Stockholm file, ID does not match (%s != %s)", id.c_str(), msa[ix].id().c_str()));
 			}
 
 			if (ix < msa.size())
@@ -639,9 +707,9 @@ void ReadStockholm(istream& is, mseq& msa)
 	else
 		for_each(msa.begin() + 1, msa.end(), boost::bind(&seq::update, _1, msa.front()));
 
-	// for our query
-	msa.front().m_begin = 0;
-	msa.front().m_end = n;
+//	// for our query
+//	msa.front().m_begin = 0;
+//	msa.front().m_end = n;
 
 	// Remove all hits that are not above the threshold here
 	msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
@@ -678,15 +746,15 @@ void CheckAlignmentForChain(
 			foreach (seq& s, inMSA)
 			{
 				s.erase(0, offset);
-				if (s.m_begin > offset)
-					s.m_begin -= offset;
-				else
-					s.m_begin = 0;
-				
-				if (s.m_end > offset)
-					s.m_end -= offset;
-				else
-					s.m_end = 0;
+//				if (s.m_begin > offset)
+//					s.m_begin -= offset;
+//				else
+//					s.m_begin = 0;
+//				
+//				if (s.m_end > offset)
+//					s.m_end -= offset;
+//				else
+//					s.m_end = 0;
 			}
 		}
 
@@ -699,10 +767,10 @@ void CheckAlignmentForChain(
 				
 				s.erase(o, n);
 				
-				if (s.m_begin > o)
-					s.m_begin = o;
-				if (s.m_end > o)
-					s.m_end = o;
+//				if (s.m_begin > o)
+//					s.m_begin = o;
+//				if (s.m_end > o)
+//					s.m_end = o;
 			}
 		}
 	}
@@ -1056,19 +1124,20 @@ void RunJackHmmer(const string& seq, uint32 iterations,
 	
 struct Hit
 {
-					Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain);
+					Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 res_offset);
+					~Hit();
 
 	seq&			m_seq;
 	seq&			m_qseq;
 	char			m_chain;
-	uint32			m_nr;
+	uint32			m_nr, m_ifir, m_ilas;
 	float			m_ide, m_wsim;
 
 	bool			operator<(const Hit& rhs) const
 					{
 						return m_ide > rhs.m_ide or
-							(m_ide == rhs.m_ide and m_seq.m_length > rhs.m_seq.m_length) or
-							(m_ide == rhs.m_ide and m_seq.m_length == rhs.m_seq.m_length and m_seq.m_id2 > rhs.m_seq.m_id2);
+							(m_ide == rhs.m_ide and m_seq.length() > rhs.m_seq.length()) or
+							(m_ide == rhs.m_ide and m_seq.length() == rhs.m_seq.length() and m_seq.id2() > rhs.m_seq.id2());
 					}
 };
 
@@ -1080,16 +1149,23 @@ typedef vector<hit_ptr>	hit_list;
 // second is the hit sequence.
 // Since this is jackhmmer output, we can safely assume the
 // alignment does not contain gaps at the start or end of the query.
-Hit::Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain)
+Hit::Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 res_offset)
 	: m_seq(s)
 	, m_qseq(q)
 	, m_chain(chain)
 	, m_nr(0)
+	, m_ifir(s.ifir() + res_offset)
+	, m_ilas(s.ilas() + res_offset)
 {
-	string id = m_seq.m_id2;
+	string id = m_seq.id2();
 
-	m_ide = float(m_seq.m_identical) / float(m_seq.m_length);
-	m_wsim = float(m_seq.m_similar) / float(m_seq.m_length);
+	m_ide = float(m_seq.identical()) / float(m_seq.length());
+	m_wsim = float(m_seq.similar()) / float(m_seq.length());
+}
+
+Hit::~Hit()
+{
+	m_seq.prune();
 }
 
 struct compare_hit
@@ -1243,7 +1319,7 @@ void CreateHSSPOutput(
 	{
 		const seq& s(h->m_seq);
 
-		string id = s.m_id2;
+		string id = s.id2();
 		uint32 docNr = inDatabank->GetDocumentNr(id);
 		string desc = inDatabank->GetMetaData(docNr, "title");
 		string acc, pdb;
@@ -1270,8 +1346,8 @@ void CreateHSSPOutput(
 		
 		os << fmt1 % nr
 				   % id % pdb
-				   % h->m_ide % h->m_wsim % s.m_ifir % s.m_ilas % s.m_jfir % s.m_jlas % s.m_length
-				   % s.m_gapn % s.m_gaps % lseq2
+				   % h->m_ide % h->m_wsim % h->m_ifir % h->m_ilas % s.jfir() % s.jlas() % s.length()
+				   % s.gapn() % s.gaps() % lseq2
 				   % acc % desc
 		   << endl;
 		
@@ -1308,17 +1384,8 @@ void CreateHSSPOutput(
 			{
 				string aln;
 				
-				//for (uint32 j = i; j < n; ++j)
 				foreach (hit_ptr hit, boost::make_iterator_range(hits.begin() + i, hits.begin() + n))
-				{
-					if (hit->m_chain == ri->chain and ri->pos >= hit->m_seq.m_begin and ri->pos < hit->m_seq.m_end)
-					{
-						uint32 p = ri->pos;
-						aln += hit->m_seq[p];
-					}
-					else
-						aln += ' ';
-				}
+					aln += hit->m_seq[ri->pos];
 				
 				uint32 ivar = uint32(100 * (1 - ri->consweight));
 
@@ -1359,7 +1426,7 @@ void CreateHSSPOutput(
 	foreach (hit_ptr h, hits)
 	{
 		//foreach (insertion& ins, h->insertions)
-		foreach (const insertion& ins, h->m_seq.m_insertions)
+		foreach (const insertion& ins, h->m_seq.insertions())
 		{
 			string s = ins.m_seq;
 			
@@ -1404,24 +1471,24 @@ void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& cs
 		if (i == kSentinel)
 			break;
 
-		assert (msa[i].m_pruned == false);
+		assert (msa[i].pruned() == false);
 
 		const seq& si = msa[i];
 		
 		for (uint32 j = i + 1; j < msa.size(); ++j)
 		{
-			if (msa[j].m_pruned)
+			if (msa[j].pruned())
 				continue;
 
 			const seq& sj = msa[j];
 	
-			uint32 b = msa[i].m_begin;
-			if (b < msa[j].m_begin)
-				b = msa[j].m_begin;
+			uint32 b = msa[i].alignment_begin();
+			if (b < msa[j].alignment_begin())
+				b = msa[j].alignment_begin();
 			
-			uint32 e = msa[i].m_end;
-			if (e > msa[j].m_end)
-				e = msa[j].m_end;
+			uint32 e = msa[i].alignment_end();
+			if (e > msa[j].alignment_end())
+				e = msa[j].alignment_end();
 	
 			uint32 len = 0, agr = 0;
 			for (uint32 k = b; k < e; ++k)
@@ -1489,7 +1556,7 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 		
 	for (uint32 i = 0; i + 1 < msa.size(); ++i)
 	{
-		if (msa[i].m_pruned)
+		if (msa[i].pruned())
 			continue;
 		b.put(i);
 	}
@@ -1530,12 +1597,7 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
-		hit_ptr h(new Hit(inDatabank, msa[i], msa[0], chain.GetChainID()));
-
-		// update number now that we know how far we are
-		h->m_seq.m_ifir += res.size();
-		h->m_seq.m_ilas += res.size();
-		
+		hit_ptr h(new Hit(inDatabank, msa[i], msa[0], chain.GetChainID(), res.size()));
 		nhits.push_back(h);
 	}
 	
@@ -1578,12 +1640,7 @@ void PruneHits(hit_list& hits, uint32 inMaxHits)
 	sort(hits.begin(), hits.end(), compare_hit());
 
 	if (hits.size() > inMaxHits)
-	{
-		foreach (hit_ptr hit, boost::make_iterator_range(hits.begin() + inMaxHits, hits.end()))
-			hit->m_seq.m_pruned = true;
-		
 		hits.erase(hits.begin() + inMaxHits, hits.end());
-	}
 	
 	uint32 nr = 1;
 	foreach (hit_ptr h, hits)
@@ -1777,12 +1834,12 @@ void CreateHSSP(
 {
 	uint32 seqlength = 0;
 
-	hit_list hits;
-	res_list res;
-
 	vector<mseq> alignments(inStockholmIds.size());
 	vector<const MChain*> chains;
 	vector<uint32> chain_lengths; 
+
+	res_list res;
+	hit_list hits;
 
 	uint32 kchain = 0;
 	foreach (string ch, inStockholmIds)
