@@ -27,6 +27,7 @@
 #include <boost/date_time/date_clock_device.hpp>
 #include <boost/regex.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
+#include <boost/pool/pool_alloc.hpp>
 
 // MRS includes
 #include "CDatabank.h"
@@ -148,6 +149,13 @@ struct insertion
 	
 struct seq
 {
+	struct fragment
+	{
+		char	m_char[50];
+	};
+
+	typedef vector<fragment,boost::pool_allocator<fragment> > storage;
+	
 	string		m_id, m_id2;
 	uint32		m_ifir, m_ilas, m_jfir, m_jlas;
 	uint32		m_identical, m_similar, m_length;
@@ -175,51 +183,106 @@ struct seq
 
 	uint32		length() const						{ return m_end - m_begin; }
 
-	char		operator[](uint32 o) const			{ return m_seq[o]; }
+	char&		operator[](uint32 o);
+	char		operator[](uint32 o) const;
 
-	class iterator : public std::iterator<forward_iterator_tag,char>
+	class iterator : public std::iterator<bidirectional_iterator_tag,char>
 	{
 	  public:
 		typedef std::iterator<std::bidirectional_iterator_tag, char>	base_type;
 		typedef base_type::reference									reference;
 		typedef base_type::pointer										pointer;
 
-					iterator(seq& s) : m_iter(s.m_seq.begin()) {}
-					iterator(seq& s, int) : m_iter(s.m_seq.end()) {}
-					iterator(const iterator& o) : m_iter(o.m_iter) {}
+					iterator(seq* s, uint32 o) : m_seq(s), m_offset(o) {}
+					iterator(const iterator& o) : m_seq(o.m_seq), m_offset(o.m_offset) {}
 
 		iterator&	operator=(const iterator& o)
 					{
-						m_iter = o.m_iter;
+						m_seq = o.m_seq;
+						m_offset = o.m_offset;
 						return *this;
 					}
 
-		char		operator*() const			{ return *m_iter; }
-		char		operator->() const			{ return *m_iter; }
+		char&		operator*()					{ return m_seq->operator[](m_offset); }
+		char&		operator->()				{ return m_seq->operator[](m_offset); }
 
-		iterator&	operator++()				{ ++m_iter; return *this; }
+		iterator&	operator++()				{ ++m_offset; return *this; }
 		iterator	operator++(int)				{ iterator iter(*this); operator++(); return iter; }
 
+		iterator&	operator--()				{ --m_offset; return *this; }
+		iterator	operator--(int)				{ iterator iter(*this); operator--(); return iter; }
+
 		bool		operator==(const iterator& o) const
-												{ return m_iter == o.m_iter; }
+												{ return m_seq == o.m_seq and m_offset == o.m_offset; }
 		bool		operator!=(const iterator& o) const
-												{ return m_iter != o.m_iter; }
+												{ return m_seq != o.m_seq or m_offset != o.m_offset; }
 	
+		friend iterator operator-(iterator, int);
+
 	  private:
-		string::iterator
-					m_iter;
+		seq*		m_seq;
+		uint32		m_offset;
 	};
 
-	iterator	begin()							{ return iterator(*this); }
-	iterator	end()							{ return iterator(*this, 0); }
+	class const_iterator : public std::iterator<forward_iterator_tag,const char>
+	{
+	  public:
+		typedef std::iterator<std::bidirectional_iterator_tag, char>	base_type;
+		typedef base_type::reference									reference;
+		typedef base_type::pointer										pointer;
+
+					const_iterator(const seq* s, uint32 o) : m_seq(s), m_offset(o) {}
+					const_iterator(const const_iterator& o) : m_seq(o.m_seq), m_offset(o.m_offset) {}
+
+		const_iterator&
+					operator=(const const_iterator& o)
+					{
+						m_seq = o.m_seq;
+						m_offset = o.m_offset;
+						return *this;
+					}
+
+		char		operator*() const			{ return m_seq->operator[](m_offset); }
+		char		operator->() const			{ return m_seq->operator[](m_offset); }
+
+		const_iterator&
+					operator++()				{ ++m_offset; return *this; }
+		const_iterator
+					operator++(int)				{ const_iterator iter(*this); operator++(); return iter; }
+
+		bool		operator==(const const_iterator& o) const
+												{ return m_seq == o.m_seq and m_offset == o.m_offset; }
+		bool		operator!=(const const_iterator& o) const
+												{ return m_seq != o.m_seq or m_offset != o.m_offset; }
+	
+	  private:
+		const seq*	m_seq;
+		uint32		m_offset;
+	};
+
+	iterator	begin()							{ return iterator(this, 0); }
+	iterator	end()							{ return iterator(this, m_size); }
+
+	const_iterator
+				begin() const					{ return const_iterator(this, 0); }
+	const_iterator
+				end() const						{ return const_iterator(this, m_size); }
 
   private:
 
-	string		m_seq;
+	storage		m_seq;
+	uint32		m_size;
 	
 				seq();
 	//seq&		operator=(const seq&);
 };
+
+seq::iterator operator-(seq::iterator i, int o)
+{
+	seq::iterator r(i);
+	r.m_offset -= o;
+	return r;
+}
 
 //typedef boost::ptr_vector<seq> mseq;
 typedef vector<seq>				mseq;
@@ -234,6 +297,7 @@ seq::seq(const string& id)
 	, m_pruned(false)
 	, m_gaps(0)
 	, m_gapn(0)
+	, m_size(0)
 {
 	m_ifir = m_ilas = m_jfir = m_jlas = 0;
 
@@ -250,15 +314,12 @@ seq::seq(const string& id)
 	}
 	else
 		m_id2 = m_id;
-
-	m_seq.reserve(5000);
 }
 
 void seq::swap(seq& o)
 {
 	std::swap(m_id, o.m_id);
 	std::swap(m_id2, o.m_id2);
-	std::swap(m_seq, o.m_seq);
 	std::swap(m_ifir, o.m_ifir);
 	std::swap(m_ilas, o.m_ilas);
 	std::swap(m_jfir, o.m_jfir);
@@ -273,17 +334,54 @@ void seq::swap(seq& o)
 	std::swap(m_gaps, o.m_gaps);
 	std::swap(m_gapn, o.m_gapn);
 	std::swap(m_insertions, o.m_insertions);
+
+	std::swap(m_seq, o.m_seq);
+	std::swap(m_size, o.m_size);
 }
 
 
 void seq::append(const string& seq)
 {
-	m_seq += seq;
+	const char* s = seq.c_str();
+	uint32 l = seq.length();
+	
+	while (l > 0)
+	{
+		uint32 o = m_size % sizeof(fragment);
+		
+		if (o == 0)
+			m_seq.push_back(fragment());
+		
+		uint32 k = l;
+		if (k > sizeof(fragment) - o)
+			k = sizeof(fragment) - o;
+		
+		char* d = m_seq.back().m_char;
+		memcpy(d + o, s, k);
+		
+		m_size += k;
+		l -= k;
+	}
 }
 
 void seq::erase(uint32 pos, uint32 n)
 {
-	m_seq.erase(pos, n);
+	assert(false);
+//	m_seq.erase(pos, n);
+}
+
+char& seq::operator[](uint32 offset)
+{
+	assert(offset < m_size);
+	uint32 ix = offset / sizeof(fragment);
+	return m_seq[ix].m_char[offset % sizeof(fragment)];
+}
+
+char seq::operator[](uint32 offset) const
+{
+	assert(offset < m_size);
+	uint32 ix = offset / sizeof(fragment);
+	return m_seq[ix].m_char[offset % sizeof(fragment)];
 }
 
 void seq::update_all(buffer<seq*>& b, const seq& qseq)
@@ -308,12 +406,12 @@ void seq::update(const seq& qseq)
 
 	bool sgapf = false, qgapf = false;
 	
-	string::const_iterator qi = qseq.m_seq.begin();
-	string::iterator si = m_seq.begin();
+	const_iterator qi = qseq.begin();
+	iterator si = begin();
 	uint32 i = 0;
 	insertion ins = {};
 	
-	for (; qi != qseq.m_seq.end(); ++qi, ++si, ++i)
+	for (; qi != qseq.end(); ++qi, ++si, ++i)
 	{
 		bool qgap = is_gap(*qi);
 		bool sgap = is_gap(*si);
@@ -337,8 +435,8 @@ void seq::update(const seq& qseq)
 		{
 			if (not qgapf)
 			{
-				string::iterator gsi = si - 1;
-				while (gsi != m_seq.begin() and is_gap(*gsi))
+				iterator gsi = si - 1;
+				while (gsi != begin() and is_gap(*gsi))
 					--gsi;
 				
 				ins.m_ipos = ipos;
