@@ -453,24 +453,24 @@ void seq::seq_impl::erase(uint32 pos, uint32 n)
 		m_seq += n;
 		m_space -= n;
 
-		if (s.m_begin > pos)
-			s.m_begin -= pos;
+		if (m_begin > pos)
+			m_begin -= pos;
 		else
-			s.m_begin = 0;
+			m_begin = 0;
 		
-		if (s.m_end > pos)
-			s.m_end -= pos;
+		if (m_end > pos)
+			m_end -= pos;
 		else
-			s.m_end = 0;
+			m_end = 0;
 	}
 	else
 	{
 		assert(pos + n == m_space);
 
-		if (s.m_begin > pos)
-			s.m_begin = pos;
-		if (s.m_end > pos)
-			s.m_end = pos;
+		if (m_begin > pos)
+			m_begin = pos;
+		if (m_end > pos)
+			m_end = pos;
 	}
 }
 
