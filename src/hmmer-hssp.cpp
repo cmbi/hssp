@@ -296,6 +296,7 @@ class seq
 					~seq_impl();
 
 		void		update(const seq_impl& qseq);
+		void		erase(uint32 pos, uint32 n);
 
 		iterator	begin()							{ return iterator(m_seq); }
 		iterator	end()							{ return iterator(m_seq + m_size); }
@@ -314,6 +315,7 @@ class seq
 		uint32		m_gaps, m_gapn;
 		list<insertion>
 					m_insertions;
+		char*		m_data;
 		char*		m_seq;
 		uint32		m_refcount;
 		uint32		m_size, m_space;
@@ -350,13 +352,13 @@ seq::seq_impl::seq_impl(const string& id)
 	, m_space(5000)
 {
 	m_ifir = m_ilas = m_jfir = m_jlas = 0;
-	m_seq = new char[m_space];
+	m_data = m_seq = new char[m_space];
 }
 
 seq::seq_impl::~seq_impl()
 {
 	assert(m_refcount == 0);
-	delete m_seq;
+	delete m_data;
 }
 
 seq::seq(const seq& s)
@@ -441,8 +443,35 @@ void seq::append(const string& seq)
 
 void seq::erase(uint32 pos, uint32 n)
 {
-	assert(false);
-//	m_seq.erase(pos, n);
+	m_impl->erase(pos, n);
+}
+
+void seq::seq_impl::erase(uint32 pos, uint32 n)
+{
+	if (pos == 0)
+	{
+		m_seq += n;
+		m_space -= n;
+
+		if (s.m_begin > pos)
+			s.m_begin -= pos;
+		else
+			s.m_begin = 0;
+		
+		if (s.m_end > pos)
+			s.m_end -= pos;
+		else
+			s.m_end = 0;
+	}
+	else
+	{
+		assert(pos + n == m_space);
+
+		if (s.m_begin > pos)
+			s.m_begin = pos;
+		if (s.m_end > pos)
+			s.m_end = pos;
+	}
 }
 
 void seq::update_all(buffer<seq*>& b, const seq& qseq)
