@@ -422,8 +422,7 @@ void seq::cut(uint32 pos, uint32 n)
 
 void seq::seq_impl::cut(uint32 pos, uint32 n)
 {
-	assert(n <= m_size);
-	assert(pos < m_size);
+	assert(pos + n <= m_size);
 
 	m_seq += pos;
 	m_size = n;
@@ -438,8 +437,8 @@ void seq::seq_impl::cut(uint32 pos, uint32 n)
 	else
 		m_end = 0;
 
-	if (m_end > pos + n)
-		m_end = pos + n;
+	if (m_end > m_size)
+		m_end = m_size;
 }
 
 void seq::update_all(buffer<seq*>& b, const seq& qseq)
@@ -556,10 +555,18 @@ void seq::seq_impl::update(const seq_impl& qseq)
 		m_end = i + 1;
 	}
 	
-	for (i = 0; i < m_begin; ++i)
-		m_seq[i] = ' ';
-	for (i = m_end; i < m_size; ++i)
-		m_seq[i] = ' ';
+	if (m_begin == numeric_limits<uint32>::max())
+		m_begin = m_end = 0;
+	else
+	{
+		assert(m_begin <= m_size);
+		for (i = 0; i < m_begin; ++i)
+			m_seq[i] = ' ';
+	
+		assert(m_end <= m_size);
+		for (i = m_end; i < m_size; ++i)
+			m_seq[i] = ' ';
+	}
 
 	m_score = float(m_identical) / m_length;
 }
@@ -1185,6 +1192,10 @@ typedef boost::iterator_range<res_list::iterator>::type	res_range;
 ResidueHInfo::ResidueHInfo(uint32 seqNr)
 	: letter(0)
 	, seqNr(seqNr)
+	, nocc(1)
+	, ndel(0)
+	, nins(0)
+	, consweight(1)
 {
 }
 
@@ -1205,54 +1216,58 @@ ResidueHInfo::ResidueHInfo(char a, uint32 pos, char chain, uint32 seqNr, uint32 
 
 void ResidueHInfo::CalculateVariability(hit_list& hits)
 {
+	if (seqNr == 1623)
+		cerr << "stop" << endl;
+	
 	fill(dist, dist + 20, 0);
+	entropy = 0;
 	
 	int8 ix = kResidueIX[uint8(letter)];
-	assert(ix != -1);
 	if (ix != -1)
+	{
 		dist[ix] = 1;
 	
-	foreach (hit_ptr hit, hits)
-	{
-		if (hit->m_chain != chain)
-			continue;
-
-		ix = kResidueIX[uint8(hit->m_seq[pos])];
-		if (ix != -1)
+		foreach (hit_ptr hit, hits)
 		{
-			++nocc;
-			dist[ix] += 1;
+			if (hit->m_chain != chain)
+				continue;
+	
+			ix = kResidueIX[uint8(hit->m_seq[pos])];
+			if (ix != -1)
+			{
+				++nocc;
+				dist[ix] += 1;
+			}
 		}
-	}
-	
-	entropy = 0;
-	for (uint32 a = 0; a < 20; ++a)
-	{
-		double freq = double(dist[a]) / nocc;
-		
-		dist[a] = uint32((100.0 * freq) + 0.5);
-		
-		if (freq > 0)
-			entropy -= static_cast<float>(freq * log(freq));
-	}
-	
-	// calculate ndel and nins
-	const seq& q = hits.front()->m_qseq;
-	
-	bool gap = pos + 1 < q.length() and is_gap(q[pos + 1]);
-	
-	foreach (hit_ptr hit, hits)
-	{
-		if (hit->m_chain != chain)
-			continue;
 
-		const seq& t = hit->m_seq;
+		for (uint32 a = 0; a < 20; ++a)
+		{
+			double freq = double(dist[a]) / nocc;
+			
+			dist[a] = uint32((100.0 * freq) + 0.5);
+			
+			if (freq > 0)
+				entropy -= static_cast<float>(freq * log(freq));
+		}
+
+		// calculate ndel and nins
+		const seq& q = hits.front()->m_qseq;
 		
-		if (is_gap(t[pos]))
-			++ndel;
+		bool gap = pos + 1 < q.length() and is_gap(q[pos + 1]);
 		
-		if (gap and t[pos] >= 'a' and t[pos] <= 'y')
-			++nins;
+		foreach (hit_ptr hit, hits)
+		{
+			if (hit->m_chain != chain)
+				continue;
+	
+			const seq& t = hit->m_seq;
+			
+			if (is_gap(t[pos]))
+				++ndel;
+			
+			if (gap and t[pos] >= 'a' and t[pos] <= 'y')
+				++nins;
+		}
 	}
 }
 
@@ -1417,10 +1432,10 @@ void CreateHSSPOutput(
 			string s = ins.m_seq;
 			
 			if (s.length() <= 100)
-				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->m_nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
+				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
 			else
 			{
-				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->m_nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
+				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
 				s.erase(0, 100);
 				
 				while (not s.empty())
@@ -1561,7 +1576,10 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 			weight = sumvar[i] / sumdist[i];
 		
 		(*ri)->consweight = weight;
-		++ri;
+		
+		do {
+			++ri;
+		} while (ri != res.end() and (*ri)->letter == 0);
 	}
 	assert(ri == res.end());
 
@@ -1628,18 +1646,6 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	
 	assert(ri == residues.end());
 	hits.insert(hits.end(), nhits.begin(), nhits.end());
-}
-
-void PruneHits(hit_list& hits, uint32 inMaxHits)
-{
-	sort(hits.begin(), hits.end(), compare_hit());
-
-	if (hits.size() > inMaxHits)
-		hits.erase(hits.begin() + inMaxHits, hits.end());
-	
-	uint32 nr = 1;
-	foreach (hit_ptr h, hits)
-		h->m_nr = nr++;
 }
 
 // Find the minimal set of overlapping sequences
@@ -1831,7 +1837,7 @@ void CreateHSSP(
 
 	vector<mseq> alignments(inStockholmIds.size());
 	vector<const MChain*> chains;
-	vector<uint32> chain_lengths; 
+	vector<pair<uint32,uint32> > res_ranges;
 
 	res_list res;
 	hit_list hits;
@@ -1848,7 +1854,6 @@ void CreateHSSP(
 		string seq;
 		chain.GetSequence(seq);
 		seqlength += seq.length();
-		chain_lengths.push_back(seq.length());
 
 		fs::path sfp = inDataDir / (ch.substr(2) + ".sto.bz2");
 
@@ -1876,8 +1881,12 @@ void CreateHSSP(
 		if (not res.empty())
 			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
 		
+		uint32 first = res.size();
+		
 		mseq& msa = alignments[kchain];
 		ChainToHits(inDatabank, msa, *chain, hits, res);
+		
+		res_ranges.push_back(make_pair(first, res.size()));
 
 		if (not usedChains.empty())
 			usedChains += ',';
@@ -1886,13 +1895,20 @@ void CreateHSSP(
 		++kchain;
 	}
 
-	PruneHits(hits, inMaxHits);
+	sort(hits.begin(), hits.end(), compare_hit());
 
-	uint32 o = 0;
+	if (hits.size() > inMaxHits)
+		hits.erase(hits.begin() + inMaxHits, hits.end());
+	
+	uint32 nr = 1;
+	foreach (hit_ptr h, hits)
+		h->m_nr = nr++;
+
 	for (uint32 c = 0; c < kchain; ++c)
 	{
-		res_range r(res.begin() + o, res.begin() + o + chain_lengths[c]);
-		o += chain_lengths[c] + 1;
+		pair<uint32,uint32> range = res_ranges[c];
+		
+		res_range r(res.begin() + range.first, res.begin() + range.second);
 		CalculateConservation(alignments[c], r);
 
 		foreach (res_ptr ri, r)
