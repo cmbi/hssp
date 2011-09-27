@@ -479,6 +479,7 @@ void seq::seq_impl::update(const seq_impl& qseq)
 		jpos = 1;
 
 	bool sgapf = false, qgapf = false;
+	uint32 gapn = 0, gaps = 0;
 	
 	const_iterator qi = qseq.begin();
 	iterator si = begin();
@@ -488,6 +489,8 @@ void seq::seq_impl::update(const seq_impl& qseq)
 	m_begin = numeric_limits<uint32>::max();
 	m_end = 0;
 	
+	uint32 length = 0;
+	
 	for (; qi != qseq.end(); ++qi, ++si, ++i)
 	{
 		bool qgap = is_gap(*qi);
@@ -496,14 +499,16 @@ void seq::seq_impl::update(const seq_impl& qseq)
 		if (qgap and sgap)
 			continue;
 
-		++m_length;
+		// only update alignment length when we have started
+		if (length > 0)
+			++length;
 
 		if (sgap)
 		{
 			if (not (sgapf or qgapf))
-				++m_gaps;
+				++gaps;
 			sgapf = true;
-			++m_gapn;
+			++gapn;
 			++ipos;
 
 			continue;
@@ -524,10 +529,10 @@ void seq::seq_impl::update(const seq_impl& qseq)
 			ins.m_seq += *si;
 			
 			if (not (sgapf or qgapf))
-				++m_gaps;
+				++gaps;
 
 			qgapf = true;
-			++m_gapn;
+			++gapn;
 			++jpos;
 		}
 		else
@@ -542,14 +547,24 @@ void seq::seq_impl::update(const seq_impl& qseq)
 			sgapf = false;
 			qgapf = false;
 
-			if (m_ifir == 0)
-				ipos = m_ifir = m_ilas = i + 1;
+			m_ilas = ipos;
+			if (m_ifir == 0)	// alignment didn't start yet
+			{
+				m_ifir = ipos;
+				length = 1;
+			}
 			else
 			{
-				++ipos;
-				m_ilas = ipos;
+				// no gaps in s or q, update gap counters and length
+				m_gapn += gapn;
+				m_gaps += gaps;
+				m_length = length;
 			}
 
+			gaps = 0; // reset gap info
+			gapn = 0;
+
+			++ipos;
 			++jpos;
 		}
 
@@ -1274,7 +1289,7 @@ void ResidueHInfo::CalculateVariability(hit_list& hits)
 	
 			const seq& t = hit->m_seq;
 			
-			if (is_gap(t[pos]))
+			if (pos > t.alignment_begin() and pos < t.alignment_end() and is_gap(t[pos]))
 				++ndel;
 			
 			if (gap and t[pos] >= 'a' and t[pos] <= 'y')
@@ -1355,7 +1370,7 @@ void CreateHSSPOutput(
 		os << fmt1 % nr
 				   % id % pdb
 				   % h->m_ide % h->m_wsim % h->m_ifir % h->m_ilas % s.jfir() % s.jlas() % s.alignment_length()
-				   % s.gapn() % s.gaps() % lseq2
+				   % s.gaps() % s.gapn() % lseq2
 				   % acc % desc
 		   << endl;
 		
@@ -1370,13 +1385,13 @@ void CreateHSSPOutput(
 			n = hits.size();
 		
 		uint32 k[7] = {
-			((i +  0) / 10) % 10 + 1,
-			((i + 10) / 10) % 10 + 1,
-			((i + 20) / 10) % 10 + 1,
-			((i + 30) / 10) % 10 + 1,
-			((i + 40) / 10) % 10 + 1,
-			((i + 50) / 10) % 10 + 1,
-			((i + 60) / 10) % 10 + 1
+			((i +  0) / 10 + 1) % 10,
+			((i + 10) / 10 + 1) % 10,
+			((i + 20) / 10 + 1) % 10,
+			((i + 30) / 10 + 1) % 10,
+			((i + 40) / 10 + 1) % 10,
+			((i + 50) / 10 + 1) % 10,
+			((i + 60) / 10 + 1) % 10
 		};
 		
 		os << boost::format("## ALIGNMENTS %4.4d - %4.4d") % (i + 1) % n << endl
