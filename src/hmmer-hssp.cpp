@@ -177,6 +177,8 @@ class seq
 	
 	uint32		alignment_begin() const				{ return m_impl->m_begin; }
 	uint32		alignment_end() const				{ return m_impl->m_end; }
+
+	uint32		alignment_length() const			{ return m_impl->m_length; }
 	
 	const list<insertion>&
 				insertions() const					{ return m_impl->m_insertions; }
@@ -1133,8 +1135,8 @@ struct Hit
 	bool			operator<(const Hit& rhs) const
 					{
 						return m_ide > rhs.m_ide or
-							(m_ide == rhs.m_ide and m_seq.length() > rhs.m_seq.length()) or
-							(m_ide == rhs.m_ide and m_seq.length() == rhs.m_seq.length() and m_seq.id2() > rhs.m_seq.id2());
+							(m_ide == rhs.m_ide and m_seq.alignment_length() > rhs.m_seq.alignment_length()) or
+							(m_ide == rhs.m_ide and m_seq.alignment_length() == rhs.m_seq.alignment_length() and m_seq.id2() > rhs.m_seq.id2());
 					}
 };
 
@@ -1157,8 +1159,8 @@ Hit::Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 offset)
 {
 	string id = m_seq.id2();
 
-	m_ide = float(m_seq.identical()) / float(m_seq.length());
-	m_wsim = float(m_seq.similar()) / float(m_seq.length());
+	m_ide = float(m_seq.identical()) / float(m_seq.alignment_length());
+	m_wsim = float(m_seq.similar()) / float(m_seq.alignment_length());
 }
 
 Hit::~Hit()
@@ -1352,7 +1354,7 @@ void CreateHSSPOutput(
 		
 		os << fmt1 % nr
 				   % id % pdb
-				   % h->m_ide % h->m_wsim % h->m_ifir % h->m_ilas % s.jfir() % s.jlas() % s.length()
+				   % h->m_ide % h->m_wsim % h->m_ifir % h->m_ilas % s.jfir() % s.jlas() % s.alignment_length()
 				   % s.gapn() % s.gaps() % lseq2
 				   % acc % desc
 		   << endl;
