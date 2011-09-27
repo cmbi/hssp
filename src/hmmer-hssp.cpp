@@ -73,7 +73,7 @@ const double kHomologyThreshold[] = {
 // and weights
 
 // Dayhoff matrix as used by maxhom
-const float kDayhoffData[] =
+const double kDayhoffData[] =
 {
      1.5f,                                                                                                                  // V
      0.8f, 1.5f,                                                                                                            // L
@@ -97,7 +97,7 @@ const float kDayhoffData[] =
     -0.2f,-0.5f,-0.2f,-0.4f,-1.0f,-1.1f,-0.5f, 0.7f, 0.3f, 0.1f, 0.2f, 0.2f,-0.5f, 0.4f, 0.0f, 0.3f, 0.7f, 1.0f, 0.7f, 1.5f // D
 };
 
-static const symmetric_matrix<float> kD(kDayhoffData, 20);
+static const symmetric_matrix<double> kD(kDayhoffData, 20);
 
 // Residue to index mapping
 const int8 kResidueIX[256] = {
@@ -185,7 +185,7 @@ class seq
 	void		update(const seq& qseq);
 	static void	update_all(buffer<seq*>& b, const seq& qseq);
 	
-	float		score() const;
+	double		score() const;
 	bool		drop() const;
 	bool		pruned() const						{ return m_impl->m_pruned; }
 	void		prune()								{ m_impl->m_pruned = true; }
@@ -241,8 +241,8 @@ class seq
 		bool			operator!=(const basic_iterator& o) const
 													{ return m_seq != o.m_seq; }
 	
-		template<class T>
-		friend basic_iterator<T> operator-(basic_iterator<T>, int);
+		template<class U>
+		friend basic_iterator<U> operator-(basic_iterator<U>, int);
 
 	  private:
 		pointer			m_seq;
@@ -278,7 +278,7 @@ class seq
 		string		m_id, m_id2;
 		uint32		m_ifir, m_ilas, m_jfir, m_jlas;
 		uint32		m_identical, m_similar, m_length;
-		float		m_score;
+		double		m_score;
 		uint32		m_begin, m_end;
 		bool		m_pruned;
 		uint32		m_gaps, m_gapn;
@@ -320,7 +320,7 @@ seq::seq_impl::seq_impl(const string& id)
 	, m_seq(nil)
 	, m_refcount(1)
 	, m_size(0)
-	, m_space(5000)
+	, m_space(10000)
 {
 	m_ifir = m_ilas = m_jfir = m_jlas = 0;
 	m_data = m_seq = new char[m_space];
@@ -558,7 +558,7 @@ void seq::seq_impl::update(const seq_impl& qseq)
 	for (i = m_end; i < m_size; ++i)
 		m_seq[i] = ' ';
 
-	m_score = float(m_identical) / float(m_length);
+	m_score = double(m_identical) / double(m_length);
 }
 
 bool seq::drop() const
@@ -693,7 +693,6 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 		cerr << " done, alignment width = " << n << endl << "Checking for threshold...";
 
 	// first cut the msa, if needed:
-	
 	if (q != qr)
 	{
 		if (qr.length() < q.length())
@@ -747,66 +746,11 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 	else
 		for_each(msa.begin() + 1, msa.end(), boost::bind(&seq::update, _1, msa.front()));
 
-//	// for our query
-//	msa.front().m_begin = 0;
-//	msa.front().m_end = n;
-
 	// Remove all hits that are not above the threshold here
 	msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
 
 	if (VERBOSE)
 		cerr << "done" << endl;
-}
-
-void CheckAlignmentForChain(
-	mseq&			inMSA,
-	const MChain*	inChain)
-{
-	string sa, sc;
-
-	for (seq::iterator r = inMSA.front().begin(); r != inMSA.front().end(); ++r)
-	{
-		if (not is_gap(*r))
-			sa += *r;
-	}
-
-	inChain->GetSequence(sc);
-
-	if (sa != sc)
-	{
-		if (sa.length() < sc.length())
-			THROW(("Query used for Stockholm file is too short for the chain"));
-
-		string::size_type offset = sa.find(sc);
-		if (offset == string::npos)
-			THROW(("Invalid Stockholm file for chain"));
-		
-		seq::iterator r = inMSA.front().begin();
-		uint32 pos = 0;
-		for (; r != inMSA.front().end(); ++r)
-		{
-			if (is_gap(*r) or offset-- > 0)
-			{
-				++pos;
-				continue;
-			}
-			break;
-		}
-		
-		uint32 n = 0, length = sc.length();
-		for (; r != inMSA.front().end(); ++r)
-		{
-			if (is_gap(*r) or length-- > 0)
-			{
-				++n;
-				continue;
-			}
-			break;
-		}
-
-		foreach (seq& s, inMSA)
-			s.cut(pos, n);
-	}
 }
 
 #if P_UNIX
@@ -1164,7 +1108,7 @@ struct Hit
 	seq&			m_qseq;
 	char			m_chain;
 	uint32			m_nr, m_ifir, m_ilas;
-	float			m_ide, m_wsim;
+	double			m_ide, m_wsim;
 
 	bool			operator<(const Hit& rhs) const
 					{
@@ -1192,8 +1136,8 @@ Hit::Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 res_offset)
 {
 	string id = m_seq.id2();
 
-	m_ide = float(m_seq.identical()) / float(m_seq.length());
-	m_wsim = float(m_seq.similar()) / float(m_seq.length());
+	m_ide = double(m_seq.identical()) / double(m_seq.length());
+	m_wsim = double(m_seq.similar()) / double(m_seq.length());
 }
 
 Hit::~Hit()
@@ -1224,7 +1168,7 @@ struct ResidueHInfo
 	uint32			seqNr, pdbNr;
 	uint32			pos;
 	uint32			nocc, ndel, nins;
-	float			entropy, consweight;
+	double			entropy, consweight;
 	uint32			dist[20];
 };
 
@@ -1285,7 +1229,7 @@ void ResidueHInfo::CalculateVariability(hit_list& hits)
 		dist[a] = uint32((100.0 * freq) + 0.5);
 		
 		if (freq > 0)
-			entropy -= static_cast<float>(freq * log(freq));
+			entropy -= static_cast<double>(freq * log(freq));
 	}
 	
 	// calculate ndel and nins
@@ -1630,6 +1574,15 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
+		uint32 docNr;
+		
+		if (not inDatabank->GetDocumentNr(msa[i].id2(), docNr))
+		{
+			if (VERBOSE)
+				cerr << "Missing document " << msa[i].id2() << endl;
+			continue;
+		}
+
 		hit_ptr h(new Hit(inDatabank, msa[i], msa[0], chain.GetChainID(), res.size()));
 		nhits.push_back(h);
 	}

@@ -28,17 +28,9 @@ DSSP_IDS		= $(DSSP_FILES:$(DSSPDIR)%.dssp=%)
 
 VPATH			= :$(HSSP2DATADIR):
 
-# Intermediate files
-
-
-
-
-
 # The HSSP2 files we need to create
 
 HSSP2_FILES		= $(DSSP_IDS:%=$(HSSP2DIR)%.hssp.bz2)
-
-
 
 # The Stockholm files we need:
 
@@ -55,19 +47,19 @@ $(HSSP2DIR)dssp-nr-100.fa $(HSSP2DATADIR)hssp2.depends: $(HSSP2DIR)dssp.fa
 	$(CDHIT) -i $< -o $@ -c 1.0 -T 0 -s 0.9
 	$(PERL) split-fasta.pl $@ $(HSSP2DATADIR)
 
-$(HSSP2DATADIR)%.sto.bz2: $(HSSP2DATADIR)%.fa
-	jackhmmer --noali -o /dev/null -A $(@:.bz2=) $< $(UNIREF)
-	bzip2 $(@:.bz2=)
+#$(HSSP2DATADIR)%.sto.bz2: $(HSSP2DATADIR)%.fa
+#	jackhmmer --noali -o /dev/null -A $(@:.bz2=) $< $(UNIREF)
+#	bzip2 $(@:.bz2=)
 
-$(HSSP2DIR)%.hssp.bz2::
-	$(MKHSSP) --fastadir=$(FASTADIR) --datadir=$(HSSP2DATADIR) $(@F:.hssp.bz2=) $@ || \
+$(HSSP2DIR)%.hssp.bz2: $(DSSPDIR)%.dssp
+	$(MKHSSP) $(@F:.hssp.bz2=) --fastadir=$(FASTADIR) --datadir=$(HSSP2DATADIR) $@ || \
 		echo $(@F:.hssp.bz2=) >> hssp2.skip
 
 test1: $(FIRST_10_TBL)
 
 dirs: $(DIRS)
 
-include $(HSSP2DATADIR)hssp2.depends
+# include $(HSSP2DATADIR)hssp2.depends
 
 $(DIRS):
 	mkdir -p $@
