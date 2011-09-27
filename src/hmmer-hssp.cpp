@@ -394,6 +394,7 @@ void seq::append(const string& seq)
 		// double the storage for the sequences
 		uint32 n = m_impl->m_space * 2;
 		char* p = new char[n];
+		memcpy(p, m_impl->m_data, m_impl->m_size);
 		delete [] m_impl->m_data;
 		m_impl->m_data = m_impl->m_seq = p;
 		m_impl->m_space = n;
