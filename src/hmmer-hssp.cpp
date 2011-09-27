@@ -210,83 +210,52 @@ class seq
 					return m_impl->m_seq[offset];
 				}
 
-	class iterator : public std::iterator<bidirectional_iterator_tag,char>
+	template<class T>
+	class basic_iterator : public std::iterator<bidirectional_iterator_tag,T>
 	{
 	  public:
-		typedef std::iterator<std::bidirectional_iterator_tag, char>	base_type;
-		typedef base_type::reference									reference;
-		typedef base_type::pointer										pointer;
+		typedef typename std::iterator<std::bidirectional_iterator_tag, T>	base_type;
+		typedef	typename base_type::reference								reference;
+		typedef typename base_type::pointer									pointer;
 
-					iterator(char* s) : m_seq(s) {}
-					iterator(const iterator& o) : m_seq(o.m_seq) {}
+						basic_iterator(T* s) : m_seq(s) {}
+						basic_iterator(const basic_iterator& o) : m_seq(o.m_seq) {}
 
-		iterator&	operator=(const iterator& o)
-					{
-						m_seq = o.m_seq;
-						return *this;
-					}
+		basic_iterator&	operator=(const basic_iterator& o)
+						{
+							m_seq = o.m_seq;
+							return *this;
+						}
 
-		char&		operator*()					{ return *m_seq; }
-		char&		operator->()				{ return *m_seq; }
+		reference		operator*()					{ return *m_seq; }
+		reference		operator->()				{ return *m_seq; }
 
-		iterator&	operator++()				{ ++m_seq; return *this; }
-		iterator	operator++(int)				{ iterator iter(*this); operator++(); return iter; }
+		basic_iterator&	operator++()				{ ++m_seq; return *this; }
+		basic_iterator	operator++(int)				{ basic_iterator iter(*this); operator++(); return iter; }
 
-		iterator&	operator--()				{ --m_seq; return *this; }
-		iterator	operator--(int)				{ iterator iter(*this); operator--(); return iter; }
+		basic_iterator&	operator--()				{ --m_seq; return *this; }
+		basic_iterator	operator--(int)				{ basic_iterator iter(*this); operator--(); return iter; }
 
-		bool		operator==(const iterator& o) const
-												{ return m_seq == o.m_seq; }
-		bool		operator!=(const iterator& o) const
-												{ return m_seq != o.m_seq; }
+		bool			operator==(const basic_iterator& o) const
+													{ return m_seq == o.m_seq; }
+		bool			operator!=(const basic_iterator& o) const
+													{ return m_seq != o.m_seq; }
 	
-		friend iterator operator-(iterator, int);
+		template<class T>
+		friend basic_iterator<T> operator-(basic_iterator<T>, int);
 
 	  private:
-		char*		m_seq;
+		pointer			m_seq;
 	};
-
-	class const_iterator : public std::iterator<forward_iterator_tag,const char>
-	{
-	  public:
-		typedef std::iterator<std::bidirectional_iterator_tag, char>	base_type;
-		typedef base_type::reference									reference;
-		typedef base_type::pointer										pointer;
-
-					const_iterator(const char* s) : m_seq(s) {}
-					const_iterator(const const_iterator& o) : m_seq(o.m_seq) {}
-
-		const_iterator&
-					operator=(const const_iterator& o)
-					{
-						m_seq = o.m_seq;
-						return *this;
-					}
-
-		char		operator*() const			{ return *m_seq; }
-		char		operator->() const			{ return *m_seq; }
-
-		const_iterator&
-					operator++()				{ ++m_seq; return *this; }
-		const_iterator
-					operator++(int)				{ const_iterator iter(*this); operator++(); return iter; }
-
-		bool		operator==(const const_iterator& o) const
-												{ return m_seq == o.m_seq; }
-		bool		operator!=(const const_iterator& o) const
-												{ return m_seq != o.m_seq; }
 	
-	  private:
-		const char*	m_seq;
-	};
+	typedef basic_iterator<char>		iterator;
+	typedef basic_iterator<const char>	const_iterator;
+	
+	iterator		begin()							{ return iterator(m_impl->m_seq); }
+	iterator		end()							{ return iterator(m_impl->m_seq + m_impl->m_size); }
 
-	iterator	begin()							{ return iterator(m_impl->m_seq); }
-	iterator	end()							{ return iterator(m_impl->m_seq + m_impl->m_size); }
-
-	const_iterator
-				begin() const					{ return const_iterator(m_impl->m_seq); }
-	const_iterator
-				end() const						{ return const_iterator(m_impl->m_seq + m_impl->m_size); }
+	const_iterator	begin() const					{ return const_iterator(m_impl->m_seq); }
+	const_iterator	end() const						{ return const_iterator(m_impl->m_seq + m_impl->m_size); }
 
   private:
 
@@ -326,9 +295,10 @@ class seq
 				seq();
 };
 
-inline seq::iterator operator-(seq::iterator i, int o)
+template<class T>
+inline seq::basic_iterator<T> operator-(seq::basic_iterator<T> i, int o)
 {
-	seq::iterator r(i);
+	seq::basic_iterator<T> r(i);
 	r.m_seq -= o;
 	return r;
 }
@@ -341,6 +311,7 @@ seq::seq_impl::seq_impl(const string& id)
 	, m_identical(0)
 	, m_similar(0)
 	, m_length(0)
+	, m_score(0)
 	, m_begin(0)
 	, m_end(0)
 	, m_pruned(false)
@@ -620,14 +591,16 @@ namespace hmmer {
 // ReadStockholm is a function that reads a multiple sequence alignment from
 // a Stockholm formatted file. Restriction is that this Stockholm file has
 // a #=GF field at the second line containing the ID of the query used in
-// jackhmmer.	
+// jackhmmer.
+// Third parameter is the query sequence. Perhaps we need to 'cut' a piece
+// out of the MSA to make it fit.
 
-void ReadStockholm(istream& is, mseq& msa)
+void ReadStockholm(istream& is, mseq& msa, const string& q)
 {
 	if (VERBOSE)
 		cerr << "Reading stockholm file...";
 
-	string line, qseq;
+	string line, qseq, qr;
 	getline(is, line);
 	if (line != "# STOCKHOLM 1.0")
 		throw mas_exception("Not a stockholm file");
@@ -691,6 +664,12 @@ void ReadStockholm(istream& is, mseq& msa)
 				ix = 0;
 				qseq = sseq;
 				n += sseq.length();
+				
+				foreach (char r, qseq)
+				{
+					if (not is_gap(r))
+						qr += r;
+				}
 			}
 			else
 			{
@@ -711,7 +690,45 @@ void ReadStockholm(istream& is, mseq& msa)
 		THROW(("Insufficient sequences in Stockholm MSA"));
 
 	if (VERBOSE)
-		cerr << " done" << endl << "Checking for threshold...";
+		cerr << " done, alignment width = " << n << endl << "Checking for threshold...";
+
+	// first cut the msa, if needed:
+	
+	if (q != qr)
+	{
+		if (qr.length() < q.length())
+			THROW(("Query used for Stockholm file is too short for the chain"));
+
+		string::size_type offset = qr.find(q);
+		if (offset == string::npos)
+			THROW(("Invalid Stockholm file for chain"));
+		
+		seq::iterator r = msa.front().begin();
+		uint32 pos = 0;
+		for (; r != msa.front().end(); ++r)
+		{
+			if (is_gap(*r) or offset-- > 0)
+			{
+				++pos;
+				continue;
+			}
+			break;
+		}
+		
+		uint32 n = 0, length = q.length();
+		for (; r != msa.front().end(); ++r)
+		{
+			if (is_gap(*r) or length-- > 0)
+			{
+				++n;
+				continue;
+			}
+			break;
+		}
+
+		foreach (seq& s, msa)
+			s.cut(pos, n);
+	}
 	
 	// update seq counters, try to do this multi threaded
 	if (gNrOfThreads > 1)
@@ -1122,7 +1139,7 @@ void RunJackHmmer(const string& seq, uint32 iterations,
 	fs::path rundir = RunJackHmmer(seq, iterations, fastadir, jackhmmer, db);
 
 	fs::ifstream is(rundir / "output.sto");
-	ReadStockholm(is, msa);
+	ReadStockholm(is, msa, seq);
 	is.close();
 
 	// read in the result
@@ -1586,7 +1603,7 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 		if (is_gap(s[i]))
 			continue;
 
-		double weight = 1.0f;
+		float weight = 1.0f;
 		if (sumdist[i] > 0)
 			weight = sumvar[i] / sumdist[i];
 		
@@ -1886,13 +1903,8 @@ void CreateHSSP(
 		in.push(io::bzip2_decompressor());
 		in.push(sf);
 
-		ReadStockholm(in, alignments[kchain]);
-		
-		// check to see if we need to 'cut' the alignment a bit
-		// can happen if the stockholm file was created using a query
-		// sequence that was a few residues longer than this chain.
+		ReadStockholm(in, alignments[kchain], seq);
 
-		CheckAlignmentForChain(alignments[kchain], chains[kchain]);
 		++kchain;
 	}
 
