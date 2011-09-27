@@ -73,7 +73,8 @@ const double kHomologyThreshold[] = {
 // and weights
 
 // Dayhoff matrix as used by maxhom
-const double kDayhoffData[] =
+const float kDayhoffData[] =
+
 {
      1.5f,                                                                                                                  // V
      0.8f, 1.5f,                                                                                                            // L
@@ -97,7 +98,8 @@ const double kDayhoffData[] =
     -0.2f,-0.5f,-0.2f,-0.4f,-1.0f,-1.1f,-0.5f, 0.7f, 0.3f, 0.1f, 0.2f, 0.2f,-0.5f, 0.4f, 0.0f, 0.3f, 0.7f, 1.0f, 0.7f, 1.5f // D
 };
 
-static const symmetric_matrix<double> kD(kDayhoffData, 20);
+static const symmetric_matrix<float> kD(kDayhoffData, 20);
+
 
 // Residue to index mapping
 const int8 kResidueIX[256] = {
@@ -185,7 +187,8 @@ class seq
 	void		update(const seq& qseq);
 	static void	update_all(buffer<seq*>& b, const seq& qseq);
 	
-	double		score() const;
+	float		score() const;
+
 	bool		drop() const;
 	bool		pruned() const						{ return m_impl->m_pruned; }
 	void		prune()								{ m_impl->m_pruned = true; }
@@ -278,7 +281,7 @@ class seq
 		string		m_id, m_id2;
 		uint32		m_ifir, m_ilas, m_jfir, m_jlas;
 		uint32		m_identical, m_similar, m_length;
-		double		m_score;
+		float		m_score;
 		uint32		m_begin, m_end;
 		bool		m_pruned;
 		uint32		m_gaps, m_gapn;
@@ -558,7 +561,7 @@ void seq::seq_impl::update(const seq_impl& qseq)
 	for (i = m_end; i < m_size; ++i)
 		m_seq[i] = ' ';
 
-	m_score = double(m_identical) / double(m_length);
+	m_score = float(m_identical) / m_length;
 }
 
 bool seq::drop() const
@@ -1101,14 +1104,14 @@ void RunJackHmmer(const string& seq, uint32 iterations,
 	
 struct Hit
 {
-					Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 res_offset);
+					Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 offset);
 					~Hit();
 
 	seq&			m_seq;
 	seq&			m_qseq;
 	char			m_chain;
-	uint32			m_nr, m_ifir, m_ilas;
-	double			m_ide, m_wsim;
+	uint32			m_nr, m_ifir, m_ilas, m_offset;
+	float			m_ide, m_wsim;
 
 	bool			operator<(const Hit& rhs) const
 					{
@@ -1126,18 +1129,19 @@ typedef vector<hit_ptr>	hit_list;
 // second is the hit sequence.
 // Since this is jackhmmer output, we can safely assume the
 // alignment does not contain gaps at the start or end of the query.
-Hit::Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 res_offset)
+Hit::Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 offset)
 	: m_seq(s)
 	, m_qseq(q)
 	, m_chain(chain)
 	, m_nr(0)
-	, m_ifir(s.ifir() + res_offset)
-	, m_ilas(s.ilas() + res_offset)
+	, m_ifir(s.ifir() + offset)
+	, m_ilas(s.ilas() + offset)
+	, m_offset(offset)
 {
 	string id = m_seq.id2();
 
-	m_ide = double(m_seq.identical()) / double(m_seq.length());
-	m_wsim = double(m_seq.similar()) / double(m_seq.length());
+	m_ide = float(m_seq.identical()) / float(m_seq.length());
+	m_wsim = float(m_seq.similar()) / float(m_seq.length());
 }
 
 Hit::~Hit()
@@ -1168,7 +1172,7 @@ struct ResidueHInfo
 	uint32			seqNr, pdbNr;
 	uint32			pos;
 	uint32			nocc, ndel, nins;
-	double			entropy, consweight;
+	float			entropy, consweight;
 	uint32			dist[20];
 };
 
@@ -1229,7 +1233,7 @@ void ResidueHInfo::CalculateVariability(hit_list& hits)
 		dist[a] = uint32((100.0 * freq) + 0.5);
 		
 		if (freq > 0)
-			entropy -= static_cast<double>(freq * log(freq));
+			entropy -= static_cast<float>(freq * log(freq));
 	}
 	
 	// calculate ndel and nins
@@ -1362,7 +1366,12 @@ void CreateHSSPOutput(
 				string aln;
 				
 				foreach (hit_ptr hit, boost::make_iterator_range(hits.begin() + i, hits.begin() + n))
-					aln += hit->m_seq[ri->pos];
+				{
+					if (ri->seqNr >= hit->m_ifir and ri->seqNr <= hit->m_ilas)
+						aln += hit->m_seq[ri->pos];
+					else
+						aln += ' ';
+				}
 				
 				uint32 ivar = uint32(100 * (1 - ri->consweight));
 
@@ -1842,11 +1851,10 @@ void CreateHSSP(
 		chain_lengths.push_back(seq.length());
 
 		fs::path sfp = inDataDir / (ch.substr(2) + ".sto.bz2");
+
+		// if stockholm file does not exist, create it
 		if (not fs::exists(sfp))
-		{
-			// Stockholm file does not exist, create it
 			RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), sfp);
-		}
 
 		fs::ifstream sf(sfp, ios::binary);
 		if (not sf.is_open())
