@@ -309,6 +309,8 @@ inline seq::basic_iterator<T> operator-(seq::basic_iterator<T> i, int o)
 //typedef boost::ptr_vector<seq> mseq;
 typedef vector<seq>				mseq;
 
+const uint32 kBlockSize = 512;
+
 seq::seq_impl::seq_impl(const string& id)
 	: m_id(id)
 	, m_identical(0)
@@ -323,7 +325,7 @@ seq::seq_impl::seq_impl(const string& id)
 	, m_seq(nil)
 	, m_refcount(1)
 	, m_size(0)
-	, m_space(10000)
+	, m_space(kBlockSize)
 {
 	m_ifir = m_ilas = m_jfir = m_jlas = 0;
 	m_data = m_seq = new char[m_space];
@@ -388,7 +390,14 @@ void seq::swap(seq& o)
 void seq::append(const string& seq)
 {
 	if (m_impl->m_size + seq.length() > m_impl->m_space)
-		THROW(("Alignment width too large"));
+	{
+		// double the storage for the sequences
+		uint32 n = m_impl->m_space * 2;
+		char* p = new char[n];
+		delete [] m_impl->m_data;
+		m_impl->m_data = m_impl->m_seq = p;
+		m_impl->m_space = n;
+	}
 
 	memcpy(m_impl->m_seq + m_impl->m_size, seq.c_str(), seq.length());
 	m_impl->m_end = m_impl->m_size += seq.length();

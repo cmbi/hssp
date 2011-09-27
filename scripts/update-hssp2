@@ -9,8 +9,12 @@ include hssp2.config
 RAWDIR			?= /data/raw/
 FASTADIR		?= /data/fasta/
 DSSPDIR			?= /data/raw/dssp/
-HSSP2DIR		?= /data/raw/hssp2/
-HSSP2DATADIR	= $(HSSP2DIR)data/
+
+# directories for HSSP2
+HSSP2DIR		?= /data/hssp2/
+HSSP2FADIR		?= $(HSSP2DIR)fasta/
+HSSP2HSSPDIR	?= $(HSSP2DIR)hssp/
+HSSP2STODIR		?= $(HSSP2DIR)sto/
 
 # programs
 CDHIT			?= cd-hit
@@ -18,48 +22,32 @@ PERL			?= perl
 MRS_BUILD		?= /usr/local/bin/mrs-build
 MKHSSP			?= /home/maarten/projects/mas/mkhssp
 
-# 
-DIRS			= $(HSSP2DATADIR)
-
 # source data
 UNIREF			?= $(FASTADIR)/uniref100.fa
 DSSP_FILES		?= $(wildcard $(DSSPDIR)*.dssp)
 DSSP_IDS		= $(DSSP_FILES:$(DSSPDIR)%.dssp=%)
 
-VPATH			= :$(HSSP2DATADIR):
+VPATH			= :$(STOCKDIR):
 
 # The HSSP2 files we need to create
 
-HSSP2_FILES		= $(DSSP_IDS:%=$(HSSP2DIR)%.hssp.bz2)
+HSSP2_FILES		= $(DSSP_IDS:%=$(HSSP2HSSPDIR)%.hssp.bz2)
 
 # The Stockholm files we need:
 
 FASTA_FILES		= $(wildcard $(HSSP_TMP_DIR)*.fa)
 TBL_FILES		= $(FASTA_FILES:%.fa=%.tbl)
 
-hssp2: $(HSSP2DIR)dssp-nr-100.fa $(HSSP2_FILES)
+hssp2: $(FASTADIR)dssp-nr-100.fa $(HSSP2_FILES)
 
-$(HSSP2DIR)dssp.fa: $(DSSP_FILES)
-	$(PERL) dssp2fasta.pl $(DSSPDIR) $@ $(HSSP2DATADIR)
+$(FASTADIR)dssp.fa: $(DSSP_FILES)
+	$(PERL) dssp2fasta.pl $(DSSPDIR) $@ $(STOCKDIR)
+
+$(FASTADIR)dssp-nr-100.fa: $(FASTADIR)dssp.fa
+	$(CDHIT) -i $< -o $@ -c 1.0 -T 0 -s 0.9
+	$(PERL) split-fasta.pl $@ $(HSSP2FADIR)
 	$(MRS_BUILD) -d hssp2ix -fv
 
-$(HSSP2DIR)dssp-nr-100.fa $(HSSP2DATADIR)hssp2.depends: $(HSSP2DIR)dssp.fa
-	$(CDHIT) -i $< -o $@ -c 1.0 -T 0 -s 0.9
-	$(PERL) split-fasta.pl $@ $(HSSP2DATADIR)
-
-#$(HSSP2DATADIR)%.sto.bz2: $(HSSP2DATADIR)%.fa
-#	jackhmmer --noali -o /dev/null -A $(@:.bz2=) $< $(UNIREF)
-#	bzip2 $(@:.bz2=)
-
-$(HSSP2DIR)%.hssp.bz2: $(DSSPDIR)%.dssp
-	$(MKHSSP) $(@F:.hssp.bz2=) --fastadir=$(FASTADIR) --datadir=$(HSSP2DATADIR) $@ || \
+$(HSSP2HSSPDIR)%.hssp.bz2: $(DSSPDIR)%.dssp
+	$(MKHSSP) $(@F:.hssp.bz2=) --fastadir=$(FASTADIR) --datadir=$(HSSP2STODIR) $@ || \
 		echo $(@F:.hssp.bz2=) >> hssp2.skip
-
-test1: $(FIRST_10_TBL)
-
-dirs: $(DIRS)
-
-# include $(HSSP2DATADIR)hssp2.depends
-
-$(DIRS):
-	mkdir -p $@
