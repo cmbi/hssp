@@ -47,11 +47,20 @@
 #include "structure.h"
 #include "utils.h"
 #include "hmmer-hssp.h"
+#include "mkhssp.h"
 
 using namespace std;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
+
+// Globals section
+
+fs::path gTempDir	= "/tmp/hssp-2/";
+uint32 gMaxRunTime	= 3600;
+uint32 gNrOfThreads;
+
+// main
 
 int main(int argc, char* argv[])
 {
@@ -75,7 +84,9 @@ int main(int argc, char* argv[])
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("databank,b",	po::value<string>(), "Databank to use (default is uniref100)")
 			("fastadir,f",	po::value<string>(), "Directory containing fasta databank files)")
+			("tmpdir",		po::value<string>(), "Directory used for temporary files (default=/tmp/hssp-2)")
 			("jackhmmer",	po::value<string>(), "Jackhmmer executable path (default=/usr/local/bin/jackhmmer)")
+			("no-jackhmmer",					 "Do not run jackhmmer when needed, but exit with error")
 			("max-runtime",	po::value<uint32>(), "Max runtime in seconds for jackhmmer (default = 3600)")
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
 			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
@@ -127,28 +138,30 @@ int main(int argc, char* argv[])
 			jackhmmer = fs::path(vm["jackhmmer"].as<string>());
 		if (chains.empty() and not fs::exists(jackhmmer))
 			throw mas_exception("Jackhmmer executable not found");
+		if (vm.count("no-jackhmmer"))
+			jackhmmer.clear();
 		
-		uint32 maxruntime = 3600;
 		if (vm.count("max-runtime"))
-			maxruntime = vm["max-runtime"].as<uint32>();
-		hmmer::SetMaxRunTime(maxruntime);
+			gMaxRunTime = vm["max-runtime"].as<uint32>();
 		
 		uint32 maxhits = 1500;
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
 
-		uint32 threads = boost::thread::hardware_concurrency();
+		gNrOfThreads = boost::thread::hardware_concurrency();
 		if (vm.count("threads"))
-			threads = vm["threads"].as<uint32>();
-		if (threads < 1)
-			threads = 1;
-		hmmer::SetNrOfThreads(threads);
+			gNrOfThreads = vm["threads"].as<uint32>();
+		if (gNrOfThreads < 1)
+			gNrOfThreads = 1;
 			
 		fs::path fastadir("/data/fasta");
 		if (vm.count("fastadir"))
 			fastadir = fs::path(vm["fastadir"].as<string>());
 		if (chains.empty() and not fs::exists(fastadir))
 			throw mas_exception("Fasta databank directory not found");
+			
+		if (vm.count("tmpdir"))
+			gTempDir = fs::path(vm["tmpdir"].as<string>());
 			
 		uint32 iterations = 5;
 		if (vm.count("iterations"))

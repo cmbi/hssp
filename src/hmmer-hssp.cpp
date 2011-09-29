@@ -41,6 +41,7 @@
 #include "structure.h"
 #include "utils.h"
 #include "hmmer-hssp.h"
+#include "mkhssp.h"		// for our globals
 
 #if P_WIN
 #pragma warning (disable: 4267)
@@ -810,7 +811,7 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 	
 	HUuid uuid;
 	
-	fs::path rundir("/tmp/hssp-2/");
+	fs::path rundir(gTempDir);
 	rundir /= boost::lexical_cast<string>(uuid);
 	fs::create_directories(rundir);
 	
@@ -1496,10 +1497,10 @@ void CreateHSSPOutput(
 uint32 kSentinel = numeric_limits<uint32>::max();
 boost::mutex sSumLock;
 
-void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<double>& csumvar, vector<double>& csumdist)
+void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& csumvar, vector<float>& csumdist)
 {
 	const seq& s = msa.front();
-	vector<double> sumvar(s.length()), sumdist(s.length()), simval(s.length());
+	vector<float> sumvar(s.length()), sumdist(s.length()), simval(s.length());
 
 	for (;;)
 	{
@@ -1541,16 +1542,16 @@ void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<double>& c
 					if (ri != -1 and rj != -1)
 						simval[k] = kD(ri, rj);
 					else
-						simval[k] = numeric_limits<double>::min();
+						simval[k] = numeric_limits<float>::min();
 				}
 			}
 
 			if (len > 0)
 			{
-				double distance = 1 - (double(agr) / double(len));
+				float distance = 1 - (float(agr) / float(len));
 				for (uint32 k = b; k < e; ++k)
 				{
-					if (simval[k] != numeric_limits<double>::min())
+					if (simval[k] != numeric_limits<float>::min())
 					{
 						sumvar[k] += distance * simval[k];
 						sumdist[k] += distance * 1.5f;
@@ -1565,8 +1566,8 @@ void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<double>& c
 	// accumulate our data
 	boost::mutex::scoped_lock l(sSumLock);
 	
-	transform(sumvar.begin(), sumvar.end(), csumvar.begin(), csumvar.begin(), plus<double>());
-	transform(sumdist.begin(), sumdist.end(), csumdist.begin(), csumdist.begin(), plus<double>());
+	transform(sumvar.begin(), sumvar.end(), csumvar.begin(), csumvar.begin(), plus<float>());
+	transform(sumdist.begin(), sumdist.end(), csumdist.begin(), csumdist.begin(), plus<float>());
 }
 
 void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>& res)
@@ -1579,7 +1580,7 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 	//msa.erase(remove_if(msa.begin(), msa.end(), boost::bind(&seq::pruned, _1)), msa.end());
 
 	const seq& s = msa.front();
-	vector<double> sumvar(s.length()), sumdist(s.length());
+	vector<float> sumvar(s.length()), sumdist(s.length());
 	
 	// Calculate conservation weights in multiple threads to gain speed.
 	buffer<uint32> b;
@@ -1894,7 +1895,12 @@ void CreateHSSP(
 		
 		// if stockholm file does not exist, create it
 		if (not fs::exists(sfp))
+		{
+			if (inJackHmmer.empty())
+				THROW(("Need to run jackhmmer to generate '%s', but no-jackhmmer was specified", sfp.string().c_str()));
+			
 			RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), sfp);
+		}
 
 		fs::ifstream sf(sfp, ios::binary);
 		if (not sf.is_open())
