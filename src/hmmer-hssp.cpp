@@ -103,23 +103,23 @@ static const symmetric_matrix<float> kD(kDayhoffData, 20);
 
 // Residue to index mapping
 const int8 kResidueIX[256] = {
-	//   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+	//   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  0
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  1
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  2 
+	-2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -2, -2, -1, //  2 
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  3 
 	-1,  8, -1, 12, 19, 17,  4,  7, 13,  2, -1, 15,  1,  3, 18, -1, //  4 
-	 9, 16, 14, 10, 11, -1,  0,  5, -1,  6, -1, -1, -1, -1, -1, -1, //  5 
-	-1,  8, -1, 12, 19, 17,  4,  7, 13,  2, -1, 15,  1,  3, 18, -1, //  4 
-	 9, 16, 14, 10, 11, -1,  0,  5, -1,  6, -1, -1, -1, -1, -1, -1, //  5 
+	 9, 16, 14, 10, 11, -1,  0,  5, -1,  6, -1, -1, -1, -1, -1, -2, //  5 
+	-1,  8, -1, 12, 19, 17,  4,  7, 13,  2, -1, 15,  1,  3, 18, -1, //  6 
+	 9, 16, 14, 10, 11, -1,  0,  5, -1,  6, -1, -1, -1, -1, -1, -2, //  7 
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  8 
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  9 
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 10 
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 11 
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 12 
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 13 
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 14 
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1  // 15 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  A 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  B 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  C 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  D 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, //  E 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1  //  F 
 };
 
 // --------------------------------------------------------------------
@@ -127,7 +127,8 @@ const int8 kResidueIX[256] = {
 	
 inline bool is_gap(char aa)
 {
-	return aa == '-' or aa == '~' or aa == '.' or aa == '_' or aa == ' ';
+	return kResidueIX[uint8(aa)] == -2;
+	// == '-' or aa == '~' or aa == '.' or aa == '_' or aa == ' ';
 }
 
 void SetMaxRunTime(uint32 inSeconds)
@@ -571,8 +572,14 @@ void seq::seq_impl::update(const seq_impl& qseq)
 		if (*qi == *si)
 			++m_identical;
 		
+		// validate the sequences while counting similarity
 		uint8 rq = kResidueIX[static_cast<uint8>(*qi)];
+		if (rq == -1)
+			THROW(("Invalid letter in query sequence (%c)", *qi));
 		uint8 rs = kResidueIX[static_cast<uint8>(*si)];
+		if (rs == -1)
+			THROW(("Invalid letter in query sequence (%c)", *si));
+		
 		if (rq >= 0 and rs >= 0 and kD(rq, rs) >= 0)
 			++m_similar;
 
@@ -658,12 +665,13 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 	
 	for (;;)
 	{
+		line.clear();
 		getline(is, line);
 		
 		if (line.empty())
 		{
-			if (is.eof())
-				break;
+			if (not is.good())
+				THROW(("Stockholm file is truncated or incomplete"));
 			continue;
 		}
 		
@@ -1883,7 +1891,7 @@ void CreateHSSP(
 		seqlength += seq.length();
 
 		fs::path sfp = inDataDir / (ch.substr(2) + ".sto.bz2");
-
+		
 		// if stockholm file does not exist, create it
 		if (not fs::exists(sfp))
 			RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), sfp);
@@ -1892,11 +1900,21 @@ void CreateHSSP(
 		if (not sf.is_open())
 			THROW(("Could not open stockholm file '%s'", sfp.string().c_str()));
 
+		if (VERBOSE)
+			cerr << "Using stockholm file '" << sfp << '\'' << endl;
+
 		io::filtering_stream<io::input> in;
 		in.push(io::bzip2_decompressor());
 		in.push(sf);
 
-		ReadStockholm(in, alignments[kchain], seq);
+		try {
+			ReadStockholm(in, alignments[kchain], seq);
+		}
+		catch (...)
+		{
+			cerr << "exception while reading file " << sfp << endl;
+			throw;
+		}
 
 		++kchain;
 	}

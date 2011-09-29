@@ -30,7 +30,8 @@ VPATH			= :$(STOCKDIR):
 
 # The HSSP2 files we need to create
 
-HSSP2_FILES		= $(DSSP_IDS:%=$(HSSP2DIR)%.hssp.bz2)
+HSSP2IDS		= $(filter-out $(sort $(shell cat $(HSSP2DIR)hssp2.skip)), $(DSSP_IDS))
+HSSP2_FILES		= $(HSSP2IDS:%=$(HSSP2DIR)%.hssp.bz2)
 
 # The Stockholm files we need:
 
@@ -49,4 +50,4 @@ $(FASTADIR)dssp-nr-100.fa: $(FASTADIR)dssp.fa
 
 $(HSSP2DIR)%.hssp.bz2: $(DSSPDIR)%.dssp
 	$(MKHSSP) $(@F:.hssp.bz2=) --fastadir=$(FASTADIR) --datadir=$(HSSP2STODIR) $@ || \
-		echo $(@F:.hssp.bz2=) >> hssp2.skip
+		echo $(@F:.hssp.bz2=) >> $(HSSP2DIR)hssp2.skip
