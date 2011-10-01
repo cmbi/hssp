@@ -996,7 +996,10 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 		{
 			mHeader = line;
 			ba::trim(mHeader);
-			mID = line.substr(62, 4);
+			if (line.length() >= 66)
+				mID = line.substr(62, 4);
+			else
+				mID = "UNDF";
 			continue;
 		}
 

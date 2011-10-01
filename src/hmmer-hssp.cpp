@@ -54,9 +54,6 @@ namespace io = boost::iostreams;
 namespace hmmer
 {
 
-// global, 5 minutes
-uint32 gMaxRunTime = 300, gNrOfThreads = boost::thread::hardware_concurrency();
-
 // precalculated threshold table for identity values between 10 and 80
 const double kHomologyThreshold[] = {
 	0.845468, 0.80398,  0.767997, 0.736414, 0.708413, 0.683373, 0.660811, 0.640351, 0.621688, 0.604579,
@@ -130,16 +127,6 @@ inline bool is_gap(char aa)
 {
 	return kResidueIX[uint8(aa)] == -2;
 	// == '-' or aa == '~' or aa == '.' or aa == '_' or aa == ' ';
-}
-
-void SetMaxRunTime(uint32 inSeconds)
-{
-	gMaxRunTime = inSeconds;
-}
-
-void SetNrOfThreads(uint32 inThreads)
-{
-	gNrOfThreads = inThreads;
 }
 
 // --------------------------------------------------------------------
