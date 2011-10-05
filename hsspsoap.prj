@@ -5,14 +5,17 @@
   <syspaths>
     <path>../libzeep</path>
     <path>/usr/include</path>
+	<path>../boost/include</path>
   </syspaths>
   <userpaths>
     <path>src</path>
     <path>../mrs/lib/Sources</path>
   </userpaths>
   <libpaths>
+	<path>/usr/lib</path>
     <path>../mrs/lib</path>
     <path>../libzeep</path>
+	<path>../boost/lib</path>
   </libpaths>
   <files>
     <group name="Sources">
@@ -26,7 +29,7 @@
       <file>utils.cpp</file>
     </group>
     <group name="Libraries">
-      <link>mrs</link>
+      <link>mrsd</link>
       <link>zeep</link>
       <link>boost_date_time</link>
       <link>boost_filesystem</link>

@@ -313,6 +313,7 @@ class MProtein
 {
   public:
 						MProtein() {}
+						MProtein(const std::string& inID, MChain* inChain);
 						~MProtein();
 
 	const std::string&	GetID() const					{ return mID; }

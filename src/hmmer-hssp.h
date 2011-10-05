@@ -1,4 +1,4 @@
-// maxhom version of hssp generating code
+// version of hssp using jackhmmer
 //
 //	Copyright, M.L. Hekkelman, UMC St. Radboud, Nijmegen
 //
@@ -14,12 +14,6 @@ class MProtein;
 
 namespace hmmer
 {
-
-void SetMaxRunTime(
-	uint32							inSeconds);
-	
-void SetNrOfThreads(
-	uint32							inThreads);
 	
 void CreateHSSP(
 	CDatabankPtr					inDatabank,
@@ -36,8 +30,8 @@ void CreateHSSP(
 	const std::string&				inProtein,
 	const boost::filesystem::path&	inFastaDir,
 	const boost::filesystem::path&	inJackHmmer,
-	uint32							inMaxHits,
 	uint32							inIterations,
+	uint32							inMaxHits,
 	std::ostream&					outHSSP);
 
 void CreateHSSP(

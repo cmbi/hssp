@@ -191,16 +191,12 @@ class seq
 	char&		operator[](uint32 offset)
 				{
 					assert(offset < m_impl->m_size);
-					//uint32 ix = offset / sizeof(fragment);
-					//return m_seq[ix].m_char[offset % sizeof(fragment)];
 					return m_impl->m_seq[offset];
 				}
 
 	char		operator[](uint32 offset) const
 				{
 					assert(offset < m_impl->m_size);
-					//uint32 ix = offset / sizeof(fragment);
-					//return m_seq[ix].m_char[offset % sizeof(fragment)];
 					return m_impl->m_seq[offset];
 				}
 
@@ -635,7 +631,7 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 	string line, qseq, qr;
 	getline(is, line);
 	if (line != "# STOCKHOLM 1.0")
-		throw mas_exception("Not a stockholm file");
+		throw mas_exception("Not a stockholm file, missing first line");
 
 	getline(is, line);
 	if (not ba::starts_with(line, "#=GF ID "))
@@ -920,7 +916,7 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 	const fs::path& jackhmmer, const string& db)
 {
 	// Jackhmmer as downloaded from http://hmmer.janelia.org/software is a cygwin application
-	// this means we can use 
+	// this means we can use it in windows too.
 
 	if (seq.empty())
 		THROW(("Empty sequence in RunJackHmmer"));
@@ -1709,47 +1705,6 @@ void ClusterSequences(vector<string>& s, vector<uint32>& ix)
 	}
 }
 
-#if 0
-void CreateHSSP(
-	CDatabankPtr		inDatabank,
-	const string&		inProtein,
-	const fs::path&		inFastaDir,
-	const fs::path&		inJackHmmer,
-	uint32				inIterations,
-	uint32				inMaxHits,
-	ostream&			outHSSP)
-{
-	hit_list hits;
-	res_list res;
-	mseq alignment;
-
-	RunJackHmmer(inProtein, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignment);
-
-	MChain chain('A');
-	vector<MResidue*>& residues = chain.GetResidues();
-	MResidue* last = nil;
-	uint32 nr = 1;
-	foreach (char r, inProtein)
-	{
-		residues.push_back(new MResidue(nr, r, last));
-		++nr;
-		last = residues.back();
-	}
-	
-	ChainToHits(inDatabank, alignment, chain, hits, res);
-
-	sort(hits.begin(), hits.end(), compare_hit());
-	if (hits.size() > 9999)
-		hits.erase(hits.begin() + 9999, hits.end());
-	
-	nr = 1;
-	foreach (hit_ptr h, hits)
-		h->nr = nr++;
-
-	CreateHSSPOutput("UNKN", "", inDatabank->GetVersion(), inProtein.length(),
-		1, 1, "A", hits, res, outHSSP);
-}
-
 void CreateHSSP(
 	CDatabankPtr		inDatabank,
 	MProtein&			inProtein,
@@ -1760,16 +1715,10 @@ void CreateHSSP(
 	uint32				inMinSeqLength,
 	ostream&			outHSSP)
 {
-	uint32 seqlength = 0;
-
-	hit_list hits;
-	res_list res;
-
 	// construct a set of unique sequences, containing only the largest ones in case of overlap
 	vector<string> seqset;
 	vector<uint32> ix;
 	vector<const MChain*> chains;
-	uint32 kchain = 0;
 	
 	foreach (const MChain* chain, inProtein.GetChains())
 	{
@@ -1785,7 +1734,7 @@ void CreateHSSP(
 	}
 	
 	if (seqset.empty())
-		THROW(("Not enough sequences in DSSP file of length %d", inMinSeqLength));
+		THROW(("Not enough sequences in PDB file of length %d", inMinSeqLength));
 
 	if (seqset.size() > 1)
 		ClusterSequences(seqset, ix);
@@ -1793,57 +1742,53 @@ void CreateHSSP(
 	// only take the unique sequences
 	ix.erase(unique(ix.begin(), ix.end()), ix.end());
 
-	// Maybe we should change this code to run jackhmmer only once 
-	vector<mseq> alignments(seqset.size());
-	foreach (uint32 i, ix)
-		RunJackHmmer(seqset[i], inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignments[i]);
+	// now create a stockholmid array
+	vector<string> stockholmIds;
 	
 	foreach (uint32 i, ix)
 	{
 		const MChain* chain = chains[i];
 		
-		string& seq = seqset[i];
-		assert(not seq.empty());
-		seqlength += seq.length();
-
-		if (not res.empty())
-			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
-
-		ChainToHits(inDatabank, alignments[i], *chain, hits, res);
-		++kchain;
-	}
-
-	sort(hits.begin(), hits.end(), compare_hit());
-	if (hits.size() > 9999)
-		hits.erase(hits.begin() + 9999, hits.end());
-	
-	uint32 nr = 1;
-	foreach (hit_ptr h, hits)
-		h->nr = nr++;
-	
-	string usedChains;
-	foreach (uint32 i, ix)
-	{
-		if (not usedChains.empty())
-			usedChains += ',';
-		usedChains += chains[i]->GetChainID();
+		stringstream s;
+		s << chain->GetChainID() << '=' << inProtein.GetID() << '-' << stockholmIds.size();
+		stockholmIds.push_back(s.str());
 	}
 	
-	stringstream desc;
-	if (inProtein.GetHeader().length() >= 50)
-		desc << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl;
-	if (inProtein.GetCompound().length() > 10)
-		desc << "COMPND     " + inProtein.GetCompound().substr(10) << endl;
-	if (inProtein.GetSource().length() > 10)
-		desc << "SOURCE     " + inProtein.GetSource().substr(10) << endl;
-	if (inProtein.GetAuthor().length() > 10)
-		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
-
-	CreateHSSPOutput(inProtein.GetID(), desc.str(), inDatabank->GetVersion(), seqlength,
-		chains.size(), kchain, usedChains, hits, res, outHSSP);
+	CreateHSSP(inDatabank, inProtein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, outHSSP);
 }
 
-#endif
+void CreateHSSP(
+	CDatabankPtr		inDatabank,
+	const string&		inProtein,
+	const fs::path&		inFastaDir,
+	const fs::path&		inJackHmmer,
+	uint32				inIterations,
+	uint32				inMaxHits,
+	ostream&			outHSSP)
+{
+	hit_list hits;
+	res_list res;
+	mseq alignment;
+
+	RunJackHmmer(inProtein, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignment);
+
+	MChain* chain = new MChain('A');
+	vector<MResidue*>& residues = chain->GetResidues();
+	MResidue* last = nil;
+	uint32 nr = 1;
+	foreach (char r, inProtein)
+	{
+		residues.push_back(new MResidue(nr, r, last));
+		++nr;
+		last = residues.back();
+	}
+	
+	vector<string> stockholmIds;
+	stockholmIds.push_back("A=undf-1");
+	
+	MProtein protein("UNDF", chain);
+	CreateHSSP(inDatabank, protein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, outHSSP);
+}
 
 void CreateHSSP(
 	CDatabankPtr		inDatabank,
@@ -1878,35 +1823,50 @@ void CreateHSSP(
 		chain.GetSequence(seq);
 		seqlength += seq.length();
 
-		fs::path sfp = inDataDir / (ch.substr(2) + ".sto.bz2");
-		
-		// if stockholm file does not exist, create it
-		if (not fs::exists(sfp))
+		if (inDataDir.empty())
 		{
-			if (inJackHmmer.empty())
-				THROW(("Need to run jackhmmer to generate '%s', but no-jackhmmer was specified", sfp.string().c_str()));
+			try
+			{
+				RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignments[kchain]);
+			}
+			catch (...)
+			{
+				cerr << "exception while running jackhmmer for chain " << chain.GetChainID() << endl;
+				throw;
+			}
+		}
+		else
+		{
+			fs::path sfp = inDataDir / (ch.substr(2) + ".sto.bz2");
 			
-			RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), sfp);
-		}
-
-		fs::ifstream sf(sfp, ios::binary);
-		if (not sf.is_open())
-			THROW(("Could not open stockholm file '%s'", sfp.string().c_str()));
-
-		if (VERBOSE)
-			cerr << "Using stockholm file '" << sfp << '\'' << endl;
-
-		io::filtering_stream<io::input> in;
-		in.push(io::bzip2_decompressor());
-		in.push(sf);
-
-		try {
-			ReadStockholm(in, alignments[kchain], seq);
-		}
-		catch (...)
-		{
-			cerr << "exception while reading file " << sfp << endl;
-			throw;
+			// if stockholm file does not exist, create it
+			if (not fs::exists(sfp))
+			{
+				if (inJackHmmer.empty())
+					THROW(("Need to run jackhmmer to generate '%s', but no-jackhmmer was specified", sfp.string().c_str()));
+				
+				RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), sfp);
+			}
+	
+			fs::ifstream sf(sfp, ios::binary);
+			if (not sf.is_open())
+				THROW(("Could not open stockholm file '%s'", sfp.string().c_str()));
+	
+			if (VERBOSE)
+				cerr << "Using stockholm file '" << sfp << '\'' << endl;
+	
+			io::filtering_stream<io::input> in;
+			in.push(io::bzip2_decompressor());
+			in.push(sf);
+	
+			try {
+				ReadStockholm(in, alignments[kchain], seq);
+			}
+			catch (...)
+			{
+				cerr << "exception while reading file " << sfp << endl;
+				throw;
+			}
 		}
 
 		++kchain;

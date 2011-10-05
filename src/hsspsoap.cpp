@@ -51,6 +51,10 @@ namespace po = boost::program_options;
 
 // globals
 
+fs::path gTempDir	= "/tmp/hssp-2/";
+uint32 gMaxRunTime	= 3600;
+uint32 gNrOfThreads;
+
 void GetDSSPForSequence(
 	const string&		inSequence,
 	string&				outDSSP)
@@ -156,7 +160,9 @@ class hssp_server : public zeep::server
   public:
 					hssp_server(
 						const fs::path&	inJackhmmer,
-						const fs::path&	inFastaDir);
+						const fs::path&	inFastaDir,
+						const string&	inDatabank,
+						uint32			inIterations);
 
 	virtual void	handle_request(
 						const zeep::http::request&	req,
@@ -175,13 +181,18 @@ class hssp_server : public zeep::server
 						string&			hssp);
 
 	CDatabankTable	mDBTable;
+	string			mDatabank;
 	fs::path		mJackhmmer, mFastaDir;
+	uint32			mIterations;
 };
 
-hssp_server::hssp_server(const fs::path& inJackhmmer, const fs::path& inFastaDir)
+hssp_server::hssp_server(const fs::path& inJackhmmer, const fs::path& inFastaDir,
+	const string& inDatabank, uint32 inIterations)
 	: zeep::server("http://www.cmbi.ru.nl/hsspsoap", "hsspsoap")
+	, mDatabank(inDatabank)
 	, mJackhmmer(inJackhmmer)
 	, mFastaDir(inFastaDir)
+	, mIterations(inIterations)
 {
 	const char* kGetDSSPForPDBFileParameterNames[] = {
 		"pdbfile", "dssp"
@@ -327,19 +338,19 @@ void hssp_server::GetHSSPForPDBFile(
 	a.CalculateSecondaryStructure();
 
 	// finally, create the HSSP
-	CDatabankPtr db = mDBTable.Load("uniprot");
+	CDatabankPtr db = mDBTable.Load(mDatabank);
 	io::filtering_ostream out(io::back_inserter(hssp));
-	hmmer::CreateHSSP(db, a, mFastaDir.string(), mJackhmmer.string(), 5, 25, out);
+	hmmer::CreateHSSP(db, a, mFastaDir, mJackhmmer, mIterations, 1500, 25, out);
 }
 
 void hssp_server::GetHSSPForSequence(
 	const string&				sequence,
 	string&						hssp)
 {
-	CDatabankPtr db = mDBTable.Load("uniprot");
+	CDatabankPtr db = mDBTable.Load(mDatabank);
 
 	io::filtering_ostream out(io::back_inserter(hssp));
-	hmmer::CreateHSSP(db, sequence, mFastaDir.string(), mJackhmmer.string(), 5, out);
+	hmmer::CreateHSSP(db, sequence, mFastaDir, mJackhmmer, mIterations, 1500, out);
 }
 
 // --------------------------------------------------------------------
@@ -439,7 +450,11 @@ int main(int argc, char* argv[])
 		("port,p",		po::value<uint16>(),	"port to bind to")
 		("location,l",	po::value<string>(),	"location advertised in wsdl")
 		("user,u",		po::value<string>(),	"user to run as")
+		("threads,a",	po::value<uint32>(),	"number of threads to use")
 		("jackhmmer",	po::value<string>(),	"Path to the jackhmmer application")
+		("iterations",	po::value<uint32>(),	"Number of jackhmmer iterations (default=5)")
+		("tmpdir",		po::value<string>(),	"Scratch directory")
+		("databank",	po::value<string>(),	"Databank to use (default = uniprot)")
 		("fasta-dir",	po::value<string>(),	"Directory containing FastA formatted uniprot databank")
 		("no-daemon,D",							"do not fork a daemon")
 		("max-runtime",	po::value<uint16>(),	"Maximum runtime for jackhmmer in seconds")
@@ -480,10 +495,27 @@ int main(int argc, char* argv[])
 		user = vm["user"].as<string>();
 
 	if (vm.count("max-runtime"))
-		hmmer::SetMaxRunTime(vm["max-runtime"].as<uint16>());
+		gMaxRunTime = vm["max-runtime"].as<uint16>();
 
+	gNrOfThreads = boost::thread::hardware_concurrency();
+	if (vm.count("threads"))
+		gNrOfThreads = vm["threads"].as<uint32>();
+	if (gNrOfThreads < 1)
+		gNrOfThreads = 1;
+
+	if (vm.count("tmpdir"))
+		gTempDir = fs::path(vm["tmpdir"].as<string>());
+		
 	if (vm.count("verbose"))
 		VERBOSE = 1;
+		
+	uint32 iterations = 5;
+	if (vm.count("iterations"))
+		iterations = vm["iterations"].as<uint32>();
+	
+	string databank = "uniprot";
+	if (vm.count("databank"))
+		databank = vm["databank"].as<string>();
 
 	string jackhmmer = "/usr/local/bin/jackhmmer";
 	if (vm.count("jackhmmer"))
@@ -521,7 +553,7 @@ int main(int argc, char* argv[])
 #endif
 	
 	// create server
-	hssp_server server(jackhmmer, fastadir);
+	hssp_server server(jackhmmer, fastadir, databank, iterations);
 	server.bind(address, port);
 	
 	if (not location.empty())

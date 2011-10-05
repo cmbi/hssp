@@ -1189,6 +1189,12 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 		throw mas_exception("empty protein, or no valid complete residues");
 }
 
+MProtein::MProtein(const string& inID, MChain* inChain)
+	: mID(inID)
+{
+	mChains.push_back(inChain);
+}
+
 MProtein::~MProtein()
 {
 	foreach (MChain* chain, mChains)
