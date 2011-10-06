@@ -81,6 +81,11 @@ mkhssp: $(OBJ)/mkhssp.o $(OBJ)/dssp.o $(OBJ)/hmmer-hssp.o $(OBJ)/matrix.o $(OBJ)
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
+sto2fa: $(OBJ)/sto2fa.o $(OBJ)/dssp.o $(OBJ)/hmmer-hssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
+	@ echo linking $@
+	@ $(CC) -o $@ $^ $(LDOPTS)
+	@ echo OK
+
 hsspsoap: $(OBJ)/blast.o $(OBJ)/dssp.o $(OBJ)/hsspsoap.o $(OBJ)/matrix.o $(OBJ)/maxhom-hssp.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS)
