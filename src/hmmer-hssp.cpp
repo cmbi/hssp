@@ -1427,6 +1427,7 @@ void CreateHSSPOutput(
 	CDatabankPtr		inDatabank,
 	const string&		inProteinID,
 	const string&		inProteinDescription,
+	float				inThreshold,
 	uint32				inSeqLength,
 	uint32				inNChain,
 	uint32				inKChain,
@@ -1439,12 +1440,13 @@ void CreateHSSPOutput(
 	date today = day_clock::local_day();
 	
 	// print the header
-	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0d2 2011" << endl
+	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0 2011" << endl
 	   << "PDBID      " << inProteinID << endl
 	   << "DATE       file generated on " << to_iso_extended_string(today) << endl
 	   << "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << endl
-	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + 5" << endl
-	   << "CONTACT    This version: Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
+	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << endl
+	   << "REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991)." << endl
+	   << "CONTACT    Maintained at http://www.cmbi.ru.nl/ by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
 	   << inProteinDescription
 	   << boost::format("SEQLENGTH  %4.4d") % inSeqLength << endl
 	   << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
@@ -1453,6 +1455,32 @@ void CreateHSSPOutput(
 		os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % inKChain << inUsedChains << endl;
 	
 	os << boost::format("NALIGN     %4.4d") % hits.size() << endl
+	   << "NOTATION : ID: EMBL/SWISSPROT identifier of the aligned (homologous) protein" << endl
+	   << "NOTATION : STRID: if the 3-D structure of the aligned protein is known, then STRID is the Protein Data Bank identifier as taken" << endl
+	   << "NOTATION : from the database reference or DR-line of the EMBL/SWISSPROT entry" << endl
+	   << "NOTATION : %IDE: percentage of residue identity of the alignment" << endl
+	   << "NOTATION : %SIM (%WSIM):  (weighted) similarity of the alignment" << endl
+	   << "NOTATION : IFIR/ILAS: first and last residue of the alignment in the test sequence" << endl
+	   << "NOTATION : JFIR/JLAS: first and last residue of the alignment in the alignend protein" << endl
+	   << "NOTATION : LALI: length of the alignment excluding insertions and deletions" << endl
+	   << "NOTATION : NGAP: number of insertions and deletions in the alignment" << endl
+	   << "NOTATION : LGAP: total length of all insertions and deletions" << endl
+	   << "NOTATION : LSEQ2: length of the entire sequence of the aligned protein" << endl
+	   << "NOTATION : ACCNUM: SwissProt accession number" << endl
+	   << "NOTATION : PROTEIN: one-line description of aligned protein" << endl
+	   << "NOTATION : SeqNo,PDBNo,AA,STRUCTURE,BP1,BP2,ACC: sequential and PDB residue numbers, amino acid (lower case = Cys), secondary" << endl
+	   << "NOTATION : structure, bridge partners, solvent exposure as in DSSP (Kabsch and Sander, Biopolymers 22, 2577-2637(1983)" << endl
+	   << "NOTATION : VAR: sequence variability on a scale of 0-100 as derived from the NALIGN alignments" << endl
+	   << "NOTATION : pair of lower case characters (AvaK) in the alignend sequence bracket a point of insertion in this sequence" << endl
+	   << "NOTATION : dots (....) in the alignend sequence indicate points of deletion in this sequence" << endl
+	   << "NOTATION : SEQUENCE PROFILE: relative frequency of an amino acid type at each position. Asx and Glx are in their" << endl
+	   << "NOTATION : acid/amide form in proportion to their database frequencies" << endl
+	   << "NOTATION : NOCC: number of aligned sequences spanning this position (including the test sequence)" << endl
+	   << "NOTATION : NDEL: number of sequences with a deletion in the test protein at this position" << endl
+	   << "NOTATION : NINS: number of sequences with an insertion in the test protein at this position" << endl
+	   << "NOTATION : ENTROPY: entropy measure of sequence variability at this position" << endl
+	   << "NOTATION : RELENT: relative entropy, i.e.  entropy normalized to the range 0-100" << endl
+	   << "NOTATION : WEIGHT: conservation weight" << endl
 	   << endl
 	   << "## PROTEINS : identifier and alignment statistics" << endl
 	   << "  NR.    ID         STRID   %IDE %WSIM IFIR ILAS JFIR JLAS LALI NGAP LGAP LSEQ2 ACCNUM     PROTEIN" << endl;
@@ -1993,6 +2021,8 @@ void CreateHSSP(
 					
 					io::filtering_stream<io::output> out;
 					out.push(io::bzip2_compressor());
+					out.push(ff);
+
 					WriteFastA(out, alignments[kchain]);
 				}
 			}
@@ -2061,7 +2091,7 @@ void CreateHSSP(
 	if (inProtein.GetAuthor().length() > 10)
 		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
 
-	CreateHSSPOutput(inDatabank, inProtein.GetID(), desc.str(), seqlength,
+	CreateHSSPOutput(inDatabank, inProtein.GetID(), desc.str(), inCutOff, seqlength,
 		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
 }
 

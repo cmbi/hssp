@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
-			("databank,b",	po::value<string>(), "Databank to use (default is uniref100)")
+			("databank,b",	po::value<string>(), "Databank to use (default is uniprot)")
 			("fastadir,f",	po::value<string>(), "Directory containing fasta databank files)")
 			("tmpdir",		po::value<string>(), "Directory used for temporary files (default=/tmp/hssp-2)")
 			("jackhmmer",	po::value<string>(), "Jackhmmer executable path (default=/usr/local/bin/jackhmmer)")
@@ -126,7 +126,7 @@ int main(int argc, char* argv[])
 		if (vm.count("debug"))
 			VERBOSE = vm["debug"].as<int>();
 		
-		string databank = "uniref100";
+		string databank = "uniprot";
 		if (vm.count("databank"))
 			databank = vm["databank"].as<string>();
 			
