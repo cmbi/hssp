@@ -178,7 +178,7 @@ class seq
 	void		update(const seq& qseq);
 	static void	update_all(buffer<seq*>& b, const seq& qseq);
 	
-	float		score() const;
+	float		score() const						{ return m_impl->m_score; }
 
 	bool		drop() const;
 	bool		pruned() const						{ return m_impl->m_pruned; }
@@ -722,7 +722,7 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 		cerr << " done, alignment width = " << n << endl << "Checking for threshold...";
 
 	// first cut the msa, if needed:
-	if (q != qr)
+	if (not q.empty() and q != qr)
 	{
 		if (qr.length() < q.length())
 			THROW(("Query used for Stockholm file is too short for the chain"));
@@ -775,11 +775,25 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 	else
 		for_each(msa.begin() + 1, msa.end(), boost::bind(&seq::update, _1, msa.front()));
 
-	// Remove all hits that are not above the threshold here
-	msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
-
 	if (VERBOSE)
 		cerr << "done" << endl;
+}
+
+void WriteFastA(ostream& os, mseq& msa)
+{
+	foreach (const seq& s, msa)
+	{
+		os << '>' << s.id() << ' ' << s.score() << '|' << s.identical() << endl;
+		
+		uint32 n = 0;
+		for (seq::const_iterator r = s.begin(); r != s.end(); ++r)
+		{
+			os << *r;
+			if (++n % 72 == 0)
+				os << endl;
+		}
+		os << endl;
+	}
 }
 
 #if P_UNIX
@@ -1114,6 +1128,9 @@ void RunJackHmmer(const string& seq, uint32 iterations,
 	fs::ifstream is(rundir / "output.sto");
 	ReadStockholm(is, msa, seq);
 	is.close();
+
+	// Remove all hits that are not above the threshold here
+	msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
 
 	// read in the result
 	if (not fs::exists(rundir / "output.sto"))
@@ -1861,6 +1878,10 @@ void CreateHSSP(
 	
 			try {
 				ReadStockholm(in, alignments[kchain], seq);
+
+				// Remove all hits that are not above the threshold here
+				mseq& msa = alignments[kchain];
+				msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
 			}
 			catch (...)
 			{
@@ -1925,6 +1946,43 @@ void CreateHSSP(
 
 	CreateHSSPOutput(inDatabank, inProtein.GetID(), desc.str(), seqlength,
 		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
+}
+
+void ConvertHmmerAlignment(
+	const string&	inQuerySequence,
+	const fs::path&	inStockholmFile,
+	const fs::path&	inFastaFile)
+{
+	fs::ifstream sf(inStockholmFile, ios::binary);
+	if (not sf.is_open())
+		THROW(("Could not open stockholm file '%s'", inStockholmFile.string().c_str()));
+
+	io::filtering_stream<io::input> in;
+	if (inStockholmFile.extension() == ".bz2")
+		in.push(io::bzip2_decompressor());
+	else if (inStockholmFile.extension() == ".gz")
+		in.push(io::gzip_decompressor());
+	in.push(sf);
+
+	// read in the stockholm file
+	mseq msa;
+	ReadStockholm(in, msa, inQuerySequence);
+	
+	// sort the msa
+	sort(msa.begin(), msa.end());
+	
+	fs::ofstream ff(inFastaFile, ios::binary);
+	if (not ff.is_open())
+		THROW(("Could not create FastA file '%s'", inFastaFile.string().c_str()));
+	
+	io::filtering_stream<io::output> out;
+	if (inFastaFile.extension() == ".bz2")
+		out.push(io::bzip2_compressor());
+	else if (inFastaFile.extension() == ".gz")
+		out.push(io::gzip_compressor());
+	out.push(ff);
+	
+	WriteFastA(out, msa);
 }
 
 }

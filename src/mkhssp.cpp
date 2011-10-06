@@ -121,7 +121,7 @@ int main(int argc, char* argv[])
 			exit(1);
 		}
 
-		VERBOSE = vm.count("verbose");
+		VERBOSE = vm.count("verbose") ? 1 : 0;
 		if (vm.count("debug"))
 			VERBOSE = vm["debug"].as<int>();
 		
