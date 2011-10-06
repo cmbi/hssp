@@ -586,12 +586,15 @@ void seq::seq_impl::update(const seq_impl& qseq)
 	else
 	{
 		assert(m_begin <= m_size);
-		for (i = 0; i < m_begin; ++i)
-			m_seq[i] = ' ';
-	
 		assert(m_end <= m_size);
-		for (i = m_end; i < m_size; ++i)
-			m_seq[i] = ' ';
+
+		for (i = 0; i < m_size; ++i)
+		{
+			if (i < m_begin or i >= m_end)
+				m_seq[i] = ' ';
+			else if (is_gap(m_seq[i]))
+				m_seq[i] = '.';
+		}
 	}
 
 	m_score = float(m_identical) / m_length;
@@ -902,9 +905,13 @@ void WriteFastA(ostream& os, mseq& msa)
 		os << '>' << s.id() << ' ' << s.score() << '|' << s.identical() << endl;
 		
 		uint32 n = 0;
-		for (seq::const_iterator r = s.begin(); r != s.end(); ++r)
+		foreach (char r, s)
 		{
-			os << *r;
+			if (is_gap(r))
+				r = '-';
+			
+			os << r;
+
 			if (++n % 72 == 0)
 				os << endl;
 		}
