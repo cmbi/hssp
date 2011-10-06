@@ -25,6 +25,7 @@ void CreateHSSP(
 	uint32							inIterations,
 	uint32							inMaxHits,
 	uint32							inMinSeqLength,
+	float							inCutOff,
 	std::ostream&					outHSSP);
 
 void CreateHSSP(
@@ -34,6 +35,7 @@ void CreateHSSP(
 	const boost::filesystem::path&	inJackHmmer,
 	uint32							inIterations,
 	uint32							inMaxHits,
+	float							inCutOff,
 	std::ostream&					outHSSP);
 
 void CreateHSSP(
@@ -45,6 +47,7 @@ void CreateHSSP(
 	uint32							inIterations,
 	uint32							inMaxHits,
 	std::vector<std::string>		inStockholmIds,
+	float							inCutOff,
 	std::ostream&					outHSSP);
 
 // Create a FastA formatted aligment from a Stockholm file.

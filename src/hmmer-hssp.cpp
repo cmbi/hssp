@@ -56,14 +56,17 @@ namespace hmmer
 
 // precalculated threshold table for identity values between 10 and 80
 const double kHomologyThreshold[] = {
-	0.845468, 0.80398,  0.767997, 0.736414, 0.708413, 0.683373, 0.660811, 0.640351, 0.621688, 0.604579,
-	0.58882,  0.574246, 0.560718, 0.548117, 0.536344, 0.525314, 0.514951, 0.505194, 0.495984, 0.487275,
-	0.479023, 0.471189, 0.463741, 0.456647, 0.449882, 0.44342,  0.43724,  0.431323, 0.425651, 0.420207,
-	0.414976, 0.409947, 0.405105, 0.40044,  0.395941, 0.391599, 0.387406, 0.383352, 0.379431, 0.375636,
-	0.37196,  0.368396, 0.364941, 0.361587, 0.358331, 0.355168, 0.352093, 0.349103, 0.346194, 0.343362,
-	0.340604, 0.337917, 0.335298, 0.332744, 0.330252, 0.327821, 0.325448, 0.323129, 0.320865, 0.318652,
-	0.316488, 0.314372, 0.312302, 0.310277, 0.308294, 0.306353, 0.304452, 0.302589, 0.300764, 0.298975,
-	0.297221,
+	0.795468, 0.75398, 0.717997, 0.686414, 0.658413, 0.633373, 0.610811,
+	0.590351, 0.571688, 0.554579, 0.53882, 0.524246, 0.510718, 0.498117,
+	0.486344, 0.475314, 0.464951, 0.455194, 0.445984, 0.437275, 0.429023,
+	0.421189, 0.413741, 0.406647, 0.399882, 0.39342, 0.38724, 0.381323,
+	0.375651, 0.370207, 0.364976, 0.359947, 0.355105, 0.35044, 0.345941,
+	0.341599, 0.337406, 0.333352, 0.329431, 0.325636, 0.32196, 0.318396,
+	0.314941, 0.311587, 0.308331, 0.305168, 0.302093, 0.299103, 0.296194,
+	0.293362, 0.290604, 0.287917, 0.285298, 0.282744, 0.280252, 0.277821,
+	0.275448, 0.273129, 0.270865, 0.268652, 0.266488, 0.264372, 0.262302,
+	0.260277, 0.258294, 0.256353, 0.254452, 0.252589, 0.250764, 0.248975,
+	0.247221
 };
 
 // --------------------------------------------------------------------
@@ -180,7 +183,7 @@ class seq
 	
 	float		score() const						{ return m_impl->m_score; }
 
-	bool		drop() const;
+	bool		drop(float inThreshold) const;
 	bool		pruned() const						{ return m_impl->m_pruned; }
 	void		prune()								{ m_impl->m_pruned = true; }
 
@@ -312,10 +315,10 @@ seq::seq_impl::seq_impl(const string& id)
 	, m_seq(nil)
 	, m_refcount(1)
 	, m_size(0)
-	, m_space(kBlockSize)
+	, m_space(0)
 {
 	m_ifir = m_ilas = m_jfir = m_jlas = 0;
-	m_data = m_seq = new char[m_space];
+	m_data = m_seq = nil;
 }
 
 seq::seq_impl::~seq_impl()
@@ -378,8 +381,13 @@ void seq::append(const string& seq)
 {
 	if (m_impl->m_size + seq.length() > m_impl->m_space)
 	{
-		// double the storage for the sequences
-		uint32 n = m_impl->m_space * 2;
+		// increase storage for the sequences
+		uint32 k = m_impl->m_space;
+		if (k == 0)
+			k = kBlockSize;
+		uint32 n = k * 2;
+		if (n < seq.length())
+			n = seq.length();
 		char* p = new char[n];
 		memcpy(p, m_impl->m_data, m_impl->m_size);
 		delete [] m_impl->m_data;
@@ -589,11 +597,11 @@ void seq::seq_impl::update(const seq_impl& qseq)
 	m_score = float(m_identical) / m_length;
 }
 
-bool seq::drop() const
+bool seq::drop(float inThreshold) const
 {
 	uint32 ix = max(10U, min(m_impl->m_length, 80U)) - 10;
 	
-	bool result = m_impl->m_score < kHomologyThreshold[ix];
+	bool result = m_impl->m_score < kHomologyThreshold[ix] + inThreshold;
 	
 	if (result and VERBOSE > 2)
 		cerr << "dropping " << m_impl->m_id << " because identity " << m_impl->m_score << " is below threshold " << kHomologyThreshold[ix] << endl;
@@ -720,6 +728,114 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 
 	if (VERBOSE)
 		cerr << " done, alignment width = " << n << endl << "Checking for threshold...";
+
+	// first cut the msa, if needed:
+	if (not q.empty() and q != qr)
+	{
+		if (qr.length() < q.length())
+			THROW(("Query used for Stockholm file is too short for the chain"));
+
+		string::size_type offset = qr.find(q);
+		if (offset == string::npos)
+			THROW(("Invalid Stockholm file for chain"));
+		
+		seq::iterator r = msa.front().begin();
+		uint32 pos = 0;
+		for (; r != msa.front().end(); ++r)
+		{
+			if (is_gap(*r) or offset-- > 0)
+			{
+				++pos;
+				continue;
+			}
+			break;
+		}
+		
+		uint32 n = 0, length = q.length();
+		for (; r != msa.front().end(); ++r)
+		{
+			if (is_gap(*r) or length-- > 0)
+			{
+				++n;
+				continue;
+			}
+			break;
+		}
+
+		foreach (seq& s, msa)
+			s.cut(pos, n);
+	}
+	
+	// update seq counters, try to do this multi threaded
+	if (gNrOfThreads > 1)
+	{
+		buffer<seq*> b;
+		boost::thread_group threads;
+		for (uint32 t = 0; t < gNrOfThreads; ++t)
+			threads.create_thread(boost::bind(&seq::update_all, boost::ref(b), boost::ref(msa.front())));
+		
+		for (uint32 i = 1; i < msa.size(); ++i)
+			b.put(&msa[i]);
+	
+		b.put(nil);
+		threads.join_all();
+	}
+	else
+		for_each(msa.begin() + 1, msa.end(), boost::bind(&seq::update, _1, msa.front()));
+
+	if (VERBOSE)
+		cerr << "done" << endl;
+}
+
+void ReadFastA(istream& is, mseq& msa, const string& q)
+{
+	if (VERBOSE)
+		cerr << "Reading fasta file...";
+
+	for (;;)
+	{
+		string line;
+		
+		getline(is, line);
+		if (line.empty())
+		{
+			if (not is.good()) // end of file reached
+				break;
+			continue; // silently ignore empty lines
+		}
+		
+		if (line[0] == '>')
+		{
+			string id = line.substr(1);
+
+			string::size_type s = id.find(' ');
+			if (s != string::npos)
+				id.erase(s, string::npos);
+
+			msa.push_back(seq(id));
+		}
+		else
+			msa.back().append(line);
+	}
+
+	if (msa.size() < 2)
+		THROW(("Invalid alignment file, too few sequences"));
+	
+	uint32 l = msa.front().length();
+	mseq::iterator i = find_if(msa.begin() + 1, msa.end(), boost::bind(&seq::length, _1) != l);
+	if (i != msa.end())
+		THROW(("Invalid alignment file, not all sequences are of same length"));
+	
+	if (VERBOSE)
+		cerr << " done, alignment width = " << l << endl << "Checking for threshold...";
+
+	// fetch the first non-gapped sequence
+	string qr;
+	foreach (char r, msa.front())
+	{
+		if (not is_gap(r))
+			qr += r;
+	}
 
 	// first cut the msa, if needed:
 	if (not q.empty() and q != qr)
@@ -1128,9 +1244,6 @@ void RunJackHmmer(const string& seq, uint32 iterations,
 	fs::ifstream is(rundir / "output.sto");
 	ReadStockholm(is, msa, seq);
 	is.close();
-
-	// Remove all hits that are not above the threshold here
-	msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
 
 	// read in the result
 	if (not fs::exists(rundir / "output.sto"))
@@ -1730,6 +1843,7 @@ void CreateHSSP(
 	uint32				inIterations,
 	uint32				inMaxHits,
 	uint32				inMinSeqLength,
+	float				inCutOff,
 	ostream&			outHSSP)
 {
 	// construct a set of unique sequences, containing only the largest ones in case of overlap
@@ -1771,7 +1885,7 @@ void CreateHSSP(
 		stockholmIds.push_back(s.str());
 	}
 	
-	CreateHSSP(inDatabank, inProtein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, outHSSP);
+	CreateHSSP(inDatabank, inProtein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, inCutOff, outHSSP);
 }
 
 void CreateHSSP(
@@ -1781,13 +1895,11 @@ void CreateHSSP(
 	const fs::path&		inJackHmmer,
 	uint32				inIterations,
 	uint32				inMaxHits,
+	float				inCutOff,
 	ostream&			outHSSP)
 {
 	hit_list hits;
 	res_list res;
-	mseq alignment;
-
-	RunJackHmmer(inProtein, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignment);
 
 	MChain* chain = new MChain('A');
 	vector<MResidue*>& residues = chain->GetResidues();
@@ -1804,7 +1916,7 @@ void CreateHSSP(
 	stockholmIds.push_back("A=undf-1");
 	
 	MProtein protein("UNDF", chain);
-	CreateHSSP(inDatabank, protein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, outHSSP);
+	CreateHSSP(inDatabank, protein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, inCutOff, outHSSP);
 }
 
 void CreateHSSP(
@@ -1816,6 +1928,7 @@ void CreateHSSP(
 	uint32				inIterations,
 	uint32				inMaxHits,
 	vector<string>		inStockholmIds,
+	float				inCutOff,
 	ostream&			outHSSP)
 {
 	uint32 seqlength = 0;
@@ -1839,12 +1952,49 @@ void CreateHSSP(
 		string seq;
 		chain.GetSequence(seq);
 		seqlength += seq.length();
+		
+		// alignments are stored in datadir
+		fs::path afp = inDataDir / (ch.substr(2) + ".aln.bz2");
+		if (fs::exists(afp))
+		{
+			fs::path afp = inDataDir / (ch.substr(2) + ".aln.bz2");
 
-		if (inDataDir.empty())
+			fs::ifstream af(afp, ios::binary);
+			if (not af.is_open())
+				THROW(("Could not open alignment file '%s'", afp.string().c_str()));
+	
+			if (VERBOSE)
+				cerr << "Using fasta file '" << afp << '\'' << endl;
+	
+			io::filtering_stream<io::input> in;
+			in.push(io::bzip2_decompressor());
+			in.push(af);
+	
+			try {
+				ReadFastA(in, alignments[kchain], seq);
+			}
+			catch (...)
+			{
+				cerr << "exception while reading file " << afp << endl;
+				throw;
+			}
+		}
+		else
 		{
 			try
 			{
 				RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignments[kchain]);
+				
+				if (not inDataDir.empty())
+				{
+					fs::ofstream ff(afp, ios::binary);
+					if (not ff.is_open())
+						THROW(("Could not create FastA file '%s'", afp.string().c_str()));
+					
+					io::filtering_stream<io::output> out;
+					out.push(io::bzip2_compressor());
+					WriteFastA(out, alignments[kchain]);
+				}
 			}
 			catch (...)
 			{
@@ -1852,43 +2002,10 @@ void CreateHSSP(
 				throw;
 			}
 		}
-		else
-		{
-			fs::path sfp = inDataDir / (ch.substr(2) + ".sto.bz2");
-			
-			// if stockholm file does not exist, create it
-			if (not fs::exists(sfp))
-			{
-				if (inJackHmmer.empty())
-					THROW(("Need to run jackhmmer to generate '%s', but no-jackhmmer was specified", sfp.string().c_str()));
-				
-				RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), sfp);
-			}
-	
-			fs::ifstream sf(sfp, ios::binary);
-			if (not sf.is_open())
-				THROW(("Could not open stockholm file '%s'", sfp.string().c_str()));
-	
-			if (VERBOSE)
-				cerr << "Using stockholm file '" << sfp << '\'' << endl;
-	
-			io::filtering_stream<io::input> in;
-			in.push(io::bzip2_decompressor());
-			in.push(sf);
-	
-			try {
-				ReadStockholm(in, alignments[kchain], seq);
 
-				// Remove all hits that are not above the threshold here
-				mseq& msa = alignments[kchain];
-				msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1)), msa.end());
-			}
-			catch (...)
-			{
-				cerr << "exception while reading file " << sfp << endl;
-				throw;
-			}
-		}
+		// Remove all hits that are not above the threshold here
+		mseq& msa = alignments[kchain];
+		msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1, inCutOff)), msa.end());
 
 		++kchain;
 	}
@@ -1968,8 +2085,9 @@ void ConvertHmmerAlignment(
 	mseq msa;
 	ReadStockholm(in, msa, inQuerySequence);
 	
-	// sort the msa
-	sort(msa.begin(), msa.end());
+	// sort the msa, leaving the query as the first entry
+	if (msa.size() > 2)
+		sort(msa.begin() + 1, msa.end());
 	
 	fs::ofstream ff(inFastaFile, ios::binary);
 	if (not ff.is_open())
