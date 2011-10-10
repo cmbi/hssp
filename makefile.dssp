@@ -11,13 +11,15 @@
 
 firstTarget: mkdssp
 
+include make.config
+
 #BOOST_LIB_SUFFIX	= -mt
 BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib
 BOOST_INC_DIR		?= $(HOME)/projects/boost/include
 
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR)
-INC_DIR				= $(BOOST_INC_DIR) src
+INC_DIR				= $(BOOST_INC_DIR)
 MAN_DIR				= $(DEST_DIR)man/man3
 
 BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system
@@ -26,7 +28,7 @@ LIBS				= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX)) z bz2
 DEFINES				= USE_COMPRESSION LINUX
 CC					= c++
 
-CFLAGS				= $(INC_DIR:%=-I%) -g -Wall -Wno-multichar -pthread -std=c++0x
+CFLAGS				= $(INC_DIR:%=-I%) -iquote src -g -Wall -Wno-multichar -pthread -std=c++0x
 LDOPTS				= $(LIB_DIR:%=-L%) $(LIBS:%=-l%) -g -pthread
 
 OBJ_DIR				= obj
@@ -38,8 +40,6 @@ else
 DEFINES				+= NDEBUG
 CFLAGS				+= -O3
 endif
-
-include make.config
 
 CFLAGS				+= $(DEFINES:%=-D%)
 
@@ -56,8 +56,8 @@ include $(OBJECTS:%.o=%.d)
 
 $(OBJECTS:.o=.d):
 
-$(OBJ)/%.o: %.cpp
-	@ if [ ! -d $(OBJ) ]; then mkdir $(OBJ); fi
+$(OBJ_DIR)/%.o: %.cpp
+	@ if [ ! -d $(OBJ_DIR) ]; then mkdir $(OBJ_DIR); fi
 	@ echo compiling $@
 	@ $(CC) -MD -c -o $@ $< $(CFLAGS)
 
@@ -70,7 +70,7 @@ install: mkdssp
 make.config:
 	@echo "creating empty make.config file"
 	@echo "# Set local options for make here" > make.config
-	@echo "# BOOST_INC_DIR = /usr/include " >> make.config
-	@echo "# BOOST_LIB_DIR = /usr/lib " >> make.config
-	@echo "# DEFINES = USE_COMPRESSION" >> make.config
+	@echo "# BOOST_INC_DIR=/usr/include " >> make.config
+	@echo "# BOOST_LIB_DIR=/usr/lib " >> make.config
+	@echo "# DEFINES=USE_COMPRESSION" >> make.config
 
