@@ -1,3 +1,8 @@
+// Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+//   Distributed under the Boost Software License, Version 1.0.
+//       (See accompanying file LICENSE_1_0.txt or copy at    
+//             http://www.boost.org/LICENSE_1_0.txt)      
+// 
 // 3d routines
 
 #include "mas.h"
@@ -83,14 +88,6 @@ MPoint operator/(const MPoint& pt, double f)
 	return result;
 }
 
-//double Distance(const MPoint& a, const MPoint& b)
-//{
-//	return sqrt(
-//		(a.mX - b.mX) * (a.mX - b.mX) +
-//		(a.mY - b.mY) * (a.mY - b.mY) +
-//		(a.mZ - b.mZ) * (a.mZ - b.mZ));
-//}
-
 ostream& operator<<(ostream& os, const MPoint& pt)
 {
 	os << '(' << pt.mX << ',' << pt.mY << ',' << pt.mZ << ')';
@@ -113,18 +110,6 @@ ostream& operator<<(ostream& os, const vector<MPoint>& pts)
 }
 
 // --------------------------------------------------------------------
-
-//double DotProduct(const MPoint& p1, const MPoint& p2)
-//{
-//	return p1.mX * p2.mX + p1.mY * p2.mY + p1.mZ * p2.mZ;
-//}
-//
-//MPoint CrossProduct(const MPoint& p1, const MPoint& p2)
-//{
-//	return MPoint(p1.mY * p2.mZ - p2.mY * p1.mZ,
-//				 p1.mZ * p2.mX - p2.mZ * p1.mX,
-//				 p1.mX * p2.mY - p2.mX * p1.mY);
-//}
 
 double DihedralAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3, const MPoint& p4)
 {

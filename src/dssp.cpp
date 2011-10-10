@@ -1,7 +1,7 @@
-// A DSSP reimplementation
-//
-//	Copyright, M.L. Hekkelman, UMC St. Radboud, Nijmegen
-//
+// Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+//   Distributed under the Boost Software License, Version 1.0.
+//       (See accompanying file LICENSE_1_0.txt or copy at    
+//             http://www.boost.org/LICENSE_1_0.txt)      
 
 #include "mas.h"
 
@@ -12,12 +12,10 @@
 
 #include <iostream>
 
-#include <boost/program_options.hpp>
-#include <boost/filesystem/fstream.hpp>
+#include <boost/format.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 #include <boost/bind.hpp>
-#include <boost/algorithm/string.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/date_clock_device.hpp>
 
@@ -29,7 +27,10 @@ using namespace std;
 string ResidueToDSSPLine(const MResidue& residue)
 {
 /*   
+	This is the header line for the residue lines in a DSSP file:
+
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA 
+
  */
 	boost::format kDSSPResidueLine(
 	"%5.5d%5.5d%c%c %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
@@ -40,10 +41,6 @@ string ResidueToDSSPLine(const MResidue& residue)
 	if (residue.GetType() == kCysteine and residue.GetSSBridgeNr() != 0)
 		code = 'a' + ((residue.GetSSBridgeNr() - 1) % 26);
 
-	double alpha;
-	char chirality;
-	tr1::tie(alpha,chirality) = residue.Alpha();
-	
 	char ss;
 	switch (residue.GetSecondaryStructure())
 	{
@@ -56,6 +53,45 @@ string ResidueToDSSPLine(const MResidue& residue)
 		case bend:			ss = 'S'; break;
 		case loop:			ss = ' '; break;
 	}
+	
+	char helix[3];
+	for (uint32 stride = 3; stride <= 5; ++stride)
+	{
+		switch (residue.GetHelixFlag(stride))
+		{
+			case helixNone:			helix[stride - 3] = ' '; break;
+			case helixStart:		helix[stride - 3] = '>'; break;
+			case helixEnd:			helix[stride - 3] = '<'; break;
+			case helixStartAndEnd:	helix[stride - 3] = 'X'; break;
+			case helixMiddle:		helix[stride - 3] = '0' + stride; break;
+		}
+	}
+	
+	char bend = ' ';
+	if (residue.IsBend())
+		bend = 'S';
+
+	double alpha;
+	char chirality;
+	tr1::tie(alpha,chirality) = residue.Alpha();
+	
+	uint32 bp[2] = {};
+	char bridgelabel[2] = { ' ', ' ' };
+	for (uint32 i = 0; i < 2; ++i)
+	{
+		MBridgeParner p = residue.GetBetaPartner(i);
+		if (p.residue != nil)
+		{
+			bp[i] = p.residue->GetNumber();
+			bridgelabel[i] = 'A' + p.ladder % 26;
+			if (p.parallel)
+				bridgelabel[i] = tolower(bridgelabel[i]);
+		}
+	}
+	
+	char sheet = ' ';
+	if (residue.GetSheet() != 0)
+		sheet = 'A' + (residue.GetSheet() - 1) % 26;
 	
 	string NHO[2], ONH[2];
 	const HBond* acceptors = residue.Acceptor();
@@ -76,41 +112,6 @@ string ResidueToDSSPLine(const MResidue& residue)
 			ONH[i] = (boost::format("%d,%3.1f") % d % donors[i].energy).str();
 		}
 	}
-	
-	uint32 bp[2] = {};
-	char bridgelabel[2] = { ' ', ' ' };
-	for (uint32 i = 0; i < 2; ++i)
-	{
-		MBridgeParner p = residue.GetBetaPartner(i);
-		if (p.residue != nil)
-		{
-			bp[i] = p.residue->GetNumber();
-			bridgelabel[i] = 'A' + p.ladder % 26;
-			if (p.parallel)
-				bridgelabel[i] = tolower(bridgelabel[i]);
-		}
-	}
-	
-	char sheet = ' ';
-	if (residue.GetSheet() != 0)
-		sheet = 'A' + (residue.GetSheet() - 1) % 26;
-	
-	char helix[3];
-	for (uint32 stride = 3; stride <= 5; ++stride)
-	{
-		switch (residue.GetHelixFlag(stride))
-		{
-			case helixNone:			helix[stride - 3] = ' '; break;
-			case helixStart:		helix[stride - 3] = '>'; break;
-			case helixEnd:			helix[stride - 3] = '<'; break;
-			case helixStartAndEnd:	helix[stride - 3] = 'X'; break;
-			case helixMiddle:		helix[stride - 3] = '0' + stride; break;
-		}
-	}
-	
-	char bend = ' ';
-	if (residue.IsBend())
-		bend = 'S';
 	
 	return (kDSSPResidueLine % residue.GetNumber() % ca.mResSeq % ca.mICode % ca.mChainID % code %
 		ss % helix[0] % helix[1] % helix[2] % bend % chirality % bridgelabel[0] % bridgelabel[1] %
@@ -144,11 +145,11 @@ void WriteDSSP(MProtein& protein, ostream& os)
 	if (not protein.GetAuthor().empty())
 		os << kHeaderLine % protein.GetAuthor() % '.' << endl;
 
-	double accessibleSurface = 0;
+	double accessibleSurface = 0;	// calculate accessibility as 
 	foreach (const MChain* chain, protein.GetChains())
 	{
 		foreach (const MResidue* residue, chain->GetResidues())
-			accessibleSurface += floor(residue->Accessibility() + 0.5);
+			accessibleSurface += residue->Accessibility();
 	}
 
 	os << boost::format("%5.5d%3.3d%3.3d%3.3d%3.3d TOTAL NUMBER OF RESIDUES, NUMBER OF CHAINS, NUMBER OF SS-BRIDGES(TOTAL,INTRACHAIN,INTERCHAIN) %|127t|%c") %
@@ -222,6 +223,8 @@ void WriteDSSP(MProtein& protein, ostream& os)
 	const MResidue* last = nil;
 	foreach (const MResidue* residue, residues)
 	{
+		// insert a break line whenever we detect missing residues
+		// can be the transition to a different chain, or missing residues in the current chain
 		if (last != nil and last->GetNumber() + 1 != residue->GetNumber())
 		{
 			char breaktype = ' ';
@@ -231,8 +234,5 @@ void WriteDSSP(MProtein& protein, ostream& os)
 		}
 		os << ResidueToDSSPLine(*residue) << endl;
 		last = residue;
-//
-//		if (chain != protein.GetChains().back())
-//			os << (kDSSPResidueLine % (chain->GetResidues().back()->GetNumber() + 1) % '*') << endl;
 	}
 }

@@ -1,4 +1,4 @@
-# Makefile for mas
+# Makefile for the DSSP/HSSP software suite
 #
 #  Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
 # Distributed under the Boost Software License, Version 1.0.
@@ -8,12 +8,12 @@
 # You may have to edit the first three defines on top of this
 # makefile to match your current installation.
 
-firstTarget: mkhssp
+firstTarget: all
 
 #BOOST_LIB_SUFFIX	= -mt
-BOOST_LIB_DIR		= $(HOME)/projects/boost/lib
-BOOST_INC_DIR		= $(HOME)/projects/boost/include
-ZEEP_DIR			= $(HOME)/projects/libzeep/
+BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib
+BOOST_INC_DIR		?= $(HOME)/projects/boost/include
+ZEEP_DIR			?= $(HOME)/projects/libzeep/
 
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR) $(ZEEP_DIR) $(DEST_DIR)lib $(HOME)/projects/mrs/lib
@@ -55,23 +55,17 @@ endif
 
 VPATH += src
 
-OBJECTS = \
-	$(OBJ)/align-3d.o \
-	$(OBJ)/dssp.o \
-	$(OBJ)/guide.o \
-	$(OBJ)/ioseq.o \
-	$(OBJ)/mas.o \
-	$(OBJ)/matrix.o \
-	$(OBJ)/primitives-3d.o \
-	$(OBJ)/structure.o \
-	$(OBJ)/utils.o
+SOURCES = $(wildcard src/*)
+OBJECTS = $(SOURCES:src/%.cpp=$(OBJ)/%.o)
+
+all: mkdssp mkhssp sto2fa # hsspsoap
 
 mas: $(OBJECTS)
 	@ echo linking $@
 	@ $(CC) -o $@ $(OBJECTS) $(LDOPTS)
 	@ echo OK
 
-dssp-2: $(OBJ)/mkdssp.o $(OBJ)/dssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
+mkdssp: $(OBJ)/mkdssp.o $(OBJ)/dssp.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
 	@ echo linking $@
 	@ $(CC) -static -o $@ $? $(LDOPTS)
 	@ echo OK

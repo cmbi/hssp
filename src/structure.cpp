@@ -1,3 +1,8 @@
+// Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+//   Distributed under the Boost Software License, Version 1.0.
+//       (See accompanying file LICENSE_1_0.txt or copy at    
+//             http://www.boost.org/LICENSE_1_0.txt)      
+// 
 // structure related stuff
 
 #include "mas.h"
@@ -31,8 +36,7 @@ const double
 	kMinimalCADistance = 9.0,
 	kMinHBondEnergy = -9.9,
 	kMaxHBondEnergy = -0.5,
-//	kCouplingConstant = -332 * 0.42 * 0.2,
-	kCouplingConstant = -27.888,
+	kCouplingConstant = -27.888,	//	= -332 * 0.42 * 0.2
 	kMaxPeptideBondLength = 2.5;
 
 const double
@@ -48,6 +52,7 @@ const double
 namespace
 {
 
+// we use a fibonacci spheres to calculate the even distribution of the dots
 class MSurfaceDots
 {
   public:
@@ -171,6 +176,7 @@ MResidueType MapResidue(char inCode)
 }
 
 // --------------------------------------------------------------------
+// a custom float parser, optimised for speed (and the way floats are represented in a PDB file)
 
 double ParseFloat(const string& s)
 {
@@ -623,6 +629,7 @@ uint8 MResidue::GetSSBridgeNr() const
 	return mSSBridgeNr;
 }
 
+// TODO: use the angle to improve bond energy calculation.
 double MResidue::CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor)
 {
 	double result = 0;
@@ -1459,6 +1466,7 @@ void MProtein::CalculateHBondEnergies(const std::vector<MResidue*>& inResidues)
 	}
 }
 
+// TODO: improve alpha helix calculation by better recognizing pi-helices 
 void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 {
 	if (VERBOSE)
@@ -1642,8 +1650,6 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 				continue;
 			}
 			
-//cerr << i << " = " << bridges[i] << " j = " << bridges[j];
-//
 			bool bulge;
 			if (bridges[i].type == btParallel)
 				bulge = ((jbj - jei < 6 and ibj - iei < 3) or (jbj - jei < 3));
@@ -1652,7 +1658,6 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 
 			if (bulge)
 			{
-//cerr << " bulge" << endl;
 				bridges[i].i.insert(bridges[i].i.end(), bridges[j].i.begin(), bridges[j].i.end());
 				if (bridges[i].type == btParallel)
 					bridges[i].j.insert(bridges[i].j.end(), bridges[j].j.begin(), bridges[j].j.end());
@@ -1661,8 +1666,6 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 				bridges.erase(bridges.begin() + j);
 				--j;
 			}
-//			else
-//cerr << " no bulge" << endl;
 		}
 	}
 

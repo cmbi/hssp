@@ -1,7 +1,9 @@
+// Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+//   Distributed under the Boost Software License, Version 1.0.
+//       (See accompanying file LICENSE_1_0.txt or copy at    
+//             http://www.boost.org/LICENSE_1_0.txt)      
+//
 // A DSSP reimplementation
-//
-//	Copyright, M.L. Hekkelman, UMC St. Radboud, Nijmegen
-//
 
 #include "mas.h"
 
@@ -10,10 +12,9 @@
 #include <ctype.h>
 #endif
 
+#include <fstream>
+
 #include <boost/program_options.hpp>
-#include <boost/filesystem/fstream.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
 #if defined USE_COMPRESSION
@@ -26,12 +27,11 @@
 #include "structure.h"
 
 using namespace std;
-namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
-//int VERBOSE;
+int VERBOSE, MULTI_THREADED = 1;
 
 int main(int argc, char* argv[])
 {
@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
 			exit(1);
 		}
 
-		VERBOSE = vm.count("verbose");
+		VERBOSE = vm.count("verbose") != 0;
 		if (vm.count("debug"))
 			VERBOSE = vm["debug"].as<int>();
 		
@@ -116,14 +116,13 @@ int main(int argc, char* argv[])
 			if (not outfile.is_open())
 				throw runtime_error("could not create output file");
 			
-#if defined USE_COMPRESSION
 			io::filtering_stream<io::output> out;
+#if defined USE_COMPRESSION
 			if (ba::ends_with(output, ".bz2"))
 				out.push(io::bzip2_compressor());
 			else if (ba::ends_with(output, ".gz"))
 				out.push(io::gzip_compressor());
 #endif
-			
 			out.push(outfile);
 			
 			WriteDSSP(a, out);
@@ -133,7 +132,8 @@ int main(int argc, char* argv[])
 	}
 	catch (const exception& e)
 	{
-		cerr << e.what() << endl;
+		cerr << "DSSP could not be created due to an error:" << endl
+			 << e.what() << endl;
 		exit(1);
 	}
 	

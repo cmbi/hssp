@@ -15,22 +15,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="\\mrs\maarten\projects\mas\src\dssp.cpp">
+    <ClCompile Include="..\src\mkdssp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="\\mrs\maarten\projects\mas\src\ioseq.cpp">
+    <ClCompile Include="..\src\dssp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="\\mrs\maarten\projects\mas\src\matrix.cpp">
+    <ClCompile Include="..\src\structure.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="\\mrs\maarten\projects\mas\src\primitives-3d.cpp">
+    <ClCompile Include="..\src\utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="\\mrs\maarten\projects\mas\src\structure.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="\\mrs\maarten\projects\mas\src\utils.cpp">
+    <ClCompile Include="..\src\primitives-3d.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

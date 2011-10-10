@@ -1,0 +1,71 @@
+# Makefile for the DSSP
+#
+#  Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+# Distributed under the Boost Software License, Version 1.0.
+#    (See accompanying file LICENSE_1_0.txt or copy at
+#          http://www.boost.org/LICENSE_1_0.txt)
+#
+# This makefile includes a file called make.config. It will create a
+# new one if it doesn't exist. In this make.config you can set site
+# specific variables like the Boost library location.
+
+firstTarget: mkdssp
+
+#BOOST_LIB_SUFFIX	= -mt
+BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib
+BOOST_INC_DIR		?= $(HOME)/projects/boost/include
+
+DEST_DIR			?= /usr/local/
+LIB_DIR				= $(BOOST_LIB_DIR)
+INC_DIR				= $(BOOST_INC_DIR) src
+MAN_DIR				= $(DEST_DIR)man/man3
+
+BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system
+LIBS				= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX)) z bz2
+
+DEFINES				= USE_COMPRESSION LINUX
+CC					= c++
+
+CFLAGS				= $(INC_DIR:%=-I%) -g -Wall -Wno-multichar -pthread -std=c++0x
+LDOPTS				= $(LIB_DIR:%=-L%) $(LIBS:%=-l%) -g -pthread
+
+OBJ_DIR				= obj
+
+ifeq ($(DEBUG),1)
+OBJ_DIR				:= $(OBJ_DIR).dbg
+CFLAGS				+= -g3
+else
+DEFINES				+= NDEBUG
+CFLAGS				+= -O3
+endif
+
+include make.config
+
+CFLAGS				+= $(DEFINES:%=-D%)
+
+VPATH += src
+
+OBJECTS = $(OBJ_DIR)/mkdssp.o $(OBJ_DIR)/dssp.o $(OBJ_DIR)/primitives-3d.o $(OBJ_DIR)/structure.o $(OBJ_DIR)/utils.o
+
+mkdssp: 
+	@ echo linking $@
+	@ $(CC) -static -o $@ $? $(LDOPTS)
+	@ echo OK
+
+include $(OBJECTS:%.o=%.d)
+
+$(OBJECTS:.o=.d):
+
+clean:
+	rm -rf $(OBJ_DIR)/* mkdssp
+
+install: mkdssp
+	sudo install -m 755 mkdssp $(DEST_DIR)bin/mkdssp
+
+make.config:
+	@echo "creating empty make.config file"
+	@echo "# Set local options for make here" > make.config
+	@echo "# BOOST_INC_DIR = /usr/include " >> make.config
+	@echo "# BOOST_LIB_DIR = /usr/lib " >> make.config
+	@echo "# DEFINES = USE_COMPRESSION" >> make.config
+

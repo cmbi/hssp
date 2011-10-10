@@ -1,4 +1,9 @@
-// mas.cpp - simple attempt to write a multiple sequence alignment application
+// Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+//   Distributed under the Boost Software License, Version 1.0.
+//       (See accompanying file LICENSE_1_0.txt or copy at    
+//             http://www.boost.org/LICENSE_1_0.txt)      
+// 
+// simple attempt to write a multiple sequence alignment application
 
 #include "mas.h"
 
@@ -9,18 +14,10 @@
 #include <cmath>
 #include <numeric>
 
-#include <boost/program_options.hpp>
 #include <boost/format.hpp>
-#include <boost/filesystem/fstream.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 #include <boost/tr1/tuple.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/copy.hpp>
-#include <boost/iostreams/filter/bzip2.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
-#include <boost/iostreams/device/array.hpp>
-#include <boost/iostreams/stream.hpp>
 #include <boost/bind.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
@@ -36,9 +33,6 @@
 
 using namespace std;
 using namespace tr1;
-namespace fs = boost::filesystem;
-namespace po = boost::program_options;
-namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
 // --------------------------------------------------------------------

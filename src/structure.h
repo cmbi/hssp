@@ -1,4 +1,7 @@
-// structure stuff for proteins
+// Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+//   Distributed under the Boost Software License, Version 1.0.
+//       (See accompanying file LICENSE_1_0.txt or copy at    
+//             http://www.boost.org/LICENSE_1_0.txt)      
 
 #pragma once
 
@@ -9,12 +12,14 @@ struct MAtom;
 class MResidue;
 class MChain;
 class MProtein;
-template<typename T, uint32 N>
-class buffer;
+
+// forward declaration of buffer
+template<typename T, uint32 N> class buffer;
 typedef buffer<MResidue*,100>	MResidueQueue;
 
 const uint32 kHistogramSize = 30;
 
+// a limited set of known atoms. This is an obvious candidate for improvement of DSSP.
 enum MAtomType
 {
 	kUnknownAtom,
@@ -102,6 +107,7 @@ struct MResidueInfo
 	char				name[4];
 };
 
+// a residue number to info mapping
 extern const MResidueInfo kResidueInfo[];
 
 MResidueType MapResidue(std::string inName);
@@ -327,8 +333,6 @@ class MProtein
 
 	void				CalculateSecondaryStructure();
 	
-//	double				GetAccessibleSurface() const	{ return mAccessibleSurface; }
-	
 	void				GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
 							uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges,
 							uint32& outNrOfHBonds, uint32 outNrOfHBondsPerDistance[11]) const;
@@ -404,6 +408,7 @@ class MProtein
 
 // inlines
 
+// GetSequences can be used to quickly get all sequences in a vector<string> e.g.
 template<class OutputIterator>
 void MProtein::GetSequences(OutputIterator outSequences) const
 {

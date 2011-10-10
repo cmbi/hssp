@@ -1,6 +1,13 @@
+// Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+//   Distributed under the Boost Software License, Version 1.0.
+//       (See accompanying file LICENSE_1_0.txt or copy at    
+//             http://www.boost.org/LICENSE_1_0.txt)      
+// 
 // some data types and routines for working with 3d data
 
 #pragma once
+
+#include <vector>
 
 #include <boost/tr1/tuple.hpp>
 #include <boost/math/quaternion.hpp>
@@ -180,8 +187,8 @@ inline double DotProduct(const MPoint& a, const MPoint& b)
 inline MPoint CrossProduct(const MPoint& a, const MPoint& b)
 {
 	return MPoint(a.mY * b.mZ - b.mY * a.mZ,
-				 a.mZ * b.mX - b.mZ * a.mX,
-				 a.mX * b.mY - b.mX * a.mY);
+				  a.mZ * b.mX - b.mZ * a.mX,
+				  a.mX * b.mY - b.mX * a.mY);
 }
 
 inline double DistanceSquared(const MPoint& a, const MPoint& b)

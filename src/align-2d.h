@@ -1,5 +1,7 @@
-// mas is a reimplementation of Clustal W with support for
-// predefined blocks of aligned positions in the input sequence.
+// Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+//   Distributed under the Boost Software License, Version 1.0.
+//       (See accompanying file LICENSE_1_0.txt or copy at    
+//             http://www.boost.org/LICENSE_1_0.txt)      
 
 #pragma once
 
@@ -19,6 +21,8 @@ const uint8 kAA[] = {
 	'-'
 };
 
+// CSEQUENCE_H is defined in the MRS library, to avoid
+// redefinition conflicts we do a check here.
 #ifndef CSEQUENCE_H
 const uint32
 	kAACount = sizeof(kAA),
@@ -32,6 +36,7 @@ typedef uint8					ss;
 typedef std::basic_string<ss>	sec_structure;
 
 // --------------------------------------------------------------------
+// entry is a multiple sequence alignment 'entry', a sequence with an ID and more.
 
 struct entry
 {
@@ -74,6 +79,7 @@ struct entry
 };
 
 // --------------------------------------------------------------------
+// nodes used in calculating a guide tree
 
 struct base_node
 {

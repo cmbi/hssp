@@ -1,12 +1,11 @@
-// utility routines for mas
+// Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+//   Distributed under the Boost Software License, Version 1.0.
+//       (See accompanying file LICENSE_1_0.txt or copy at    
+//             http://www.boost.org/LICENSE_1_0.txt)      
 
-#include "MRS.h"
 #include "mas.h"
 
-#include <cstdio>
-#include <iomanip>
 #include <iostream>
-#include <time.h>
 #if defined(_MSC_VER)
 #define TERM_WIDTH 80
 #else
