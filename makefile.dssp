@@ -47,7 +47,7 @@ VPATH += src
 
 OBJECTS = $(OBJ_DIR)/mkdssp.o $(OBJ_DIR)/dssp.o $(OBJ_DIR)/primitives-3d.o $(OBJ_DIR)/structure.o $(OBJ_DIR)/utils.o
 
-mkdssp: 
+mkdssp: $(OBJECTS)
 	@ echo linking $@
 	@ $(CC) -static -o $@ $? $(LDOPTS)
 	@ echo OK
@@ -55,6 +55,11 @@ mkdssp:
 include $(OBJECTS:%.o=%.d)
 
 $(OBJECTS:.o=.d):
+
+$(OBJ)/%.o: %.cpp
+	@ if [ ! -d $(OBJ) ]; then mkdir $(OBJ); fi
+	@ echo compiling $@
+	@ $(CC) -MD -c -o $@ $< $(CFLAGS)
 
 clean:
 	rm -rf $(OBJ_DIR)/* mkdssp
