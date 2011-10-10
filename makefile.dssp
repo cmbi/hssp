@@ -13,6 +13,8 @@ firstTarget: mkdssp
 
 include make.config
 
+VERSION				= 2.0.1
+
 #BOOST_LIB_SUFFIX	= -mt
 BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib
 BOOST_INC_DIR		?= $(HOME)/projects/boost/include
@@ -43,6 +45,8 @@ endif
 
 CFLAGS				+= $(DEFINES:%=-D%)
 
+DIST_NAME			= dssp-$(VERSION)
+
 VPATH += src
 
 OBJECTS = $(OBJ_DIR)/mkdssp.o $(OBJ_DIR)/dssp.o $(OBJ_DIR)/primitives-3d.o $(OBJ_DIR)/structure.o $(OBJ_DIR)/utils.o
@@ -67,10 +71,21 @@ clean:
 install: mkdssp
 	sudo install -m 755 mkdssp $(DEST_DIR)bin/mkdssp
 
+dist: $(OBJECTS)
+	@ rm -rf $(DIST_NAME)
+	@ mkdir -p $(DIST_NAME)/src
+	@ echo "Copying files..."
+	@ cp makefile.dssp $(DIST_NAME)/makefile
+	@ cp $(OBJECTS:$(OBJ_DIR)%.o=src/%.cpp) $(DIST_NAME)/src
+	@ cp `sed -e 's/\s/\n/g' $(OBJ_DIR)/*.d | grep '^src' | sort -u` $(DIST_NAME)/src
+	@ cp LICENSE_1_0.txt $(DIST_NAME)
+	@ cp README-DSSP.txt $(DIST_NAME)/README.txt
+	tar cvjf $(DIST_NAME).tbz $(DIST_NAME)
+
 make.config:
 	@echo "creating empty make.config file"
 	@echo "# Set local options for make here" > make.config
-	@echo "# BOOST_INC_DIR=/usr/include " >> make.config
-	@echo "# BOOST_LIB_DIR=/usr/lib " >> make.config
+	@echo "# BOOST_INC_DIR=$$HOME/boost/include " >> make.config
+	@echo "# BOOST_LIB_DIR=$$HOME/boost/lib " >> make.config
 	@echo "# DEFINES=USE_COMPRESSION" >> make.config
 

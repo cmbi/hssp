@@ -55,6 +55,8 @@ fs::path gTempDir	= "/tmp/hssp-2/";
 uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
 
+const float kHomologyThreshold = 0.05f;
+
 void GetDSSPForSequence(
 	const string&		inSequence,
 	string&				outDSSP)
@@ -340,7 +342,7 @@ void hssp_server::GetHSSPForPDBFile(
 	// finally, create the HSSP
 	CDatabankPtr db = mDBTable.Load(mDatabank);
 	io::filtering_ostream out(io::back_inserter(hssp));
-	hmmer::CreateHSSP(db, a, mFastaDir, mJackhmmer, mIterations, 1500, 25, out);
+	hmmer::CreateHSSP(db, a, mFastaDir, mJackhmmer, mIterations, 1500, 25, kHomologyThreshold, out);
 }
 
 void hssp_server::GetHSSPForSequence(
@@ -350,7 +352,7 @@ void hssp_server::GetHSSPForSequence(
 	CDatabankPtr db = mDBTable.Load(mDatabank);
 
 	io::filtering_ostream out(io::back_inserter(hssp));
-	hmmer::CreateHSSP(db, sequence, mFastaDir, mJackhmmer, mIterations, 1500, out);
+	hmmer::CreateHSSP(db, sequence, mFastaDir, mJackhmmer, mIterations, 1500, kHomologyThreshold, out);
 }
 
 // --------------------------------------------------------------------
