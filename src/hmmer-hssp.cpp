@@ -978,8 +978,9 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 		argv.push("-N", iterations);
 		argv.push("--noali");
 		argv.push("--cpu", gNrOfThreads);
-//		argv.push("-o", "/dev/null");
+//		argv.push("-O", "/dev/null");
 		argv.push("-A", "output.sto");
+		argv.push("--chkhmm", "output");
 		argv.push("input.fa");
 		argv.push((fastadir / (db + ".fa")).string());
 		
@@ -1223,43 +1224,54 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 #endif
 
 void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir, const fs::path& jackhmmer,
-	const string& db, fs::path dst)
+	const string& db, fs::path dst, mseq& msa)
 {
 	fs::path rundir = RunJackHmmer(seq, iterations, fastadir, jackhmmer, db);
 
-	// copy the result
+	if (not fs::exists(rundir / "output.sto"))
+	{
+		if (not VERBOSE)
+			fs::remove_all(rundir);
+		throw mas_exception("No stockholm file was created by jackhmmer");
+	}
 
-	fs::ifstream in(rundir / "output.sto");
-	fs::ofstream outfile(dst, ios_base::binary);
-
-	io::filtering_stream<io::output> out;
-	if (dst.extension() == ".bz2")
-		out.push(io::bzip2_compressor());
-	else if (dst.extension() == ".gz")
-		out.push(io::gzip_compressor());
-	out.push(outfile);
-
-	io::copy(in, out);
-
-	if (not VERBOSE)
-		fs::remove_all(rundir);
-	else
-		cerr << " done" << endl;
-}
-
-void RunJackHmmer(const string& seq, uint32 iterations,
-	const fs::path& fastadir, const fs::path& jackhmmer, const string& db, mseq& msa)
-{
-	fs::path rundir = RunJackHmmer(seq, iterations, fastadir, jackhmmer, db);
+	// read in the resulting msa
 
 	fs::ifstream is(rundir / "output.sto");
 	ReadStockholm(is, msa, seq);
 	is.close();
 
-	// read in the result
-	if (not fs::exists(rundir / "output.sto"))
-		THROW(("Output Stockholm file is missing"));
-	
+	// copy the result, if needed (dst will be empty if not)
+
+	if (not dst.empty())
+	{
+		fs::path dstdir = dst.parent_path();
+
+		fs::ifstream in(rundir / "output.sto");
+		fs::ofstream outfile(dst, ios_base::binary);
+
+		io::filtering_stream<io::output> out;
+		if (dst.extension() == ".bz2")
+			out.push(io::bzip2_compressor());
+		else if (dst.extension() == ".gz")
+			out.push(io::gzip_compressor());
+		out.push(outfile);
+
+		WriteFastA(out, msa);
+
+		// copy the hmm files, if any
+		string hmmfilename = dst.stem();
+		if (ba::ends_with(hmmfilename, ".aln"))
+			ba::erase_last(hmmfilename, ".aln");
+
+		for (uint32 i = 1; i <= iterations; ++i)
+		{
+			fs::path f1(rundir / (string("output-") + boost::lexical_cast<string>(i) + ".hmm"));
+			if (fs::exists(f1))
+				fs::copy_file(f1, dstdir / (hmmfilename + '-' + boost::lexical_cast<string>(i) + ".hmm"));
+		}
+	}
+
 	if (not VERBOSE)
 		fs::remove_all(rundir);
 	else
@@ -2022,7 +2034,8 @@ void CreateHSSP(
 		{
 			try
 			{
-				RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(), alignments[kchain]);
+				RunJackHmmer(seq, inIterations, inFastaDir, inJackHmmer, inDatabank->GetID(),
+					afp, alignments[kchain]);
 				
 				if (not inDataDir.empty())
 				{
