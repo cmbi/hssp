@@ -55,7 +55,7 @@ endif
 
 VPATH += src
 
-SOURCES = $(wildcard src/*)
+SOURCES = $(wildcard src/*.cpp)
 OBJECTS = $(SOURCES:src/%.cpp=$(OBJ)/%.o)
 
 all: mkdssp mkhssp sto2fa # hsspsoap
@@ -109,3 +109,5 @@ make.config:
 	@echo "creating empty make.config file"
 	@echo "# Set local options for make here" > make.config
 
+test:
+	echo $(OBJECTS)

@@ -289,7 +289,7 @@ fs::path get_home()
 	return fs::path(home);
 }
 
-#elif P_UNIX
+#else
 
 fs::path get_home()
 {

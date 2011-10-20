@@ -5,6 +5,10 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
+#include <algorithm>
+
 // --------------------------------------------------------------------
 
 typedef uint8					aa;

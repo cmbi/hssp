@@ -790,7 +790,7 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 		cerr << "done" << endl;
 }
 
-void ReadFastA(istream& is, mseq& msa, const string& q)
+void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
 {
 	if (VERBOSE)
 		cerr << "Reading fasta file...";
@@ -809,6 +809,10 @@ void ReadFastA(istream& is, mseq& msa, const string& q)
 		
 		if (line[0] == '>')
 		{
+			// break if we've reached maxhits (this assumes the fasta is sorted by score)
+			if (inMaxHits > 0 and msa.size() >= inMaxHits)
+				break;
+
 			string id = line.substr(1);
 
 			string::size_type s = id.find(' ');
@@ -2006,7 +2010,7 @@ void CreateHSSP(
 			in.push(af);
 	
 			try {
-				ReadFastA(in, alignments[kchain], seq);
+				ReadFastA(in, alignments[kchain], seq, inMaxHits);
 			}
 			catch (...)
 			{
