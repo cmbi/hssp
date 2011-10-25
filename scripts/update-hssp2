@@ -14,6 +14,7 @@ DSSPDIR			?= /data/raw/dssp/
 HSSP2DIR		?= /data/hssp2/
 HSSP2FADIR		?= $(HSSP2DIR)fasta/
 HSSP2STODIR		?= $(HSSP2DIR)sto/
+HSSP2FINALDIR	?= $(HSSP2DIR)final/
 
 # programs
 CDHIT			?= cd-hit
@@ -31,7 +32,7 @@ VPATH			= :$(STOCKDIR):
 # The HSSP2 files we need to create
 
 HSSP2IDS		= $(filter-out $(sort $(shell cat $(HSSP2DIR)hssp2.skip)), $(DSSP_IDS))
-HSSP2_FILES		= $(HSSP2IDS:%=$(HSSP2DIR)%.hssp.bz2)
+HSSP2_FILES		= $(HSSP2IDS:%=$(HSSP2FINALDIR)%.hssp.bz2)
 
 # The Stockholm files we need:
 
@@ -48,7 +49,7 @@ $(FASTADIR)dssp-nr-100.fa: $(FASTADIR)dssp.fa
 	$(PERL) split-fasta.pl $@ $(HSSP2FADIR)
 	$(MRS_BUILD) -d hssp2ix -fv
 
-$(HSSP2DIR)%.hssp.bz2: $(FASTADIR)dssp-nr-100.fa $(DSSPDIR)%.dssp
+$(HSSP2FINALDIR)%.hssp.bz2: $(FASTADIR)dssp-nr-100.fa $(DSSPDIR)%.dssp
 	$(MKHSSP) $(@F:.hssp.bz2=) --fastadir=$(FASTADIR) --datadir=$(HSSP2STODIR) \
 			--tmpdir=/data/tmp/hssp2/ $@ || \
 		echo $(@F:.hssp.bz2=) >> $(HSSP2DIR)hssp2.skip

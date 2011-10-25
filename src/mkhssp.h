@@ -7,5 +7,8 @@
 
 #include "mas.h"
 
+class CDatabankTable;
+
 extern fs::path gTempDir;
 extern uint32 gMaxRunTime, gNrOfThreads;
+extern CDatabankTable gDBTable;

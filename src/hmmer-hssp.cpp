@@ -31,6 +31,7 @@
 
 // MRS includes
 #include "CDatabank.h"
+#include "CDatabankTable.h"
 #include "CUtils.h"
 #include "CConfig.h"
 
@@ -1073,7 +1074,6 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 		cerr << "Running jackhmmer (" << uuid << ")...";
 		
 	// write fasta file
-	
 	fs::ofstream input(rundir / "input.fa");
 	if (not input.is_open())
 		throw mas_exception("Failed to create jackhmmer input file");
@@ -1462,6 +1462,10 @@ void CreateHSSPOutput(
 	using namespace boost::gregorian;
 	date today = day_clock::local_day();
 	
+	// a pdb MRS databank, used to find PDB ID's from the links
+	CDatabankPtr pdbDb;
+	try { pdbDb = gDBTable.Load("pdb"); } catch (...) {}
+	
 	// print the header
 	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0 2011" << endl
 	   << "PDBID      " << inProteinID << endl
@@ -1526,6 +1530,19 @@ void CreateHSSPOutput(
 				acc = id.substr(10);
 			else
 				acc = inDatabank->GetMetaData(docNr, "acc");
+		}
+		catch (...) {}
+
+		try
+		{
+			if (pdbDb)
+			{
+				vector<uint32> links;
+				inDatabank->GetLinkedDocuments("pdb", docNr, links);
+				if (not links.empty())
+					pdb = pdbDb->GetDocumentID(links.front());
+				ba::to_upper(pdb);
+			}
 		}
 		catch (...) {}
 

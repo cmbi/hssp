@@ -59,6 +59,7 @@ namespace po = boost::program_options;
 fs::path gTempDir	= "/tmp/hssp-2/";
 uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
+CDatabankTable gDBTable;
 
 // main
 
@@ -180,8 +181,7 @@ int main(int argc, char* argv[])
 
 		// got parameters
 
-		CDatabankTable sDBTable;
-		CDatabankPtr db = sDBTable.Load(databank);
+		CDatabankPtr db = gDBTable.Load(databank);
 
 		// what input to use
 		string input = vm["input"].as<string>();
@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
 		// PDB ID.
 		if (not infile.is_open() and input.length() == 4)
 		{
-			CDatabankPtr pdb = sDBTable.Load("pdb");
+			CDatabankPtr pdb = gDBTable.Load("pdb");
 			uint32 docNr;
 			if (not pdb->GetDocumentNr(input, docNr))
 				THROW(("Entry %s not found in PDB", input.c_str()));
@@ -221,7 +221,7 @@ int main(int argc, char* argv[])
 		{
 			try
 			{
-				CDatabankPtr ix = sDBTable.Load("hssp2ix");
+				CDatabankPtr ix = gDBTable.Load("hssp2ix");
 
 				string chaininfo = ix->GetDocument(a.GetID());
 				ba::split(chains, chaininfo, ba::is_any_of("\n"));
