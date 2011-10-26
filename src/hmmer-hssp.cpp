@@ -731,7 +731,7 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 		THROW(("Insufficient sequences in Stockholm MSA"));
 
 	if (VERBOSE)
-		cerr << " done, alignment width = " << n << endl << "Checking for threshold...";
+		cerr << " done, alignment width = " << n << ", nr of hits = " << msa.size() << endl << "Checking for threshold...";
 
 	// first cut the msa, if needed:
 	if (not q.empty() and q != qr)
@@ -835,7 +835,7 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
 		THROW(("Invalid alignment file, not all sequences are of same length"));
 	
 	if (VERBOSE)
-		cerr << " done, alignment width = " << l << endl << "Checking for threshold...";
+		cerr << " done, alignment width = " << l << ", nr of hits = " << msa.size() << endl << "Checking for threshold...";
 
 	// fetch the first non-gapped sequence
 	string qr;
@@ -1388,9 +1388,9 @@ ResidueHInfo::ResidueHInfo(char a, uint32 pos, char chain, uint32 seqNr, uint32 
 
 void ResidueHInfo::CalculateVariability(hit_list& hits)
 {
-	if (seqNr == 1623)
-		cerr << "stop" << endl;
-	
+	if (hits.empty())
+		return;
+
 	fill(dist, dist + 20, 0);
 	entropy = 0;
 	
@@ -2104,8 +2104,11 @@ void CreateHSSP(
 
 	sort(hits.begin(), hits.end(), compare_hit());
 
-	if (hits.size() > inMaxHits)
+	if (inMaxHits > 0 and hits.size() > inMaxHits)
 		hits.erase(hits.begin() + inMaxHits, hits.end());
+
+	if (hits.empty())
+		throw mas_exception("No hits found or remaining");
 	
 	uint32 nr = 1;
 	foreach (hit_ptr h, hits)
