@@ -480,6 +480,8 @@ void seq::seq_impl::update(const seq_impl& qseq)
 	uint32 i = 0;
 	insertion ins = {};
 	
+	// reset statistics
+	m_ifir = m_similar = m_identical = m_gapn = m_gaps = 0;
 	m_begin = numeric_limits<uint32>::max();
 	m_end = 0;
 	
@@ -796,11 +798,41 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
 	if (VERBOSE)
 		cerr << "Reading fasta file...";
 
+	uint32 l = 0;
+
 	for (;;)
 	{
 		string line;
 		
 		getline(is, line);
+
+		// end of last sequence or end of file?
+		if ((line.empty() and not is.good()) or
+			(not line.empty() and line[0] == '>'))
+		{
+			if (msa.size() == 1)
+				l = msa.front().length();
+
+			// calculate the score for the last one
+			else if (msa.size() > 1)
+			{
+				if (msa.back().length() != l)
+					throw mas_exception("Not all sequences are of the same length");
+				msa.back().update(msa.front());
+			}
+
+			// and now push it in the heap
+			if (msa.size() > 2)
+				push_heap(msa.begin() + 1, msa.end());
+
+			// if the heap has reached our maxhits size, we drop the least
+			if (inMaxHits > 0 and msa.size() >= inMaxHits + 1)
+			{
+				pop_heap(msa.begin() + 1, msa.end());
+				msa.erase(msa.end() - 1);
+			}
+		}
+
 		if (line.empty())
 		{
 			if (not is.good()) // end of file reached
@@ -810,10 +842,7 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
 		
 		if (line[0] == '>')
 		{
-			// break if we've reached maxhits (this assumes the fasta is sorted by score)
-			if (inMaxHits > 0 and msa.size() >= inMaxHits)
-				break;
-
+			// fetch the id
 			string id = line.substr(1);
 
 			string::size_type s = id.find(' ');
@@ -828,11 +857,6 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
 
 	if (msa.size() < 2)
 		THROW(("Invalid alignment file, too few sequences"));
-	
-	uint32 l = msa.front().length();
-	mseq::iterator i = find_if(msa.begin() + 1, msa.end(), boost::bind(&seq::length, _1) != l);
-	if (i != msa.end())
-		THROW(("Invalid alignment file, not all sequences are of same length"));
 	
 	if (VERBOSE)
 		cerr << " done, alignment width = " << l << ", nr of hits = " << msa.size() << endl << "Checking for threshold...";
