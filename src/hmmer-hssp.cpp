@@ -304,6 +304,7 @@ const uint32 kBlockSize = 512;
 
 seq::seq_impl::seq_impl(const string& id)
 	: m_id(id)
+	, m_id2(id)
 	, m_identical(0)
 	, m_similar(0)
 	, m_length(0)
@@ -337,19 +338,21 @@ seq::seq(const seq& s)
 seq::seq(const string& id)
 	: m_impl(new seq_impl(id))
 {
-	static const boost::regex re("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)");
+	static const boost::regex re1("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)"),
+				  			  re2("(?:tr|sp)\\|[[:alnum:]]+\\|(.+)");
 	boost::smatch sm;
 
-	if (boost::regex_match(m_impl->m_id, sm, re))
+	if (boost::regex_match(m_impl->m_id2, sm, re2))
+		m_impl->m_id2 = sm[1];
+
+	if (boost::regex_match(m_impl->m_id2, sm, re1))
 	{
 		// jfir/jlas can be taken over from jackhmmer output
 		m_impl->m_jfir = boost::lexical_cast<uint32>(sm.str(2));
 		m_impl->m_jlas = boost::lexical_cast<uint32>(sm.str(3));
 
-		m_impl->m_id2 = sm.str(1);
+		m_impl->m_id2 = sm[1];
 	}
-	else
-		m_impl->m_id2 = m_impl->m_id;
 }
 
 seq& seq::operator=(const seq& rhs)

@@ -20,7 +20,7 @@
   <files>
     <group name="Sources">
       <file>hsspsoap.cpp</file>
-      <file>blast.cpp</file>
+<!--      <file>blast.cpp</file> -->
       <file>dssp.cpp</file>
       <file>matrix.cpp</file>
       <file>hmmer-hssp.cpp</file>
@@ -29,7 +29,7 @@
       <file>utils.cpp</file>
     </group>
     <group name="Libraries">
-      <link>mrsd</link>
+      <link>mrs</link>
       <link>zeep</link>
       <link>boost_date_time</link>
       <link>boost_filesystem</link>

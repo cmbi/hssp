@@ -51,6 +51,7 @@ namespace po = boost::program_options;
 
 // globals
 
+CDatabankTable gDBTable;
 fs::path gTempDir	= "/tmp/hssp-2/";
 uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
