@@ -1648,12 +1648,12 @@ void CreateHSSPOutput(
 	{
 		if (r->letter == 0)
 		{
-			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0")
+			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
 				% r->seqNr << endl;
 		}
 		else
 		{
-			os << boost::format(" %4.4d %4.4d %c") % r->seqNr % r->pdbNr % r->chain;
+			os << boost::format("%5.5d%5.5d %c") % r->seqNr % r->pdbNr % r->chain;
 
 			for (uint32 i = 0; i < 20; ++i)
 				os << boost::format("%4.4d") % r->dist[i];

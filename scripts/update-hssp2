@@ -51,5 +51,5 @@ $(FASTADIR)dssp-nr-100.fa: $(FASTADIR)dssp.fa
 
 $(HSSP2FINALDIR)%.hssp.bz2: $(FASTADIR)dssp-nr-100.fa $(DSSPDIR)%.dssp
 	$(MKHSSP) $(@F:.hssp.bz2=) --fastadir=$(FASTADIR) --datadir=$(HSSP2STODIR) \
-			--tmpdir=/data/tmp/hssp2/ $@ || \
+			--tmpdir=/data/tmp/hssp2/ --threads=1 $@ || \
 		echo $(@F:.hssp.bz2=) >> $(HSSP2DIR)hssp2.skip

@@ -83,6 +83,7 @@ string ResidueToDSSPLine(const MResidue& residue)
 		if (p.residue != nil)
 		{
 			bp[i] = p.residue->GetNumber();
+			bp[i] %= 10000;	// won't fit otherwise...
 			bridgelabel[i] = 'A' + p.ladder % 26;
 			if (p.parallel)
 				bridgelabel[i] = tolower(bridgelabel[i]);
