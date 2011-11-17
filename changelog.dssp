@@ -1,0 +1,6 @@
+2.0.3
+- Accept duplicate PDB sequence numbers when they cross a chain barrier
+
+2.0.2
+- Support for more than 9999 sequences, write out seq nr correctly,
+	truncate bridgepair number to 4 positions (suboptimal solution...)

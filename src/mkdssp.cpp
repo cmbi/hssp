@@ -37,12 +37,13 @@ int main(int argc, char* argv[])
 {
 	try
 	{
-		po::options_description desc("DSSP options");
+		po::options_description desc("DSSP " VERSION " options");
 		desc.add_options()
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input file")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("verbose,v",						 "Verbose output")
+			("version",							 "Print version")
 			("debug,d",		po::value<int>(),	 "Debug level (for even more verbose output)")
 			;
 	
@@ -53,6 +54,12 @@ int main(int argc, char* argv[])
 		po::variables_map vm;
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 		po::notify(vm);
+
+		if (vm.count("version"))
+		{
+			cout << "mkdssp version " VERSION << endl;
+			exit(0);
+		}
 
 		if (vm.count("help") or not vm.count("input"))
 		{
