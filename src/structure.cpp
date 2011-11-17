@@ -371,10 +371,12 @@ MResidue::MResidue(uint32 inNumber,
 			mChainID = atom.mChainID;
 		
 		if (MapResidue(atom.mResName) != mType)
-			throw mas_exception("inconsistent residue types in atom records");
+			throw mas_exception(
+				boost::format("inconsistent residue types in atom records for residue %1% (%2% != %3%)")
+					% inNumber % atom.mResName % inAtoms.front().mResName);
 		
 		if (atom.mResSeq != mSeqNumber)
-			throw mas_exception("inconsistent residue sequence numbers");
+			throw mas_exception(boost::format("inconsistent residue sequence numbers (%1% != %2%)") % atom.mResSeq % mSeqNumber);
 		
 		if (atom.GetName() == " N  ")
 			mN = atom;
@@ -1109,8 +1111,13 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			//	79 - 80	LString(2) charge Charge on the atom.
 			atom.mCharge = 0;
 			
+//			alternative test, check chain ID as well.
 			if (not atoms.empty() and
-				(atom.mResSeq != atoms.back().mResSeq or (atom.mResSeq == atoms.back().mResSeq and atom.mICode != atoms.back().mICode)))
+				(atom.mChainID != atoms.back().mChainID or 
+				 (atom.mResSeq != atoms.back().mResSeq or
+				  (atom.mResSeq == atoms.back().mResSeq and atom.mICode != atoms.back().mICode))))
+//			if (not atoms.empty() and
+//				(atom.mResSeq != atoms.back().mResSeq or (atom.mResSeq == atoms.back().mResSeq and atom.mICode != atoms.back().mICode)))
 			{
 				AddResidue(atoms);
 				atoms.clear();
