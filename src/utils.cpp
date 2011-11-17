@@ -13,6 +13,8 @@
 #include <sys/ioctl.h>
 #endif
 
+#include <cstdio>
+
 #include <boost/bind.hpp>
 #include <boost/thread.hpp>
 #include <boost/foreach.hpp>

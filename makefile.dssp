@@ -30,7 +30,7 @@ LIBS				= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX)) z bz2
 DEFINES				= USE_COMPRESSION LINUX VERSION='"$(VERSION)"'
 CC					= c++
 
-CFLAGS				= $(INC_DIR:%=-I%) -iquote src -g -Wall -Wno-multichar -pthread -std=c++0x
+CFLAGS				= $(INC_DIR:%=-I%) -iquote src -g -Wall -Wno-multichar -pthread
 LDOPTS				= $(LIB_DIR:%=-L%) $(LIBS:%=-l%) -g -pthread
 
 OBJ_DIR				= obj
