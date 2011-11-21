@@ -15,6 +15,7 @@
 #include <boost/program_options.hpp>
 
 #include "hmmer-hssp.h"
+#include "CDatabankTable.h"
 
 using namespace std;
 namespace po = boost::program_options;
@@ -22,6 +23,7 @@ namespace fs = boost::filesystem;
 
 // Globals section
 
+CDatabankTable gDBTable;
 fs::path gTempDir	= "/tmp/hssp-2/";
 uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;

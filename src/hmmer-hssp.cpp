@@ -146,7 +146,8 @@ class seq
 {
   public:
 				seq(const seq&);
-				seq(const string& id);
+				//seq(const string& id);
+				seq(const string& id, const string& desc);
 				~seq();
 				
 	seq&		operator=(const seq&);
@@ -157,6 +158,10 @@ class seq
 				id() const							{ return m_impl->m_id; }
 	const string&
 				id2() const							{ return m_impl->m_id2; }
+	const string&
+				acc() const							{ return m_impl->m_acc; }
+	const string&
+				desc() const						{ return m_impl->m_desc; }
 
 	uint32		identical() const					{ return m_impl->m_identical; }
 	uint32		similar() const						{ return m_impl->m_similar; }
@@ -255,7 +260,7 @@ class seq
 
 	struct seq_impl
 	{
-					seq_impl(const string& id);
+					seq_impl(const string& id, const string& desc);
 					~seq_impl();
 
 		void		update(const seq_impl& qseq);
@@ -269,7 +274,8 @@ class seq
 		const_iterator
 					end() const						{ return const_iterator(m_seq + m_size); }
 
-		string		m_id, m_id2;
+		string		m_id, m_id2, m_acc;
+		string		m_desc;
 		uint32		m_ifir, m_ilas, m_jfir, m_jlas;
 		uint32		m_identical, m_similar, m_length;
 		float		m_score;
@@ -302,9 +308,10 @@ typedef vector<seq>				mseq;
 
 const uint32 kBlockSize = 512;
 
-seq::seq_impl::seq_impl(const string& id)
+seq::seq_impl::seq_impl(const string& id, const string& desc)
 	: m_id(id)
 	, m_id2(id)
+	, m_desc(desc)
 	, m_identical(0)
 	, m_similar(0)
 	, m_length(0)
@@ -335,15 +342,18 @@ seq::seq(const seq& s)
 	++m_impl->m_refcount;
 }
 
-seq::seq(const string& id)
-	: m_impl(new seq_impl(id))
+seq::seq(const string& id, const string& desc)
+	: m_impl(new seq_impl(id, desc))
 {
 	static const boost::regex re1("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)"),
-				  			  re2("(?:tr|sp)\\|[[:alnum:]]+\\|(.+)");
+				  			  re2("(?:tr|sp)\\|([[:alnum:]]+)\\|(.+)");
 	boost::smatch sm;
 
 	if (boost::regex_match(m_impl->m_id2, sm, re2))
-		m_impl->m_id2 = sm[1];
+	{
+		m_impl->m_acc = sm[1];
+		m_impl->m_id2 = sm[2];
+	}
 
 	if (boost::regex_match(m_impl->m_id2, sm, re1))
 	{
@@ -661,7 +671,7 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 	if (boost::regex_match(id, sm, re))
 		id = sm.str(1);
 
-	msa.push_back(seq(id));
+	msa.push_back(seq(id, ""));
 	uint32 ix = 0, n = 0;
 	
 	for (;;)
@@ -681,14 +691,17 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 		
 		if (ba::starts_with(line, "#=GS "))
 		{
-			string id = line.substr(5);
+			string id = line.substr(5), desc;
 			string::size_type s = id.find("DE ");
 			if (s != string::npos)
+			{
+				desc = id.substr(s + 3);
 				id = id.substr(0, s);
+			}
 			
 			ba::trim(id);
 			if (msa.size() > 1 or msa.front().id() != id)
-				msa.push_back(seq(id));
+				msa.push_back(seq(id, desc));
 			continue;
 		}
 		
@@ -721,7 +734,7 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 			{
 				++ix;
 				if (ix >= msa.size())
-					msa.push_back(seq(id));
+					msa.push_back(seq(id, ""));
 
 				if (ix < msa.size() and id != msa[ix].id())
 					THROW(("Invalid Stockholm file, ID does not match (%s != %s)", id.c_str(), msa[ix].id().c_str()));
@@ -846,13 +859,16 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
 		if (line[0] == '>')
 		{
 			// fetch the id
-			string id = line.substr(1);
+			string id = line.substr(1), desc;
 
 			string::size_type s = id.find(' ');
 			if (s != string::npos)
+			{
+				desc = id.substr(s + 1);
 				id.erase(s, string::npos);
+			}
 
-			msa.push_back(seq(id));
+			msa.push_back(seq(id, desc));
 		}
 		else
 			msa.back().append(line);
@@ -1549,16 +1565,23 @@ void CreateHSSPOutput(
 		string id = s.id2();
 		uint32 docNr = inDatabank->GetDocumentNr(id);
 		string desc = inDatabank->GetMetaData(docNr, "title");
-		string acc, pdb;
-
-		try
+//		string desc = s.desc();
+//		if (desc.empty())
+//			desc = inDatabank->GetMetaData(docNr, "title");
+		string acc = s.acc();
+		if (acc.empty())
 		{
-			if (ba::starts_with(id, "UniRef100_"))
-				acc = id.substr(10);
-			else
-				acc = inDatabank->GetMetaData(docNr, "acc");
+			try
+			{
+				if (ba::starts_with(id, "UniRef100_"))
+					acc = id.substr(10);
+				else
+					acc = inDatabank->GetMetaData(docNr, "acc");
+			}
+			catch (...) {}
 		}
-		catch (...) {}
+			
+		string pdb;
 
 		try
 		{
@@ -1930,62 +1953,64 @@ void ClusterSequences(vector<string>& s, vector<uint32>& ix)
 	}
 }
 
-void CreateHSSP(
-	CDatabankPtr		inDatabank,
-	MProtein&			inProtein,
-	const fs::path&		inFastaDir,
-	const fs::path&		inJackHmmer,
-	uint32				inIterations,
-	uint32				inMaxHits,
-	uint32				inMinSeqLength,
-	float				inCutOff,
-	ostream&			outHSSP)
-{
-	// construct a set of unique sequences, containing only the largest ones in case of overlap
-	vector<string> seqset;
-	vector<uint32> ix;
-	vector<const MChain*> chains;
-	
-	foreach (const MChain* chain, inProtein.GetChains())
-	{
-		string seq;
-		chain->GetSequence(seq);
-		
-		if (seq.length() < inMinSeqLength)
-			continue;
-		
-		chains.push_back(chain);
-		seqset.push_back(seq);
-		ix.push_back(ix.size());
-	}
-	
-	if (seqset.empty())
-		THROW(("Not enough sequences in PDB file of length %d", inMinSeqLength));
-
-	if (seqset.size() > 1)
-		ClusterSequences(seqset, ix);
-	
-	// only take the unique sequences
-	ix.erase(unique(ix.begin(), ix.end()), ix.end());
-
-	// now create a stockholmid array
-	vector<string> stockholmIds;
-	
-	foreach (uint32 i, ix)
-	{
-		const MChain* chain = chains[i];
-		
-		stringstream s;
-		s << chain->GetChainID() << '=' << inProtein.GetID() << '-' << stockholmIds.size();
-		stockholmIds.push_back(s.str());
-	}
-	
-	CreateHSSP(inDatabank, inProtein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, inCutOff, outHSSP);
-}
+//void CreateHSSP(
+//	CDatabankPtr		inDatabank,
+//	MProtein&			inProtein,
+//	const fs::path&		inFastaDir,
+//	const fs::path&		inJackHmmer,
+//	uint32				inIterations,
+//	uint32				inMaxHits,
+//	uint32				inMinSeqLength,
+//	float				inCutOff,
+//	ostream&			outHSSP)
+//{
+//	// construct a set of unique sequences, containing only the largest ones in case of overlap
+//	vector<string> seqset;
+//	vector<uint32> ix;
+//	vector<const MChain*> chains;
+//	
+//	foreach (const MChain* chain, inProtein.GetChains())
+//	{
+//		string seq;
+//		chain->GetSequence(seq);
+//		
+//		if (seq.length() < inMinSeqLength)
+//			continue;
+//		
+//		chains.push_back(chain);
+//		seqset.push_back(seq);
+//		ix.push_back(ix.size());
+//	}
+//	
+//	if (seqset.empty())
+//		THROW(("Not enough sequences in PDB file of length %d", inMinSeqLength));
+//
+//	if (seqset.size() > 1)
+//		ClusterSequences(seqset, ix);
+//	
+//	// only take the unique sequences
+//	ix.erase(unique(ix.begin(), ix.end()), ix.end());
+//
+//	// now create a stockholmid array
+//	vector<string> stockholmIds;
+//	
+//	foreach (uint32 i, ix)
+//	{
+//		const MChain* chain = chains[i];
+//		
+//		stringstream s;
+//		s << chain->GetChainID() << '=' << inProtein.GetID() << '-' << stockholmIds.size();
+//		stockholmIds.push_back(s.str());
+//	}
+//	
+//	CreateHSSP(inDatabank, inProtein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, inCutOff, outHSSP);
+//}
 
 void CreateHSSP(
 	CDatabankPtr		inDatabank,
 	const string&		inProtein,
+	const string&		inProteinID,
+	const fs::path&		inDataDir,
 	const fs::path&		inFastaDir,
 	const fs::path&		inJackHmmer,
 	uint32				inIterations,
@@ -1993,9 +2018,6 @@ void CreateHSSP(
 	float				inCutOff,
 	ostream&			outHSSP)
 {
-	hit_list hits;
-	res_list res;
-
 	MChain* chain = new MChain('A');
 	vector<MResidue*>& residues = chain->GetResidues();
 	MResidue* last = nil;
@@ -2008,10 +2030,10 @@ void CreateHSSP(
 	}
 	
 	vector<string> stockholmIds;
-	stockholmIds.push_back("A=undf-1");
+	stockholmIds.push_back(string("A=") + inProteinID);
 	
 	MProtein protein("UNDF", chain);
-	CreateHSSP(inDatabank, protein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, inCutOff, outHSSP);
+	CreateHSSP(inDatabank, protein, inDataDir, inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, inCutOff, outHSSP);
 }
 
 void CreateHSSP(
@@ -2049,7 +2071,9 @@ void CreateHSSP(
 		seqlength += seq.length();
 		
 		// alignments are stored in datadir
-		fs::path afp = inDataDir / (ch.substr(2) + ".aln.bz2");
+		fs::path afp;
+		if (not inDataDir.empty())
+			afp = inDataDir / (ch.substr(2) + ".aln.bz2");
 		if (fs::exists(afp))
 		{
 			fs::path afp = inDataDir / (ch.substr(2) + ".aln.bz2");

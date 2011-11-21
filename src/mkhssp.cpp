@@ -61,6 +61,29 @@ uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
 CDatabankTable gDBTable;
 
+// read-fasta
+bool readFastA(istream& inFile, string& outID, string& outProtein)
+{
+	string line;
+	getline(inFile, line);
+	if (not ba::starts_with(line, ">"))
+		return false;
+	ba::erase_all(line, "\r");
+	outID = line.substr(1);
+	string::size_type s = outID.find(' ');
+	if (s != string::npos)
+		outID.erase(s, string::npos);
+	for (;;)
+	{
+		getline(inFile, line);
+		ba::erase_all(line, "\r");
+		if (line.empty() and inFile.eof())
+			break;
+		outProtein += line;
+	}
+	return not outProtein.empty();
+}
+
 // main
 
 int main(int argc, char* argv[])
@@ -204,74 +227,77 @@ int main(int argc, char* argv[])
 		else
 		{
 			if (ba::ends_with(input, ".bz2"))
+			{
 				in.push(io::bzip2_decompressor());
+				input.erase(input.length() - 4, string::npos);
+			}
 			else if (ba::ends_with(input, ".gz"))
+			{
 				in.push(io::gzip_decompressor());
+				input.erase(input.length() - 3, string::npos);
+			}
 			in.push(infile);
-		}
-
-		// OK, we've got the file, now create a protein
-		MProtein a(in);
-		
-		// then calculate the secondary structure
-		a.CalculateSecondaryStructure();
-
-		// see if we have per-chain information for this protein
-		if (chains.empty())
-		{
-			try
-			{
-				CDatabankPtr ix = gDBTable.Load("hssp2ix");
-
-				string chaininfo = ix->GetDocument(a.GetID());
-				ba::split(chains, chaininfo, ba::is_any_of("\n"));
-
-				chains.erase(remove_if(chains.begin(), chains.end(), boost::bind(&string::empty, _1)), chains.end());
-			}
-			catch (exception& e)
-			{
-				cerr << "Missing hssp2ix file: " << e.what() << endl;
-			}
 		}
 
 		// Where to write our HSSP file to:
 		// either to cout or an (optionally compressed) file.
+		ofstream outfile;
+		io::filtering_stream<io::output> out;
+
 		if (vm.count("output") and vm["output"].as<string>() != "stdout")
 		{
 			string output = vm["output"].as<string>();
+			outfile.open(output.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
 			
-			ofstream outfile(output.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
 			if (not outfile.is_open())
 				throw runtime_error("could not create output file");
 			
-			try
-			{
-				io::filtering_stream<io::output> out;
-				if (ba::ends_with(output, ".bz2"))
-					out.push(io::bzip2_compressor());
-				else if (ba::ends_with(output, ".gz"))
-					out.push(io::gzip_compressor());
-				out.push(outfile);
-	
-				// and the final HSSP file
-				//if (chains.empty())
-				//	hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, out);
-				//else
-					hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhits, chains, threshold, out);
-			}
-			catch (...)
-			{
-				outfile.close();
-				fs::remove(output);
-				throw;
-			}
+			if (ba::ends_with(output, ".bz2"))
+				out.push(io::bzip2_compressor());
+			else if (ba::ends_with(output, ".gz"))
+				out.push(io::gzip_compressor());
+			out.push(outfile);
+		}
+		else
+			out.push(cout);
+
+		// OK, we've got the file, can be a FastA or a PDB file
+		// use a boost::function to postpone the work
+		boost::function<void(ostream&)> work;
+
+		if (ba::ends_with(input, ".fa"))
+		{
+			string id, seq;
+			if (not readFastA(in, id, seq))
+				throw mas_exception("File does not contain a valid FastA formatted sequence");
+			hmmer::CreateHSSP(db, seq, id, datadir, fastadir, jackhmmer, iterations, maxhits, threshold, out);
 		}
 		else
 		{
-			//if (chains.empty())
-			//	hmmer::CreateHSSP(db, a, fastadir, jackhmmer, iterations, 25, cout);
-			//else
-				hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhits, chains, threshold, cout);
+			MProtein a(in);
+			
+			// then calculate the secondary structure
+			a.CalculateSecondaryStructure();
+
+			// see if we have per-chain information for this protein
+			if (chains.empty())
+			{
+				try
+				{
+					CDatabankPtr ix = gDBTable.Load("hssp2ix");
+
+					string chaininfo = ix->GetDocument(a.GetID());
+					ba::split(chains, chaininfo, ba::is_any_of("\n"));
+
+					chains.erase(remove_if(chains.begin(), chains.end(), boost::bind(&string::empty, _1)), chains.end());
+				}
+				catch (exception& e)
+				{
+					cerr << "Missing hssp2ix file: " << e.what() << endl;
+				}
+			}
+			
+			hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhits, chains, threshold, out);
 		}
 	}
 	catch (exception& e)
