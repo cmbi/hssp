@@ -10,6 +10,8 @@
 
 firstTarget: all
 
+VERSION				= 2.0.3
+
 #BOOST_LIB_SUFFIX	= -mt
 BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib
 BOOST_INC_DIR		?= $(HOME)/projects/boost/include
@@ -36,7 +38,7 @@ LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 CC					= c++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources -DBOOST_FILESYSTEM_VERSION=2 \
 					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread \
-					  -DBOOST_FILESYSTEM_VERSION=2 -std=c++0x
+					  -DBOOST_FILESYSTEM_VERSION=2 -std=c++0x -DVERSION='"$(VERSION)"'
 
 ifneq ($(DEBUG),1)
 OPT					= -O3 -DNDEBUG # -march=native

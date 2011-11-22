@@ -425,6 +425,9 @@ MResidue::MResidue(uint32 inNumber,
 	mCenter.mX = (mBox[0].mX + mBox[1].mX) / 2;
 	mCenter.mY = (mBox[0].mY + mBox[1].mY) / 2;
 	mCenter.mZ = (mBox[0].mZ + mBox[1].mZ) / 2;
+
+	if (VERBOSE > 3)
+		cerr << "Created residue " << mN.mResName << endl;
 }
 
 MResidue::MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious)
@@ -1000,6 +1003,9 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 	{
 		string line;
 		getline(is, line);
+
+		if (VERBOSE > 3)
+			cerr << line << endl;
 		
 		if (ba::starts_with(line, "HEADER"))
 		{
@@ -1146,7 +1152,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 					atom.mAltLoc = 'A';
 			}
 
-			if (atom.mAltLoc != ' ' and atom.mAltLoc != 'A' and atom.mAltLoc != '1')
+			if (firstAltLoc != 0 and atom.mAltLoc != ' ' and atom.mAltLoc != firstAltLoc)
 			{
 				if (VERBOSE)
 					cerr << "skipping alternate atom record " << atom.mResName << endl;

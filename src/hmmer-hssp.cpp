@@ -2068,6 +2068,10 @@ void CreateHSSP(
 
 		string seq;
 		chain.GetSequence(seq);
+
+		if (VERBOSE > 1)
+			cerr << "Chain " << ch[0] << " => '" << seq << '\'' << endl;
+
 		seqlength += seq.length();
 		
 		// alignments are stored in datadir
