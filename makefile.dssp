@@ -53,7 +53,7 @@ OBJECTS = $(OBJ_DIR)/mkdssp.o $(OBJ_DIR)/dssp.o $(OBJ_DIR)/primitives-3d.o $(OBJ
 
 mkdssp: $(OBJECTS)
 	@ echo linking $@
-	@ $(CC) -static -o $@ $? $(LDOPTS)
+	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
 
 include $(OBJECTS:%.o=%.d)

@@ -69,7 +69,7 @@ mas: $(OBJECTS)
 
 mkdssp: $(OBJ)/mkdssp.o $(OBJ)/dssp.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
 	@ echo linking $@
-	@ $(CC) -static -o $@ $? $(LDOPTS)
+	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
 
 mkhssp: $(OBJ)/mkhssp.o $(OBJ)/dssp.o $(OBJ)/hmmer-hssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
