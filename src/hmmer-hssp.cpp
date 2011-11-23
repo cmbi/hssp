@@ -1911,7 +1911,7 @@ void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
 	if (VERBOSE)
 		cerr << " done" << endl;
 	
-	assert(ri == residues.end());
+//	assert(ri == residues.end());
 	hits.insert(hits.end(), nhits.begin(), nhits.end());
 }
 
@@ -2068,6 +2068,10 @@ void CreateHSSP(
 
 		string seq;
 		chain.GetSequence(seq);
+
+		// strip off trailing X's. They are not very useful
+		while (ba::ends_with(seq, "X"))
+			seq.erase(seq.end() - 1);
 
 		if (VERBOSE > 1)
 			cerr << "Chain " << ch[0] << " => '" << seq << '\'' << endl;

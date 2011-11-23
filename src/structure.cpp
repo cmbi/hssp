@@ -1067,7 +1067,11 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 		if (ba::starts_with(line, "TER   "))
 		{
 			if (atoms.empty())
-				throw mas_exception("no atoms read before TER record");
+			{
+				cerr << "no atoms read before TER record " << endl
+					 << line << endl;
+				continue;
+			}
 			
 			AddResidue(atoms);
 			atoms.clear();
