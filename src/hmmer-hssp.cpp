@@ -1311,7 +1311,12 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		{
 			fs::path f1(rundir / (string("output-") + boost::lexical_cast<string>(i) + ".hmm"));
 			if (fs::exists(f1))
-				fs::copy_file(f1, dstdir / (hmmfilename + '-' + boost::lexical_cast<string>(i) + ".hmm"));
+			{
+				fs::path f2 = dstdir / ( hmmfilename + '-' + boost::lexical_cast<string>(i) + ".hmm" );
+				if (fs::exists(f2))
+					fs::remove(f2);
+				fs::copy_file(f1, f2);
+			}
 		}
 	}
 
@@ -1518,7 +1523,7 @@ void CreateHSSPOutput(
 	   << "REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991)." << endl
 	   << "CONTACT    Maintained at http://www.cmbi.ru.nl/ by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
 	   << inProteinDescription
-	   << boost::format("SEQLENGTH  %4.4d") % inSeqLength << endl
+	   << boost::format("SEQLENGTH %5.5d") % inSeqLength << endl
 	   << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
 	
 	if (inKChain != inNChain)
@@ -1557,7 +1562,7 @@ void CreateHSSPOutput(
 	   
 	// print the first list
 	uint32 nr = 1;
-	boost::format fmt1("%5.5d : %12.12s%4.4s    %4.2f  %4.2f %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d %4.4d  %10.10s %s");
+	boost::format fmt1("%5.5d : %12.12s%4.4s    %4.2f  %4.2f%5.5d%5.5d%5.5d%5.5d%5.5d%5.5d%5.5d%5.5d  %10.10s %s");
 	foreach (hit_ptr h, hits)
 	{
 		const seq& s(h->m_seq);
@@ -1699,10 +1704,10 @@ void CreateHSSPOutput(
 			string s = ins.m_seq;
 			
 			if (s.length() <= 100)
-				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
+				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
 			else
 			{
-				os << boost::format("  %4.4d  %4.4d  %4.4d  %4.4d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
+				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
 				s.erase(0, 100);
 				
 				while (not s.empty())
@@ -2106,7 +2111,7 @@ void CreateHSSP(
 				throw;
 			}
 		}
-		else
+		else if (not inJackHmmer.empty())
 		{
 			try
 			{
@@ -2132,6 +2137,8 @@ void CreateHSSP(
 				throw;
 			}
 		}
+		else
+			THROW(("--no-jackhmmer specified and alignment is missing, exiting"));
 
 		// Remove all hits that are not above the threshold here
 		mseq& msa = alignments[kchain];

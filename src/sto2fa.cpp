@@ -28,6 +28,10 @@ fs::path gTempDir	= "/tmp/hssp-2/";
 uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
 
+#ifdef NDEBUG
+int VERBOSE;
+#endif
+
 // main
 
 int main(int argc, char* argv[])
