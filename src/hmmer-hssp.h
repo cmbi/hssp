@@ -22,16 +22,16 @@ class MProtein;
 namespace hmmer
 {
 
-//void CreateHSSP(
-//	CDatabankPtr					inDatabank,
-//	MProtein&						inProtein,
-//	const boost::filesystem::path&	inFastaDir,
-//	const boost::filesystem::path&	inJackHmmer,
-//	uint32							inIterations,
-//	uint32							inMaxHits,
-//	uint32							inMinSeqLength,
-//	float							inCutOff,
-//	std::ostream&					outHSSP);
+void CreateHSSP(
+	CDatabankPtr					inDatabank,
+	MProtein&						inProtein,
+	const boost::filesystem::path&	inFastaDir,
+	const boost::filesystem::path&	inJackHmmer,
+	uint32							inIterations,
+	uint32							inMaxHits,
+	uint32							inMinSeqLength,
+	float							inCutOff,
+	std::ostream&					outHSSP);
 
 void CreateHSSP(
 	CDatabankPtr					inDatabank,

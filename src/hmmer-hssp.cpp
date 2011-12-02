@@ -1443,7 +1443,7 @@ void ResidueHInfo::CalculateVariability(hit_list& hits)
 	entropy = 0;
 	
 	int8 ix = kResidueIX[uint8(letter)];
-	if (ix != -1)
+	if (ix >= 0)
 	{
 		dist[ix] = 1;
 	
@@ -1453,7 +1453,7 @@ void ResidueHInfo::CalculateVariability(hit_list& hits)
 				continue;
 	
 			ix = kResidueIX[uint8(hit->m_seq[pos])];
-			if (ix != -1)
+			if (ix >= 0)
 			{
 				++nocc;
 				dist[ix] += 1;
@@ -1775,7 +1775,7 @@ void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& cs
 					int8 ri = kResidueIX[uint8(si[k])];
 					int8 rj = kResidueIX[uint8(sj[k])];
 					
-					if (ri != -1 and rj != -1)
+					if (ri >= 0 and rj >= 0)
 						simval[k] = kD(ri, rj);
 					else
 						simval[k] = numeric_limits<float>::min();
@@ -1958,58 +1958,58 @@ void ClusterSequences(vector<string>& s, vector<uint32>& ix)
 	}
 }
 
-//void CreateHSSP(
-//	CDatabankPtr		inDatabank,
-//	MProtein&			inProtein,
-//	const fs::path&		inFastaDir,
-//	const fs::path&		inJackHmmer,
-//	uint32				inIterations,
-//	uint32				inMaxHits,
-//	uint32				inMinSeqLength,
-//	float				inCutOff,
-//	ostream&			outHSSP)
-//{
-//	// construct a set of unique sequences, containing only the largest ones in case of overlap
-//	vector<string> seqset;
-//	vector<uint32> ix;
-//	vector<const MChain*> chains;
-//	
-//	foreach (const MChain* chain, inProtein.GetChains())
-//	{
-//		string seq;
-//		chain->GetSequence(seq);
-//		
-//		if (seq.length() < inMinSeqLength)
-//			continue;
-//		
-//		chains.push_back(chain);
-//		seqset.push_back(seq);
-//		ix.push_back(ix.size());
-//	}
-//	
-//	if (seqset.empty())
-//		THROW(("Not enough sequences in PDB file of length %d", inMinSeqLength));
-//
-//	if (seqset.size() > 1)
-//		ClusterSequences(seqset, ix);
-//	
-//	// only take the unique sequences
-//	ix.erase(unique(ix.begin(), ix.end()), ix.end());
-//
-//	// now create a stockholmid array
-//	vector<string> stockholmIds;
-//	
-//	foreach (uint32 i, ix)
-//	{
-//		const MChain* chain = chains[i];
-//		
-//		stringstream s;
-//		s << chain->GetChainID() << '=' << inProtein.GetID() << '-' << stockholmIds.size();
-//		stockholmIds.push_back(s.str());
-//	}
-//	
-//	CreateHSSP(inDatabank, inProtein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, inCutOff, outHSSP);
-//}
+void CreateHSSP(
+	CDatabankPtr		inDatabank,
+	MProtein&			inProtein,
+	const fs::path&		inFastaDir,
+	const fs::path&		inJackHmmer,
+	uint32				inIterations,
+	uint32				inMaxHits,
+	uint32				inMinSeqLength,
+	float				inCutOff,
+	ostream&			outHSSP)
+{
+	// construct a set of unique sequences, containing only the largest ones in case of overlap
+	vector<string> seqset;
+	vector<uint32> ix;
+	vector<const MChain*> chains;
+	
+	foreach (const MChain* chain, inProtein.GetChains())
+	{
+		string seq;
+		chain->GetSequence(seq);
+		
+		if (seq.length() < inMinSeqLength)
+			continue;
+		
+		chains.push_back(chain);
+		seqset.push_back(seq);
+		ix.push_back(ix.size());
+	}
+	
+	if (seqset.empty())
+		THROW(("Not enough sequences in PDB file of length %d", inMinSeqLength));
+
+	if (seqset.size() > 1)
+		ClusterSequences(seqset, ix);
+	
+	// only take the unique sequences
+	ix.erase(unique(ix.begin(), ix.end()), ix.end());
+
+	// now create a stockholmid array
+	vector<string> stockholmIds;
+	
+	foreach (uint32 i, ix)
+	{
+		const MChain* chain = chains[i];
+		
+		stringstream s;
+		s << chain->GetChainID() << '=' << inProtein.GetID() << '-' << stockholmIds.size();
+		stockholmIds.push_back(s.str());
+	}
+	
+	CreateHSSP(inDatabank, inProtein, fs::path(), inFastaDir, inJackHmmer, inIterations, inMaxHits, stockholmIds, inCutOff, outHSSP);
+}
 
 void CreateHSSP(
 	CDatabankPtr		inDatabank,

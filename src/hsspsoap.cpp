@@ -353,7 +353,7 @@ void hssp_server::GetHSSPForSequence(
 	CDatabankPtr db = mDBTable.Load(mDatabank);
 
 	io::filtering_ostream out(io::back_inserter(hssp));
-	hmmer::CreateHSSP(db, sequence, mFastaDir, mJackhmmer, mIterations, 1500, kHomologyThreshold, out);
+	hmmer::CreateHSSP(db, sequence, "undefined", fs::path(), mFastaDir, mJackhmmer, mIterations, 1500, kHomologyThreshold, out);
 }
 
 // --------------------------------------------------------------------
