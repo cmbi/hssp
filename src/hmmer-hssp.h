@@ -57,6 +57,13 @@ void CreateHSSP(
 	float							inCutOff,
 	std::ostream&					outHSSP);
 
+void CreateHSSP(
+	CDatabankPtr					inDatabank,
+	std::istream&					inAlignment,
+	uint32							inMaxHits,
+	float							inCutOff,
+	std::ostream&					outHSSP);
+
 // Create a FastA formatted aligment from a Stockholm file.
 // The stockholm file should have been created with the
 // inQuery sequence. The alignment is cut to match the query

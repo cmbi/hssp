@@ -2205,6 +2205,73 @@ void CreateHSSP(
 		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
 }
 
+void CreateHSSP(
+	CDatabankPtr					inDatabank,
+	std::istream&					inAlignment,
+	uint32							inMaxHits,
+	float							inCutOff,
+	std::ostream&					outHSSP)
+{
+	mseq msa;
+	ReadFastA(inAlignment, msa, "", inMaxHits);
+	msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1, inCutOff)), msa.end());
+
+	if (msa.size() < 2)
+		throw mas_exception("no alignment");
+
+	MChain* chain = new MChain('A');
+	vector<MResidue*>& residues = chain->GetResidues();
+	MResidue* last = nil;
+	uint32 nr = 1;
+	foreach (char r, msa.front())
+	{
+		if (is_gap(r))
+			continue;
+
+		residues.push_back(new MResidue(nr, r, last));
+		++nr;
+		last = residues.back();
+	}
+
+	MProtein protein("UNDF", chain);
+
+	res_list res;
+	hit_list hits;
+
+	ChainToHits(inDatabank, msa, *chain, hits, res);
+
+	sort(hits.begin(), hits.end(), compare_hit());
+
+	if (inMaxHits > 0 and hits.size() > inMaxHits)
+		hits.erase(hits.begin() + inMaxHits, hits.end());
+
+	if (hits.empty())
+		throw mas_exception("No hits found or remaining");
+	
+	nr = 1;
+	foreach (hit_ptr h, hits)
+		h->m_nr = nr++;
+
+	res_range r(res.begin(), res.end());
+	CalculateConservation(msa, r);
+
+	foreach (res_ptr ri, r)
+		ri->CalculateVariability(hits);
+	
+	stringstream desc;
+	if (protein.GetHeader().length() >= 50)
+		desc << "HEADER     " + protein.GetHeader().substr(10, 40) << endl;
+	if (protein.GetCompound().length() > 10)
+		desc << "COMPND     " + protein.GetCompound().substr(10) << endl;
+	if (protein.GetSource().length() > 10)
+		desc << "SOURCE     " + protein.GetSource().substr(10) << endl;
+	if (protein.GetAuthor().length() > 10)
+		desc << "AUTHOR     " + protein.GetAuthor().substr(10) << endl;
+
+	CreateHSSPOutput(inDatabank, protein.GetID(), desc.str(), inCutOff, res.size(),
+		protein.GetChains().size(), 1, "A", hits, res, outHSSP);
+}
+
 void ConvertHmmerAlignment(
 	const string&	inQuerySequence,
 	const fs::path&	inStockholmFile,

@@ -65,29 +65,6 @@ CDatabankTable gDBTable;
 int VERBOSE;
 #endif
 
-// read-fasta
-bool readFastA(istream& inFile, string& outID, string& outProtein)
-{
-	string line;
-	getline(inFile, line);
-	if (not ba::starts_with(line, ">"))
-		return false;
-	ba::erase_all(line, "\r");
-	outID = line.substr(1);
-	string::size_type s = outID.find(' ');
-	if (s != string::npos)
-		outID.erase(s, string::npos);
-	for (;;)
-	{
-		getline(inFile, line);
-		ba::erase_all(line, "\r");
-		if (line.empty() and inFile.eof())
-			break;
-		outProtein += line;
-	}
-	return not outProtein.empty();
-}
-
 // main
 
 int main(int argc, char* argv[])
@@ -111,19 +88,10 @@ int main(int argc, char* argv[])
 			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("databank,b",	po::value<string>(), "Databank to use (default is uniprot)")
-			("fastadir,f",	po::value<string>(), "Directory containing fasta databank files)")
-			("tmpdir",		po::value<string>(), "Directory used for temporary files (default=/tmp/hssp-2)")
-			("jackhmmer",	po::value<string>(), "Jackhmmer executable path (default=/usr/local/bin/jackhmmer)")
-			("no-jackhmmer",					 "Do not run jackhmmer when needed, but exit with error")
-			("max-runtime",	po::value<uint32>(), "Max runtime in seconds for jackhmmer (default = 3600)")
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
-			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
 
-			("datadir",		po::value<string>(), "Data directory containing stockholm files")
-			("chain",		po::value<vector<string>>(),
-												 "Mappings for chain => stockholm file")
 			("verbose,v",						 "Verbose output")
 			("debug,d",		po::value<int>(),	 "Debug level (for even more verbose output)")
 			;
@@ -158,21 +126,6 @@ int main(int argc, char* argv[])
 		if (vm.count("databank"))
 			databank = vm["databank"].as<string>();
 			
-		vector<string> chains;
-		if (vm.count("chain"))
-			chains = vm["chain"].as<vector<string>>();
-
-		fs::path jackhmmer("/usr/local/bin/jackhmmer");
-		if (vm.count("jackhmmer"))
-			jackhmmer = fs::path(vm["jackhmmer"].as<string>());
-		if (chains.empty() and not fs::exists(jackhmmer))
-			throw mas_exception("Jackhmmer executable not found");
-		if (vm.count("no-jackhmmer"))
-			jackhmmer.clear();
-		
-		if (vm.count("max-runtime"))
-			gMaxRunTime = vm["max-runtime"].as<uint32>();
-		
 		uint32 maxhits = 1500;
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
@@ -187,25 +140,6 @@ int main(int argc, char* argv[])
 		if (gNrOfThreads < 1)
 			gNrOfThreads = 1;
 			
-		fs::path fastadir("/data/fasta");
-		if (vm.count("fastadir"))
-			fastadir = fs::path(vm["fastadir"].as<string>());
-		if (chains.empty() and not fs::exists(fastadir))
-			throw mas_exception("Fasta databank directory not found");
-			
-		if (vm.count("tmpdir"))
-			gTempDir = fs::path(vm["tmpdir"].as<string>());
-			
-		uint32 iterations = 5;
-		if (vm.count("iterations"))
-			iterations = vm["iterations"].as<uint32>();
-
-		fs::path datadir(".");
-		if (vm.count("datadir"))
-			datadir = fs::path(vm["datadir"].as<string>());
-		if (not fs::exists(datadir))
-			throw mas_exception("Data directory not found");
-
 		// got parameters
 
 		CDatabankPtr db = gDBTable.Load(databank);
@@ -217,31 +151,17 @@ int main(int argc, char* argv[])
 		ifstream infile(input.c_str(), ios_base::in | ios_base::binary);
 		istringstream indata;
 
-		// first see if input is a local file, otherwise it might be a
-		// PDB ID.
-		if (not infile.is_open() and input.length() == 4)
+		if (ba::ends_with(input, ".bz2"))
 		{
-			CDatabankPtr pdb = gDBTable.Load("pdb");
-			uint32 docNr;
-			if (not pdb->GetDocumentNr(input, docNr))
-				THROW(("Entry %s not found in PDB", input.c_str()));
-			indata.str(pdb->GetDocument(docNr));
-			in.push(indata);
+			in.push(io::bzip2_decompressor());
+			input.erase(input.length() - 4, string::npos);
 		}
-		else
+		else if (ba::ends_with(input, ".gz"))
 		{
-			if (ba::ends_with(input, ".bz2"))
-			{
-				in.push(io::bzip2_decompressor());
-				input.erase(input.length() - 4, string::npos);
-			}
-			else if (ba::ends_with(input, ".gz"))
-			{
-				in.push(io::gzip_decompressor());
-				input.erase(input.length() - 3, string::npos);
-			}
-			in.push(infile);
+			in.push(io::gzip_decompressor());
+			input.erase(input.length() - 3, string::npos);
 		}
+		in.push(infile);
 
 		// Where to write our HSSP file to:
 		// either to cout or an (optionally compressed) file.
@@ -265,44 +185,7 @@ int main(int argc, char* argv[])
 		else
 			out.push(cout);
 
-		// OK, we've got the file, can be a FastA or a PDB file
-		// use a boost::function to postpone the work
-		boost::function<void(ostream&)> work;
-
-		if (ba::ends_with(input, ".fa") or ba::ends_with(input, ".aln"))
-		{
-			string id, seq;
-			if (not readFastA(in, id, seq))
-				throw mas_exception("File does not contain a valid FastA formatted sequence");
-			hmmer::CreateHSSP(db, seq, id, datadir, fastadir, jackhmmer, iterations, maxhits, threshold, out);
-		}
-		else
-		{
-			MProtein a(in);
-			
-			// then calculate the secondary structure
-			a.CalculateSecondaryStructure();
-
-			// see if we have per-chain information for this protein
-			if (chains.empty())
-			{
-				try
-				{
-					CDatabankPtr ix = gDBTable.Load("hssp2ix");
-
-					string chaininfo = ix->GetDocument(a.GetID());
-					ba::split(chains, chaininfo, ba::is_any_of("\n"));
-
-					chains.erase(remove_if(chains.begin(), chains.end(), boost::bind(&string::empty, _1)), chains.end());
-				}
-				catch (exception& e)
-				{
-					cerr << "Missing hssp2ix file: " << e.what() << endl;
-				}
-			}
-			
-			hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhits, chains, threshold, out);
-		}
+		hmmer::CreateHSSP(db, in, maxhits, threshold, out);
 	}
 	catch (exception& e)
 	{

@@ -55,34 +55,39 @@ CFLAGS				+= -g3
 OBJ					:= $(OBJ).dbg
 endif
 
-VPATH += src
+VPATH += src $(OBJ)
 
 SOURCES = $(wildcard src/*.cpp)
 OBJECTS = $(SOURCES:src/%.cpp=$(OBJ)/%.o)
 
-all: mkdssp mkhssp sto2fa # hsspsoap
+all: mkdssp mkhssp sto2fa aln2hssp # hsspsoap
 
 mas: $(OBJECTS)
 	@ echo linking $@
 	@ $(CC) -o $@ $(OBJECTS) $(LDOPTS)
 	@ echo OK
 
-mkdssp: $(OBJ)/mkdssp.o $(OBJ)/dssp.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
+mkdssp: mkdssp.o dssp.o primitives-3d.o structure.o utils.o
 	@ echo linking $@
 	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-mkhssp: $(OBJ)/mkhssp.o $(OBJ)/dssp.o $(OBJ)/hmmer-hssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
+mkhssp: mkhssp.o dssp.o hmmer-hssp.o matrix.o primitives-3d.o structure.o utils.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-sto2fa: $(OBJ)/sto2fa.o $(OBJ)/dssp.o $(OBJ)/hmmer-hssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
+aln2hssp: aln2hssp.o dssp.o hmmer-hssp.o matrix.o primitives-3d.o structure.o utils.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-hsspsoap: $(OBJ)/dssp.o $(OBJ)/hsspsoap.o $(OBJ)/matrix.o $(OBJ)/maxhom-hssp.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o
+sto2fa: sto2fa.o dssp.o hmmer-hssp.o matrix.o primitives-3d.o structure.o utils.o
+	@ echo linking $@
+	@ $(CC) -o $@ $^ $(LDOPTS)
+	@ echo OK
+
+hsspsoap: dssp.o hsspsoap.o matrix.o maxhom-hssp.o primitives-3d.o structure.o utils.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK

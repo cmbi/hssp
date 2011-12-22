@@ -56,6 +56,10 @@ fs::path gTempDir	= "/tmp/hssp-2/";
 uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
 
+#ifdef NDEBUG || ! defined(DEBUG)
+int VERBOSE = 0;
+#endif
+
 const float kHomologyThreshold = 0.05f;
 
 void GetDSSPForSequence(
