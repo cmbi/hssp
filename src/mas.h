@@ -6,6 +6,11 @@
 #pragma once
 
 #if defined(_MSC_VER)
+
+#ifndef P_WIN
+#define P_WIN 1
+#endif
+
 // These are Microsoft Visual C++ special settings
 // the iso646 file contains the C++ keywords that are
 // otherwise not recognized.

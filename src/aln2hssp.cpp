@@ -3,7 +3,7 @@
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
-#include "MRS.h"
+#include "mas.h"
 
 #include <iostream>
 #include <set>
@@ -35,31 +35,23 @@
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/date_clock_device.hpp>
 
-#include "CDatabank.h"
-#include "CDatabankTable.h"
-#include "CBlast.h"
-#include "CQuery.h"
-
-#include "mas.h"
 #include "matrix.h"
-#include "dssp.h"
-#include "blast.h"
+#include "hssp.h"
 #include "structure.h"
 #include "utils.h"
-#include "hmmer-hssp.h"
-#include "mkhssp.h"
 
 using namespace std;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
+namespace fs = boost::filesystem;
 
 // Globals section
 
 fs::path gTempDir	= "/tmp/hssp-2/";
 uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
-CDatabankTable gDBTable;
+int VERBOSE = 0;
 
 #ifdef NDEBUG
 int VERBOSE;
@@ -82,13 +74,14 @@ int main(int argc, char* argv[])
 
 	try
 	{
-		po::options_description desc("MKHSSP options");
+		po::options_description desc("aln2hssp options");
 		desc.add_options()
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
+			("chain",		po::value<vector<string>>(),
+												 "Chain mapping in the form A=file-A.aln")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("databank,b",	po::value<string>(), "Databank to use (default is uniprot)")
-			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
 
@@ -103,16 +96,17 @@ int main(int argc, char* argv[])
 		po::variables_map vm;
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 
-		fs::path home = get_home();
-		if (fs::exists(home / ".mkhssprc"))
-		{
-			fs::ifstream rc(home / ".mkhssprc");
-			po::store(po::parse_config_file(rc, desc), vm);
-		}
+		//fs::path home = get_home();
+		//if (fs::exists(home / ".mkhssprc"))
+		//{
+		//	fs::ifstream rc(home / ".mkhssprc");
+		//	po::store(po::parse_config_file(rc, desc), vm);
+		//}
 
 		po::notify(vm);
 
-		if (vm.count("help") or not vm.count("input"))
+		vector<string> mapped = vm["chain"].as<vector<string>>();
+		if (vm.count("help") or not vm.count("input") or mapped.empty())
 		{
 			cerr << desc << endl;
 			exit(1);
@@ -135,14 +129,10 @@ int main(int argc, char* argv[])
 			threshold = vm["threshold"].as<float>();
 
 		gNrOfThreads = boost::thread::hardware_concurrency();
-		if (vm.count("threads"))
-			gNrOfThreads = vm["threads"].as<uint32>();
-		if (gNrOfThreads < 1)
-			gNrOfThreads = 1;
-			
-		// got parameters
-
-		CDatabankPtr db = gDBTable.Load(databank);
+//		if (vm.count("threads"))
+//			gNrOfThreads = vm["threads"].as<uint32>();
+//		if (gNrOfThreads < 1)
+//			gNrOfThreads = 1;
 
 		// what input to use
 		string input = vm["input"].as<string>();
@@ -162,6 +152,11 @@ int main(int argc, char* argv[])
 			input.erase(input.length() - 3, string::npos);
 		}
 		in.push(infile);
+		
+		MProtein a(in);
+		
+		// then calculate the secondary structure
+		a.CalculateSecondaryStructure();
 
 		// Where to write our HSSP file to:
 		// either to cout or an (optionally compressed) file.
@@ -185,7 +180,7 @@ int main(int argc, char* argv[])
 		else
 			out.push(cout);
 
-		hmmer::CreateHSSP(db, in, maxhits, threshold, out);
+		CreateHSSPForAlignments(a, maxhits, threshold, mapped, out);
 	}
 	catch (exception& e)
 	{
