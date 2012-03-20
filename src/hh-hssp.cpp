@@ -111,7 +111,7 @@ void AlignWithClustalOmega(const string& inClustalO, mseq& seqs)
 			const_cast<char*>(inClustalO.c_str()),
 			const_cast<char*>("-i"),
 			const_cast<char*>("-"),
-			nil
+			nullptr
 		};
 		
 		(void)execve(inClustalO.c_str(), argv, environ);
@@ -485,7 +485,7 @@ void ChainToHits(
 
 	CBlastResult* result = PerformBlastSearch(*inDatabank, seq, matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
 	
-	if (result != nil)
+	if (result != nullptr)
 	{
 		CBlastHitList& hits = result->hits;
 		

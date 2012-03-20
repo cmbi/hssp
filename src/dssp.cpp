@@ -80,7 +80,7 @@ string ResidueToDSSPLine(const MResidue& residue)
 	for (uint32 i = 0; i < 2; ++i)
 	{
 		MBridgeParner p = residue.GetBetaPartner(i);
-		if (p.residue != nil)
+		if (p.residue != nullptr)
 		{
 			bp[i] = p.residue->GetNumber();
 			bp[i] %= 10000;	// won't fit otherwise...
@@ -101,13 +101,13 @@ string ResidueToDSSPLine(const MResidue& residue)
 	{
 		NHO[i] = ONH[i] = "0, 0.0";
 		
-		if (acceptors[i].residue != nil)
+		if (acceptors[i].residue != nullptr)
 		{
 			int32 d = acceptors[i].residue->GetNumber() - residue.GetNumber();
 			NHO[i] = (boost::format("%d,%3.1f") % d % acceptors[i].energy).str();
 		}
 	
-		if (donors[i].residue != nil)
+		if (donors[i].residue != nullptr)
 		{
 			int32 d = donors[i].residue->GetNumber() - residue.GetNumber();
 			ONH[i] = (boost::format("%d,%3.1f") % d % donors[i].energy).str();
@@ -221,12 +221,12 @@ void WriteDSSP(MProtein& protein, ostream& os)
 	// keep residues sorted by residue number as assigned during reading the PDB file
 	sort(residues.begin(), residues.end(), boost::bind(&MResidue::GetNumber, _1) < boost::bind(&MResidue::GetNumber, _2));
 
-	const MResidue* last = nil;
+	const MResidue* last = nullptr;
 	foreach (const MResidue* residue, residues)
 	{
 		// insert a break line whenever we detect missing residues
 		// can be the transition to a different chain, or missing residues in the current chain
-		if (last != nil and last->GetNumber() + 1 != residue->GetNumber())
+		if (last != nullptr and last->GetNumber() + 1 != residue->GetNumber())
 		{
 			char breaktype = ' ';
 			if (last->GetChainID() != residue->GetChainID())

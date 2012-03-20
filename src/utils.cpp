@@ -40,7 +40,7 @@ arg_vector::operator char* const*()
 	if (VERBOSE > 1)
 		cerr << endl;
 
-	m_argv.push_back(nil);
+	m_argv.push_back(nullptr);
 	return const_cast<char*const*>(&m_argv[0]);
 }
 
@@ -284,9 +284,9 @@ void WriteToFD(int inFD, const std::string& inText)
 fs::path get_home()
 {
 	const char* home = getenv("HOME");
-	if (home == nil)
+	if (home == nullptr)
 		home = getenv("HOMEPATH");
-	if (home == nil)
+	if (home == nullptr)
 		throw mas_exception("No home defined");
 	return fs::path(home);
 }
@@ -296,7 +296,7 @@ fs::path get_home()
 fs::path get_home()
 {
 	const char* home = getenv("HOME");
-	if (home == nil)
+	if (home == nullptr)
 		throw mas_exception("No home defined");
 	return fs::path(home);
 }

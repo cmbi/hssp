@@ -28,8 +28,8 @@ typedef uint32_t	uint32;
 typedef int64_t		int64;
 typedef uint64_t	uint64;
 
-#ifndef nil
-#define nil NULL
+#ifndef nullptr
+#define nullptr NULL
 #endif
 
 // we even have globals:

@@ -39,7 +39,7 @@ void BlastSequence(
 	CBlastResult* results = inDatabank->PerformBlastSearch(
 		inSequence, "blastp", matrix, wordsize, expect, filter, gapped, gapOpen, gapExtend, maxhits);
 	
-	if (results != nil)
+	if (results != nullptr)
 	{
 		foreach (const CBlastHit& hit, results->hits)
 			outHits.push_back(hit.documentNr);

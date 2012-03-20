@@ -87,7 +87,7 @@ void GetHSSPForHitsAndDSSP(
 		
 		char* argv[] = {
 			const_cast<char*>(inMaxHom.c_str()),
-			nil
+			nullptr
 		};
 		
 		(void)execve(inMaxHom.c_str(), argv, environ);

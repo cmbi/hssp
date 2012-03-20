@@ -36,9 +36,9 @@ LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
 CC					= c++
-CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources -DBOOST_FILESYSTEM_VERSION=2 \
+CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
 					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread \
-					  -DBOOST_FILESYSTEM_VERSION=2 -std=c++0x -DVERSION='"$(VERSION)"'
+					  -std=c++0x -DVERSION='"$(VERSION)"'
 
 ifneq ($(DEBUG),1)
 OPT					= -O3 -DNDEBUG # -march=native

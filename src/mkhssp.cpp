@@ -61,10 +61,6 @@ uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
 CDatabankTable gDBTable;
 
-#ifdef NDEBUG
-int VERBOSE;
-#endif
-
 // read-fasta
 bool readFastA(istream& inFile, string& outID, string& outProtein)
 {

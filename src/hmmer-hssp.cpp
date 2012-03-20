@@ -321,13 +321,13 @@ seq::seq_impl::seq_impl(const string& id, const string& desc)
 	, m_pruned(false)
 	, m_gaps(0)
 	, m_gapn(0)
-	, m_seq(nil)
+	, m_seq(nullptr)
 	, m_refcount(1)
 	, m_size(0)
 	, m_space(0)
 {
 	m_ifir = m_ilas = m_jfir = m_jlas = 0;
-	m_data = m_seq = nil;
+	m_data = m_seq = nullptr;
 }
 
 seq::seq_impl::~seq_impl()
@@ -465,13 +465,13 @@ void seq::update_all(buffer<seq*>& b, const seq& qseq)
 	for (;;)
 	{
 		seq* s = b.get();
-		if (s == nil)
+		if (s == nullptr)
 			break;
 
 		s->update(qseq);
 	}
 
-	b.put(nil);
+	b.put(nullptr);
 }
 
 void seq::update(const seq& qseq)
@@ -799,7 +799,7 @@ void ReadStockholm(istream& is, mseq& msa, const string& q)
 		for (uint32 i = 1; i < msa.size(); ++i)
 			b.put(&msa[i]);
 	
-		b.put(nil);
+		b.put(nullptr);
 		threads.join_all();
 	}
 	else
@@ -936,7 +936,7 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
 		for (uint32 i = 1; i < msa.size(); ++i)
 			b.put(&msa[i]);
 	
-		b.put(nil);
+		b.put(nullptr);
 		threads.join_all();
 	}
 	else
@@ -1183,8 +1183,8 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 	string cmd = scmd.str();
 
 	PROCESS_INFORMATION pi;
-	::CreateProcessA(nil, const_cast<char*>(cmd.c_str()), nil, nil, true,
-		CREATE_NEW_PROCESS_GROUP, nil, const_cast<char*>(cwd.c_str()), &si, &pi);
+	::CreateProcessA(nullptr, const_cast<char*>(cmd.c_str()), nullptr, nullptr, true,
+		CREATE_NEW_PROCESS_GROUP, nullptr, const_cast<char*>(cwd.c_str()), &si, &pi);
 
 	::CloseHandle(ifd[i_read]);
 	::CloseHandle(ofd[i_write]);
@@ -1210,13 +1210,13 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 
 		while (not outDone)
 		{
-			if (not ::PeekNamedPipe(ofd[i_write2], nil, 0, nil, &avail, nil))
+			if (not ::PeekNamedPipe(ofd[i_write2], nullptr, 0, nullptr, &avail, nullptr))
 			{
 				unsigned int err = ::GetLastError();
 				if (err == ERROR_HANDLE_EOF or err == ERROR_BROKEN_PIPE)
 					outDone = true;
 			}
-			else if (avail > 0 and ::ReadFile(ofd[i_write2], buffer, sizeof(buffer), &rr, nil))
+			else if (avail > 0 and ::ReadFile(ofd[i_write2], buffer, sizeof(buffer), &rr, nullptr))
 				out.append(buffer, buffer + rr);
 			else
 				break;
@@ -1224,13 +1224,13 @@ fs::path RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fast
 
 		while (not errDone)
 		{
-			if (not ::PeekNamedPipe(efd[i_write2], nil, 0, nil, &avail, nil))
+			if (not ::PeekNamedPipe(efd[i_write2], nullptr, 0, nullptr, &avail, nullptr))
 			{
 				unsigned int err = ::GetLastError();
 				if (err == ERROR_HANDLE_EOF or err == ERROR_BROKEN_PIPE)
 					errDone = true;
 			}
-			else if (avail > 0 and ::ReadFile(efd[i_write2], buffer, sizeof(buffer), &rr, nil))
+			else if (avail > 0 and ::ReadFile(efd[i_write2], buffer, sizeof(buffer), &rr, nullptr))
 				error.append(buffer, buffer + rr);
 			else
 				break;
@@ -1303,7 +1303,7 @@ void RunJackHmmer(const string& seq, uint32 iterations, const fs::path& fastadir
 		WriteFastA(out, msa);
 
 		// copy the hmm files, if any
-		string hmmfilename = dst.stem();
+		string hmmfilename = dst.stem().string();
 		if (ba::ends_with(hmmfilename, ".aln"))
 			ba::erase_last(hmmfilename, ".aln");
 
@@ -2025,7 +2025,7 @@ void CreateHSSP(
 {
 	MChain* chain = new MChain('A');
 	vector<MResidue*>& residues = chain->GetResidues();
-	MResidue* last = nil;
+	MResidue* last = nullptr;
 	uint32 nr = 1;
 	foreach (char r, inProtein)
 	{
@@ -2221,7 +2221,7 @@ void CreateHSSP(
 
 	MChain* chain = new MChain('A');
 	vector<MResidue*>& residues = chain->GetResidues();
-	MResidue* last = nil;
+	MResidue* last = nullptr;
 	uint32 nr = 1;
 	foreach (char r, msa.front())
 	{

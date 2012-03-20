@@ -342,7 +342,7 @@ MResidue::MResidue(uint32 inNumber,
 		MResidue* inPrevious, const vector<MAtom>& inAtoms)
 	: mChainID(0)
 	, mPrev(inPrevious)
-	, mNext(nil)
+	, mNext(nullptr)
 	, mSeqNumber(inAtoms.front().mResSeq)
 	, mNumber(inNumber)
 	, mInsertionCode(inAtoms.front().mICode)
@@ -352,15 +352,15 @@ MResidue::MResidue(uint32 inNumber,
 	, mSecondaryStructure(loop)
 	, mSheet(0)
 {
-	if (mPrev != nil)
+	if (mPrev != nullptr)
 		mPrev->mNext = this;
 	
 	fill(mHelixFlags, mHelixFlags + 3, helixNone);
 	
-	mBetaPartner[0].residue = mBetaPartner[1].residue = nil;
+	mBetaPartner[0].residue = mBetaPartner[1].residue = nullptr;
 	
 	mHBondDonor[0].energy = mHBondDonor[1].energy = mHBondAcceptor[0].energy = mHBondAcceptor[1].energy = 0;
-	mHBondDonor[0].residue = mHBondDonor[1].residue = mHBondAcceptor[0].residue = mHBondAcceptor[1].residue = nil;
+	mHBondDonor[0].residue = mHBondDonor[1].residue = mHBondAcceptor[0].residue = mHBondAcceptor[1].residue = nullptr;
 
 	static const MAtom kNullAtom = {};
 	mN = mCA = mC = mO = kNullAtom;
@@ -393,7 +393,7 @@ MResidue::MResidue(uint32 inNumber,
 	// assign the Hydrogen
 	mH = GetN();
 	
-	if (mType != kProline and mPrev != nil)
+	if (mType != kProline and mPrev != nullptr)
 	{
 		const MAtom& pc = mPrev->GetC();
 		const MAtom& po = mPrev->GetO();
@@ -432,8 +432,8 @@ MResidue::MResidue(uint32 inNumber,
 
 MResidue::MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious)
 	: mChainID(0)
-	, mPrev(nil)
-	, mNext(nil)
+	, mPrev(nullptr)
+	, mNext(nullptr)
 	, mSeqNumber(inNumber)
 	, mNumber(inNumber)
 	, mInsertionCode(' ')
@@ -446,10 +446,10 @@ MResidue::MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious)
 {
 	fill(mHelixFlags, mHelixFlags + 3, helixNone);
 	
-	mBetaPartner[0].residue = mBetaPartner[1].residue = nil;
+	mBetaPartner[0].residue = mBetaPartner[1].residue = nullptr;
 	
 	mHBondDonor[0].energy = mHBondDonor[1].energy = mHBondAcceptor[0].energy = mHBondAcceptor[1].energy = 0;
-	mHBondDonor[0].residue = mHBondDonor[1].residue = mHBondAcceptor[0].residue = mHBondAcceptor[1].residue = nil;
+	mHBondDonor[0].residue = mHBondDonor[1].residue = mHBondAcceptor[0].residue = mHBondAcceptor[1].residue = nullptr;
 
 	static const MAtom kNullAtom = {};
 	mN = mCA = mC = mO = kNullAtom;
@@ -461,8 +461,8 @@ MResidue::MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious)
 
 MResidue::MResidue(const MResidue& residue)
 	: mChainID(residue.mChainID)
-	, mPrev(nil)
-	, mNext(nil)
+	, mPrev(nullptr)
+	, mNext(nullptr)
 	, mSeqNumber(residue.mSeqNumber)
 	, mNumber(residue.mNumber)
 	, mType(residue.mType)
@@ -499,7 +499,7 @@ bool MResidue::NoChainBreak(const MResidue* from, const MResidue* to)
 	for (const MResidue* r = from; result and r != to; r = r->mNext)
 	{
 		MResidue* next = r->mNext;
-		if (next == nil)
+		if (next == nullptr)
 			result = false;
 		else
 			result = next->mNumber == r->mNumber + 1;
@@ -534,7 +534,7 @@ bool MResidue::TestBond(const MResidue* other) const
 double MResidue::Phi() const
 {
 	double result = 360;
-	if (mPrev != nil and NoChainBreak(mPrev, this))
+	if (mPrev != nullptr and NoChainBreak(mPrev, this))
 		result = DihedralAngle(mPrev->GetC(), GetN(), GetCAlpha(), GetC());
 	return result;
 }
@@ -542,7 +542,7 @@ double MResidue::Phi() const
 double MResidue::Psi() const
 {
 	double result = 360;
-	if (mNext != nil and NoChainBreak(this, mNext))
+	if (mNext != nullptr and NoChainBreak(this, mNext))
 		result = DihedralAngle(GetN(), GetCAlpha(), GetC(), mNext->GetN());
 	return result;
 }
@@ -552,8 +552,8 @@ tr1::tuple<double,char> MResidue::Alpha() const
 	double alhpa = 360;
 	char chirality = ' ';
 	
-	const MResidue* nextNext = mNext ? mNext->Next() : nil;
-	if (mPrev != nil and nextNext != nil and NoChainBreak(mPrev, nextNext))
+	const MResidue* nextNext = mNext ? mNext->Next() : nullptr;
+	if (mPrev != nullptr and nextNext != nullptr and NoChainBreak(mPrev, nextNext))
 	{
 		alhpa = DihedralAngle(mPrev->GetCAlpha(), GetCAlpha(), mNext->GetCAlpha(), nextNext->GetCAlpha());
 		if (alhpa < 0)
@@ -567,9 +567,9 @@ tr1::tuple<double,char> MResidue::Alpha() const
 double MResidue::Kappa() const
 {
 	double result = 360;
-	const MResidue* prevPrev = mPrev ? mPrev->Prev() : nil;
-	const MResidue* nextNext = mNext ? mNext->Next() : nil;
-	if (prevPrev != nil and nextNext != nil and NoChainBreak(prevPrev, nextNext))
+	const MResidue* prevPrev = mPrev ? mPrev->Prev() : nullptr;
+	const MResidue* nextNext = mNext ? mNext->Next() : nullptr;
+	if (prevPrev != nullptr and nextNext != nullptr and NoChainBreak(prevPrev, nextNext))
 	{
 		double ckap = CosinusAngle(GetCAlpha(), prevPrev->GetCAlpha(), nextNext->GetCAlpha(), GetCAlpha());
 		double skap = sqrt(1 - ckap * ckap);
@@ -581,7 +581,7 @@ double MResidue::Kappa() const
 double MResidue::TCO() const
 {
 	double result = 0;
-	if (mPrev != nil and NoChainBreak(mPrev, this))
+	if (mPrev != nullptr and NoChainBreak(mPrev, this))
 		result = CosinusAngle(GetC(), GetO(), mPrev->GetC(), mPrev->GetO());
 	return result;
 }
@@ -885,7 +885,7 @@ void MResidue::WritePDB(std::ostream& os)
 MChain::MChain(const MChain& chain)
 	: mChainID(chain.mChainID)
 {
-	MResidue* previous = nil;
+	MResidue* previous = nullptr;
 	
 	foreach (const MResidue* residue, chain.mResidues)
 	{
@@ -1303,7 +1303,7 @@ void MProtein::GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
 			
 			for (uint32 i = 0; i < 2; ++i)
 			{
-				if (donor[i].residue != nil and donor[i].energy < kMaxHBondEnergy)
+				if (donor[i].residue != nullptr and donor[i].energy < kMaxHBondEnergy)
 				{
 					++outNrOfHBonds;
 					int32 k = donor[i].residue->GetNumber() - r->GetNumber();
@@ -1374,13 +1374,13 @@ void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 		MChain& chain = GetChain(inAtoms.front().mChainID);
 		vector<MResidue*>& residues(chain.GetResidues());
 	
-		MResidue* prev = nil;
+		MResidue* prev = nullptr;
 		if (not residues.empty())
 			prev = residues.back();
 
 		uint32 resNumber = mResidueCount + mChains.size() + mChainBreaks;
 		MResidue* r = new MResidue(resNumber, prev, inAtoms);
-		if (prev != nil and not prev->ValidDistance(*r))	// check for chain breaks
+		if (prev != nullptr and not prev->ValidDistance(*r))	// check for chain breaks
 		{
 			if (VERBOSE)
 				cerr << boost::format("The distance between residue %1% and %2% is larger than the maximum peptide bond length")
@@ -1759,7 +1759,7 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 		
 		foreach (uint32 l, bridge.i)
 		{
-			if (inResidues[l]->GetBetaPartner(0).residue != nil)
+			if (inResidues[l]->GetBetaPartner(0).residue != nullptr)
 			{
 				betai = 1;
 				break;
@@ -1768,7 +1768,7 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 
 		foreach (uint32 l, bridge.j)
 		{
-			if (inResidues[l]->GetBetaPartner(0).residue != nil)
+			if (inResidues[l]->GetBetaPartner(0).residue != nullptr)
 			{
 				betaj = 1;
 				break;
@@ -1844,7 +1844,7 @@ void MProtein::CalculateAccessibilities(const std::vector<MResidue*>& inResidues
 		foreach (MResidue* residue, inResidues)
 			queue.put(residue);
 		
-		queue.put(nil);
+		queue.put(nullptr);
 		
 		t.join_all();
 	}
@@ -1859,13 +1859,13 @@ void MProtein::CalculateAccessibility(MResidueQueue& inQueue,
 	for (;;)
 	{
 		MResidue* residue = inQueue.get();
-		if (residue == nil)
+		if (residue == nullptr)
 			break;
 		
 		residue->CalculateSurface(inResidues);
 	}
 	
-	inQueue.put(nil);
+	inQueue.put(nullptr);
 }
 
 void MProtein::Center()

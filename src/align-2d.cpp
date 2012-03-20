@@ -125,8 +125,8 @@ ostream& operator<<(ostream& lhs, base_node& rhs)
 }
 
 joined_node::joined_node()
-	: m_left(nil)
-	, m_right(nil)
+	: m_left(nullptr)
+	, m_right(nullptr)
 	, m_d_left(0.5)
 	, m_d_right(0.5)
 	, m_leaf_count(0)
