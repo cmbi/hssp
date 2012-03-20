@@ -993,6 +993,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 	fill(mLaddersPerSheetHistogram, mLaddersPerSheetHistogram + kHistogramSize, 0);
 
 	vector<pair<MResidueID,MResidueID> > ssbonds;
+	set<char> terminatedChains;
 
 	bool model = false;
 	vector<MAtom> atoms;
@@ -1064,6 +1065,10 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			continue;
 		}
 		
+		// add ATOMs only if the chain isn't terminated
+		if (terminatedChains.count(line[21]))
+			continue;
+		
 		if (ba::starts_with(line, "TER   "))
 		{
 			if (atoms.empty())
@@ -1077,9 +1082,12 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			atoms.clear();
 			firstAltLoc = 0;
 			atomSeen = false;
+			
+			terminatedChains.insert(line[21]);
+
 			continue;
 		}
-		
+
 		if (ba::starts_with(line, "ATOM  ") or ba::starts_with(line, "HETATM"))
 			//	1 - 6	Record name "ATOM "
 		{
