@@ -837,16 +837,19 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
 				msa.back().update(msa.front());
 			}
 
-			// and now push it in the heap
-			if (msa.size() > 2)
-				push_heap(msa.begin() + 1, msa.end());
+			if (msa.size() > inMaxHits)
+				break;
 
-			// if the heap has reached our maxhits size, we drop the least
-			if (inMaxHits > 0 and msa.size() >= inMaxHits + 1)
-			{
-				pop_heap(msa.begin() + 1, msa.end());
-				msa.erase(msa.end() - 1);
-			}
+//			// and now push it in the heap
+//			if (msa.size() > 2)
+//				push_heap(msa.begin() + 1, msa.end());
+//
+//			// if the heap has reached our maxhits size, we drop the least
+//			if (inMaxHits > 0 and msa.size() >= inMaxHits + 1)
+//			{
+//				pop_heap(msa.begin() + 1, msa.end());
+//				msa.erase(msa.end() - 1);
+//			}
 		}
 
 		if (line.empty())

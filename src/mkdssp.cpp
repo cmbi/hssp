@@ -33,7 +33,7 @@ namespace ba = boost::algorithm;
 
 int MULTI_THREADED = 1;
 #ifdef NDEBUG
-int VERBOSE;
+//int VERBOSE;
 #endif
 
 int main(int argc, char* argv[])
