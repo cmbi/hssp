@@ -51,7 +51,7 @@ namespace fs = boost::filesystem;
 fs::path gTempDir	= "/tmp/hssp-2/";
 uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
-int VERBOSE = 0;
+//int VERBOSE = 0;
 
 //#ifdef NDEBUG
 //int VERBOSE;

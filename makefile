@@ -10,7 +10,7 @@
 
 firstTarget: all
 
-VERSION				= 2.0.3
+VERSION				= 2.0.4
 
 #BOOST_LIB_SUFFIX	= -mt
 BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib
@@ -77,7 +77,7 @@ mkhssp: mkhssp.o dssp.o hmmer-hssp.o matrix.o primitives-3d.o structure.o utils.
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-aln2hssp: aln2hssp.o dssp.o hmmer-hssp.o matrix.o primitives-3d.o structure.o utils.o
+aln2hssp: aln2hssp.o dssp.o hssp.o matrix.o primitives-3d.o structure.o utils.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK

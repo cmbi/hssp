@@ -932,7 +932,7 @@ void CreateHSSPOutput(
 	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0 2011" << endl
 	   << "PDBID      " << inProteinID << endl
 	   << "DATE       file generated on " << to_iso_extended_string(today) << endl
-	   << "SEQBASE    **********" << endl
+	   << "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << endl
 	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << endl
 	   << "REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991)." << endl
 	   << "CONTACT    Maintained at http://www.cmbi.ru.nl/ by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
@@ -1407,7 +1407,7 @@ void CreateHSSP(
 		seqlength += seq.length();
 		
 		// alignments are stored in datadir
-		fs::path dataDir = "./";
+		fs::path dataDir = "/data/hssp2/sto/";
 		fs::path afp = dataDir / (ch.substr(2) + ".aln.bz2");
 		if (not fs::exists(afp))
 			throw mas_exception("alignment is missing, exiting");
