@@ -599,7 +599,7 @@ namespace std
 	}
 }
 
-void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
+void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits, float inThreshold)
 {
 	if (VERBOSE)
 		cerr << "Reading fasta file...";
@@ -625,6 +625,9 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits)
 				if (msa.back().length() != l)
 					throw mas_exception("Not all sequences are of the same length");
 				msa.back().update(msa.front());
+				
+				if (msa.back().drop(inThreshold))
+					msa.pop_back();
 			}
 			
 			if (msa.size() == inMaxHits)
@@ -1424,7 +1427,7 @@ void CreateHSSP(
 		in.push(af);
 
 		try {
-			ReadFastA(in, alignments[kchain], seq, inMaxHits);
+			ReadFastA(in, alignments[kchain], seq, inMaxHits, inCutOff);
 		}
 		catch (...)
 		{
