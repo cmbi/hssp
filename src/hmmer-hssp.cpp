@@ -3,6 +3,7 @@
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
+#include "mas.h"
 #include "MRS.h"
 
 #if P_UNIX
@@ -193,7 +194,8 @@ class seq
 	bool		pruned() const						{ return m_impl->m_pruned; }
 	void		prune()								{ m_impl->m_pruned = true; }
 
-	bool		operator<(const seq& o) const		{ return m_impl->m_score > o.m_impl->m_score; }
+	bool		operator<(const seq& o) const		{ return m_impl->m_score > o.m_impl->m_score or
+														(m_impl->m_score == o.m_impl->m_score and length() > o.length()); }
 
 	uint32		length() const						{ return m_impl->m_end - m_impl->m_begin; }
 
@@ -2295,9 +2297,9 @@ void ConvertHmmerAlignment(
 	mseq msa;
 	ReadStockholm(in, msa, inQuerySequence);
 	
-	// sort the msa, leaving the query as the first entry
-	if (msa.size() > 2)
-		sort(msa.begin() + 1, msa.end());
+//	// sort the msa, leaving the query as the first entry
+//	if (msa.size() > 2)
+//		sort(msa.begin() + 1, msa.end());
 	
 	fs::ofstream ff(inFastaFile, ios::binary);
 	if (not ff.is_open())

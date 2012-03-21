@@ -82,8 +82,9 @@ int main(int argc, char* argv[])
 												 "Chain mapping in the form A=file-A.aln")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("databank,b",	po::value<string>(), "Databank to use (default is uniprot)")
-			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
+			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 9999)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
+			("min-length",	po::value<uint32>(), "Minimal number of aligned residues as a percentage of the query length (default is 75)")
 
 			("verbose,v",						 "Verbose output")
 			("debug,d",		po::value<int>(),	 "Debug level (for even more verbose output)")
@@ -120,9 +121,13 @@ int main(int argc, char* argv[])
 		if (vm.count("databank"))
 			databank = vm["databank"].as<string>();
 			
-		uint32 maxhits = 1500;
+		uint32 maxhits = 9999;
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
+
+		uint32 minLength = 75;
+		if (vm.count("min-length"))
+			minLength = vm["min-length"].as<uint32>();
 
 		float threshold = 0.05f;
 		if (vm.count("threshold"))
@@ -180,7 +185,7 @@ int main(int argc, char* argv[])
 		else
 			out.push(cout);
 
-		CreateHSSPForAlignments(a, maxhits, threshold, mapped, out);
+		CreateHSSPForAlignments(a, maxhits, minLength, threshold, mapped, out);
 	}
 	catch (exception& e)
 	{

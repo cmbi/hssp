@@ -130,7 +130,7 @@ class seq
   public:
 				seq(const seq&);
 				//seq(const string& id);
-				seq(const string& id, const string& desc);
+				seq(const string& id, const string& desc, uint32 nr);
 				~seq();
 				
 	seq&		operator=(const seq&);
@@ -176,7 +176,8 @@ class seq
 	bool		pruned() const						{ return m_impl->m_pruned; }
 	void		prune()								{ m_impl->m_pruned = true; }
 
-	bool		operator<(const seq& o) const		{ return m_impl->m_score > o.m_impl->m_score; }
+//	bool		operator<(const seq& o) const		{ return m_impl->m_score > o.m_impl->m_score; }
+	bool		operator<(const seq& o) const		{ return m_impl->m_nr < o.m_impl->m_nr; }
 
 	uint32		length() const						{ return m_impl->m_end - m_impl->m_begin; }
 
@@ -243,7 +244,7 @@ class seq
 
 	struct seq_impl
 	{
-					seq_impl(const string& id, const string& desc);
+					seq_impl(const string& id, const string& desc, uint32 nr);
 					~seq_impl();
 
 		void		update(const seq_impl& qseq);
@@ -258,6 +259,7 @@ class seq
 					end() const						{ return const_iterator(m_seq + m_size); }
 
 		string		m_id, m_id2, m_acc;
+		uint32		m_nr;
 		string		m_desc;
 		uint32		m_ifir, m_ilas, m_jfir, m_jlas;
 		uint32		m_identical, m_similar, m_length;
@@ -291,9 +293,10 @@ typedef vector<seq>				mseq;
 
 const uint32 kBlockSize = 512;
 
-seq::seq_impl::seq_impl(const string& id, const string& desc)
+seq::seq_impl::seq_impl(const string& id, const string& desc, uint32 nr)
 	: m_id(id)
 	, m_id2(id)
+	, m_nr(nr)
 	, m_desc(desc)
 	, m_identical(0)
 	, m_similar(0)
@@ -325,8 +328,8 @@ seq::seq(const seq& s)
 	++m_impl->m_refcount;
 }
 
-seq::seq(const string& id, const string& desc)
-	: m_impl(new seq_impl(id, desc))
+seq::seq(const string& id, const string& desc, uint32 nr)
+	: m_impl(new seq_impl(id, desc, nr))
 {
 	static const boost::regex re1("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)"),
 				  			  re2("(?:tr|sp)\\|([[:alnum:]]+)\\|(.+)");
@@ -599,7 +602,7 @@ namespace std
 	}
 }
 
-void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits, float inThreshold)
+void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits, uint32 inMinLength, float inThreshold)
 {
 	if (VERBOSE)
 		cerr << "Reading fasta file...";
@@ -626,11 +629,18 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits, float 
 					throw mas_exception("Not all sequences are of the same length");
 				msa.back().update(msa.front());
 				
-				if (msa.back().drop(inThreshold))
+//				cerr << msa.back().id() << '\t'
+//					 << msa.back().score() << '\t'
+//					 << msa.back().alignment_length() << '\t'
+//					 << (msa.back().alignment_length() - msa.back().gaps() - msa.back().gapn()) << endl;
+
+				uint32 al = msa.back().alignment_length() - msa.back().gaps() - msa.back().gapn();
+
+				if (msa.back().drop(inThreshold) or 100 * al < inMinLength * q.length())
 					msa.pop_back();
 			}
 			
-			if (msa.size() == inMaxHits)
+			if (inMaxHits > 0 and msa.size() == inMaxHits)
 				break;
 
 //			// and now push it in the heap
@@ -664,7 +674,7 @@ void ReadFastA(istream& is, mseq& msa, const string& q, uint32 inMaxHits, float 
 				id.erase(s, string::npos);
 			}
 
-			msa.push_back(seq(id, desc));
+			msa.push_back(seq(id, desc, msa.size()));
 		}
 		else
 			msa.back().append(line);
@@ -1375,6 +1385,7 @@ void CreateHSSP(
 	CDatabankPtr		inDatabank,
 	const MProtein&		inProtein,
 	uint32				inMaxHits,
+	uint32				inMinLength,
 	float				inCutOff,
 	vector<string>&		inChainAlignments,
 	ostream&			outHSSP)
@@ -1410,8 +1421,12 @@ void CreateHSSP(
 		seqlength += seq.length();
 		
 		// alignments are stored in datadir
-		fs::path dataDir = "/data/hssp2/sto/";
-		fs::path afp = dataDir / (ch.substr(2) + ".aln.bz2");
+		fs::path afp = ch.substr(2);
+		if (not fs::exists(afp))
+		{
+			fs::path dataDir = "/data/hssp2/sto/";
+			afp = dataDir / (ch.substr(2) + ".aln.bz2");
+		}
 		if (not fs::exists(afp))
 			throw mas_exception("alignment is missing, exiting");
 
@@ -1427,7 +1442,7 @@ void CreateHSSP(
 		in.push(af);
 
 		try {
-			ReadFastA(in, alignments[kchain], seq, inMaxHits, inCutOff);
+			ReadFastA(in, alignments[kchain], seq, inMaxHits, inMinLength, inCutOff);
 		}
 		catch (...)
 		{
@@ -1500,9 +1515,10 @@ void CreateHSSP(
 		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
 }
 
-void CreateHSSPForAlignments(MProtein& inProtein, uint32 inMaxHits, float inCutOff,
+void CreateHSSPForAlignments(MProtein& inProtein,
+	uint32 inMaxHits, uint32 inMinLength, float inCutOff,
 	vector<string>& inChainAlignments, ostream& outHSSP)
 {
 	CDatabankPtr db = gDBTable.Load("uniprot");
-	CreateHSSP(db, inProtein, inMaxHits, inCutOff, inChainAlignments, outHSSP);
+	CreateHSSP(db, inProtein, inMaxHits, inMinLength, inCutOff, inChainAlignments, outHSSP);
 }

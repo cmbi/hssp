@@ -3,6 +3,7 @@
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
+#include "mas.h"
 #include "MRS.h"
 
 #if P_WIN
@@ -27,10 +28,6 @@ CDatabankTable gDBTable;
 fs::path gTempDir	= "/tmp/hssp-2/";
 uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
-
-#ifdef NDEBUG
-int VERBOSE;
-#endif
 
 // main
 
