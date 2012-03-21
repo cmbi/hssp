@@ -4,6 +4,7 @@
 //             http://www.boost.org/LICENSE_1_0.txt)      
 // 
 
+#include "MRS.h"
 #include "mas.h"
 
 #include <iostream>
@@ -16,14 +17,14 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
-//#include <boost/iostreams/filter/gzip.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/date_clock_device.hpp>
 #include <boost/regex.hpp>
-//#include <boost/ptr_container/ptr_vector.hpp>
-//#include <boost/pool/pool_alloc.hpp>
+
+#include "CDatabank.h"
+#include "CDatabankTable.h"
 
 #include "structure.h"
 #include "matrix.h"
@@ -35,6 +36,8 @@ using namespace std;
 namespace ba = boost::algorithm;
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
+
+CDatabankTable gDBTable;
 
 // precalculated threshold table for identity values between 10 and 80
 const double kHomologyThreshold[] = {
@@ -906,7 +909,7 @@ void ResidueHInfo::CalculateVariability(hit_list& hits)
 // Write collected information as a HSSP file to the output stream
 
 void CreateHSSPOutput(
-//	CDatabankPtr		inDatabank,
+	CDatabankPtr		inDatabank,
 	const string&		inProteinID,
 	const string&		inProteinDescription,
 	float				inThreshold,
@@ -920,6 +923,10 @@ void CreateHSSPOutput(
 {
 	using namespace boost::gregorian;
 	date today = day_clock::local_day();
+
+	// a pdb MRS databank, used to find PDB ID's from the links
+	CDatabankPtr pdbDb;
+	try { pdbDb = gDBTable.Load("pdb"); } catch (...) {}
 	
 	// print the header
 	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0 2011" << endl
@@ -975,40 +982,37 @@ void CreateHSSPOutput(
 		const seq& s(h->m_seq);
 
 		string id = s.id2();
-//		uint32 docNr = inDatabank->GetDocumentNr(id);
-		string desc = "";//inDatabank->GetMetaData(docNr, "title");
-//		string desc = s.desc();
-//		if (desc.empty())
-//			desc = inDatabank->GetMetaData(docNr, "title");
+		uint32 docNr = inDatabank->GetDocumentNr(id);
+		string desc = inDatabank->GetMetaData(docNr, "title");
 		string acc = s.acc();
-//		if (acc.empty())
-//		{
-//			try
-//			{
-//				if (ba::starts_with(id, "UniRef100_"))
-//					acc = id.substr(10);
-//				else
-//					acc = inDatabank->GetMetaData(docNr, "acc");
-//			}
-//			catch (...) {}
-//		}
+		if (acc.empty())
+		{
+			try
+			{
+				if (ba::starts_with(id, "UniRef100_"))
+					acc = id.substr(10);
+				else
+					acc = inDatabank->GetMetaData(docNr, "acc");
+			}
+			catch (...) {}
+		}
 			
 		string pdb;
 
-//		try
-//		{
-//			if (pdbDb)
-//			{
-//				vector<uint32> links;
-//				inDatabank->GetLinkedDocuments("pdb", docNr, links);
-//				if (not links.empty())
-//					pdb = pdbDb->GetDocumentID(links.front());
-//				ba::to_upper(pdb);
-//			}
-//		}
-//		catch (...) {}
+		try
+		{
+			if (pdbDb)
+			{
+				vector<uint32> links;
+				inDatabank->GetLinkedDocuments("pdb", docNr, links);
+				if (not links.empty())
+					pdb = pdbDb->GetDocumentID(links.front());
+				ba::to_upper(pdb);
+			}
+		}
+		catch (...) {}
 
-		uint32 lseq2 = 0;//inDatabank->GetSequence(docNr, 0).length();
+		uint32 lseq2 = inDatabank->GetSequence(docNr, 0).length();
 		if (id.length() > 12)
 			id.erase(12, string::npos);
 		else if (id.length() < 12)
@@ -1270,7 +1274,7 @@ void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>&
 // Convert a multiple sequence alignment as created by jackhmmer to 
 // a set of information as used by HSSP.
 
-void ChainToHits(mseq& msa, const MChain& chain, hit_list& hits, res_list& res)
+void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain, hit_list& hits, res_list& res)
 {
 	if (VERBOSE)
 		cerr << "Creating hits...";
@@ -1279,14 +1283,14 @@ void ChainToHits(mseq& msa, const MChain& chain, hit_list& hits, res_list& res)
 
 	for (uint32 i = 1; i < msa.size(); ++i)
 	{
-//		uint32 docNr;
-//		
-//		if (not inDatabank->GetDocumentNr(msa[i].id2(), docNr))
-//		{
-//			if (VERBOSE)
-//				cerr << "Missing document " << msa[i].id2() << endl;
-//			continue;
-//		}
+		uint32 docNr;
+		
+		if (not inDatabank->GetDocumentNr(msa[i].id2(), docNr))
+		{
+			if (VERBOSE)
+				cerr << "Missing document " << msa[i].id2() << endl;
+			continue;
+		}
 
 		hit_ptr h(new Hit(msa[i], msa[0], chain.GetChainID(), res.size()));
 		nhits.push_back(h);
@@ -1365,7 +1369,7 @@ void ClusterSequences(vector<string>& s, vector<uint32>& ix)
 }
 
 void CreateHSSP(
-//	CDatabankPtr		inDatabank,
+	CDatabankPtr		inDatabank,
 	const MProtein&		inProtein,
 	uint32				inMaxHits,
 	float				inCutOff,
@@ -1445,7 +1449,7 @@ void CreateHSSP(
 		uint32 first = res.size();
 		
 		mseq& msa = alignments[kchain];
-		ChainToHits(msa, *chain, hits, res);
+		ChainToHits(inDatabank, msa, *chain, hits, res);
 		
 		res_ranges.push_back(make_pair(first, res.size()));
 
@@ -1489,12 +1493,13 @@ void CreateHSSP(
 	if (inProtein.GetAuthor().length() > 10)
 		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
 
-	CreateHSSPOutput(inProtein.GetID(), desc.str(), inCutOff, seqlength,
+	CreateHSSPOutput(inDatabank, inProtein.GetID(), desc.str(), inCutOff, seqlength,
 		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
 }
 
 void CreateHSSPForAlignments(MProtein& inProtein, uint32 inMaxHits, float inCutOff,
 	vector<string>& inChainAlignments, ostream& outHSSP)
 {
-	CreateHSSP(inProtein, inMaxHits, inCutOff, inChainAlignments, outHSSP);
+	CDatabankPtr db = gDBTable.Load("uniprot");
+	CreateHSSP(db, inProtein, inMaxHits, inCutOff, inChainAlignments, outHSSP);
 }
