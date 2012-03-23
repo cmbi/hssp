@@ -419,10 +419,14 @@ sub WriteAlignmentRule
 print $h <<EOF;
 
 $alnfile: $seqfile
-	mkdir $tmpdir
-	cd $tmpdir && \$(JACKHMMER) -A ${seqid}.sto --chkhmm ${seqid} $seqfile $SEQ_DB -o /dev/null
-	for ((i = 1; i <= 5; ++i)); do test -f ${seqid}-\$i.hmm && mv ${seqid}-\$i.hmm /data/hssp2/sto/${hfile}-\$i.hmm; done
+	test -d $tmpdir || mkdir $tmpdir
+	cd $tmpdir && \$(JACKHMMER) -A ${seqid}.sto --chkhmm ${seqid} $seqfile $SEQ_DB
 	\$(STO2FA) $tmpdir/${seqid}.sto \$@
+	test -f ${tmpdir}/${seqid}-1.hmm && mv ${tmpdir}/${seqid}-1.hmm ${hfile}-1.hmm || true
+	test -f ${tmpdir}/${seqid}-2.hmm && mv ${tmpdir}/${seqid}-2.hmm ${hfile}-2.hmm || true
+	test -f ${tmpdir}/${seqid}-3.hmm && mv ${tmpdir}/${seqid}-3.hmm ${hfile}-3.hmm || true
+	test -f ${tmpdir}/${seqid}-4.hmm && mv ${tmpdir}/${seqid}-4.hmm ${hfile}-4.hmm || true
+	test -f ${tmpdir}/${seqid}-5.hmm && mv ${tmpdir}/${seqid}-5.hmm ${hfile}-5.hmm || true
 	rm -rf $tmpdir
 
 EOF
@@ -443,15 +447,17 @@ sub WriteHSSPRule
 		
 		my $alignment = $r2->{alignment};
 
-		$mapped{$r->{chain}} = $alignment;
-
-		next if $alignment and ($alignment eq 'no hits' or defined $ali->{$alignment});
+		next if $alignment and ($alignment eq 'no hits');
 		
 		unless ($alignment) {
 			$alignment = sprintf("/data/hssp2/sto/%s-%s.aln.bz2",
 				$r2->{crc}, $r2->{id});
 			$update_seq_aln_stmt->execute($alignment, $r2->{id}) or die "Fout: " . $dbh->errstr . "\n";
 		}
+
+		$mapped{$r->{chain}} = $alignment;
+		
+		next if defined $ali->{$alignment};
 		
 		&WriteAlignmentRule($alignment, $r2->{id}, $h);
 		$ali->{$alignment} = 1;
@@ -483,19 +489,12 @@ sub CreateHSSPMakefile()
 		$pdbid => \%e;
 	} &ListDSSPFiles();
 	
-	my %skip;
-	$fetch_not_ready_stmt->execute() or die "Fout: " . $dbh->errstr . "\n";
-	while (my $r = $fetch_not_ready_stmt->fetchrow_hashref()) {
-		$skip{$r->{code}} = 1;
-	}
-	
 	open(my $h, ">hssp2.make") or die "makefile: $!\n";
 	
 	my @hsspids;
 
 	print $h <<EOF;
-
-JACKHMMER = /usr/local/bin/jackhmmer --cpu 32 -N 5 --noali 
+JACKHMMER = /usr/local/bin/jackhmmer --cpu 32 -N 5 --noali -o /dev/null
 ALN2HSSP  = /home/staf/maarten/projects/mas/aln2hssp
 STO2FA    = /home/staf/maarten/projects/mas/sto2fa
 
@@ -504,15 +503,7 @@ firstTarget: all
 EOF
 	
 	my %alignments = ();		# keep track of alignment rules
-	
 	foreach my $id (sort keys %hssp) {
-		my $file = $hssp{$id}{hssp};
-
-		next if ($skip{$id});
-
-#		next unless -f $file;			# rebuild
-#		next if -M $file < 14;			# only old ones
-
 		push @hsspids, $id if &WriteHSSPRule($id, \%alignments, $h);
 	}
 	
