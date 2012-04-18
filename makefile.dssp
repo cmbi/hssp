@@ -22,7 +22,7 @@ BOOST_INC_DIR		?= $(HOME)/projects/boost/include
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR)
 INC_DIR				= $(BOOST_INC_DIR)
-MAN_DIR				= $(DEST_DIR)man/man1
+MAN_DIR				= $(DEST_DIR)man/man1/
 
 BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system
 LIBS				= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX)) z bz2
@@ -74,7 +74,7 @@ install: mkdssp
 
 dist: $(OBJECTS)
 	@ rm -rf $(DIST_NAME)
-	@ mkdir -p $(DIST_NAME)/src
+	@ mkdir -p $(DIST_NAME)/src $(DIST_NAME)/doc
 	@ echo "Copying files..."
 	@ cp makefile.dssp $(DIST_NAME)/makefile
 	@ cp changelog.dssp $(DIST_NAME)/changelog
@@ -82,6 +82,7 @@ dist: $(OBJECTS)
 	@ cp `sed -e 's/\s/\n/g' $(OBJ_DIR)/*.d | grep '^src' | sort -u` $(DIST_NAME)/src
 	@ cp LICENSE_1_0.txt $(DIST_NAME)
 	@ cp README-DSSP.txt $(DIST_NAME)/README.txt
+	@ cp doc/mkdssp.1 $(DIST_NAME)/doc/mkdssp.1
 	tar cvjf $(DIST_NAME).tbz $(DIST_NAME)
 
 make.config:
