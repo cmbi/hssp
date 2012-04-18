@@ -12,11 +12,6 @@ firstTarget: all
 
 VERSION				= 2.0.4
 
-#BOOST_LIB_SUFFIX	= -mt
-BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib
-BOOST_INC_DIR		?= $(HOME)/projects/boost/include
-ZEEP_DIR			?= $(HOME)/projects/libzeep/
-
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR) $(ZEEP_DIR) $(DEST_DIR)lib $(HOME)/projects/mrs/lib
 INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
@@ -115,6 +110,11 @@ install: mas
 make.config:
 	@echo "creating empty make.config file"
 	@echo "# Set local options for make here" > make.config
+	@echo "#BOOST_LIB_SUFFIX	= -mt" >> make.config
+	@echo "#BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib" >> make.config
+	@echo "#BOOST_INC_DIR		?= $(HOME)/projects/boost/include" >> make.config
+	@echo "#ZEEP_DIR			?= $(HOME)/projects/libzeep/" >> make.config
+
 
 test:
 	echo $(OBJECTS)

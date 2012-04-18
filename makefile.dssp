@@ -1,4 +1,4 @@
-# Makefile for the DSSP
+# Makefile for mkdssp
 #
 #  Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
 # Distributed under the Boost Software License, Version 1.0.
@@ -14,10 +14,6 @@ firstTarget: mkdssp
 include make.config
 
 VERSION				= 2.0.4
-
-#BOOST_LIB_SUFFIX	= -mt
-BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib
-BOOST_INC_DIR		?= $(HOME)/projects/boost/include
 
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR)
@@ -88,7 +84,7 @@ dist: $(OBJECTS)
 make.config:
 	@echo "creating empty make.config file"
 	@echo "# Set local options for make here" > make.config
-	@echo "# BOOST_INC_DIR=$$HOME/boost/include " >> make.config
-	@echo "# BOOST_LIB_DIR=$$HOME/boost/lib " >> make.config
-	@echo "# DEFINES=USE_COMPRESSION" >> make.config
+	@echo "#BOOST_LIB_SUFFIX = -mt" >> make.config
+	@echo "#BOOST_LIB_DIR    = $(HOME)/projects/boost/lib" >> make.config
+	@echo "#BOOST_INC_DIR    = $(HOME)/projects/boost/include" >> make.config
 

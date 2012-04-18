@@ -1,5 +1,6 @@
 2.0.4
 - No longer add ligands to a chain after a TER record
+- Added a man page
 
 2.0.3
 - Accept duplicate PDB sequence numbers when they cross a chain barrier
