@@ -31,10 +31,7 @@ namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
-int MULTI_THREADED = 1;
-#ifdef NDEBUG
-//int VERBOSE;
-#endif
+int MULTI_THREADED = 1, VERBOSE;
 
 int main(int argc, char* argv[])
 {
