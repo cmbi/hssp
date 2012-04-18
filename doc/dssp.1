@@ -1,0 +1,74 @@
+.TH dssp 1 "18-apr-2012" "version 2.0.4" "USER COMMANDS"
+.SH NAME
+mrs-blast \- A tool to build mrs files
+.SH SYNOPSIS
+.B mrs-blast
+\-i input \-d databank \-p program [options] 
+.SH DESCRIPTION
+The mrs-blast application is used to perform a Blast search against
+the specified databank. This application tries to implement most of
+the options known in the NCBI blastall application.
+.SH OPTIONS
+.TP
+\-i input
+The file name of a
+.I FastA
+formatted file containing one or more query sequences.
+.TP
+\-d databank
+The databank to search against.
+.TP
+\-p program
+The original NCBI blastall application uses this parameter to know
+what algorithm to use. \fImrs-blast\fP requires this parameter too,
+however, only \fIblastp\fP is allowed as a parameter. Other algorithms
+are not implemented yet.
+.TP
+\-a #threads
+The number of threads to use.
+.TP
+\-l "mrs query"
+An MRS query, this is used to search the databank. Each hit is then
+passed on to the blast algorithm. E.g. to search only the human sequences
+in uniprot you could pass \fI-l 'OS:human'\fP to \fImrs-blast\fP.
+.TP
+\-M matrix
+The matrix file to use, default is BLOSUM62.
+.TP
+\-e
+The minimal e-value for the hits, default is 10.0.
+.TP
+\-F [T/F]
+Flag to use low complexity filtering (T is true, F is false), default is true.
+.TP
+\-W number
+Word size, default is 3.
+.TP
+\-g [T/F]
+Flag to use gapped searches (T is true, F is false), default is true.
+.TP
+\-G number
+Gap open penalty, default is 11.
+.TP
+\-E number
+Gap extension penalty, default is 1.
+.TP
+\-b number
+Number of hits to return, default is 250.
+.TP
+\-o filename
+Redirect output to filename.
+.TP
+\-v
+Add to increase the verbosity of the output.
+.SH FILES
+.TP
+.B /usr/local/etc/mrs/mrs-config.xml
+This file contains all the configuration details.
+.TP
+.B /usr/local/share/mrs
+The directory containing the parser scripts for mrs.
+.SH AUTHOR
+Maarten L. Hekkelman (m.hekkelman (at) cmbi.ru.nl)
+.SH SEE ALSO
+mrs-build(1), mrs-query(1), mrs-config.xml(5)

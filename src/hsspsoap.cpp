@@ -8,6 +8,7 @@
 
 #include <pwd.h>
 #include <signal.h>
+#include <sys/resource.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/operations.hpp>
@@ -451,6 +452,17 @@ void OpenLogFile()
 
 int main(int argc, char* argv[])
 {
+#if P_UNIX
+	// enable the dumping of cores to enable postmortem debugging
+	rlimit l;
+	if (getrlimit(RLIMIT_CORE, &l) == 0)
+	{
+		l.rlim_cur = l.rlim_max;
+		if (l.rlim_cur == 0 or setrlimit(RLIMIT_CORE, &l) < 0)
+			cerr << "Failed to set rlimit" << endl;
+	}
+#endif
+
 	po::options_description desc("Options");
 	desc.add_options()
 		("help,h",								"Display help message")

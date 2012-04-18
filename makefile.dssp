@@ -9,11 +9,11 @@
 # new one if it doesn't exist. In this make.config you can set site
 # specific variables like the Boost library location.
 
-firstTarget: mkdssp
+firstTarget: dssp
 
 include make.config
 
-VERSION				= 2.0.3
+VERSION				= 2.0.4
 
 #BOOST_LIB_SUFFIX	= -mt
 BOOST_LIB_DIR		?= $(HOME)/projects/boost/lib
@@ -51,7 +51,7 @@ VPATH += src
 
 OBJECTS = $(OBJ_DIR)/mkdssp.o $(OBJ_DIR)/dssp.o $(OBJ_DIR)/primitives-3d.o $(OBJ_DIR)/structure.o $(OBJ_DIR)/utils.o
 
-mkdssp: $(OBJECTS)
+dssp: $(OBJECTS)
 	@ echo linking $@
 	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
@@ -66,10 +66,10 @@ $(OBJ_DIR)/%.o: %.cpp
 	@ $(CC) -MD -c -o $@ $< $(CFLAGS)
 
 clean:
-	rm -rf $(OBJ_DIR)/* mkdssp
+	rm -rf $(OBJ_DIR)/* dssp
 
-install: mkdssp
-	sudo install -m 755 mkdssp $(DEST_DIR)bin/mkdssp
+install: dssp
+	sudo install -m 755 dssp $(DEST_DIR)bin/dssp
 
 dist: $(OBJECTS)
 	@ rm -rf $(DIST_NAME)
