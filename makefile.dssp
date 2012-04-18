@@ -9,7 +9,7 @@
 # new one if it doesn't exist. In this make.config you can set site
 # specific variables like the Boost library location.
 
-firstTarget: dssp
+firstTarget: mkdssp
 
 include make.config
 
@@ -22,7 +22,7 @@ BOOST_INC_DIR		?= $(HOME)/projects/boost/include
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR)
 INC_DIR				= $(BOOST_INC_DIR)
-MAN_DIR				= $(DEST_DIR)man/man3
+MAN_DIR				= $(DEST_DIR)man/man1
 
 BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system
 LIBS				= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX)) z bz2
@@ -51,7 +51,7 @@ VPATH += src
 
 OBJECTS = $(OBJ_DIR)/mkdssp.o $(OBJ_DIR)/dssp.o $(OBJ_DIR)/primitives-3d.o $(OBJ_DIR)/structure.o $(OBJ_DIR)/utils.o
 
-dssp: $(OBJECTS)
+mkdssp: $(OBJECTS)
 	@ echo linking $@
 	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
@@ -66,10 +66,11 @@ $(OBJ_DIR)/%.o: %.cpp
 	@ $(CC) -MD -c -o $@ $< $(CFLAGS)
 
 clean:
-	rm -rf $(OBJ_DIR)/* dssp
+	rm -rf $(OBJ_DIR)/* mkdssp
 
-install: dssp
-	sudo install -m 755 dssp $(DEST_DIR)bin/dssp
+install: mkdssp
+	sudo install -m 755 mkdssp $(DEST_DIR)bin/mkdssp
+	sudo install doc/mkdssp.1 $(MAN_DIR)mkdssp.1
 
 dist: $(OBJECTS)
 	@ rm -rf $(DIST_NAME)
