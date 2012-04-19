@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 {
 	try
 	{
-		po::options_description desc("DSSP " VERSION " options");
+		po::options_description desc("mkdssp " VERSION " options");
 		desc.add_options()
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input file")
@@ -70,12 +70,12 @@ int main(int argc, char* argv[])
 				 << "To calculate the secondary structure for the file 1crn.pdb and" << endl
 				 << "write the result to a file called 1crn.dssp, you type:" << endl
 				 << endl
-				 << "  dssp.exe -i 1crn.pdb -o 1crn.dssp" << endl
+				 << "  " << argv[0] << "-i 1crn.pdb -o 1crn.dssp" << endl
 				 << endl;
 #if defined(_MSC_VER)
 			cerr << endl
-				 << "DSSP is a command line application, use the 'Command prompt' application" << endl
-				 << "to start dssp.exe. You can find the 'Command prompt' in the Start menu:" << endl
+				 << "MKDSSP is a command line application, use the 'Command prompt' application" << endl
+				 << "to start " << argv[0] << " You can find the 'Command prompt' in the Start menu:" << endl
 				 << endl
 				 << "Start => Accessories => Command prompt" << endl
 				 << endl

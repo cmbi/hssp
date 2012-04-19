@@ -9,25 +9,26 @@
 # new one if it doesn't exist. In this make.config you can set site
 # specific variables like the Boost library location.
 
-firstTarget: mkdssp
+all: mkdssp
 
 include make.config
 
-VERSION				= 2.0.4
+VERSION				= 2.0.5
 
-DEST_DIR			?= /usr/local/
+DEST_DIR			?= /usr/local
 LIB_DIR				= $(BOOST_LIB_DIR)
 INC_DIR				= $(BOOST_INC_DIR)
-MAN_DIR				= $(DEST_DIR)man/man1/
+BIN_DIR				= $(DEST_DIR)/bin
+MAN_DIR				= $(DEST_DIR)/man/man1
 
-BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system
+BOOST_LIBS			= thread filesystem program_options iostreams system
 LIBS				= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX)) z bz2
 
 DEFINES				= USE_COMPRESSION LINUX VERSION='"$(VERSION)"'
-CC					= c++
+CXX					= g++
 
-CFLAGS				= $(INC_DIR:%=-I%) -iquote src -g -Wall -Wno-multichar -pthread
-LDOPTS				= $(LIB_DIR:%=-L%) $(LIBS:%=-l%) -g -pthread
+CFLAGS				+= $(INC_DIR:%=-I%) -iquote src -g -Wall -Wno-multichar -pthread
+LDOPTS				+= $(LIB_DIR:%=-L%) $(LIBS:%=-l%) -g -pthread
 
 OBJ_DIR				= obj
 
@@ -49,24 +50,27 @@ OBJECTS = $(OBJ_DIR)/mkdssp.o $(OBJ_DIR)/dssp.o $(OBJ_DIR)/primitives-3d.o $(OBJ
 
 mkdssp: $(OBJECTS)
 	@ echo linking $@
-	@ $(CC) -static -o $@ $^ $(LDOPTS)
-	@ echo OK
+	@ $(CXX) -static -o $@ $^ $(LDOPTS)
 
 include $(OBJECTS:%.o=%.d)
 
 $(OBJECTS:.o=.d):
 
-$(OBJ_DIR)/%.o: %.cpp
-	@ if [ ! -d $(OBJ_DIR) ]; then mkdir $(OBJ_DIR); fi
+$(OBJ_DIR):
+	@ mkdir -p $(OBJ_DIR)
+
+$(OBJ_DIR)/%.o: %.cpp | $(OBJ_DIR)
 	@ echo compiling $@
-	@ $(CC) -MD -c -o $@ $< $(CFLAGS)
+	@ $(CXX) -MD -c -o $@ $< $(CFLAGS)
 
 clean:
+	install -d $(BIN_DIR) $(MAN_DIR)
 	rm -rf $(OBJ_DIR)/* mkdssp
 
 install: mkdssp
-	sudo install -m 755 mkdssp $(DEST_DIR)bin/mkdssp
-	sudo install doc/mkdssp.1 $(MAN_DIR)mkdssp.1
+	install -d $(BIN_DIR) $(MAN_DIR)
+	install -m 755 mkdssp $(BIN_DIR)/mkdssp
+	install doc/mkdssp.1 $(MAN_DIR)/mkdssp.1
 
 dist: $(OBJECTS)
 	@ rm -rf $(DIST_NAME)
@@ -79,7 +83,8 @@ dist: $(OBJECTS)
 	@ cp LICENSE_1_0.txt $(DIST_NAME)
 	@ cp README-DSSP.txt $(DIST_NAME)/README.txt
 	@ cp doc/mkdssp.1 $(DIST_NAME)/doc/mkdssp.1
-	tar cvjf $(DIST_NAME).tbz $(DIST_NAME)
+	tar czf $(DIST_NAME).tgz $(DIST_NAME)
+	cp $(DIST_NAME).tgz dssp_$(VERSION).orig.tar.gz
 
 make.config:
 	@echo "creating empty make.config file"
