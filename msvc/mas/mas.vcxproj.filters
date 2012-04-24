@@ -15,42 +15,42 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\buffer.h">
+    <ClInclude Include="..\..\src\buffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\ioseq.h">
+    <ClInclude Include="..\..\src\guide.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\mas.h">
+    <ClInclude Include="..\..\src\ioseq.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\matrix.h">
+    <ClInclude Include="..\..\src\mas.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\sequence.h">
+    <ClInclude Include="..\..\src\matrix.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\utils.h">
+    <ClInclude Include="..\..\src\sequence.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\guide.h">
+    <ClInclude Include="..\..\src\utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\ioseq.cpp">
+    <ClCompile Include="..\..\src\guide.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\mas.cpp">
+    <ClCompile Include="..\..\src\ioseq.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\matrix.cpp">
+    <ClCompile Include="..\..\src\mas.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\utils.cpp">
+    <ClCompile Include="..\..\src\matrix.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\guide.cpp">
+    <ClCompile Include="..\..\src\utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

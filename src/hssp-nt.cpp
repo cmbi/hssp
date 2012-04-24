@@ -20,22 +20,28 @@
 #define foreach BOOST_FOREACH
 #include <boost/program_options.hpp>
 #include <boost/program_options/config.hpp>
-#include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/date_clock_device.hpp>
+#include <boost/regex.hpp>
 
 #include "utils.h"
 #include "structure.h"
 #include "dssp.h"
+#include "matrix.h"
+#include "buffer.h"
 
 using namespace std;
 namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;
 namespace po = boost::program_options;
+namespace io = boost::iostreams;
 
 int VERBOSE = 0;
 
 // --------------------------------------------------------------------
+
+namespace HSSP
+{
 
 const float kThreshold = 0.05f;
 
@@ -61,154 +67,6 @@ bool drop(float score, uint32 length, float threshold)
 }
 
 // --------------------------------------------------------------------
-// uBlas compatible matrix types
-// matrix is m x n, addressing i,j is 0 <= i < m and 0 <= j < n
-// element m i,j is mapped to [i * n + j] and thus storage is row major
-
-template<typename T>
-class matrix_base
-{
-  public:
-
-	typedef T value_type;
-
-	virtual				~matrix_base() {}
-
-	virtual uint32		dim_m() const = 0;
-	virtual uint32		dim_n() const = 0;
-
-	virtual value_type&	operator()(uint32 i, uint32 j) { throw std::runtime_error("unimplemented method"); }
-	virtual value_type	operator()(uint32 i, uint32 j) const = 0;
-	
-	matrix_base&		operator*=(const value_type& rhs);
-
-	matrix_base&		operator-=(const value_type& rhs);
-};
-
-template<typename T>
-matrix_base<T>& matrix_base<T>::operator*=(const T& rhs)
-{
-	for (uint32 i = 0; i < dim_m(); ++i)
-	{
-		for (uint32 j = 0; j < dim_n(); ++j)
-		{
-			operator()(i, j) *= rhs;
-		}
-	}
-	
-	return *this;
-}
-
-template<typename T>
-matrix_base<T>& matrix_base<T>::operator-=(const T& rhs)
-{
-	for (uint32 i = 0; i < dim_m(); ++i)
-	{
-		for (uint32 j = 0; j < dim_n(); ++j)
-		{
-			operator()(i, j) -= rhs;
-		}
-	}
-	
-	return *this;
-}
-
-template<typename T>
-std::ostream& operator<<(std::ostream& lhs, const matrix_base<T>& rhs)
-{
-	lhs << '[' << rhs.dim_m() << ',' << rhs.dim_n() << ']' << '(';
-	for (uint32 i = 0; i < rhs.dim_m(); ++i)
-	{
-		lhs << '(';
-		for (uint32 j = 0; j < rhs.dim_n(); ++j)
-		{
-			if (j > 0)
-				lhs << ',';
-			lhs << rhs(i,j);
-		}
-		lhs << ')';
-	}
-	lhs << ')';
-	
-	return lhs;
-}
-
-template<typename T>
-class matrix : public matrix_base<T>
-{
-  public:
-	typedef T value_type;
-
-						template<typename T2>
-						matrix(const matrix_base<T2>& m)
-							: m_m(m.dim_m())
-							, m_n(m.dim_n())
-						{
-							m_data = new value_type[m_m * m_n];
-							for (uint32 i = 0; i < m_m; ++i)
-							{
-								for (uint32 j = 0; j < m_n; ++j)
-									operator()(i, j) = m(i, j);
-							}
-						}
-
-						matrix(const matrix& m)
-							: m_m(m.m_m)
-							, m_n(m.m_n)
-						{
-							m_data = new value_type[m_m * m_n];
-							std::copy(m.m_data, m.m_data + (m_m * m_n), m_data);
-						}
-
-	matrix&				operator=(const matrix& m)
-						{
-							value_type t = new value_type[m.m_m * m.m_n];
-							std::copy(m.m_data, m.m_data + (m_m * m_n), t);
-							
-							delete[] m_data;
-							m_data = t;
-							m_m = m.m_m;
-							m_n = m.m_n;
-							
-							return *this;
-						}
-	
-						matrix(uint32 m, uint32 n, T v = T())
-							: m_m(m)
-							, m_n(n)
-						{
-							m_data = new value_type[m_m * m_n];
-							std::fill(m_data, m_data + (m_m * m_n), v);
-						}
-						
-	virtual				~matrix()
-						{
-							delete [] m_data;
-						}
-	
-	virtual uint32		dim_m() const 					{ return m_m; }
-	virtual uint32		dim_n() const					{ return m_n; }
-
-	virtual value_type	operator()(uint32 i, uint32 j) const
-						{
-							assert(i < m_m); assert(j < m_n);
-							return m_data[i * m_n + j];
-						}
-					
-	virtual value_type&	operator()(uint32 i, uint32 j)
-						{
-							assert(i < m_m); assert(j < m_n);
-							return m_data[i * m_n + j];
-						}
-
-  private:
-	value_type*			m_data;
-	uint32				m_m, m_n;
-};
-
-// --------------------------------------------------------------------
-
-typedef basic_string<uint8>	sequence;
 
 const int8 kM6Pam250[] = {
 	  2,                                                                                                               // A
@@ -236,6 +94,54 @@ const int8 kM6Pam250[] = {
 	  0,  -1,  -3,  -1,  -1,  -2,  -1,  -1,  -1,  -1,  -1,  -1,   0,  -1,  -1,  -1,   0,   0,  -1,  -4,  -2,  -1,  -1, // x
 };
 
+// Dayhoff matrix as used by maxhom
+const float kDayhoffData[] =
+{
+	 1.5f,																																 // A
+	 0.0f, 0.0f,                                                                                                                         // B
+	 0.3f, 0.0f, 1.5f,                                                                                                                   // C
+	 0.3f, 0.0f,-0.5f, 1.5f,                                                                                                             // D
+	 0.3f, 0.0f,-0.6f, 1.0f, 1.5f,                                                                                                       // E
+	-0.5f, 0.0f,-0.1f,-1.0f,-0.7f, 1.5f,                                                                                                 // F
+	 0.7f, 0.0f, 0.2f, 0.7f, 0.5f,-0.6f, 1.5f,                                                                                           // G
+	-0.1f, 0.0f,-0.1f, 0.4f, 0.4f,-0.1f,-0.2f, 1.5f,                                                                                     // H
+	 0.0f, 0.0f, 0.2f,-0.2f,-0.2f, 0.7f,-0.3f,-0.3f, 1.5f,                                                                               // I
+	 0.0f, 0.0f,-0.6f, 0.3f, 0.3f,-0.7f,-0.1f, 0.1f,-0.2f, 1.5f,                                                                         // K
+	-0.1f, 0.0f,-0.8f,-0.5f,-0.3f, 1.2f,-0.5f,-0.2f, 0.8f,-0.3f, 1.5f,                                                                   // L
+	 0.0f, 0.0f,-0.6f,-0.4f,-0.2f, 0.5f,-0.3f,-0.3f, 0.6f, 0.2f, 1.3f, 1.5f,                                                             // M
+	 0.2f, 0.0f,-0.3f, 0.7f, 0.5f,-0.5f, 0.4f, 0.5f,-0.3f, 0.4f,-0.4f,-0.3f, 1.5f,                                                       // N
+	 0.5f, 0.0f, 0.1f, 0.1f, 0.1f,-0.7f, 0.3f, 0.2f,-0.2f, 0.1f,-0.3f,-0.2f, 0.0f, 1.5f,                                                 // P
+	 0.2f, 0.0f,-0.6f, 0.7f, 0.7f,-0.8f, 0.2f, 0.7f,-0.3f, 0.4f,-0.1f, 0.0f, 0.4f, 0.3f, 1.5f,                                           // Q
+	-0.3f, 0.0f,-0.3f, 0.0f, 0.0f,-0.5f,-0.3f, 0.5f,-0.3f, 0.8f,-0.4f, 0.2f, 0.1f, 0.3f, 0.4f, 1.5f,                                     // R
+	 0.4f, 0.0f, 0.7f, 0.2f, 0.2f,-0.3f, 0.6f,-0.2f,-0.1f, 0.2f,-0.4f,-0.3f, 0.3f, 0.4f,-0.1f, 0.1f, 1.5f,                               // S
+	 0.4f, 0.0f, 0.2f, 0.2f, 0.2f,-0.3f, 0.4f,-0.1f, 0.2f, 0.2f,-0.1f, 0.0f, 0.2f, 0.3f,-0.1f,-0.1f, 0.3f, 1.5f,                         // T
+	 0.2f, 0.0f, 0.2f,-0.2f,-0.2f, 0.2f, 0.2f,-0.3f, 1.1f,-0.2f, 0.8f, 0.6f,-0.3f, 0.1f,-0.2f,-0.3f,-0.1f, 0.2f, 1.5f,                   // V
+	-0.8f, 0.0f,-1.2f,-1.1f,-1.1f, 1.3f,-1.0f,-0.1f,-0.5f, 0.1f, 0.5f,-0.3f,-0.3f,-0.8f,-0.5f, 1.4f, 0.3f,-0.6f,-0.8f, 1.5f,             // W
+	-0.3f, 0.0f, 1.0f,-0.5f,-0.5f, 1.4f,-0.7f, 0.3f, 0.1f,-0.6f, 0.3f,-0.1f,-0.1f,-0.8f,-0.6f,-0.6f,-0.4f,-0.3f,-0.1f, 1.1f, 1.5f,       // Y
+	 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f  // Z
+                                                                                                                                         // x
+//     1.5f,                                                                                                                  // V
+//     0.8f, 1.5f,                                                                                                            // L
+//     1.1f, 0.8f, 1.5f,                                                                                                      // I
+//     0.6f, 1.3f, 0.6f, 1.5f,                                                                                                // M
+//     0.2f, 1.2f, 0.7f, 0.5f, 1.5f,                                                                                          // F
+//    -0.8f, 0.5f,-0.5f,-0.3f, 1.3f, 1.5f,                                                                                    // W
+//    -0.1f, 0.3f, 0.1f,-0.1f, 1.4f, 1.1f, 1.5f,                                                                              // Y
+//     0.2f,-0.5f,-0.3f,-0.3f,-0.6f,-1.0f,-0.7f, 1.5f,                                                                        // G
+//     0.2f,-0.1f, 0.0f, 0.0f,-0.5f,-0.8f,-0.3f, 0.7f, 1.5f,                                                                  // A
+//     0.1f,-0.3f,-0.2f,-0.2f,-0.7f,-0.8f,-0.8f, 0.3f, 0.5f, 1.5f,                                                            // P
+//    -0.1f,-0.4f,-0.1f,-0.3f,-0.3f, 0.3f,-0.4f, 0.6f, 0.4f, 0.4f, 1.5f,                                                      // S
+//     0.2f,-0.1f, 0.2f, 0.0f,-0.3f,-0.6f,-0.3f, 0.4f, 0.4f, 0.3f, 0.3f, 1.5f,                                                // T
+//     0.2f,-0.8f, 0.2f,-0.6f,-0.1f,-1.2f, 1.0f, 0.2f, 0.3f, 0.1f, 0.7f, 0.2f, 1.5f,                                          // C
+//    -0.3f,-0.2f,-0.3f,-0.3f,-0.1f,-0.1f, 0.3f,-0.2f,-0.1f, 0.2f,-0.2f,-0.1f,-0.1f, 1.5f,                                    // H
+//    -0.3f,-0.4f,-0.3f, 0.2f,-0.5f, 1.4f,-0.6f,-0.3f,-0.3f, 0.3f, 0.1f,-0.1f,-0.3f, 0.5f, 1.5f,                              // R
+//    -0.2f,-0.3f,-0.2f, 0.2f,-0.7f, 0.1f,-0.6f,-0.1f, 0.0f, 0.1f, 0.2f, 0.2f,-0.6f, 0.1f, 0.8f, 1.5f,                        // K
+//    -0.2f,-0.1f,-0.3f, 0.0f,-0.8f,-0.5f,-0.6f, 0.2f, 0.2f, 0.3f,-0.1f,-0.1f,-0.6f, 0.7f, 0.4f, 0.4f, 1.5f,                  // Q
+//    -0.2f,-0.3f,-0.2f,-0.2f,-0.7f,-1.1f,-0.5f, 0.5f, 0.3f, 0.1f, 0.2f, 0.2f,-0.6f, 0.4f, 0.0f, 0.3f, 0.7f, 1.5f,            // E
+//    -0.3f,-0.4f,-0.3f,-0.3f,-0.5f,-0.3f,-0.1f, 0.4f, 0.2f, 0.0f, 0.3f, 0.2f,-0.3f, 0.5f, 0.1f, 0.4f, 0.4f, 0.5f, 1.5f,      // N
+//    -0.2f,-0.5f,-0.2f,-0.4f,-1.0f,-1.1f,-0.5f, 0.7f, 0.3f, 0.1f, 0.2f, 0.2f,-0.5f, 0.4f, 0.0f, 0.3f, 0.7f, 1.0f, 0.7f, 1.5f // D
+};
+
 // 22 real letters and 1 dummy
 const char kResidues[] = "ABCDEFGHIKLMNPQRSTVWYZX";
 
@@ -254,9 +160,10 @@ inline uint8 ResidueNr(char inAA)
 	return result;
 }
 
-inline int8 score(const int8 inMatrix[], uint8 inAA1, uint8 inAA2)
+template<typename T>
+inline T score(const T inMatrix[], uint8 inAA1, uint8 inAA2)
 {
-	int8 result;
+	T result;
 
 	if (inAA1 >= inAA2)
 		result = inMatrix[(inAA1 * (inAA1 + 1)) / 2 + inAA2];
@@ -287,8 +194,8 @@ float calculateDistance(const sequence& a, const sequence& b)
 	const float kDistanceGapOpen = 10;
 	const float kDistanceGapExtend = 0.2f;
 
-	int32 x = 0, dimX = a.length();
-	int32 y = 0, dimY = b.length();
+	int32 x = 0, dimX = static_cast<int32>(a.length());
+	int32 y = 0, dimY = static_cast<int32>(b.length());
 
 	matrix<float>	B(dimX, dimY);
 	matrix<float>	Ix(dimX, dimY);
@@ -374,11 +281,11 @@ float calculateDistance(const sequence& a, const sequence& b)
 
 // --------------------------------------------------------------------
 
-struct entry
+struct MHit
 {
-	entry(const entry& e);
+	MHit(const MHit& e);
 	
-	entry(const string& id, const string& def, const sequence& seq)
+	MHit(const string& id, const string& def, const sequence& seq)
 		: m_id(id), m_def(def), m_seq(seq), m_distance(0) {}
 
 	struct insertion
@@ -387,42 +294,120 @@ struct entry
 		sequence		m_seq;
 	};
 	
-	static entry*		create(const string& id, const string& def,
+	static MHit*		Create(const string& id, const string& def,
 							const string& seq, const sequence& chain);
 
-	string				m_id, m_def;
-	sequence			m_seq, m_aligned;
-	float				m_distance;
+	void				Update(const matrix<int8>& inTraceBack, const sequence& inChain,
+							int32 inX, int32 inY, const matrix<float>& inB,const int8 inMatrix[]);
+
+	string				m_id, m_acc, m_def;
+	sequence			m_seq;
+	string				m_aligned;
+	float				m_distance, m_score;
+	int32				m_ifir, m_ilas, m_jfir, m_jlas;
+	uint32				m_identical, m_similar, m_length;
+	uint32				m_gaps, m_gapn;
 	vector<insertion>	m_insertions;
 };
 
-entry* entry::create(const string& id, const string& def, const string& seq, const sequence& chain)
+MHit* MHit::Create(const string& id, const string& def, const string& seq, const sequence& chain)
 {
-	entry* result = new entry(id, def, encode(seq));
-	result->m_aligned = sequence(chain.length(), '-');
+	MHit* result = new MHit(id, def, encode(seq));
+
+	static const boost::regex
+		kM6FastARE("^(\\w+)((?:\\|([^| ]*))?(?:\\|([^| ]+))?(?:\\|([^| ]+))?(?:\\|([^| ]+))?)");
+	
+	boost::smatch m;
+	if (boost::regex_match(result->m_id, m, kM6FastARE, boost::match_not_dot_newline))
+	{
+		if (m[1] == "sp" or m[1] == "tr")
+		{
+			result->m_acc = m[3];
+			result->m_id = m[4];
+		}
+		else
+			result->m_id = m[2];
+	}
+	
+	result->m_aligned = string(chain.length(), ' ');
 	result->m_distance = calculateDistance(result->m_seq, chain);
 	return result;
 }
 
-ostream& operator<<(ostream& os, const entry& e)
+void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
+	int32 inX, int32 inY, const matrix<float>& inB, const int8 inMatrix[])
 {
-	os << e.m_id << '\t' << e.m_distance;
-	return os;
+	m_ilas = inX + 1;
+	m_jlas = inY + 1;
+
+	m_identical = m_similar = m_length = m_gaps = m_gapn = 0;
+
+	int32 x = inX;
+	int32 y = inY;
+	
+	bool gap = false;
+	
+	// trace back the matrix
+	while (x >= 0 and y >= 0 and inB(x, y) > 0)
+	{
+		++m_length;
+		switch (inTraceBack(x, y))
+		{
+			case -1:
+				if (not gap)
+					++m_gaps;
+				++m_gapn;
+				gap = true;
+				--y;
+				break;
+
+			case 1:
+				m_aligned[x] = '-';
+				--x;
+				break;
+
+			case 0:
+				gap = false;
+				m_aligned[x] = kResidues[m_seq[y]];
+				if (inChain[x] == m_seq[y])
+					++m_identical, ++m_similar;
+				else if (score(inMatrix, inChain[x], m_seq[y]) > 0)
+					++m_similar;
+				--x;
+				--y;
+				break;
+		}
+	}
+	
+	assert(gap == false);
+	m_ifir = x + 2;
+	m_jfir = y + 2;
+	
+	m_score = float(m_identical) / m_length;
 }
 
 // --------------------------------------------------------------------
 
-struct residue
+struct MResInfo
 {
-	uint8			m_chain;
+	uint8			m_letter;
+	uint8			m_chain_id;
+	uint32			m_seq_nr;
+	uint32			m_pdb_nr;
+	string			m_dssp;
+	float			m_consweight;
 	uint32			m_nocc;
 	uint32			m_dist[23];
+	uint32			m_ins, m_del;
 	float			m_score[23];
 
-	void			add(uint8 r, const int8 m[]);
+	void			Add(uint8 r, const int8 inMatrix[]);
+	void			CalculateConservation();
 };
 
-void residue::add(uint8 r, const int8 m[])
+typedef vector<MResInfo> MResInfoList;
+
+void MResInfo::Add(uint8 r, const int8 inMatrix[])
 {
 	assert(r < 23);
 	m_nocc += 1;
@@ -433,41 +418,66 @@ void residue::add(uint8 r, const int8 m[])
 		m_score[i] = 0;
 		
 		for (int j = 0; j < 23; ++j)
-			m_score[i] += float(score(m, i, j)) * m_dist[j];
+			m_score[i] += float(score(inMatrix, i, j)) * m_dist[j];
 		
 		m_score[i] /= m_nocc;
 	}
 }
 
-struct profile
+void MResInfo::CalculateConservation()
 {
-					profile(const sequence& chain, const int8 m[]);
+	
+}
 
-	void			align(entry* e);
+// --------------------------------------------------------------------
+
+struct MProfile
+{
+					MProfile(const MChain& inChain, const sequence& inSequence);
+
+	void			Process(istream& inHits, progress& inProgress);
+	void			Align(MHit* e);
 
 	void			dump(ostream& os, const matrix<int8>& tb, const sequence& s);
 
-	sequence		m_chain;
-	vector<residue>	m_residues;
-	vector<entry*>	m_entries;
+	const MChain&	m_chain;
+	sequence		m_seq;
+	MResInfoList	m_residues;
+	vector<MHit*>	m_entries;
 };
 
-profile::profile(const sequence& chain, const int8 m[])
-	: m_chain(chain)
+MProfile::MProfile(const MChain& inChain, const sequence& inSequence)
+	: m_chain(inChain), m_seq(inSequence)
 {
-	foreach (uint8 r, chain)
+	const vector<MResidue*>& residues = m_chain.GetResidues();
+	vector<MResidue*>::const_iterator ri = residues.begin();
+
+	for (uint32 i = 0; i < inSequence.length(); ++i)
 	{
-		residue res = { r };
-		res.add(r, m);
-		m_residues.push_back(res);
+		assert(ri != residues.end());
+		
+		if (ri != residues.begin() and (*ri)->GetNumber() > (*(ri - 1))->GetNumber() + 1)
+		{
+			MResInfo res = { 0, 0, m_residues.size() + 1 };
+			m_residues.push_back(res);
+		}
+		else
+		{
+			string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
+			MResInfo res = { inSequence[i], m_chain.GetChainID(), m_residues.size() + 1, (*ri)->GetNumber(), dssp };
+			res.Add(res.m_letter, kM6Pam250);
+			m_residues.push_back(res);
+		}
+
+		++ri;
 	}
 }
 
-void profile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
+void MProfile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
 {
 	os << ' ';
 	foreach (auto& e, m_residues)
-		os << kResidues[e.m_chain];
+		os << kResidues[e.m_letter];
 	os << endl;
 
 	for (uint32 y = 0; y < s.length(); ++y)
@@ -487,26 +497,15 @@ void profile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
 	}
 }
 
-void profile::align(entry* e)
+void MProfile::Align(MHit* e)
 {
-	const float kSentinelValue = -(numeric_limits<float>::max() / 2);
+	int32 x = 0, dimX = static_cast<int32>(m_seq.length());
+	int32 y = 0, dimY = static_cast<int32>(e->m_seq.length());
 	
-	int32 x = 0, dimX = m_residues.size();
-	int32 y = 0, dimY = e->m_seq.length();
-	
-#ifdef NDEBUG
 	matrix<float> B(dimX, dimY);
 	matrix<float> Ix(dimX, dimY);
 	matrix<float> Iy(dimX, dimY);
 	matrix<int8> tb(dimX, dimY);
-#else
-	matrix<float> B(dimX, dimY, kSentinelValue);
-	matrix<float> Ix(dimX, dimY);
-	matrix<float> Iy(dimX, dimY);
-	matrix<int8> tb(dimX, dimY, 2);
-#endif
-	
-	const int8* m = kM6Pam250;
 	
 	float minLength = static_cast<float>(dimX), maxLength = static_cast<float>(dimY);
 	if (minLength > maxLength)
@@ -522,10 +521,10 @@ void profile::align(entry* e)
 
 	// position specific gap penalties
 	// initial gap extend cost is adjusted for difference in sequence lengths
-	vector<float> gop_a(dimX, gop), gep_a(dimX, gep * (1 + log10(float(dimX) / dimY)));
+	vector<float> gop_a(dimX, gop), gep_a(dimX, gep /* * (1 + log10(float(dimX) / dimY))*/);
 //	adjust_gp(gop_a, gep_a, a);
 	
-	vector<float> gop_b(dimY, gop), gep_b(dimY, gep * (1 + log10(float(dimY) / dimX)));
+	vector<float> gop_b(dimY, gop), gep_b(dimY, gep /* * (1 + log10(float(dimY) / dimX))*/);
 //	adjust_gp(gop_b, gep_b, b);
 
 	int32 highX = 0, highY = 0;
@@ -595,8 +594,7 @@ void profile::align(entry* e)
 				break;
 
 			case 0:
-				e->m_aligned[x] = e->m_seq[y];
-				if (e->m_seq[y] == m_chain[x])
+				if (e->m_seq[y] == m_seq[x])
 					++ident;
 				--x;
 				--y;
@@ -612,99 +610,470 @@ void profile::align(entry* e)
 		delete e;
 	else
 	{
+		e->Update(tb, m_seq, highX, highY, B, kM6Pam250);
 		m_entries.push_back(e);
-		for (uint32 i = 0; i < m_chain.length(); ++i)
+		for (uint32 i = 0; i < m_seq.length(); ++i)
 		{
-			if (e->m_aligned[i] == '-')
+			int8 r = ResidueNr(e->m_aligned[i]);
+			if (r < 0 or r >= 23)
 				continue;
-			m_residues[i].add(e->m_aligned[i], m);
+			m_residues[i].Add(r, kM6Pam250);
 		}
 	}
 }
 
 // --------------------------------------------------------------------
 
-void ProcessHits(istream& data, progress& p, profile& prof)
+void MProfile::Process(istream& inHits, progress& inProgress)
 {
 	string id, def, seq;
 	for (;;)
 	{
 		string line;
-		getline(data, line);
-		if (line.empty() and data.eof())
+		getline(inHits, line);
+		if (line.empty() and inHits.eof())
 			break;
 
-		p.step(line.length() + 1);
+		inProgress.step(line.length() + 1);
 		
 		if (ba::starts_with(line, ">"))
 		{
 			if (not (id.empty() or seq.empty()))
-				prof.align(entry::create(id, def, seq, prof.m_chain));
+				Align(MHit::Create(id, def, seq, m_seq));
 			
 			id.clear();
 			def.clear();
 			seq.clear();
 			
 			string::size_type s = line.find(' ');
-			id = line.substr(1, s);
 			if (s != string::npos)
+			{
+				id = line.substr(1, s - 1);
 				def = line.substr(s + 1);
+			}
+			else
+				id = line.substr(1);
 		}
 		else
 			seq += line;
 	}
 
 	if (not (id.empty() or seq.empty()))
-		prof.align(entry::create(id, def, seq, prof.m_chain));
+		Align(MHit::Create(id, def, seq, m_seq));
 }
 
 // --------------------------------------------------------------------
 
-//int main()
-//{
-//	fs::path infile("tests/1gzm-hits.fa");
-//	fs::path outfile("tests/1gzm-a.aln");
+// Find the minimal set of overlapping sequences
+// Only search fully contained subsequences, in case of strong similarity
+// (distance < 0.01) we take the longest chain.
+void ClusterSequences(vector<sequence>& s, vector<uint32>& ix)
+{
+	for (;;)
+	{
+		bool found = false;
+		for (uint32 i = 0; not found and i < s.size() - 1; ++i)
+		{
+			for (uint32 j = i + 1; not found and j < s.size(); ++j)
+			{
+				sequence& a = s[i];
+				sequence& b = s[j];
+
+				if (a.empty() or b.empty())
+					continue;
+				
+				if (a == b)
+				{
+					s[j].clear();
+					ix[j] = i;
+					found = true;
+				}
+				else
+				{
+					float d = calculateDistance(a, b);
+					if (d <= 0.01)
+					{
+						if (b.length() > a.length())
+							swap(i, j);
+
+						s[j].clear();
+						ix[j] = i;
+						found = true;
+					}
+				}
+			}
+		}
+		
+		if (not found)
+			break;
+	}
+}
+
+// --------------------------------------------------------------------
+// Write collected information as a HSSP file to the output stream
+
+void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescription,
+	float inThreshold, uint32 inSeqLength, uint32 inNChain, uint32 inKChain,
+	const string& inUsedChains, const vector<MHit*>& inHits, const vector<MResInfo>& inResInfo, ostream& os)
+{
+	using namespace boost::gregorian;
+	date today = day_clock::local_day();
+
+	// print the header
+	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0 2011" << endl
+	   << "PDBID      " << inProteinID << endl
+	   << "DATE       file generated on " << to_iso_extended_string(today) << endl
+//	   << "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << endl
+	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << endl
+	   << "REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991)." << endl
+	   << "CONTACT    Maintained at http://www.cmbi.ru.nl/ by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
+	   << inProteinDescription
+	   << boost::format("SEQLENGTH %5.5d") % inSeqLength << endl
+	   << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
+	
+	if (inKChain != inNChain)
+		os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % inKChain << inUsedChains << endl;
+	
+	os << boost::format("NALIGN     %4.4d") % inHits.size() << endl
+	   << "NOTATION : ID: EMBL/SWISSPROT identifier of the aligned (homologous) protein" << endl
+	   << "NOTATION : STRID: if the 3-D structure of the aligned protein is known, then STRID is the Protein Data Bank identifier as taken" << endl
+	   << "NOTATION : from the database reference or DR-line of the EMBL/SWISSPROT entry" << endl
+	   << "NOTATION : %IDE: percentage of residue identity of the alignment" << endl
+	   << "NOTATION : %SIM (%WSIM):  (weighted) similarity of the alignment" << endl
+	   << "NOTATION : IFIR/ILAS: first and last residue of the alignment in the test sequence" << endl
+	   << "NOTATION : JFIR/JLAS: first and last residue of the alignment in the alignend protein" << endl
+	   << "NOTATION : LALI: length of the alignment excluding insertions and deletions" << endl
+	   << "NOTATION : NGAP: number of insertions and deletions in the alignment" << endl
+	   << "NOTATION : LGAP: total length of all insertions and deletions" << endl
+	   << "NOTATION : LSEQ2: length of the entire sequence of the aligned protein" << endl
+	   << "NOTATION : ACCNUM: SwissProt accession number" << endl
+	   << "NOTATION : PROTEIN: one-line description of aligned protein" << endl
+	   << "NOTATION : SeqNo,PDBNo,AA,STRUCTURE,BP1,BP2,ACC: sequential and PDB residue numbers, amino acid (lower case = Cys), secondary" << endl
+	   << "NOTATION : structure, bridge partners, solvent exposure as in DSSP (Kabsch and Sander, Biopolymers 22, 2577-2637(1983)" << endl
+	   << "NOTATION : VAR: sequence variability on a scale of 0-100 as derived from the NALIGN alignments" << endl
+	   << "NOTATION : pair of lower case characters (AvaK) in the alignend sequence bracket a point of insertion in this sequence" << endl
+	   << "NOTATION : dots (....) in the alignend sequence indicate points of deletion in this sequence" << endl
+	   << "NOTATION : SEQUENCE PROFILE: relative frequency of an amino acid type at each position. Asx and Glx are in their" << endl
+	   << "NOTATION : acid/amide form in proportion to their database frequencies" << endl
+	   << "NOTATION : NOCC: number of aligned sequences spanning this position (including the test sequence)" << endl
+	   << "NOTATION : NDEL: number of sequences with a deletion in the test protein at this position" << endl
+	   << "NOTATION : NINS: number of sequences with an insertion in the test protein at this position" << endl
+	   << "NOTATION : ENTROPY: entropy measure of sequence variability at this position" << endl
+	   << "NOTATION : RELENT: relative entropy, i.e.  entropy normalized to the range 0-100" << endl
+	   << "NOTATION : WEIGHT: conservation weight" << endl
+	   << endl
+	   << "## PROTEINS : identifier and alignment statistics" << endl
+	   << "  NR.    ID         STRID   %IDE %WSIM IFIR ILAS JFIR JLAS LALI NGAP LGAP LSEQ2 ACCNUM     PROTEIN" << endl;
+	   
+	// print the first list
+	uint32 nr = 1;
+	boost::format fmt1("%5.5d : %12.12s%4.4s    %4.2f  %4.2f%5.5d%5.5d%5.5d%5.5d%5.5d%5.5d%5.5d%5.5d  %10.10s %s");
+	foreach (MHit* h, inHits)
+	{
+		string id = h->m_id, acc = h->m_acc, pdb;
+
+		if (id.length() > 12)
+			id.erase(12, string::npos);
+		else if (id.length() < 12)
+			id.append(12 - id.length(), ' ');
+		
+		if (acc.length() > 10)
+			acc.erase(10, string::npos);
+		else if (acc.length() < 10)
+			acc.append(10 - acc.length(), ' ');
+		
+		float sim = float(h->m_similar) / h->m_length;
+		
+		os << fmt1 % nr
+				   % id % pdb
+				   % h->m_score % sim % h->m_ifir % h->m_ilas % h->m_jfir % h->m_jlas % h->m_length
+				   % h->m_gaps % h->m_gapn % h->m_seq.length()
+				   % acc % h->m_def
+		   << endl;
+		
+		++nr;
+	}
+
+	// print the alignments
+	for (uint32 i = 0; i < inHits.size(); i += 70)
+	{
+		uint32 n = i + 70;
+		if (n > inHits.size())
+			n = inHits.size();
+		
+		uint32 k[7] = {
+			((i +  0) / 10 + 1) % 10,
+			((i + 10) / 10 + 1) % 10,
+			((i + 20) / 10 + 1) % 10,
+			((i + 30) / 10 + 1) % 10,
+			((i + 40) / 10 + 1) % 10,
+			((i + 50) / 10 + 1) % 10,
+			((i + 60) / 10 + 1) % 10
+		};
+		
+		os << boost::format("## ALIGNMENTS %4.4d - %4.4d") % (i + 1) % n << endl
+		   << boost::format(" SeqNo  PDBNo AA STRUCTURE BP1 BP2  ACC NOCC  VAR  ....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d")
+		   					% k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << endl;
+
+//		res_ptr last;
+		uint32 x = 0;
+		foreach (auto& ri, inResInfo)
+		{
+			if (ri.m_chain_id == 0)
+				os << boost::format(" %5.5d        !  !           0   0    0    0    0") % ri.m_seq_nr << endl;
+			else
+			{
+				string aln;
+				
+				foreach (MHit* hit, boost::make_iterator_range(inHits.begin() + i, inHits.begin() + n))
+					aln += hit->m_aligned[x];
+				
+				uint32 ivar = uint32(100 * (1 - ri.m_consweight));
+
+				os << ' ' << boost::format("%5.5d%s%4.4d %4.4d  ")
+					% ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << aln << endl;
+			}
+			++x;
+		}
+	}
+	
+//	// ## SEQUENCE PROFILE AND ENTROPY
+//	os << "## SEQUENCE PROFILE AND ENTROPY" << endl
+//	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
 //	
-////	fs::ifstream file("tests/1crn-hits.fa");
-//	fs::ifstream file(infile);
-//	fs::ofstream out(outfile);
-//	
-//	if (file.is_open() and out.is_open())
+//	res_ptr last;
+//	foreach (res_ptr r, res)
 //	{
-////		sequence chain(encode("TTCCPSIVARSNFNVCRLPGTPEAICATYTGCIIIPGATCPGDYAN"));
+//		if (r->letter == 0)
+//		{
+//			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
+//				% r->seqNr << endl;
+//		}
+//		else
+//		{
+//			os << boost::format("%5.5d%5.5d %c") % r->seqNr % r->pdbNr % r->chain;
 //
-//		sequence chain(encode("MNGTEGPNFYVPFSNKTGVVRSPFEAPQYYLAEPWQFSMLAAYMFLLIMLGFPINFLTLYVTVQHKKLRTPLNYILLNLAVADLFMVFGGFTTTLYTSLHGYFVFGPTGCNLEGFFATLGGEIALWSLVVLAIERYVVVCKPMSNFRFGENHAIMGVAFTWVMALACAAPPLVGWSRYIPEGMQCSCGIDYYTPHEETNNESFVIYMFVVHFIIPLIVIFFCYGQLVFTVKEAAAQQQESATTQKAEKEVTRMVIIMVIAFLICWLPYAGVAFYIFTHQGSDFGPIFMTIPAFFAKTSAVYNPVIYIMMNKQFRNCMVTTLCCGKNDD"));
-//		profile p(chain, kM6Pam250);
-//				
-//		{
-//			progress pr1("processing", fs::file_size(infile));
-//			ProcessHits(file, pr1, p);
+//			for (uint32 i = 0; i < 20; ++i)
+//				os << boost::format("%4.4d") % r->dist[i];
+//
+//			uint32 relent = uint32(100 * r->entropy / log(20.0));
+//			os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % r->nocc % r->ndel % r->nins % r->entropy % relent % r->consweight << endl;
 //		}
-//		
-//		foreach (entry* e, p.m_entries)
-//		{
-//			string seq;
-//			foreach (uint8 r, e->m_aligned)
-//			{
-//				if (seq.length() % 73 == 72)
-//					seq += '\n';
-//				seq += r < 23 ? kResidues[r] : '-';
-//			}
-//			
-//			out << '>' << e->m_id << ' ' << e->m_def << endl
-//				<< seq << endl;
-//		}
-//		
-////		cout << p << endl;
 //	}
 //	
-//	return 0;
-//}
+//	// insertion list
+//	
+//	os << "## INSERTION LIST" << endl
+//	   << " AliNo  IPOS  JPOS   Len Sequence" << endl;
+//
+//	foreach (hit_ptr h, hits)
+//	{
+//		//foreach (insertion& ins, h->insertions)
+//		foreach (const insertion& ins, h->m_seq.insertions())
+//		{
+//			string s = ins.m_seq;
+//			
+//			if (s.length() <= 100)
+//				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
+//			else
+//			{
+//				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
+//				s.erase(0, 100);
+//				
+//				while (not s.empty())
+//				{
+//					uint32 n = s.length();
+//					if (n > 100)
+//						n = 100;
+//					
+//					os << "     +                   " << s.substr(0, n) << endl;
+//					s.erase(0, n);
+//				}
+//			}
+//		}			
+//	}
+	
+	os << "//" << endl;
+}
 
+// --------------------------------------------------------------------
+// Calculate the variability of a residue, based on dayhoff similarity
+// and weights
+
+uint32 kSentinel = numeric_limits<uint32>::max();
+boost::mutex sSumLock;
+
+bool is_gap(char aa) { return aa == ' ' or aa == '-'; }
+
+void CalculateConservation(const vector<MHit*>& inHits, buffer<uint32>& b, vector<float>& csumvar, vector<float>& csumdist)
+{
+	vector<float> sumvar(csumvar.size()), sumdist(csumdist.size()), simval(csumdist.size());
+
+	for (;;)
+	{
+		uint32 i = b.get();
+		if (i == kSentinel)
+			break;
+
+		const string& si = inHits[i]->m_aligned;
+		
+		for (uint32 j = i + 1; j < inHits.size(); ++j)
+		{
+			const string& sj = inHits[j]->m_aligned;
+	
+			uint32 len = 0, agr = 0;
+			for (uint32 k = 0; k < si.length(); ++k)
+			{
+				if (is_gap(si[k]) or is_gap(sj[k]))
+					continue;
+
+				++len;
+				if (si[k] == sj[k])
+					++agr;
+
+				int8 ri = ResidueNr(si[k]);
+				int8 rj = ResidueNr(sj[k]);
+
+				if (ri < 20 and rj < 20)
+					simval[k] = score(kDayhoffData, ri, rj);
+				else
+					simval[k] = numeric_limits<float>::min();
+			}
+			
+			if (len == 0)
+				continue;
+
+			float distance = 1 - (float(agr) / float(len));
+			for (uint32 k = 0; k < si.length(); ++k)
+			{
+				if (simval[k] != numeric_limits<float>::min())
+				{
+					sumvar[k] += distance * simval[k];
+					sumdist[k] += distance * 1.5f;
+				}
+			}
+		}
+	}
+
+	b.put(kSentinel);
+	
+	// accumulate our data
+	boost::mutex::scoped_lock l(sSumLock);
+	
+	transform(sumvar.begin(), sumvar.end(), csumvar.begin(), csumvar.begin(), plus<float>());
+	transform(sumdist.begin(), sumdist.end(), csumdist.begin(), csumdist.begin(), plus<float>());
+}
+
+void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResInfoList& inResidues)
+{
+	if (VERBOSE)
+		cerr << "Calculating conservation weights...";
+
+	vector<float> sumvar(inChain.length()), sumdist(inChain.length());
+	
+	// Calculate conservation weights in multiple threads to gain speed.
+	buffer<uint32> b;
+	boost::thread_group threads;
+	//for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
+	//{
+		threads.create_thread(boost::bind(&CalculateConservation, boost::ref(inHits),
+			boost::ref(b), boost::ref(sumvar), boost::ref(sumdist)));
+	//}
+		
+#pragma message("missing the query here!")
+	for (uint32 i = 0; i + 1 < inHits.size(); ++i)
+		b.put(i);
+	
+	b.put(kSentinel);
+	threads.join_all();
+
+	MResInfoList::iterator ri = inResidues.begin();
+	for (uint32 i = 0; i < inChain.length(); ++i)
+	{
+		assert(ri != inResidues.end());
+
+		float weight = 1.0f;
+		if (sumdist[i] > 0)
+			weight = sumvar[i] / sumdist[i];
+		
+		ri->m_consweight = weight;
+		
+		do {
+			++ri;
+		} while (ri != inResidues.end() and ri->m_chain_id == 0);
+	}
+	assert(ri == inResidues.end());
+
+	if (VERBOSE)
+		cerr << " done" << endl;
+}
+
+// --------------------------------------------------------------------
 
 void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
-	uint32 inMaxhits, uint32 inThreshold, uint32 inThreads, ostream& inOs)
-{//
+	uint32 inMaxhits, uint32 inMinSeqLength, float inThreshold, uint32 inThreads, ostream& inOs)
+{
+	// construct a set of unique sequences, containing only the largest ones in case of overlap
+	vector<sequence> seqset;
+	vector<uint32> ix;
+	vector<const MChain*> chains;
+	string used;
+	
+	foreach (const MChain* chain, inProtein.GetChains())
+	{
+		string seq;
+		chain->GetSequence(seq);
+		
+		if (seq.length() < inMinSeqLength)
+			continue;
+		
+		chains.push_back(chain);
+		seqset.push_back(encode(seq));
+		ix.push_back(ix.size());
+	}
+	
+	if (seqset.empty())
+		throw runtime_error("Not enough sequences in PDB file of minimal length");
+
+	if (seqset.size() > 1)
+		ClusterSequences(seqset, ix);
+	
+	// only take the unique sequences
+	ix.erase(unique(ix.begin(), ix.end()), ix.end());
+
+	vector<MProfile*> profiles;
+
+	uint32 seqlength = 0;
+	foreach (uint32 i, ix)
+	{
+		const MChain& chain(*chains[ix[i]]);
+		
+		if (not used.empty())
+			used += ", ";
+		used += chain.GetChainID();
+		
+		unique_ptr<MProfile> profile(new MProfile(chain, seqset[ix[i]]));
+		
+		fs::path blastHits(inProtein.GetID() + '-' + chain.GetChainID() + "-hits.fa");
+		fs::ifstream file(blastHits);
+		if (not file.is_open())
+			throw runtime_error("Could not open blast hit file");
+		
+		{
+			progress pr1("processing", fs::file_size(blastHits));
+			profile->Process(file, pr1);
+		}
+		
+		CalculateConservation(seqset[ix[i]], profile->m_entries, profile->m_residues);
+
+		seqlength += seqset[ix[i]].length();
+		profiles.push_back(profile.release());
+	}
+	
+	
+	CreateHSSPOutput("1crn", "", inThreshold, seqlength, chains.size(), ix.size(), used,
+		profiles.back()->m_entries, profiles.back()->m_residues, inOs);
+		
 //	uint32 seqlength = 0;
 //
 //	vector<mseq> alignments(inChainAlignments.size());
@@ -831,7 +1200,13 @@ void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
 //	
 }
 
+}
+
 // --------------------------------------------------------------------
+
+#if defined(_MSC_VER)
+#include <conio.h>
+#endif
 
 int main(int argc, char* argv[])
 {
@@ -856,6 +1231,7 @@ int main(int argc, char* argv[])
 			("databank,d",	po::value<vector<string>>(),
 												 "Databank(s) to use")
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
+			("min-length",	po::value<uint32>(), "Minimal chain length")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
 			("verbose,v",						 "Verbose output")
@@ -887,6 +1263,10 @@ int main(int argc, char* argv[])
 		
 		vector<string> databanks(vm["databank"].as<vector<string>>());
 			
+		uint32 minlength = 25;
+		if (vm.count("min-length"))
+			minlength= vm["min-length"].as<uint32>();
+
 		uint32 maxhits = 1500;
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
@@ -905,7 +1285,7 @@ int main(int argc, char* argv[])
 		string input = vm["input"].as<string>();
 		io::filtering_stream<io::input> in;
 		ifstream infile(input.c_str(), ios_base::in | ios_base::binary);
-		if (not input.is_open())
+		if (not infile.is_open())
 			throw runtime_error("Error opening input file");
 
 		if (ba::ends_with(input, ".bz2"))
@@ -947,7 +1327,7 @@ int main(int argc, char* argv[])
 		a.CalculateSecondaryStructure();
 		
 		// create the HSSP file
-		CreateHSSP(a, databanks, maxhits, threshold, threads, out);
+		HSSP::CreateHSSP(a, databanks, maxhits, minlength, threshold, threads, out);
 	}
 	catch (exception& e)
 	{
@@ -955,7 +1335,7 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-#if P_WIN && P_DEBUG
+#if defined(_MSC_VER) && ! NDEBUG
 	cerr << "Press any key to quit application ";
 	char ch = _getch();
 	cerr << endl;

@@ -1004,6 +1004,8 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 	{
 		string line;
 		getline(is, line);
+		if (line.empty() and is.eof())
+			break;
 
 		if (VERBOSE > 3)
 			cerr << line << endl;
