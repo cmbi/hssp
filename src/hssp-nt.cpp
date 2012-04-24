@@ -900,57 +900,54 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 // Calculate the variability of a residue, based on dayhoff similarity
 // and weights
 
-uint32 kSentinel = numeric_limits<uint32>::max();
 boost::mutex sSumLock;
+pair<const char*,const char*> kSentinel((const char*)nullptr, (const char*)nullptr);
 
 bool is_gap(char aa) { return aa == ' ' or aa == '-'; }
 
-void CalculateConservation(const vector<MHit*>& inHits, buffer<uint32>& b, vector<float>& csumvar, vector<float>& csumdist)
+void CalculateConservation(buffer<pair<const char*,const char*>>& b, vector<float>& csumvar, vector<float>& csumdist)
 {
+	uint32 length = csumvar.size();
 	vector<float> sumvar(csumvar.size()), sumdist(csumdist.size()), simval(csumdist.size());
 
 	for (;;)
 	{
-		uint32 i = b.get();
-		if (i == kSentinel)
+		auto next = b.get();
+		if (next == kSentinel)
 			break;
 
-		const string& si = inHits[i]->m_aligned;
-		
-		for (uint32 j = i + 1; j < inHits.size(); ++j)
+		const char* si = next.first;
+		const char* sj = next.second;
+
+		uint32 len = 0, agr = 0;
+		for (uint32 k = 0; k < length; ++k)
 		{
-			const string& sj = inHits[j]->m_aligned;
-	
-			uint32 len = 0, agr = 0;
-			for (uint32 k = 0; k < si.length(); ++k)
-			{
-				if (is_gap(si[k]) or is_gap(sj[k]))
-					continue;
-
-				++len;
-				if (si[k] == sj[k])
-					++agr;
-
-				int8 ri = ResidueNr(si[k]);
-				int8 rj = ResidueNr(sj[k]);
-
-				if (ri < 20 and rj < 20)
-					simval[k] = score(kDayhoffData, ri, rj);
-				else
-					simval[k] = numeric_limits<float>::min();
-			}
-			
-			if (len == 0)
+			if (is_gap(si[k]) or is_gap(sj[k]))
 				continue;
 
-			float distance = 1 - (float(agr) / float(len));
-			for (uint32 k = 0; k < si.length(); ++k)
+			++len;
+			if (si[k] == sj[k])
+				++agr;
+
+			int8 ri = ResidueNr(si[k]);
+			int8 rj = ResidueNr(sj[k]);
+
+			if (ri < 20 and rj < 20)
+				simval[k] = score(kDayhoffData, ri, rj);
+			else
+				simval[k] = numeric_limits<float>::min();
+		}
+		
+		if (len == 0)
+			continue;
+
+		float distance = 1 - (float(agr) / float(len));
+		for (uint32 k = 0; k < length; ++k)
+		{
+			if (simval[k] != numeric_limits<float>::min())
 			{
-				if (simval[k] != numeric_limits<float>::min())
-				{
-					sumvar[k] += distance * simval[k];
-					sumdist[k] += distance * 1.5f;
-				}
+				sumvar[k] += distance * simval[k];
+				sumdist[k] += distance * 1.5f;
 			}
 		}
 	}
@@ -972,17 +969,22 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 	vector<float> sumvar(inChain.length()), sumdist(inChain.length());
 	
 	// Calculate conservation weights in multiple threads to gain speed.
-	buffer<uint32> b;
+	buffer<pair<const char*,const char*>> b;
 	boost::thread_group threads;
 	//for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
 	//{
-		threads.create_thread(boost::bind(&CalculateConservation, boost::ref(inHits),
-			boost::ref(b), boost::ref(sumvar), boost::ref(sumdist)));
+	threads.create_thread([&]() { CalculateConservation(b, sumvar, sumdist); });
 	//}
-		
-#pragma message("missing the query here!")
+	
+	string s(decode(inChain));
+	foreach (auto hit, inHits)
+		b.put(make_pair(s.c_str(), hit->m_aligned.c_str()));
+	
 	for (uint32 i = 0; i + 1 < inHits.size(); ++i)
-		b.put(i);
+	{
+		for (uint32 j = i + 1; j < inHits.size(); ++j)
+			b.put(make_pair(inHits[i]->m_aligned.c_str(), inHits[j]->m_aligned.c_str()));
+	}
 	
 	b.put(kSentinel);
 	threads.join_all();
