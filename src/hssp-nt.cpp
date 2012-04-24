@@ -1,19 +1,37 @@
 #include "mas.h"
 
-#include <string>
-#include <exception>
-#include <list>
+#include <iostream>
+#include <set>
 
-#include <boost/filesystem/fstream.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/convenience.hpp>
+#include <boost/filesystem/fstream.hpp>
+#include <boost/format.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
+#include <boost/iostreams/device/back_inserter.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/filter/bzip2.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
+#include <boost/program_options.hpp>
+#include <boost/program_options/config.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/date_clock_device.hpp>
 
 #include "utils.h"
+#include "structure.h"
+#include "dssp.h"
 
 using namespace std;
 namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;
+namespace po = boost::program_options;
 
 int VERBOSE = 0;
 
@@ -642,43 +660,307 @@ void ProcessHits(istream& data, progress& p, profile& prof)
 
 // --------------------------------------------------------------------
 
-int main()
-{
-	fs::path infile("tests/1gzm-hits.fa");
-	fs::path outfile("tests/1gzm-a.aln");
-	
-//	fs::ifstream file("tests/1crn-hits.fa");
-	fs::ifstream file(infile);
-	fs::ofstream out(outfile);
-	
-	if (file.is_open() and out.is_open())
-	{
-//		sequence chain(encode("TTCCPSIVARSNFNVCRLPGTPEAICATYTGCIIIPGATCPGDYAN"));
+//int main()
+//{
+//	fs::path infile("tests/1gzm-hits.fa");
+//	fs::path outfile("tests/1gzm-a.aln");
+//	
+////	fs::ifstream file("tests/1crn-hits.fa");
+//	fs::ifstream file(infile);
+//	fs::ofstream out(outfile);
+//	
+//	if (file.is_open() and out.is_open())
+//	{
+////		sequence chain(encode("TTCCPSIVARSNFNVCRLPGTPEAICATYTGCIIIPGATCPGDYAN"));
+//
+//		sequence chain(encode("MNGTEGPNFYVPFSNKTGVVRSPFEAPQYYLAEPWQFSMLAAYMFLLIMLGFPINFLTLYVTVQHKKLRTPLNYILLNLAVADLFMVFGGFTTTLYTSLHGYFVFGPTGCNLEGFFATLGGEIALWSLVVLAIERYVVVCKPMSNFRFGENHAIMGVAFTWVMALACAAPPLVGWSRYIPEGMQCSCGIDYYTPHEETNNESFVIYMFVVHFIIPLIVIFFCYGQLVFTVKEAAAQQQESATTQKAEKEVTRMVIIMVIAFLICWLPYAGVAFYIFTHQGSDFGPIFMTIPAFFAKTSAVYNPVIYIMMNKQFRNCMVTTLCCGKNDD"));
+//		profile p(chain, kM6Pam250);
+//				
+//		{
+//			progress pr1("processing", fs::file_size(infile));
+//			ProcessHits(file, pr1, p);
+//		}
+//		
+//		foreach (entry* e, p.m_entries)
+//		{
+//			string seq;
+//			foreach (uint8 r, e->m_aligned)
+//			{
+//				if (seq.length() % 73 == 72)
+//					seq += '\n';
+//				seq += r < 23 ? kResidues[r] : '-';
+//			}
+//			
+//			out << '>' << e->m_id << ' ' << e->m_def << endl
+//				<< seq << endl;
+//		}
+//		
+////		cout << p << endl;
+//	}
+//	
+//	return 0;
+//}
 
-		sequence chain(encode("MNGTEGPNFYVPFSNKTGVVRSPFEAPQYYLAEPWQFSMLAAYMFLLIMLGFPINFLTLYVTVQHKKLRTPLNYILLNLAVADLFMVFGGFTTTLYTSLHGYFVFGPTGCNLEGFFATLGGEIALWSLVVLAIERYVVVCKPMSNFRFGENHAIMGVAFTWVMALACAAPPLVGWSRYIPEGMQCSCGIDYYTPHEETNNESFVIYMFVVHFIIPLIVIFFCYGQLVFTVKEAAAQQQESATTQKAEKEVTRMVIIMVIAFLICWLPYAGVAFYIFTHQGSDFGPIFMTIPAFFAKTSAVYNPVIYIMMNKQFRNCMVTTLCCGKNDD"));
-		profile p(chain, kM6Pam250);
-				
-		{
-			progress pr1("processing", fs::file_size(infile));
-			ProcessHits(file, pr1, p);
-		}
-		
-		foreach (entry* e, p.m_entries)
-		{
-			string seq;
-			foreach (uint8 r, e->m_aligned)
-			{
-				if (seq.length() % 73 == 72)
-					seq += '\n';
-				seq += r < 23 ? kResidues[r] : '-';
-			}
-			
-			out << '>' << e->m_id << ' ' << e->m_def << endl
-				<< seq << endl;
-		}
-		
-//		cout << p << endl;
+
+void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
+	uint32 inMaxhits, uint32 inThreshold, uint32 inThreads, ostream& inOs)
+{//
+//	uint32 seqlength = 0;
+//
+//	vector<mseq> alignments(inChainAlignments.size());
+//	vector<const MChain*> chains;
+//	vector<pair<uint32,uint32> > res_ranges;
+//
+//	res_list res;
+//	hit_list hits;
+//
+//	uint32 kchain = 0;
+//	foreach (string ch, inChainAlignments)
+//	{
+//		if (ch.length() < 3 or ch[1] != '=')
+//			throw mas_exception(boost::format("Invalid chain/stockholm pair specified: '%s'") % ch);
+//
+//		const MChain& chain = inProtein.GetChain(ch[0]);
+//		chains.push_back(&chain);
+//
+//		string seq;
+//		chain.GetSequence(seq);
+//
+//		// strip off trailing X's. They are not very useful
+//		while (ba::ends_with(seq, "X"))
+//			seq.erase(seq.end() - 1);
+//
+//		if (VERBOSE > 1)
+//			cerr << "Chain " << ch[0] << " => '" << seq << '\'' << endl;
+//
+//		seqlength += seq.length();
+//		
+//		// alignments are stored in datadir
+//		fs::path afp = ch.substr(2);
+//		if (not fs::exists(afp))
+//		{
+//			fs::path dataDir = "/data/hssp2/sto/";
+//			afp = dataDir / (ch.substr(2) + ".aln.bz2");
+//		}
+//		if (not fs::exists(afp))
+//			throw mas_exception("alignment is missing, exiting");
+//
+//		fs::ifstream af(afp, ios::binary);
+//		if (not af.is_open())
+//			throw mas_exception(boost::format("Could not open alignment file '%s'") % afp);
+//
+//		if (VERBOSE)
+//			cerr << "Using fasta file '" << afp << '\'' << endl;
+//
+//		io::filtering_stream<io::input> in;
+//		in.push(io::bzip2_decompressor());
+//		in.push(af);
+//
+//		try {
+//			ReadFastA(in, alignments[kchain], seq, inMaxHits, inMinLength, inCutOff);
+//		}
+//		catch (...)
+//		{
+//			cerr << "exception while reading file " << afp << endl;
+//			throw;
+//		}
+//
+//		// Remove all hits that are not above the threshold here
+//		mseq& msa = alignments[kchain];
+//		msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1, inCutOff)), msa.end());
+//
+//		++kchain;
+//	}
+//
+//	string usedChains;
+//	kchain = 0;
+//	foreach (const MChain* chain, chains)
+//	{
+//		if (not res.empty())
+//			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
+//		
+//		uint32 first = res.size();
+//		
+//		mseq& msa = alignments[kchain];
+//		ChainToHits(inDatabank, msa, *chain, hits, res);
+//		
+//		res_ranges.push_back(make_pair(first, res.size()));
+//
+//		if (not usedChains.empty())
+//			usedChains += ',';
+//		usedChains += chain->GetChainID();
+//
+//		++kchain;
+//	}
+//
+//	sort(hits.begin(), hits.end(), compare_hit());
+//
+//	if (inMaxHits > 0 and hits.size() > inMaxHits)
+//		hits.erase(hits.begin() + inMaxHits, hits.end());
+//
+//	if (hits.empty())
+//		throw mas_exception("No hits found or remaining");
+//	
+//	uint32 nr = 1;
+//	foreach (hit_ptr h, hits)
+//		h->m_nr = nr++;
+//
+//	for (uint32 c = 0; c < kchain; ++c)
+//	{
+//		pair<uint32,uint32> range = res_ranges[c];
+//		
+//		res_range r(res.begin() + range.first, res.begin() + range.second);
+//		CalculateConservation(alignments[c], r);
+//
+//		foreach (res_ptr ri, r)
+//			ri->CalculateVariability(hits);
+//	}
+//	
+//	stringstream desc;
+//	if (inProtein.GetHeader().length() >= 50)
+//		desc << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl;
+//	if (inProtein.GetCompound().length() > 10)
+//		desc << "COMPND     " + inProtein.GetCompound().substr(10) << endl;
+//	if (inProtein.GetSource().length() > 10)
+//		desc << "SOURCE     " + inProtein.GetSource().substr(10) << endl;
+//	if (inProtein.GetAuthor().length() > 10)
+//		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
+//
+//	CreateHSSPOutput(inDatabank, inProtein.GetID(), desc.str(), inCutOff, seqlength,
+//		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
+//	
+}
+
+// --------------------------------------------------------------------
+
+int main(int argc, char* argv[])
+{
+#if P_UNIX
+	// enable the dumping of cores to enable postmortem debugging
+	rlimit l;
+	if (getrlimit(RLIMIT_CORE, &l) == 0)
+	{
+		l.rlim_cur = l.rlim_max;
+		if (l.rlim_cur == 0 or setrlimit(RLIMIT_CORE, &l) < 0)
+			cerr << "Failed to set rlimit" << endl;
 	}
+#endif
+
+	try
+	{
+		po::options_description desc("MKHSSP options");
+		desc.add_options()
+			("help,h",							 "Display help message")
+			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
+			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
+			("databank,d",	po::value<vector<string>>(),
+												 "Databank(s) to use")
+			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
+			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
+			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
+			("verbose,v",						 "Verbose output")
+			;
+	
+		po::positional_options_description p;
+		p.add("input", 1);
+		p.add("output", 2);
+	
+		po::variables_map vm;
+		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+
+		fs::path home = get_home();
+		if (fs::exists(home / ".hssprc"))
+		{
+			fs::ifstream rc(home / ".hssprc");
+			po::store(po::parse_config_file(rc, desc), vm);
+		}
+
+		po::notify(vm);
+
+		if (vm.count("help") or not vm.count("input") or vm.count("databank") == 0)
+		{
+			cerr << desc << endl;
+			exit(1);
+		}
+
+		VERBOSE = vm.count("verbose") > 0;
+		
+		vector<string> databanks(vm["databank"].as<vector<string>>());
+			
+		uint32 maxhits = 1500;
+		if (vm.count("max-hits"))
+			maxhits= vm["max-hits"].as<uint32>();
+
+		float threshold = 0.05f;
+		if (vm.count("threshold"))
+			threshold = vm["threshold"].as<float>();
+
+		uint32 threads = boost::thread::hardware_concurrency();
+		if (vm.count("threads"))
+			threads = vm["threads"].as<uint32>();
+		if (threads < 1)
+			threads = 1;
+			
+		// what input to use
+		string input = vm["input"].as<string>();
+		io::filtering_stream<io::input> in;
+		ifstream infile(input.c_str(), ios_base::in | ios_base::binary);
+		if (not input.is_open())
+			throw runtime_error("Error opening input file");
+
+		if (ba::ends_with(input, ".bz2"))
+		{
+			in.push(io::bzip2_decompressor());
+			input.erase(input.length() - 4, string::npos);
+		}
+		else if (ba::ends_with(input, ".gz"))
+		{
+			in.push(io::gzip_decompressor());
+			input.erase(input.length() - 3, string::npos);
+		}
+		in.push(infile);
+
+		// Where to write our HSSP file to:
+		// either to cout or an (optionally compressed) file.
+		ofstream outfile;
+		io::filtering_stream<io::output> out;
+
+		if (vm.count("output") and vm["output"].as<string>() != "stdout")
+		{
+			string output = vm["output"].as<string>();
+			outfile.open(output.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
+			
+			if (not outfile.is_open())
+				throw runtime_error("could not create output file");
+			
+			if (ba::ends_with(output, ".bz2"))
+				out.push(io::bzip2_compressor());
+			else if (ba::ends_with(output, ".gz"))
+				out.push(io::gzip_compressor());
+			out.push(outfile);
+		}
+		else
+			out.push(cout);
+
+		// read protein and calculate the secondary structure
+		MProtein a(in);
+		a.CalculateSecondaryStructure();
+		
+		// create the HSSP file
+		CreateHSSP(a, databanks, maxhits, threshold, threads, out);
+	}
+	catch (exception& e)
+	{
+		cerr << e.what() << endl;
+		exit(1);
+	}
+
+#if P_WIN && P_DEBUG
+	cerr << "Press any key to quit application ";
+	char ch = _getch();
+	cerr << endl;
+#endif
 	
 	return 0;
 }
+
