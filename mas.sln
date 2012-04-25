@@ -22,7 +22,6 @@ Global
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{B465B0E9-8D4E-480D-9697-55FA15D740F6}.Debug|Mixed Platforms.ActiveCfg = Debug|x64
-		{B465B0E9-8D4E-480D-9697-55FA15D740F6}.Debug|Mixed Platforms.Build.0 = Debug|x64
 		{B465B0E9-8D4E-480D-9697-55FA15D740F6}.Debug|Win32.ActiveCfg = Debug|x64
 		{B465B0E9-8D4E-480D-9697-55FA15D740F6}.Debug|x64.ActiveCfg = Debug|x64
 		{B465B0E9-8D4E-480D-9697-55FA15D740F6}.Debug|x64.Build.0 = Debug|x64
@@ -31,7 +30,6 @@ Global
 		{B465B0E9-8D4E-480D-9697-55FA15D740F6}.Release|x64.ActiveCfg = Release|x64
 		{B465B0E9-8D4E-480D-9697-55FA15D740F6}.Release|x64.Build.0 = Release|x64
 		{5C4CA68D-F589-48F7-ACF9-48E217D737F0}.Debug|Mixed Platforms.ActiveCfg = Debug|x64
-		{5C4CA68D-F589-48F7-ACF9-48E217D737F0}.Debug|Mixed Platforms.Build.0 = Debug|x64
 		{5C4CA68D-F589-48F7-ACF9-48E217D737F0}.Debug|Win32.ActiveCfg = Debug|x64
 		{5C4CA68D-F589-48F7-ACF9-48E217D737F0}.Debug|x64.ActiveCfg = Debug|x64
 		{5C4CA68D-F589-48F7-ACF9-48E217D737F0}.Debug|x64.Build.0 = Debug|x64
@@ -50,7 +48,6 @@ Global
 		{B7419271-9974-48FB-936A-F8E517800744}.Release|x64.ActiveCfg = Release|x64
 		{B7419271-9974-48FB-936A-F8E517800744}.Release|x64.Build.0 = Release|x64
 		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Debug|Mixed Platforms.ActiveCfg = Debug|x64
-		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Debug|Mixed Platforms.Build.0 = Debug|x64
 		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Debug|Win32.ActiveCfg = Debug|x64
 		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Debug|x64.ActiveCfg = Debug|x64
 		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Debug|x64.Build.0 = Debug|x64
@@ -59,7 +56,6 @@ Global
 		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Release|x64.ActiveCfg = Release|x64
 		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Release|x64.Build.0 = Release|x64
 		{7CF394A1-E3FB-4F66-B983-0EF89D6CEEFF}.Debug|Mixed Platforms.ActiveCfg = Debug|x64
-		{7CF394A1-E3FB-4F66-B983-0EF89D6CEEFF}.Debug|Mixed Platforms.Build.0 = Debug|x64
 		{7CF394A1-E3FB-4F66-B983-0EF89D6CEEFF}.Debug|Win32.ActiveCfg = Debug|x64
 		{7CF394A1-E3FB-4F66-B983-0EF89D6CEEFF}.Debug|x64.ActiveCfg = Debug|x64
 		{7CF394A1-E3FB-4F66-B983-0EF89D6CEEFF}.Debug|x64.Build.0 = Debug|x64

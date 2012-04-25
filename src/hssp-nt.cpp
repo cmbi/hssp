@@ -43,27 +43,27 @@ int VERBOSE = 0;
 namespace HSSP
 {
 
-const float kThreshold = 0.05f;
+const float kThreshold = 0.05f, kFragmentCutOff = 0.75f;
 
 // precalculated threshold table for identity values between 10 and 80
-const double kHomologyThreshold[] = {
-	0.795468, 0.75398, 0.717997, 0.686414, 0.658413, 0.633373, 0.610811,
-	0.590351, 0.571688, 0.554579, 0.53882, 0.524246, 0.510718, 0.498117,
-	0.486344, 0.475314, 0.464951, 0.455194, 0.445984, 0.437275, 0.429023,
-	0.421189, 0.413741, 0.406647, 0.399882, 0.39342, 0.38724, 0.381323,
-	0.375651, 0.370207, 0.364976, 0.359947, 0.355105, 0.35044, 0.345941,
-	0.341599, 0.337406, 0.333352, 0.329431, 0.325636, 0.32196, 0.318396,
-	0.314941, 0.311587, 0.308331, 0.305168, 0.302093, 0.299103, 0.296194,
-	0.293362, 0.290604, 0.287917, 0.285298, 0.282744, 0.280252, 0.277821,
-	0.275448, 0.273129, 0.270865, 0.268652, 0.266488, 0.264372, 0.262302,
-	0.260277, 0.258294, 0.256353, 0.254452, 0.252589, 0.250764, 0.248975,
-	0.247221
+const float kHomologyThreshold[] = {
+	0.795468f, 0.75398f, 0.717997f, 0.686414f, 0.658413f, 0.633373f, 0.610811f,
+	0.590351f, 0.571688f, 0.554579f, 0.53882f, 0.524246f, 0.510718f, 0.498117f,
+	0.486344f, 0.475314f, 0.464951f, 0.455194f, 0.445984f, 0.437275f, 0.429023f,
+	0.421189f, 0.413741f, 0.406647f, 0.399882f, 0.39342f, 0.38724f, 0.381323f,
+	0.375651f, 0.370207f, 0.364976f, 0.359947f, 0.355105f, 0.35044f, 0.345941f,
+	0.341599f, 0.337406f, 0.333352f, 0.329431f, 0.325636f, 0.32196f, 0.318396f,
+	0.314941f, 0.311587f, 0.308331f, 0.305168f, 0.302093f, 0.299103f, 0.296194f,
+	0.293362f, 0.290604f, 0.287917f, 0.285298f, 0.282744f, 0.280252f, 0.277821f,
+	0.275448f, 0.273129f, 0.270865f, 0.268652f, 0.266488f, 0.264372f, 0.262302f,
+	0.260277f, 0.258294f, 0.256353f, 0.254452f, 0.252589f, 0.250764f, 0.248975f,
+	0.247221f
 };
 
-bool drop(float score, uint32 length, float threshold)
+bool drop(uint32 ident, uint32 length, float threshold)
 {
 	uint32 ix = max(10U, min(length, 80U)) - 10;
-	return score < kHomologyThreshold[ix] + threshold;
+	return ident < length * (kHomologyThreshold[ix] + threshold);
 }
 
 // --------------------------------------------------------------------
@@ -119,27 +119,6 @@ const float kDayhoffData[] =
 	-0.8f, 0.0f,-1.2f,-1.1f,-1.1f, 1.3f,-1.0f,-0.1f,-0.5f, 0.1f, 0.5f,-0.3f,-0.3f,-0.8f,-0.5f, 1.4f, 0.3f,-0.6f,-0.8f, 1.5f,             // W
 	-0.3f, 0.0f, 1.0f,-0.5f,-0.5f, 1.4f,-0.7f, 0.3f, 0.1f,-0.6f, 0.3f,-0.1f,-0.1f,-0.8f,-0.6f,-0.6f,-0.4f,-0.3f,-0.1f, 1.1f, 1.5f,       // Y
 	 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f  // Z
-                                                                                                                                         // x
-//     1.5f,                                                                                                                  // V
-//     0.8f, 1.5f,                                                                                                            // L
-//     1.1f, 0.8f, 1.5f,                                                                                                      // I
-//     0.6f, 1.3f, 0.6f, 1.5f,                                                                                                // M
-//     0.2f, 1.2f, 0.7f, 0.5f, 1.5f,                                                                                          // F
-//    -0.8f, 0.5f,-0.5f,-0.3f, 1.3f, 1.5f,                                                                                    // W
-//    -0.1f, 0.3f, 0.1f,-0.1f, 1.4f, 1.1f, 1.5f,                                                                              // Y
-//     0.2f,-0.5f,-0.3f,-0.3f,-0.6f,-1.0f,-0.7f, 1.5f,                                                                        // G
-//     0.2f,-0.1f, 0.0f, 0.0f,-0.5f,-0.8f,-0.3f, 0.7f, 1.5f,                                                                  // A
-//     0.1f,-0.3f,-0.2f,-0.2f,-0.7f,-0.8f,-0.8f, 0.3f, 0.5f, 1.5f,                                                            // P
-//    -0.1f,-0.4f,-0.1f,-0.3f,-0.3f, 0.3f,-0.4f, 0.6f, 0.4f, 0.4f, 1.5f,                                                      // S
-//     0.2f,-0.1f, 0.2f, 0.0f,-0.3f,-0.6f,-0.3f, 0.4f, 0.4f, 0.3f, 0.3f, 1.5f,                                                // T
-//     0.2f,-0.8f, 0.2f,-0.6f,-0.1f,-1.2f, 1.0f, 0.2f, 0.3f, 0.1f, 0.7f, 0.2f, 1.5f,                                          // C
-//    -0.3f,-0.2f,-0.3f,-0.3f,-0.1f,-0.1f, 0.3f,-0.2f,-0.1f, 0.2f,-0.2f,-0.1f,-0.1f, 1.5f,                                    // H
-//    -0.3f,-0.4f,-0.3f, 0.2f,-0.5f, 1.4f,-0.6f,-0.3f,-0.3f, 0.3f, 0.1f,-0.1f,-0.3f, 0.5f, 1.5f,                              // R
-//    -0.2f,-0.3f,-0.2f, 0.2f,-0.7f, 0.1f,-0.6f,-0.1f, 0.0f, 0.1f, 0.2f, 0.2f,-0.6f, 0.1f, 0.8f, 1.5f,                        // K
-//    -0.2f,-0.1f,-0.3f, 0.0f,-0.8f,-0.5f,-0.6f, 0.2f, 0.2f, 0.3f,-0.1f,-0.1f,-0.6f, 0.7f, 0.4f, 0.4f, 1.5f,                  // Q
-//    -0.2f,-0.3f,-0.2f,-0.2f,-0.7f,-1.1f,-0.5f, 0.5f, 0.3f, 0.1f, 0.2f, 0.2f,-0.6f, 0.4f, 0.0f, 0.3f, 0.7f, 1.5f,            // E
-//    -0.3f,-0.4f,-0.3f,-0.3f,-0.5f,-0.3f,-0.1f, 0.4f, 0.2f, 0.0f, 0.3f, 0.2f,-0.3f, 0.5f, 0.1f, 0.4f, 0.4f, 0.5f, 1.5f,      // N
-//    -0.2f,-0.5f,-0.2f,-0.4f,-1.0f,-1.1f,-0.5f, 0.7f, 0.3f, 0.1f, 0.2f, 0.2f,-0.5f, 0.4f, 0.0f, 0.3f, 0.7f, 1.0f, 0.7f, 1.5f // D
 };
 
 // 22 real letters and 1 dummy
@@ -147,7 +126,7 @@ const char kResidues[] = "ABCDEFGHIKLMNPQRSTVWYZX";
 
 inline uint8 ResidueNr(char inAA)
 {
-	int result = -1;
+	int result = 23;
 
 	const static uint8 kResidueNrTable[] = {
 	//	A   B   C   D   E   F   G   H   I       K   L   M   N       P   Q   R   S   T  U=X  V   W   X   Y   Z
@@ -290,8 +269,8 @@ struct MHit
 
 	struct insertion
 	{
-		uint32			m_pos;
-		sequence		m_seq;
+		uint32			m_ipos, m_jpos;
+		string			m_seq;
 	};
 	
 	static MHit*		Create(const string& id, const string& def,
@@ -315,7 +294,7 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq, const
 	MHit* result = new MHit(id, def, encode(seq));
 
 	static const boost::regex
-		kM6FastARE("^(\\w+)((?:\\|([^| ]*))?(?:\\|([^| ]+))?(?:\\|([^| ]+))?(?:\\|([^| ]+))?)");
+		kM6FastARE("^(\\w+)((?:\\|([^| ]*))(?:\\|([^| ]+))?(?:\\|([^| ]+))?(?:\\|([^| ]+))?)");
 	
 	boost::smatch m;
 	if (boost::regex_match(result->m_id, m, kM6FastARE, boost::match_not_dot_newline))
@@ -330,7 +309,7 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq, const
 	}
 	
 	result->m_aligned = string(chain.length(), ' ');
-	result->m_distance = calculateDistance(result->m_seq, chain);
+//	result->m_distance = calculateDistance(result->m_seq, chain);
 	return result;
 }
 
@@ -347,6 +326,8 @@ void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
 	
 	bool gap = false;
 	
+	insertion ins;
+	
 	// trace back the matrix
 	while (x >= 0 and y >= 0 and inB(x, y) > 0)
 	{
@@ -355,20 +336,42 @@ void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
 		{
 			case -1:
 				if (not gap)
+				{
 					++m_gaps;
+
+					int32 nx = x + 1;
+					while (nx < m_aligned.length() and (m_aligned[nx] == ' ' or m_aligned[nx] == '.'))
+						++nx;
+					assert(nx < m_aligned.length());
+					m_aligned[nx] |= 040;
+					
+					ins.m_seq = m_aligned[nx];
+				}					
 				++m_gapn;
+				ins.m_seq += kResidues[m_seq[y]];
 				gap = true;
 				--y;
 				break;
 
 			case 1:
-				m_aligned[x] = '-';
+				m_aligned[x] = '.';
 				--x;
 				break;
 
 			case 0:
-				gap = false;
 				m_aligned[x] = kResidues[m_seq[y]];
+				if (gap)
+				{
+					m_aligned[x] |= 040;
+					ins.m_seq += m_aligned[x];
+					ins.m_ipos = x + 1;
+					ins.m_jpos = y + 1;
+					
+					reverse(ins.m_seq.begin(), ins.m_seq.end());
+					m_insertions.push_back(ins);
+				}
+				gap = false;
+
 				if (inChain[x] == m_seq[y])
 					++m_identical, ++m_similar;
 				else if (score(inMatrix, inChain[x], m_seq[y]) > 0)
@@ -376,6 +379,9 @@ void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
 				--x;
 				--y;
 				break;
+
+			default:
+				assert(false);
 		}
 	}
 	
@@ -402,7 +408,6 @@ struct MResInfo
 	float			m_score[23];
 
 	void			Add(uint8 r, const int8 inMatrix[]);
-	void			CalculateConservation();
 };
 
 typedef vector<MResInfo> MResInfoList;
@@ -424,16 +429,12 @@ void MResInfo::Add(uint8 r, const int8 inMatrix[])
 	}
 }
 
-void MResInfo::CalculateConservation()
-{
-	
-}
-
 // --------------------------------------------------------------------
 
 struct MProfile
 {
-					MProfile(const MChain& inChain, const sequence& inSequence);
+					MProfile(const MChain& inChain, const sequence& inSequence,
+						float inThreshold, float inFragmentCutOff);
 
 	void			Process(istream& inHits, progress& inProgress);
 	void			Align(MHit* e);
@@ -444,32 +445,30 @@ struct MProfile
 	sequence		m_seq;
 	MResInfoList	m_residues;
 	vector<MHit*>	m_entries;
+	float			m_threshold, m_frag_cutoff;
 };
 
-MProfile::MProfile(const MChain& inChain, const sequence& inSequence)
-	: m_chain(inChain), m_seq(inSequence)
+MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inThreshold, float inFragmentCutOff)
+	: m_chain(inChain), m_seq(inSequence), m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff)
 {
 	const vector<MResidue*>& residues = m_chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
 
+	uint32 seq_nr = 1;
 	for (uint32 i = 0; i < inSequence.length(); ++i)
 	{
 		assert(ri != residues.end());
 		
 		if (ri != residues.begin() and (*ri)->GetNumber() > (*(ri - 1))->GetNumber() + 1)
-		{
-			MResInfo res = { 0, 0, m_residues.size() + 1 };
-			m_residues.push_back(res);
-		}
-		else
-		{
-			string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
-			MResInfo res = { inSequence[i], m_chain.GetChainID(), m_residues.size() + 1, (*ri)->GetNumber(), dssp };
-			res.Add(res.m_letter, kM6Pam250);
-			m_residues.push_back(res);
-		}
+			++seq_nr;
+
+		string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
+		MResInfo res = { inSequence[i], m_chain.GetChainID(), seq_nr, (*ri)->GetNumber(), dssp };
+		res.Add(res.m_letter, kM6Pam250);
+		m_residues.push_back(res);
 
 		++ri;
+		++seq_nr;
 	}
 }
 
@@ -606,9 +605,7 @@ void MProfile::Align(MHit* e)
 		}
 	}
 	
-	if (drop(float(ident) / length, length, kThreshold))
-		delete e;
-	else
+	if (m_seq.length() * m_frag_cutoff < length and not drop(ident, length, m_threshold))
 	{
 		e->Update(tb, m_seq, highX, highY, B, kM6Pam250);
 		m_entries.push_back(e);
@@ -620,6 +617,8 @@ void MProfile::Align(MHit* e)
 			m_residues[i].Add(r, kM6Pam250);
 		}
 	}
+	else
+		delete e;
 }
 
 // --------------------------------------------------------------------
@@ -665,8 +664,7 @@ void MProfile::Process(istream& inHits, progress& inProgress)
 // --------------------------------------------------------------------
 
 // Find the minimal set of overlapping sequences
-// Only search fully contained subsequences, in case of strong similarity
-// (distance < 0.01) we take the longest chain.
+// In case of strong similarity (distance <= 0.01) we take the longest chain.
 void ClusterSequences(vector<sequence>& s, vector<uint32>& ix)
 {
 	for (;;)
@@ -691,6 +689,8 @@ void ClusterSequences(vector<sequence>& s, vector<uint32>& ix)
 				else
 				{
 					float d = calculateDistance(a, b);
+					// rescale distance to shortest length:
+					d = 1 - (1 - d) * max(a.length(), b.length()) / min(a.length(), b.length());
 					if (d <= 0.01)
 					{
 						if (b.length() > a.length())
@@ -713,18 +713,19 @@ void ClusterSequences(vector<sequence>& s, vector<uint32>& ix)
 // Write collected information as a HSSP file to the output stream
 
 void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescription,
-	float inThreshold, uint32 inSeqLength, uint32 inNChain, uint32 inKChain,
+	float inThreshold, float inFragmentCutOff, uint32 inSeqLength, uint32 inNChain, uint32 inKChain,
 	const string& inUsedChains, const vector<MHit*>& inHits, const vector<MResInfo>& inResInfo, ostream& os)
 {
 	using namespace boost::gregorian;
 	date today = day_clock::local_day();
 
 	// print the header
-	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0 2011" << endl
+	os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS, VERSION 3.0 2012" << endl
 	   << "PDBID      " << inProteinID << endl
 	   << "DATE       file generated on " << to_iso_extended_string(today) << endl
 //	   << "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << endl
 	   << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << endl
+	   << "CUTOFF     minimal alignment length as fraction of chain length: " << inFragmentCutOff << endl
 	   << "REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991)." << endl
 	   << "CONTACT    Maintained at http://www.cmbi.ru.nl/ by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
 	   << inProteinDescription
@@ -737,7 +738,7 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 	os << boost::format("NALIGN     %4.4d") % inHits.size() << endl
 	   << "NOTATION : ID: EMBL/SWISSPROT identifier of the aligned (homologous) protein" << endl
 	   << "NOTATION : STRID: if the 3-D structure of the aligned protein is known, then STRID is the Protein Data Bank identifier as taken" << endl
-	   << "NOTATION : from the database reference or DR-line of the EMBL/SWISSPROT entry" << endl
+	   << "NOTATION :   from the database reference or DR-line of the EMBL/SWISSPROT entry" << endl
 	   << "NOTATION : %IDE: percentage of residue identity of the alignment" << endl
 	   << "NOTATION : %SIM (%WSIM):  (weighted) similarity of the alignment" << endl
 	   << "NOTATION : IFIR/ILAS: first and last residue of the alignment in the test sequence" << endl
@@ -749,12 +750,12 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 	   << "NOTATION : ACCNUM: SwissProt accession number" << endl
 	   << "NOTATION : PROTEIN: one-line description of aligned protein" << endl
 	   << "NOTATION : SeqNo,PDBNo,AA,STRUCTURE,BP1,BP2,ACC: sequential and PDB residue numbers, amino acid (lower case = Cys), secondary" << endl
-	   << "NOTATION : structure, bridge partners, solvent exposure as in DSSP (Kabsch and Sander, Biopolymers 22, 2577-2637(1983)" << endl
+	   << "NOTATION :   structure, bridge partners, solvent exposure as in DSSP (Kabsch and Sander, Biopolymers 22, 2577-2637(1983)" << endl
 	   << "NOTATION : VAR: sequence variability on a scale of 0-100 as derived from the NALIGN alignments" << endl
-	   << "NOTATION : pair of lower case characters (AvaK) in the alignend sequence bracket a point of insertion in this sequence" << endl
-	   << "NOTATION : dots (....) in the alignend sequence indicate points of deletion in this sequence" << endl
+	   << "NOTATION :   pair of lower case characters (AvaK) in the alignend sequence bracket a point of insertion in this sequence" << endl
+	   << "NOTATION :   dots (....) in the alignend sequence indicate points of deletion in this sequence" << endl
 	   << "NOTATION : SEQUENCE PROFILE: relative frequency of an amino acid type at each position. Asx and Glx are in their" << endl
-	   << "NOTATION : acid/amide form in proportion to their database frequencies" << endl
+	   << "NOTATION :   acid/amide form in proportion to their database frequencies" << endl
 	   << "NOTATION : NOCC: number of aligned sequences spanning this position (including the test sequence)" << endl
 	   << "NOTATION : NDEL: number of sequences with a deletion in the test protein at this position" << endl
 	   << "NOTATION : NINS: number of sequences with an insertion in the test protein at this position" << endl
@@ -784,11 +785,9 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 		
 		float sim = float(h->m_similar) / h->m_length;
 		
-		os << fmt1 % nr
-				   % id % pdb
-				   % h->m_score % sim % h->m_ifir % h->m_ilas % h->m_jfir % h->m_jlas % h->m_length
-				   % h->m_gaps % h->m_gapn % h->m_seq.length()
-				   % acc % h->m_def
+		os << fmt1 % nr % id % pdb % h->m_score % sim
+				   % h->m_ifir % h->m_ilas % h->m_jfir % h->m_jlas % h->m_length
+				   % h->m_gaps % h->m_gapn % h->m_seq.length() % acc % h->m_def
 		   << endl;
 		
 		++nr;
@@ -815,83 +814,93 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 		   << boost::format(" SeqNo  PDBNo AA STRUCTURE BP1 BP2  ACC NOCC  VAR  ....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d")
 		   					% k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << endl;
 
-//		res_ptr last;
-		uint32 x = 0;
+		int32 x = 0, nextNr = inResInfo.front().m_seq_nr;
 		foreach (auto& ri, inResInfo)
 		{
-			if (ri.m_chain_id == 0)
+			if (ri.m_seq_nr != nextNr)
 				os << boost::format(" %5.5d        !  !           0   0    0    0    0") % ri.m_seq_nr << endl;
-			else
-			{
-				string aln;
-				
-				foreach (MHit* hit, boost::make_iterator_range(inHits.begin() + i, inHits.begin() + n))
-					aln += hit->m_aligned[x];
-				
-				uint32 ivar = uint32(100 * (1 - ri.m_consweight));
 
-				os << ' ' << boost::format("%5.5d%s%4.4d %4.4d  ")
-					% ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << aln << endl;
-			}
+			string aln;
+			
+			foreach (MHit* hit, boost::make_iterator_range(inHits.begin() + i, inHits.begin() + n))
+				aln += hit->m_aligned[x];
+			
+			uint32 ivar = uint32(100 * (1 - ri.m_consweight));
+
+			os << ' ' << boost::format("%5.5d%s%4.4d %4.4d  ")
+				% ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << aln << endl;
+
 			++x;
+			nextNr = ri.m_seq_nr + 1;
 		}
 	}
 	
-//	// ## SEQUENCE PROFILE AND ENTROPY
-//	os << "## SEQUENCE PROFILE AND ENTROPY" << endl
-//	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
-//	
-//	res_ptr last;
-//	foreach (res_ptr r, res)
-//	{
-//		if (r->letter == 0)
-//		{
-//			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
-//				% r->seqNr << endl;
-//		}
-//		else
-//		{
-//			os << boost::format("%5.5d%5.5d %c") % r->seqNr % r->pdbNr % r->chain;
-//
-//			for (uint32 i = 0; i < 20; ++i)
-//				os << boost::format("%4.4d") % r->dist[i];
-//
-//			uint32 relent = uint32(100 * r->entropy / log(20.0));
-//			os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % r->nocc % r->ndel % r->nins % r->entropy % relent % r->consweight << endl;
-//		}
-//	}
-//	
-//	// insertion list
-//	
-//	os << "## INSERTION LIST" << endl
-//	   << " AliNo  IPOS  JPOS   Len Sequence" << endl;
-//
-//	foreach (hit_ptr h, hits)
-//	{
-//		//foreach (insertion& ins, h->insertions)
-//		foreach (const insertion& ins, h->m_seq.insertions())
-//		{
-//			string s = ins.m_seq;
-//			
-//			if (s.length() <= 100)
-//				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
-//			else
-//			{
-//				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
-//				s.erase(0, 100);
-//				
-//				while (not s.empty())
-//				{
-//					uint32 n = s.length();
-//					if (n > 100)
-//						n = 100;
-//					
-//					os << "     +                   " << s.substr(0, n) << endl;
-//					s.erase(0, n);
-//				}
-//			}
-//		}			
-//	}
+	// ## SEQUENCE PROFILE AND ENTROPY
+	os << "## SEQUENCE PROFILE AND ENTROPY" << endl
+	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
+	
+	int32 nextNr = inResInfo.front().m_seq_nr;
+	foreach (auto& r, inResInfo)
+	{
+		if (r.m_seq_nr != nextNr)
+			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
+				% r.m_seq_nr << endl;
+
+		os << boost::format("%5.5d%5.5d %c") % r.m_seq_nr % r.m_pdb_nr % r.m_chain_id;
+
+		double entropy = 0;
+
+		static const int8 kResIx[] = {
+			//	V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D
+			   18, 10,  8, 11,  5, 19, 20,  6,  0, 13, 16, 17,  2,  7, 15,  9, 14,  4, 12,  3
+		};
+
+		for (uint32 i = 0; i < 20; ++i)
+		{
+			double freq = double(r.m_dist[kResIx[i]]) / r.m_nocc;
+			os << boost::format("%4.4d") % uint32(100.0 * freq + 0.5);
+			if (freq > 0)
+				entropy -= freq * log(freq);
+		}
+
+		uint32 relent = uint32(100 * entropy / log(20.0));
+		os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % r.m_nocc % r.m_del % r.m_ins % entropy % relent % r.m_consweight << endl;
+		
+		nextNr = r.m_seq_nr + 1;
+	}
+	
+	// insertion list
+	
+	os << "## INSERTION LIST" << endl
+	   << " AliNo  IPOS  JPOS   Len Sequence" << endl;
+
+	nr = 0;
+	foreach (MHit* h, inHits)
+	{
+		++nr;
+		foreach (auto& ins, h->m_insertions)
+		{
+			string s = ins.m_seq;
+			
+			if (s.length() <= 100)
+				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
+			else
+			{
+				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
+				s.erase(0, 100);
+				
+				while (not s.empty())
+				{
+					uint32 n = s.length();
+					if (n > 100)
+						n = 100;
+					
+					os << "     +                   " << s.substr(0, n) << endl;
+					s.erase(0, n);
+				}
+			}
+		}			
+	}
 	
 	os << "//" << endl;
 }
@@ -900,65 +909,62 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 // Calculate the variability of a residue, based on dayhoff similarity
 // and weights
 
-boost::mutex sSumLock;
-pair<const char*,const char*> kSentinel((const char*)nullptr, (const char*)nullptr);
+pair<const char*,uint32> kSentinel((const char*)nullptr, 0);
 
 bool is_gap(char aa) { return aa == ' ' or aa == '-'; }
 
-void CalculateConservation(buffer<pair<const char*,const char*>>& b, vector<float>& csumvar, vector<float>& csumdist)
+void CalculateConservation(buffer<pair<const char*,uint32>>& b,
+	const vector<MHit*>& inHits, vector<float>& sumvar, vector<float>& sumdist)
 {
-	uint32 length = csumvar.size();
-	vector<float> sumvar(csumvar.size()), sumdist(csumdist.size()), simval(csumdist.size());
+	uint32 length = sumvar.size();
+	vector<float> simval(length);
 
 	for (;;)
 	{
 		auto next = b.get();
 		if (next == kSentinel)
 			break;
-
-		const char* si = next.first;
-		const char* sj = next.second;
-
-		uint32 len = 0, agr = 0;
-		for (uint32 k = 0; k < length; ++k)
-		{
-			if (is_gap(si[k]) or is_gap(sj[k]))
-				continue;
-
-			++len;
-			if (si[k] == sj[k])
-				++agr;
-
-			int8 ri = ResidueNr(si[k]);
-			int8 rj = ResidueNr(sj[k]);
-
-			if (ri < 20 and rj < 20)
-				simval[k] = score(kDayhoffData, ri, rj);
-			else
-				simval[k] = numeric_limits<float>::min();
-		}
 		
-		if (len == 0)
-			continue;
-
-		float distance = 1 - (float(agr) / float(len));
-		for (uint32 k = 0; k < length; ++k)
+		const char* si = next.first;
+		for (uint32 j = next.second; j < inHits.size(); ++j)
 		{
-			if (simval[k] != numeric_limits<float>::min())
+			const char* sj = inHits[j]->m_aligned.c_str();
+	
+			uint32 len = 0, agr = 0;
+			for (uint32 k = 0; k < length; ++k)
 			{
-				sumvar[k] += distance * simval[k];
-				sumdist[k] += distance * 1.5f;
+				simval[k] = numeric_limits<float>::min();
+
+				if (is_gap(si[k]) or is_gap(sj[k]))
+					continue;
+	
+				++len;
+				if (si[k] == sj[k])
+					++agr;
+	
+				int8 ri = ResidueNr(si[k]);
+				int8 rj = ResidueNr(sj[k]);
+	
+				if (ri < 20 and rj < 20)
+					simval[k] = score(kDayhoffData, ri, rj);
+			}
+			
+			if (len == 0)
+				continue;
+	
+			float distance = 1 - (float(agr) / float(len));
+			for (uint32 k = 0; k < length; ++k)
+			{
+				if (simval[k] != numeric_limits<float>::min())
+				{
+					sumvar[k] += distance * simval[k];
+					sumdist[k] += distance * 1.5f;
+				}
 			}
 		}
 	}
 
 	b.put(kSentinel);
-	
-	// accumulate our data
-	boost::mutex::scoped_lock l(sSumLock);
-	
-	transform(sumvar.begin(), sumvar.end(), csumvar.begin(), csumvar.begin(), plus<float>());
-	transform(sumdist.begin(), sumdist.end(), csumdist.begin(), csumdist.begin(), plus<float>());
 }
 
 void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResInfoList& inResidues)
@@ -966,24 +972,40 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 	if (VERBOSE)
 		cerr << "Calculating conservation weights...";
 
-	vector<float> sumvar(inChain.length()), sumdist(inChain.length());
+	vector<float> sumvar(inChain.length(), 0), sumdist(inChain.length(), 0);
 	
 	// Calculate conservation weights in multiple threads to gain speed.
-	buffer<pair<const char*,const char*>> b;
+	buffer<pair<const char*,uint32>> b;
 	boost::thread_group threads;
-	//for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
-	//{
-	threads.create_thread([&]() { CalculateConservation(b, sumvar, sumdist); });
-	//}
+	boost::mutex sumLock;
+
+	for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
+		threads.create_thread([&]() {
+			vector<float> csumvar(sumvar.size(), 0), csumdist(sumdist.size(), 0);
+			
+			CalculateConservation(b, inHits, csumvar, csumdist);
+
+			// accumulate our data
+			boost::mutex::scoped_lock l(sumLock);
+			
+			for (int i = 0; i < sumvar.size(); ++i)
+			{
+				sumvar[i] += csumvar[i];
+				sumdist[i] += csumdist[i];
+			}
+		});
+	
+	progress p("conservation", (inHits.size() * (inHits.size() + 1)) / 2);
 	
 	string s(decode(inChain));
-	foreach (auto hit, inHits)
-		b.put(make_pair(s.c_str(), hit->m_aligned.c_str()));
+	b.put(make_pair(s.c_str(), 0));
+
+	p.step(inHits.size());
 	
 	for (uint32 i = 0; i + 1 < inHits.size(); ++i)
 	{
-		for (uint32 j = i + 1; j < inHits.size(); ++j)
-			b.put(make_pair(inHits[i]->m_aligned.c_str(), inHits[j]->m_aligned.c_str()));
+		b.put(make_pair(inHits[i]->m_aligned.c_str(), i + 1));
+		p.step(inHits.size() - i);
 	}
 	
 	b.put(kSentinel);
@@ -994,11 +1016,10 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 	{
 		assert(ri != inResidues.end());
 
-		float weight = 1.0f;
 		if (sumdist[i] > 0)
-			weight = sumvar[i] / sumdist[i];
-		
-		ri->m_consweight = weight;
+			ri->m_consweight = sumvar[i] / sumdist[i];
+		else
+			ri->m_consweight = 1;
 		
 		do {
 			++ri;
@@ -1013,7 +1034,7 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 // --------------------------------------------------------------------
 
 void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
-	uint32 inMaxhits, uint32 inMinSeqLength, float inThreshold, uint32 inThreads, ostream& inOs)
+	uint32 inMaxhits, uint32 inMinSeqLength, float inThreshold, float inFragmentCutOff, uint32 inThreads, ostream& inOs)
 {
 	// construct a set of unique sequences, containing only the largest ones in case of overlap
 	vector<sequence> seqset;
@@ -1035,7 +1056,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
 	}
 	
 	if (seqset.empty())
-		throw runtime_error("Not enough sequences in PDB file of minimal length");
+		throw mas_exception(boost::format("Not enough sequences in PDB file of length %1%") % inMinSeqLength);
 
 	if (seqset.size() > 1)
 		ClusterSequences(seqset, ix);
@@ -1054,12 +1075,12 @@ void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
 			used += ", ";
 		used += chain.GetChainID();
 		
-		unique_ptr<MProfile> profile(new MProfile(chain, seqset[ix[i]]));
+		unique_ptr<MProfile> profile(new MProfile(chain, seqset[ix[i]], inThreshold, inFragmentCutOff));
 		
 		fs::path blastHits(inProtein.GetID() + '-' + chain.GetChainID() + "-hits.fa");
 		fs::ifstream file(blastHits);
 		if (not file.is_open())
-			throw runtime_error("Could not open blast hit file");
+			throw mas_exception(boost::format("Could not open blast hit file %1%") % blastHits);
 		
 		{
 			progress pr1("processing", fs::file_size(blastHits));
@@ -1072,134 +1093,18 @@ void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
 		profiles.push_back(profile.release());
 	}
 	
+	stringstream desc;
+	if (inProtein.GetHeader().length() >= 50)
+		desc << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl;
+	if (inProtein.GetCompound().length() > 10)
+		desc << "COMPND     " + inProtein.GetCompound().substr(10) << endl;
+	if (inProtein.GetSource().length() > 10)
+		desc << "SOURCE     " + inProtein.GetSource().substr(10) << endl;
+	if (inProtein.GetAuthor().length() > 10)
+		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
 	
-	CreateHSSPOutput("1crn", "", inThreshold, seqlength, chains.size(), ix.size(), used,
+	CreateHSSPOutput(inProtein.GetID(), desc.str(), inThreshold, inFragmentCutOff, seqlength, chains.size(), ix.size(), used,
 		profiles.back()->m_entries, profiles.back()->m_residues, inOs);
-		
-//	uint32 seqlength = 0;
-//
-//	vector<mseq> alignments(inChainAlignments.size());
-//	vector<const MChain*> chains;
-//	vector<pair<uint32,uint32> > res_ranges;
-//
-//	res_list res;
-//	hit_list hits;
-//
-//	uint32 kchain = 0;
-//	foreach (string ch, inChainAlignments)
-//	{
-//		if (ch.length() < 3 or ch[1] != '=')
-//			throw mas_exception(boost::format("Invalid chain/stockholm pair specified: '%s'") % ch);
-//
-//		const MChain& chain = inProtein.GetChain(ch[0]);
-//		chains.push_back(&chain);
-//
-//		string seq;
-//		chain.GetSequence(seq);
-//
-//		// strip off trailing X's. They are not very useful
-//		while (ba::ends_with(seq, "X"))
-//			seq.erase(seq.end() - 1);
-//
-//		if (VERBOSE > 1)
-//			cerr << "Chain " << ch[0] << " => '" << seq << '\'' << endl;
-//
-//		seqlength += seq.length();
-//		
-//		// alignments are stored in datadir
-//		fs::path afp = ch.substr(2);
-//		if (not fs::exists(afp))
-//		{
-//			fs::path dataDir = "/data/hssp2/sto/";
-//			afp = dataDir / (ch.substr(2) + ".aln.bz2");
-//		}
-//		if (not fs::exists(afp))
-//			throw mas_exception("alignment is missing, exiting");
-//
-//		fs::ifstream af(afp, ios::binary);
-//		if (not af.is_open())
-//			throw mas_exception(boost::format("Could not open alignment file '%s'") % afp);
-//
-//		if (VERBOSE)
-//			cerr << "Using fasta file '" << afp << '\'' << endl;
-//
-//		io::filtering_stream<io::input> in;
-//		in.push(io::bzip2_decompressor());
-//		in.push(af);
-//
-//		try {
-//			ReadFastA(in, alignments[kchain], seq, inMaxHits, inMinLength, inCutOff);
-//		}
-//		catch (...)
-//		{
-//			cerr << "exception while reading file " << afp << endl;
-//			throw;
-//		}
-//
-//		// Remove all hits that are not above the threshold here
-//		mseq& msa = alignments[kchain];
-//		msa.erase(remove_if(msa.begin() + 1, msa.end(), boost::bind(&seq::drop, _1, inCutOff)), msa.end());
-//
-//		++kchain;
-//	}
-//
-//	string usedChains;
-//	kchain = 0;
-//	foreach (const MChain* chain, chains)
-//	{
-//		if (not res.empty())
-//			res.push_back(res_ptr(new ResidueHInfo(res.size() + 1)));
-//		
-//		uint32 first = res.size();
-//		
-//		mseq& msa = alignments[kchain];
-//		ChainToHits(inDatabank, msa, *chain, hits, res);
-//		
-//		res_ranges.push_back(make_pair(first, res.size()));
-//
-//		if (not usedChains.empty())
-//			usedChains += ',';
-//		usedChains += chain->GetChainID();
-//
-//		++kchain;
-//	}
-//
-//	sort(hits.begin(), hits.end(), compare_hit());
-//
-//	if (inMaxHits > 0 and hits.size() > inMaxHits)
-//		hits.erase(hits.begin() + inMaxHits, hits.end());
-//
-//	if (hits.empty())
-//		throw mas_exception("No hits found or remaining");
-//	
-//	uint32 nr = 1;
-//	foreach (hit_ptr h, hits)
-//		h->m_nr = nr++;
-//
-//	for (uint32 c = 0; c < kchain; ++c)
-//	{
-//		pair<uint32,uint32> range = res_ranges[c];
-//		
-//		res_range r(res.begin() + range.first, res.begin() + range.second);
-//		CalculateConservation(alignments[c], r);
-//
-//		foreach (res_ptr ri, r)
-//			ri->CalculateVariability(hits);
-//	}
-//	
-//	stringstream desc;
-//	if (inProtein.GetHeader().length() >= 50)
-//		desc << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl;
-//	if (inProtein.GetCompound().length() > 10)
-//		desc << "COMPND     " + inProtein.GetCompound().substr(10) << endl;
-//	if (inProtein.GetSource().length() > 10)
-//		desc << "SOURCE     " + inProtein.GetSource().substr(10) << endl;
-//	if (inProtein.GetAuthor().length() > 10)
-//		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
-//
-//	CreateHSSPOutput(inDatabank, inProtein.GetID(), desc.str(), inCutOff, seqlength,
-//		inProtein.GetChains().size(), kchain, usedChains, hits, res, outHSSP);
-//	
 }
 
 }
@@ -1236,6 +1141,8 @@ int main(int argc, char* argv[])
 			("min-length",	po::value<uint32>(), "Minimal chain length")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
+			("fragment-cutoff",
+							po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
 			("verbose,v",						 "Verbose output")
 			;
 	
@@ -1273,9 +1180,13 @@ int main(int argc, char* argv[])
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
 
-		float threshold = 0.05f;
+		float threshold = HSSP::kThreshold;
 		if (vm.count("threshold"))
 			threshold = vm["threshold"].as<float>();
+
+		float fragmentCutOff = HSSP::kFragmentCutOff;
+		if (vm.count("fragment-cutoff"))
+			fragmentCutOff = vm["fragment-cutoff"].as<float>();
 
 		uint32 threads = boost::thread::hardware_concurrency();
 		if (vm.count("threads"))
@@ -1329,7 +1240,7 @@ int main(int argc, char* argv[])
 		a.CalculateSecondaryStructure();
 		
 		// create the HSSP file
-		HSSP::CreateHSSP(a, databanks, maxhits, minlength, threshold, threads, out);
+		HSSP::CreateHSSP(a, databanks, maxhits, minlength, threshold, fragmentCutOff, threads, out);
 	}
 	catch (exception& e)
 	{
