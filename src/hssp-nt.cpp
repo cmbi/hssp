@@ -309,7 +309,7 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq, const
 	}
 	
 	result->m_aligned = string(chain.length(), ' ');
-//	result->m_distance = calculateDistance(result->m_seq, chain);
+	result->m_distance = calculateDistance(result->m_seq, chain);
 	return result;
 }
 
@@ -404,28 +404,33 @@ struct MResInfo
 	float			m_consweight;
 	uint32			m_nocc;
 	uint32			m_dist[23];
+	float			m_dist_weight[23];
+	float			m_sum_dist_weight;
 	uint32			m_ins, m_del;
 	float			m_score[23];
 
-	void			Add(uint8 r, const int8 inMatrix[]);
+	void			Add(uint8 r, float inWeight, const int8 inMatrix[]);
 };
 
 typedef vector<MResInfo> MResInfoList;
 
-void MResInfo::Add(uint8 r, const int8 inMatrix[])
+void MResInfo::Add(uint8 r, float inWeight, const int8 inMatrix[])
 {
 	assert(r < 23);
 	m_nocc += 1;
 	m_dist[r] += 1;
+	
+	m_dist_weight[r] += inWeight;
+	m_sum_dist_weight += inWeight;
 	
 	for (int i = 0; i < 23; ++i)
 	{
 		m_score[i] = 0;
 		
 		for (int j = 0; j < 23; ++j)
-			m_score[i] += float(score(inMatrix, i, j)) * m_dist[j];
+			m_score[i] += float(score(inMatrix, i, j)) * m_dist_weight[j];
 		
-		m_score[i] /= m_nocc;
+		m_score[i] /= m_sum_dist_weight;
 	}
 }
 
@@ -464,7 +469,7 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inTh
 
 		string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
 		MResInfo res = { inSequence[i], m_chain.GetChainID(), seq_nr, (*ri)->GetNumber(), dssp };
-		res.Add(res.m_letter, kM6Pam250);
+		res.Add(res.m_letter, 1, kM6Pam250);
 		m_residues.push_back(res);
 
 		++ri;
@@ -614,7 +619,35 @@ void MProfile::Align(MHit* e)
 			int8 r = ResidueNr(e->m_aligned[i]);
 			if (r < 0 or r >= 23)
 				continue;
-			m_residues[i].Add(r, kM6Pam250);
+			m_residues[i].Add(r, 1 - e->m_distance, kM6Pam250);
+		}
+		
+		// update insert/delete counters for the residues
+		x = highX;
+		y = highY;
+		bool gap = false;
+		while (x >= 0 and y >= 0 and B(x, y) > 0)
+		{
+			switch (tb(x, y))
+			{
+				case -1:
+					if (not gap)
+						++m_residues[x].m_ins;
+					gap = true;
+					--y;
+					break;
+	
+				case 1:
+					++m_residues[x].m_del;
+					--x;
+					break;
+	
+				case 0:
+					gap = false;
+					--x;
+					--y;
+					break;
+			}
 		}
 	}
 	else
