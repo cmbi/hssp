@@ -692,6 +692,10 @@ void MProfile::Process(istream& inHits, progress& inProgress)
 
 	if (not (id.empty() or seq.empty()))
 		Align(MHit::Create(id, def, seq, m_seq));
+
+	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
+		return a->m_score > b->m_score;
+	});
 }
 
 // --------------------------------------------------------------------
@@ -877,7 +881,7 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 	{
 		if (r.m_seq_nr != nextNr)
 			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
-				% r.m_seq_nr << endl;
+				% nextNr << endl;
 
 		os << boost::format("%5.5d%5.5d %c") % r.m_seq_nr % r.m_pdb_nr % r.m_chain_id;
 
@@ -915,11 +919,16 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 		{
 			string s = ins.m_seq;
 			
+			uint32 ipos = inResInfo[ins.m_ipos].m_seq_nr;
+			uint32 jpos = inResInfo[ins.m_jpos].m_seq_nr;
+
+			os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2);
+			
 			if (s.length() <= 100)
-				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
+				os << s << endl;
 			else
 			{
-				os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
+				os << s.substr(0, 100) << endl;
 				s.erase(0, 100);
 				
 				while (not s.empty())
@@ -978,7 +987,7 @@ void CalculateConservation(buffer<pair<const char*,uint32>>& b,
 				int8 ri = ResidueNr(si[k]);
 				int8 rj = ResidueNr(sj[k]);
 	
-				if (ri < 20 and rj < 20)
+				if (ri <= 20 and rj <= 20)
 					simval[k] = score(kDayhoffData, ri, rj);
 			}
 			
@@ -1044,21 +1053,13 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 	b.put(kSentinel);
 	threads.join_all();
 
-	MResInfoList::iterator ri = inResidues.begin();
 	for (uint32 i = 0; i < inChain.length(); ++i)
 	{
-		assert(ri != inResidues.end());
-
 		if (sumdist[i] > 0)
-			ri->m_consweight = sumvar[i] / sumdist[i];
+			inResidues[i].m_consweight = sumvar[i] / sumdist[i];
 		else
-			ri->m_consweight = 1;
-		
-		do {
-			++ri;
-		} while (ri != inResidues.end() and ri->m_chain_id == 0);
+			inResidues[i].m_consweight = 1;
 	}
-	assert(ri == inResidues.end());
 
 	if (VERBOSE)
 		cerr << " done" << endl;
