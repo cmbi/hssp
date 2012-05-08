@@ -9,7 +9,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mkhssp", "msvc\mkhssp\mkhss
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "stockholm2fasta", "msvc\stockholm2fasta\stockholm2fasta.vcxproj", "{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "blast", "msvc\blast\blast.vcxproj", "{7CF394A1-E3FB-4F66-B983-0EF89D6CEEFF}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hssp-nt", "msvc\hssp-nt\hssp-nt.vcxproj", "{4D63C0E5-90F4-4B79-AD1D-83C3C8F8E657}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -30,9 +30,10 @@ Global
 		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Debug|x64.ActiveCfg = Debug|x64
 		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Debug|x64.Build.0 = Debug|x64
 		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Release|x64.ActiveCfg = Release|x64
-		{7CF394A1-E3FB-4F66-B983-0EF89D6CEEFF}.Debug|x64.ActiveCfg = Debug|x64
-		{7CF394A1-E3FB-4F66-B983-0EF89D6CEEFF}.Debug|x64.Build.0 = Debug|x64
-		{7CF394A1-E3FB-4F66-B983-0EF89D6CEEFF}.Release|x64.ActiveCfg = Release|x64
+		{4D63C0E5-90F4-4B79-AD1D-83C3C8F8E657}.Debug|x64.ActiveCfg = Debug|x64
+		{4D63C0E5-90F4-4B79-AD1D-83C3C8F8E657}.Debug|x64.Build.0 = Debug|x64
+		{4D63C0E5-90F4-4B79-AD1D-83C3C8F8E657}.Release|x64.ActiveCfg = Release|x64
+		{4D63C0E5-90F4-4B79-AD1D-83C3C8F8E657}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

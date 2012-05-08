@@ -166,6 +166,17 @@ string decode(const sequence& s)
 	return result;
 }
 
+bool is_gap(char aa)
+{
+	return aa == ' ' or aa == '.' or aa == '-';
+}
+
+bool is_hydrophilic(char aa)
+{
+	aa &= ~040;
+	return aa == 'D' or aa == 'E' or aa == 'G' or aa == 'K' or aa == 'N' or aa == 'Q' or aa == 'P' or aa == 'R' or aa == 'S';
+}
+
 // --------------------------------------------------------------------
 
 float calculateDistance(const sequence& a, const sequence& b)
@@ -443,18 +454,23 @@ struct MProfile
 
 	void			Process(istream& inHits, progress& inProgress);
 	void			Align(MHit* e);
+	void			AdjustGapCosts(vector<float>& gop, vector<float>& gep);
 
 	void			dump(ostream& os, const matrix<int8>& tb, const sequence& s);
 
 	const MChain&	m_chain;
 	sequence		m_seq;
+	vector<uint32>	m_gaps;
+	vector<MSecondaryStructure>
+					m_ss;
 	MResInfoList	m_residues;
 	vector<MHit*>	m_entries;
 	float			m_threshold, m_frag_cutoff;
 };
 
 MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inThreshold, float inFragmentCutOff)
-	: m_chain(inChain), m_seq(inSequence), m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff)
+	: m_chain(inChain), m_seq(inSequence), m_gaps(inSequence.size(), 0), m_ss(inSequence.size(), loop)
+	, m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff)
 {
 	const vector<MResidue*>& residues = m_chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
@@ -471,6 +487,8 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inTh
 		MResInfo res = { inSequence[i], m_chain.GetChainID(), seq_nr, (*ri)->GetNumber(), dssp };
 		res.Add(res.m_letter, 1, kM6Pam250);
 		m_residues.push_back(res);
+		
+		m_ss[i] = (*ri)->GetSecondaryStructure();
 
 		++ri;
 		++seq_nr;
@@ -501,6 +519,127 @@ void MProfile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
 	}
 }
 
+void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
+{
+	// don't ask me, but looking at the clustal code, they substract 0.2 from the table
+	// as mentioned in the article in NAR.
+	const float kResidueSpecificPenalty[20] = {
+		1.13f - 0.2f,		// A
+		0.72f - 0.2f,		// R
+		0.63f - 0.2f,		// N
+		0.96f - 0.2f,		// D
+		1.13f - 0.2f,		// C
+		1.07f - 0.2f,		// Q
+		1.31f - 0.2f,		// E
+		0.61f - 0.2f,		// G
+		1.00f - 0.2f,		// H
+		1.32f - 0.2f,		// I
+		1.21f - 0.2f,		// L
+		0.96f - 0.2f,		// K
+		1.29f - 0.2f,		// M
+		1.20f - 0.2f,		// F
+		0.74f - 0.2f,		// P
+		0.76f - 0.2f,		// S
+		0.89f - 0.2f,		// T
+		1.23f - 0.2f,		// W
+		1.00f - 0.2f,		// Y
+		1.25f - 0.2f		// V
+	};
+
+	assert(gop.size() == m_seq.length());
+
+	vector<bool> hydrophilic_stretch(gop.size(), false);
+	vector<float> residue_specific_penalty(gop.size(), 0);
+
+	foreach (const MHit* e, m_entries)
+	{
+		const string& s = e->m_aligned;
+		
+		for (uint32 ix = 0; ix < gop.size(); ++ix)
+		{
+			uint8 r = ResidueNr(s[ix]);
+
+			// residue specific gap penalty
+			if (ix < m_ss.size())
+			{
+				// The output of DSSP is explained extensively under 'explanation'. The very short summary of the output is: 
+				// H = alpha helix 
+				// B = residue in isolated beta-bridge 
+				// E = extended strand, participates in beta ladder 
+				// G = 3-helix (3/10 helix) 
+				// I = 5 helix (pi helix) 
+				// T = hydrogen bonded turn 
+				// S = bend
+
+				switch (m_ss[ix])
+				{
+					case alphahelix:
+					case helix_5:
+					case helix_3:
+						residue_specific_penalty[ix] += 5.0f;
+						break;
+
+					case betabridge:
+					case strand:
+						residue_specific_penalty[ix] += 5.0f;
+						break;
+
+					default:
+						residue_specific_penalty[ix] += 1.0f;
+						break;
+				}
+			}
+			else if (r < 20)
+				residue_specific_penalty[ix] += kResidueSpecificPenalty[r];
+			else
+				residue_specific_penalty[ix] += 1.0f;
+		}
+		
+		// find a run of 5 hydrophilic residues
+		for (uint32 si = 0, i = 0; i <= gop.size(); ++i)
+		{
+			if (i == gop.size() or is_hydrophilic(s[i]) == false)
+			{
+				if (i >= si + 5)
+				{
+					for (uint32 j = si; j < i; ++j)
+						hydrophilic_stretch[j] = true;
+				}
+				si = i + 1;
+			}
+		}
+	}
+
+	for (int32 ix = 0; ix < static_cast<int32>(gop.size()); ++ix)
+	{
+		// if there is a gap, lower gap open cost
+		if (m_gaps[ix] > 0)
+		{
+			gop[ix] *= 0.3f * ((m_seq.size() - m_gaps[ix]) / float(m_seq.size()));
+			gep[ix] /= 2;
+		}
+		
+		// else if there is a gap within 8 residues, increase gap cost
+		else
+		{
+			for (int32 d = 0; d < 8; ++d)
+			{
+				if (ix + d >= int32(m_gaps.size()) or m_gaps[ix + d] > 0 or
+					ix - d < 0 or m_gaps[ix - d] > 0)
+				{
+					gop[ix] *= (2 + ((8 - d) * 2)) / 8.f;
+					break;
+				}
+			}
+			
+			if (hydrophilic_stretch[ix])
+				gop[ix] /= 3;
+			else
+				gop[ix] *= (residue_specific_penalty[ix] / m_seq.size());
+		}
+	}
+}
+
 void MProfile::Align(MHit* e)
 {
 	int32 x = 0, dimX = static_cast<int32>(m_seq.length());
@@ -526,7 +665,7 @@ void MProfile::Align(MHit* e)
 	// position specific gap penalties
 	// initial gap extend cost is adjusted for difference in sequence lengths
 	vector<float> gop_a(dimX, gop), gep_a(dimX, gep /* * (1 + log10(float(dimX) / dimY))*/);
-//	adjust_gp(gop_a, gep_a, a);
+	AdjustGapCosts(gop_a, gep_a);
 	
 	vector<float> gop_b(dimY, gop), gep_b(dimY, gep /* * (1 + log10(float(dimY) / dimX))*/);
 //	adjust_gp(gop_b, gep_b, b);
@@ -632,13 +771,17 @@ void MProfile::Align(MHit* e)
 			{
 				case -1:
 					if (not gap)
+					{
 						++m_residues[x].m_ins;
+						++m_gaps[x];
+					}
 					gap = true;
 					--y;
 					break;
 	
 				case 1:
 					++m_residues[x].m_del;
+					++m_gaps[x];
 					--x;
 					break;
 	
@@ -952,8 +1095,6 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 // and weights
 
 pair<const char*,uint32> kSentinel((const char*)nullptr, 0);
-
-bool is_gap(char aa) { return aa == ' ' or aa == '-'; }
 
 void CalculateConservation(buffer<pair<const char*,uint32>>& b,
 	const vector<MHit*>& inHits, vector<float>& sumvar, vector<float>& sumdist)
