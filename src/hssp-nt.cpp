@@ -68,7 +68,7 @@ bool drop(uint32 ident, uint32 length, float threshold)
 
 // --------------------------------------------------------------------
 
-const int8 kM6Pam250[] = {
+const int8 kMPam250[] = {
 	  2,                                                                                                               // A
 	  0,   3,                                                                                                          // B
 	 -2,  -4,  12,                                                                                                     // C
@@ -93,6 +93,122 @@ const int8 kM6Pam250[] = {
 	  0,   2,  -5,   3,   3,  -5,   0,   2,  -2,   0,  -3,  -2,   1,   0,   3,   0,   0,  -1,  -2,  -6,  -4,   3,      // Z
 	  0,  -1,  -3,  -1,  -1,  -2,  -1,  -1,  -1,  -1,  -1,  -1,   0,  -1,  -1,  -1,   0,   0,  -1,  -4,  -2,  -1,  -1, // x
 };
+
+const int8 kMPam20[] = {
+	  6,                                                                                                               // A
+	 -5,   6,                                                                                                          // B
+	 -8, -14,  10,                                                                                                     // C
+	 -4,   6, -16,   8,                                                                                                // D
+	 -3,   0, -16,   2,   8,                                                                                           // E
+	 -9, -12, -15, -17, -16,   9,                                                                                      // F
+	 -3,  -4, -11,  -4,  -5, -10,   7,                                                                                 // G
+	 -8,  -2,  -8,  -5,  -6,  -7, -10,   9,                                                                            // H
+	 -6,  -7,  -7,  -9,  -6,  -3, -13, -11,   9,                                                                       // I
+	 -8,  -3, -16,  -6,  -5, -16,  -8,  -8,  -7,   7,                                                                  // K
+	 -7, -10, -17, -15, -10,  -4, -12,  -7,  -2,  -9,   7,                                                             // L
+	 -6, -12, -16, -13,  -8,  -5, -10, -13,  -2,  -3,   0,  11,                                                        // M
+	 -5,   6, -13,   1,  -3, -10,  -4,  -1,  -6,  -2,  -8, -11,   8,                                                   // N
+	 -2,  -8,  -9,  -9,  -7, -11,  -7,  -5, -10,  -8,  -8,  -9,  -7,   8,                                              // P
+	 -5,  -4, -16,  -4,   0, -15,  -8,   0,  -9,  -4,  -6,  -5,  -5,  -4,   9,                                         // Q
+	 -8,  -9,  -9, -12, -11, -10, -11,  -3,  -6,  -1, -10,  -5,  -7,  -5,  -2,   9,                                    // R
+	 -1,  -2,  -4,  -5,  -5,  -7,  -3,  -7,  -8,  -5,  -9,  -6,  -1,  -3,  -6,  -4,   7,                               // S
+	 -1,  -4,  -9,  -6,  -7, -10,  -7,  -8,  -3,  -4,  -8,  -5,  -3,  -5,  -7,  -8,   0,   7,                          // T
+	 -3,  -9,  -7,  -9,  -8,  -9,  -7,  -7,   1, -10,  -3,  -2,  -9,  -7,  -8,  -9,  -8,  -4,   7,                     // V
+	-16, -11, -18, -17, -19,  -6, -17,  -8, -16, -14,  -7, -15,  -9, -16, -15,  -3,  -6, -15, -18,  13,                // W
+	 -9,  -7,  -5, -13,  -9,   1, -16,  -4,  -7, -10,  -8, -13,  -5, -16, -14, -11,  -8,  -7,  -8,  -6,  10,           // Y
+	 -4,  -1, -16,   0,   6, -16,  -6,  -2,  -7,  -5,  -8,  -6,  -4,  -5,   7,  -5,  -6,  -7,  -8, -17, -11,   6,      // Z
+	 -4,  -6, -11,  -7,  -6,  -9,  -6,  -6,  -6,  -6,  -7,  -6,  -4,  -6,  -6,  -7,  -4,  -5,  -6, -13,  -9,  -6,  -6, // x	
+};
+
+const int8 kMPam60[] = {
+	  5,                                                                                                               // A
+	 -2,   5,                                                                                                          // B
+	 -5,  -9,   9,                                                                                                     // C
+	 -2,   5, -10,   7,                                                                                                // D
+	 -1,   2, -10,   3,   7,                                                                                           // E
+	 -6,  -8,  -9, -11, -10,   8,                                                                                      // F
+	  0,  -2,  -7,  -2,  -2,  -7,   6,                                                                                 // G
+	 -5,   0,  -6,  -2,  -3,  -4,  -6,   8,                                                                            // H
+	 -3,  -4,  -4,  -5,  -4,  -1,  -7,  -6,   7,                                                                       // I
+	 -5,  -1, -10,  -2,  -3, -10,  -5,  -4,  -4,   6,                                                                  // K
+	 -4,  -7, -11,  -9,  -7,  -1,  -8,  -4,   0,  -6,   6,                                                             // L
+	 -3,  -6, -10,  -7,  -5,  -2,  -6,  -7,   1,   0,   2,  10,                                                        // M
+	 -2,   5,  -7,   2,   0,  -6,  -1,   1,  -4,   0,  -5,  -6,   6,                                                   // N
+	  0,  -4,  -6,  -5,  -3,  -7,  -4,  -2,  -6,  -4,  -5,  -6,  -4,   7,                                              // P
+	 -3,  -1, -10,  -1,   2,  -9,  -5,   2,  -5,  -1,  -3,  -2,  -2,  -1,   7,                                         // Q
+	 -5,  -5,  -6,  -6,  -6,  -7,  -7,   0,  -4,   2,  -6,  -2,  -3,  -2,   0,   8,                                    // R
+	  1,   0,  -1,  -2,  -2,  -5,   0,  -4,  -4,  -2,  -6,  -4,   1,   0,  -3,  -2,   5,                               // S
+	  1,  -2,  -5,  -3,  -4,  -6,  -3,  -5,  -1,  -2,  -5,  -2,  -1,  -2,  -4,  -4,   1,   6,                          // T
+	 -1,  -5,  -4,  -6,  -4,  -5,  -4,  -5,   3,  -6,  -1,   0,  -5,  -4,  -5,  -5,  -4,  -1,   6,                     // V
+	-10,  -8, -12, -11, -12,  -3, -11,  -5, -10,  -8,  -4,  -9,  -6, -10,  -9,   0,  -4,  -9, -11,  13,                // W
+	 -6,  -5,  -2,  -8,  -7,   3, -10,  -2,  -4,  -7,  -5,  -7,  -3, -10,  -8,  -8,  -5,  -5,  -5,  -3,   9,           // Y
+	 -2,   1, -10,   2,   5, -10,  -3,   0,  -4,  -2,  -5,  -4,  -1,  -2,   6,  -2,  -3,  -4,  -5, -11,  -7,   5,      // Z
+	 -2,  -3,  -6,  -3,  -3,  -5,  -3,  -3,  -3,  -3,  -4,  -3,  -2,  -3,  -3,  -4,  -2,  -2,  -3,  -8,  -5,  -3,  -3, // x
+};
+
+const int8 kMPam120[] = {
+	  3,                                                                                                               // A
+	  0,   4,                                                                                                          // B
+	 -3,  -6,   9,                                                                                                     // C
+	  0,   4,  -7,   5,                                                                                                // D
+	  0,   3,  -7,   3,   5,                                                                                           // E
+	 -4,  -5,  -6,  -7,  -7,   8,                                                                                      // F
+	  1,   0,  -4,   0,  -1,  -5,   5,                                                                                 // G
+	 -3,   1,  -4,   0,  -1,  -3,  -4,   7,                                                                            // H
+	 -1,  -3,  -3,  -3,  -3,   0,  -4,  -4,   6,                                                                       // I
+	 -2,   0,  -7,  -1,  -1,  -7,  -3,  -2,  -3,   5,                                                                  // K
+	 -3,  -4,  -7,  -5,  -4,   0,  -5,  -3,   1,  -4,   5,                                                             // L
+	 -2,  -4,  -6,  -4,  -3,  -1,  -4,  -4,   1,   0,   3,   8,                                                        // M
+	 -1,   3,  -5,   2,   1,  -4,   0,   2,  -2,   1,  -4,  -3,   4,                                                   // N
+	  1,  -2,  -4,  -3,  -2,  -5,  -2,  -1,  -3,  -2,  -3,  -3,  -2,   6,                                              // P
+	 -1,   0,  -7,   1,   2,  -6,  -3,   3,  -3,   0,  -2,  -1,   0,   0,   6,                                         // Q
+	 -3,  -2,  -4,  -3,  -3,  -5,  -4,   1,  -2,   2,  -4,  -1,  -1,  -1,   1,   6,                                    // R
+	  1,   0,   0,   0,  -1,  -3,   1,  -2,  -2,  -1,  -4,  -2,   1,   1,  -2,  -1,   3,                               // S
+	  1,   0,  -3,  -1,  -2,  -4,  -1,  -3,   0,  -1,  -3,  -1,   0,  -1,  -2,  -2,   2,   4,                          // T
+	  0,  -3,  -3,  -3,  -3,  -3,  -2,  -3,   3,  -4,   1,   1,  -3,  -2,  -3,  -3,  -2,   0,   5,                     // V
+	 -7,  -6,  -8,  -8,  -8,  -1,  -8,  -3,  -6,  -5,  -3,  -6,  -4,  -7,  -6,   1,  -2,  -6,  -8,  12,                // W
+	 -4,  -3,  -1,  -5,  -5,   4,  -6,  -1,  -2,  -5,  -2,  -4,  -2,  -6,  -5,  -5,  -3,  -3,  -3,  -2,   8,           // Y
+	 -1,   2,  -7,   3,   4,  -6,  -2,   1,  -3,  -1,  -3,  -2,   0,  -1,   4,  -1,  -1,  -2,  -3,  -7,  -5,   4,      // Z
+	 -1,  -1,  -4,  -2,  -1,  -3,  -2,  -2,  -1,  -2,  -2,  -2,  -1,  -2,  -1,  -2,  -1,  -1,  -1,  -5,  -3,  -1,  -2, // x
+};
+
+const int8 kMPam350[] = {
+	  2,                                                                                                               // A
+	  1,   3,                                                                                                          // B
+	 -2,  -5,  18,                                                                                                     // C
+	  1,   3,  -6,   4,                                                                                                // D
+	  1,   3,  -6,   4,   4,                                                                                           // E
+	 -4,  -5,  -5,  -6,  -6,  13,                                                                                      // F
+	  2,   1,  -4,   1,   1,  -6,   5,                                                                                 // G
+	 -1,   1,  -4,   1,   1,  -2,  -2,   7,                                                                            // H
+	  0,  -2,  -3,  -2,  -2,   2,  -2,  -2,   5,                                                                       // I
+	 -1,   1,  -6,   1,   0,  -6,  -1,   1,  -2,   5,                                                                  // K
+	 -2,  -4,  -7,  -4,  -4,   3,  -4,  -2,   4,  -3,   8,                                                             // L
+	 -1,  -2,  -6,  -3,  -2,   1,  -3,  -2,   3,   0,   5,   6,                                                        // M
+	  0,   2,  -4,   2,   2,  -4,   1,   2,  -2,   1,  -3,  -2,   2,                                                   // N
+	  1,   0,  -3,   0,   0,  -5,   0,   0,  -2,  -1,  -3,  -2,   0,   6,                                              // P
+	  0,   2,  -6,   2,   3,  -5,  -1,   3,  -2,   1,  -2,  -1,   1,   1,   4,                                         // Q
+	 -1,   0,  -4,  -1,   0,  -5,  -2,   2,  -2,   4,  -3,   0,   1,   0,   2,   7,                                    // R
+	  1,   1,   0,   1,   0,  -4,   1,  -1,  -1,   0,  -3,  -2,   1,   1,   0,   0,   1,                               // S
+	  1,   0,  -2,   0,   0,  -3,   1,  -1,   0,   0,  -2,  -1,   1,   1,   0,  -1,   1,   2,                          // T
+	  0,  -2,  -2,  -2,  -2,  -1,  -1,  -2,   4,  -2,   3,   2,  -2,  -1,  -2,  -3,  -1,   0,   5,                     // V
+	 -7,  -6, -10,  -8,  -8,   1,  -8,  -3,  -6,  -4,  -2,  -5,  -5,  -7,  -5,   4,  -3,  -6,  -7,  27,                // W
+	 -4,  -4,   1,  -5,  -5,  11,  -6,   0,   0,  -5,   0,  -2,  -3,  -6,  -5,  -5,  -3,  -3,  -2,   1,  14,           // Y
+	  0,   2,  -6,   3,   3,  -6,   0,   2,  -2,   1,  -3,  -2,   2,   0,   3,   1,   0,   0,  -2,  -7,  -5,   3,      // Z
+	  0,   0,  -3,  -1,   0,  -2,  -1,   0,   0,  -1,  -1,   0,   0,   0,   0,  -1,   0,   0,   0,  -5,  -2,   0,  -1, // x
+};
+
+const int8* SelectMatrix(float inDistance)
+{
+	if (inDistance >= 0.8f)
+		return kMPam20;
+	else if (inDistance >= 0.6f)
+		return kMPam60;
+	else if (inDistance >= 0.6f)
+		return kMPam120;
+	else
+		return kMPam350;
+}
 
 // Dayhoff matrix as used by maxhom
 const float kDayhoffData[] =
@@ -214,7 +330,7 @@ float calculateDistance(const sequence& a, const sequence& b)
 			float Iy1 = 0; if (y > startY) Iy1 = Iy(x, y - 1);
 
 			// (1)
-			float M = score(kM6Pam250, a[x], b[y]);
+			float M = score(kMPam250, a[x], b[y]);
 			if (x > startX and y > startY)
 				M += B(x - 1, y - 1);
 
@@ -411,6 +527,8 @@ struct MResInfo
 	uint8			m_chain_id;
 	uint32			m_seq_nr;
 	uint32			m_pdb_nr;
+	MSecondaryStructure
+					m_ss;
 	string			m_dssp;
 	float			m_consweight;
 	uint32			m_nocc;
@@ -420,28 +538,31 @@ struct MResInfo
 	uint32			m_ins, m_del;
 	float			m_score[23];
 
-	void			Add(uint8 r, float inWeight, const int8 inMatrix[]);
+	void			Add(uint8 r, float inDistance);
 };
 
 typedef vector<MResInfo> MResInfoList;
 
-void MResInfo::Add(uint8 r, float inWeight, const int8 inMatrix[])
+void MResInfo::Add(uint8 r, float inDistance)
 {
+	const int8* mat = SelectMatrix(inDistance);
+	float weight = 1 - inDistance;
+	
 	assert(r < 23);
 	m_nocc += 1;
 	m_dist[r] += 1;
 	
-	m_dist_weight[r] += inWeight;
-	m_sum_dist_weight += inWeight;
+	m_dist_weight[r] += weight;
+	m_sum_dist_weight += weight;
 	
 	for (int i = 0; i < 23; ++i)
 	{
-		m_score[i] = 0;
+		float si = 0;
 		
 		for (int j = 0; j < 23; ++j)
-			m_score[i] += float(score(inMatrix, i, j)) * m_dist_weight[j];
+			si += float(score(mat, i, j)) * m_dist_weight[j];
 		
-		m_score[i] /= m_sum_dist_weight;
+		m_score[i] = si / m_sum_dist_weight;
 	}
 }
 
@@ -461,15 +582,13 @@ struct MProfile
 	const MChain&	m_chain;
 	sequence		m_seq;
 	vector<uint32>	m_gaps;
-	vector<MSecondaryStructure>
-					m_ss;
 	MResInfoList	m_residues;
 	vector<MHit*>	m_entries;
 	float			m_threshold, m_frag_cutoff;
 };
 
 MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inThreshold, float inFragmentCutOff)
-	: m_chain(inChain), m_seq(inSequence), m_gaps(inSequence.size(), 0), m_ss(inSequence.size(), loop)
+	: m_chain(inChain), m_seq(inSequence), m_gaps(inSequence.size(), 0)
 	, m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff)
 {
 	const vector<MResidue*>& residues = m_chain.GetResidues();
@@ -484,12 +603,11 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inTh
 			++seq_nr;
 
 		string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
-		MResInfo res = { inSequence[i], m_chain.GetChainID(), seq_nr, (*ri)->GetNumber(), dssp };
-		res.Add(res.m_letter, 1, kM6Pam250);
+		MResInfo res = { inSequence[i], m_chain.GetChainID(), seq_nr,
+			(*ri)->GetNumber(), (*ri)->GetSecondaryStructure(), dssp };
+		res.Add(res.m_letter, 0);
 		m_residues.push_back(res);
 		
-		m_ss[i] = (*ri)->GetSecondaryStructure();
-
 		++ri;
 		++seq_nr;
 	}
@@ -519,103 +637,63 @@ void MProfile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
 	}
 }
 
+// don't ask me, but looking at the clustal code, they substract 0.2 from the table
+// as mentioned in the article in NAR.
+const float kResidueSpecificPenalty[20] = {
+	1.13f - 0.2f,		// A
+	0.72f - 0.2f,		// R
+	0.63f - 0.2f,		// N
+	0.96f - 0.2f,		// D
+	1.13f - 0.2f,		// C
+	1.07f - 0.2f,		// Q
+	1.31f - 0.2f,		// E
+	0.61f - 0.2f,		// G
+	1.00f - 0.2f,		// H
+	1.32f - 0.2f,		// I
+	1.21f - 0.2f,		// L
+	0.96f - 0.2f,		// K
+	1.29f - 0.2f,		// M
+	1.20f - 0.2f,		// F
+	0.74f - 0.2f,		// P
+	0.76f - 0.2f,		// S
+	0.89f - 0.2f,		// T
+	1.23f - 0.2f,		// W
+	1.00f - 0.2f,		// Y
+	1.25f - 0.2f		// V
+};
+
 void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 {
-	// don't ask me, but looking at the clustal code, they substract 0.2 from the table
-	// as mentioned in the article in NAR.
-	const float kResidueSpecificPenalty[20] = {
-		1.13f - 0.2f,		// A
-		0.72f - 0.2f,		// R
-		0.63f - 0.2f,		// N
-		0.96f - 0.2f,		// D
-		1.13f - 0.2f,		// C
-		1.07f - 0.2f,		// Q
-		1.31f - 0.2f,		// E
-		0.61f - 0.2f,		// G
-		1.00f - 0.2f,		// H
-		1.32f - 0.2f,		// I
-		1.21f - 0.2f,		// L
-		0.96f - 0.2f,		// K
-		1.29f - 0.2f,		// M
-		1.20f - 0.2f,		// F
-		0.74f - 0.2f,		// P
-		0.76f - 0.2f,		// S
-		0.89f - 0.2f,		// T
-		1.23f - 0.2f,		// W
-		1.00f - 0.2f,		// Y
-		1.25f - 0.2f		// V
-	};
-
 	assert(gop.size() == m_seq.length());
+	assert(gop.size() == m_residues.size());
 
-	vector<bool> hydrophilic_stretch(gop.size(), false);
-	vector<float> residue_specific_penalty(gop.size(), 0);
-
-	foreach (const MHit* e, m_entries)
+	for (int32 ix = 0; ix < m_residues.size(); ++ix)
 	{
-		const string& s = e->m_aligned;
+		MResInfo& e = m_residues[ix];
+		float resSpecific = 1.0f;
 		
-		for (uint32 ix = 0; ix < gop.size(); ++ix)
+		switch (e.m_ss)
 		{
-			uint8 r = ResidueNr(s[ix]);
+			case alphahelix:
+			case helix_5:
+			case helix_3:
+				resSpecific = 2;
+				break;
 
-			// residue specific gap penalty
-			if (ix < m_ss.size())
-			{
-				// The output of DSSP is explained extensively under 'explanation'. The very short summary of the output is: 
-				// H = alpha helix 
-				// B = residue in isolated beta-bridge 
-				// E = extended strand, participates in beta ladder 
-				// G = 3-helix (3/10 helix) 
-				// I = 5 helix (pi helix) 
-				// T = hydrogen bonded turn 
-				// S = bend
+//			case betabridge:
+//			case strand:
+//				resSpecific = 2;
+//				break;
 
-				switch (m_ss[ix])
-				{
-					case alphahelix:
-					case helix_5:
-					case helix_3:
-						residue_specific_penalty[ix] += 5.0f;
-						break;
-
-					case betabridge:
-					case strand:
-						residue_specific_penalty[ix] += 5.0f;
-						break;
-
-					default:
-						residue_specific_penalty[ix] += 1.0f;
-						break;
-				}
-			}
-			else if (r < 20)
-				residue_specific_penalty[ix] += kResidueSpecificPenalty[r];
-			else
-				residue_specific_penalty[ix] += 1.0f;
+			default:
+//				resSpecific = kResidueSpecificPenalty[e.m_letter];
+				break;
 		}
-		
-		// find a run of 5 hydrophilic residues
-		for (uint32 si = 0, i = 0; i <= gop.size(); ++i)
-		{
-			if (i == gop.size() or is_hydrophilic(s[i]) == false)
-			{
-				if (i >= si + 5)
-				{
-					for (uint32 j = si; j < i; ++j)
-						hydrophilic_stretch[j] = true;
-				}
-				si = i + 1;
-			}
-		}
-	}
 
-	for (int32 ix = 0; ix < static_cast<int32>(gop.size()); ++ix)
-	{
 		// if there is a gap, lower gap open cost
 		if (m_gaps[ix] > 0)
 		{
-			gop[ix] *= 0.3f * ((m_seq.size() - m_gaps[ix]) / float(m_seq.size()));
+			gop[ix] *= 0.3f * ((1.0f + m_entries.size() - m_gaps[ix]) / (m_entries.size() + 1));
 			gep[ix] /= 2;
 		}
 		
@@ -632,10 +710,7 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 				}
 			}
 			
-			if (hydrophilic_stretch[ix])
-				gop[ix] /= 3;
-			else
-				gop[ix] *= (residue_specific_penalty[ix] / m_seq.size());
+			gop[ix] *= resSpecific;
 		}
 	}
 }
@@ -661,6 +736,7 @@ void MProfile::Align(MHit* e)
 	
 	// initial gap open cost, 0.05f is the remaining magical number here...
 //	gop = (gop / (logdiff * logmin)) * abs(smat.mismatch_average()) * smat.scale_factor() * magic;
+	gop = (gop / (logdiff * logmin));
 
 	// position specific gap penalties
 	// initial gap extend cost is adjusted for difference in sequence lengths
@@ -751,14 +827,15 @@ void MProfile::Align(MHit* e)
 	
 	if (m_seq.length() * m_frag_cutoff < length and not drop(ident, length, m_threshold))
 	{
-		e->Update(tb, m_seq, highX, highY, B, kM6Pam250);
+		e->m_distance = 1 - float(ident) / length;
+		e->Update(tb, m_seq, highX, highY, B, SelectMatrix(e->m_distance));
 		m_entries.push_back(e);
 		for (uint32 i = 0; i < m_seq.length(); ++i)
 		{
 			int8 r = ResidueNr(e->m_aligned[i]);
 			if (r < 0 or r >= 23)
 				continue;
-			m_residues[i].Add(r, 1 - e->m_distance, kM6Pam250);
+			m_residues[i].Add(r, e->m_distance);
 		}
 		
 		// update insert/delete counters for the residues
@@ -1063,7 +1140,7 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 			string s = ins.m_seq;
 			
 			uint32 ipos = inResInfo[ins.m_ipos].m_seq_nr;
-			uint32 jpos = inResInfo[ins.m_jpos].m_seq_nr;
+			uint32 jpos = ins.m_jpos;
 
 			os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % nr % ins.m_ipos % ins.m_jpos % (ins.m_seq.length() - 2);
 			
