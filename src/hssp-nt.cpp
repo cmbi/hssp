@@ -294,6 +294,7 @@ struct MHit
 	static MHit*		Create(const string& id, const string& def,
 							const string& seq, const sequence& chain);
 
+	void				Update(const sequence& inChain);
 	void				Update(const matrix<int8>& inTraceBack, const sequence& inChain,
 							int32 inX, int32 inY, const matrix<float>& inB);
 
@@ -344,6 +345,59 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq, const
 	result->m_aligned = string(chain.length(), ' ');
 	result->m_distance = calculateDistance(result->m_seq, chain);
 	return result;
+}
+
+void MHit::Update(const sequence& inChain)
+{
+	assert(inChain.length() == m_aligned.length());
+	
+	bool gap = false;
+
+	uint32 x = 0;
+	while (is_gap(m_aligned[x]))
+		++x;
+	uint32 lx = x;
+	
+	insertion ins;
+	ins.m_ipos = m_ifir;
+	ins.m_jpos = m_jfir;
+	
+	for ( ; x < m_aligned.length(); ++x)
+	{
+		bool igap = is_gap(inChain[x]);
+		bool jgap = is_gap(m_aligned[x]);
+		
+		if (not igap)
+			++ins.m_ipos;
+
+		if (not jgap)
+			++ins.m_jpos;
+
+		if (igap and jgap)
+			continue;
+		
+		if (igap)
+		{
+			if (not gap)
+			{
+				m_aligned[lx] |= 040;
+				m_insertions.push_back(ins);
+				m_insertions.back().m_seq += m_aligned[lx];
+			}
+			gap = true;
+			m_insertions.back().m_seq += m_aligned[x];
+		}
+		else
+		{
+			lx = x;
+			if (gap)
+			{
+				m_aligned[x] |= 040;
+				m_insertions.back().m_seq += m_aligned[x];
+				gap = false;
+			}
+		}
+	}
 }
 
 void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
@@ -863,6 +917,7 @@ void MProfile::Align(MHit* e)
 		e->m_score = float(e->m_identical) / e->m_length;
 
 //		e->Update(tb, m_seq, highX, highY, B);
+		e->Update(m_seq);
 
 		m_entries.push_back(e);
 #endif
