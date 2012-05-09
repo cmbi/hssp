@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <set>
+#include <cmath>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
@@ -23,6 +24,7 @@
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/date_clock_device.hpp>
 #include <boost/regex.hpp>
+#include <boost/tr1/cmath.hpp>
 
 #include "utils.h"
 #include "structure.h"
@@ -94,121 +96,9 @@ const int8 kMPam250[] = {
 	  0,  -1,  -3,  -1,  -1,  -2,  -1,  -1,  -1,  -1,  -1,  -1,   0,  -1,  -1,  -1,   0,   0,  -1,  -4,  -2,  -1,  -1, // x
 };
 
-const int8 kMPam20[] = {
-	  6,                                                                                                               // A
-	 -5,   6,                                                                                                          // B
-	 -8, -14,  10,                                                                                                     // C
-	 -4,   6, -16,   8,                                                                                                // D
-	 -3,   0, -16,   2,   8,                                                                                           // E
-	 -9, -12, -15, -17, -16,   9,                                                                                      // F
-	 -3,  -4, -11,  -4,  -5, -10,   7,                                                                                 // G
-	 -8,  -2,  -8,  -5,  -6,  -7, -10,   9,                                                                            // H
-	 -6,  -7,  -7,  -9,  -6,  -3, -13, -11,   9,                                                                       // I
-	 -8,  -3, -16,  -6,  -5, -16,  -8,  -8,  -7,   7,                                                                  // K
-	 -7, -10, -17, -15, -10,  -4, -12,  -7,  -2,  -9,   7,                                                             // L
-	 -6, -12, -16, -13,  -8,  -5, -10, -13,  -2,  -3,   0,  11,                                                        // M
-	 -5,   6, -13,   1,  -3, -10,  -4,  -1,  -6,  -2,  -8, -11,   8,                                                   // N
-	 -2,  -8,  -9,  -9,  -7, -11,  -7,  -5, -10,  -8,  -8,  -9,  -7,   8,                                              // P
-	 -5,  -4, -16,  -4,   0, -15,  -8,   0,  -9,  -4,  -6,  -5,  -5,  -4,   9,                                         // Q
-	 -8,  -9,  -9, -12, -11, -10, -11,  -3,  -6,  -1, -10,  -5,  -7,  -5,  -2,   9,                                    // R
-	 -1,  -2,  -4,  -5,  -5,  -7,  -3,  -7,  -8,  -5,  -9,  -6,  -1,  -3,  -6,  -4,   7,                               // S
-	 -1,  -4,  -9,  -6,  -7, -10,  -7,  -8,  -3,  -4,  -8,  -5,  -3,  -5,  -7,  -8,   0,   7,                          // T
-	 -3,  -9,  -7,  -9,  -8,  -9,  -7,  -7,   1, -10,  -3,  -2,  -9,  -7,  -8,  -9,  -8,  -4,   7,                     // V
-	-16, -11, -18, -17, -19,  -6, -17,  -8, -16, -14,  -7, -15,  -9, -16, -15,  -3,  -6, -15, -18,  13,                // W
-	 -9,  -7,  -5, -13,  -9,   1, -16,  -4,  -7, -10,  -8, -13,  -5, -16, -14, -11,  -8,  -7,  -8,  -6,  10,           // Y
-	 -4,  -1, -16,   0,   6, -16,  -6,  -2,  -7,  -5,  -8,  -6,  -4,  -5,   7,  -5,  -6,  -7,  -8, -17, -11,   6,      // Z
-	 -4,  -6, -11,  -7,  -6,  -9,  -6,  -6,  -6,  -6,  -7,  -6,  -4,  -6,  -6,  -7,  -4,  -5,  -6, -13,  -9,  -6,  -6, // x	
-};
-
-const int8 kMPam60[] = {
-	  5,                                                                                                               // A
-	 -2,   5,                                                                                                          // B
-	 -5,  -9,   9,                                                                                                     // C
-	 -2,   5, -10,   7,                                                                                                // D
-	 -1,   2, -10,   3,   7,                                                                                           // E
-	 -6,  -8,  -9, -11, -10,   8,                                                                                      // F
-	  0,  -2,  -7,  -2,  -2,  -7,   6,                                                                                 // G
-	 -5,   0,  -6,  -2,  -3,  -4,  -6,   8,                                                                            // H
-	 -3,  -4,  -4,  -5,  -4,  -1,  -7,  -6,   7,                                                                       // I
-	 -5,  -1, -10,  -2,  -3, -10,  -5,  -4,  -4,   6,                                                                  // K
-	 -4,  -7, -11,  -9,  -7,  -1,  -8,  -4,   0,  -6,   6,                                                             // L
-	 -3,  -6, -10,  -7,  -5,  -2,  -6,  -7,   1,   0,   2,  10,                                                        // M
-	 -2,   5,  -7,   2,   0,  -6,  -1,   1,  -4,   0,  -5,  -6,   6,                                                   // N
-	  0,  -4,  -6,  -5,  -3,  -7,  -4,  -2,  -6,  -4,  -5,  -6,  -4,   7,                                              // P
-	 -3,  -1, -10,  -1,   2,  -9,  -5,   2,  -5,  -1,  -3,  -2,  -2,  -1,   7,                                         // Q
-	 -5,  -5,  -6,  -6,  -6,  -7,  -7,   0,  -4,   2,  -6,  -2,  -3,  -2,   0,   8,                                    // R
-	  1,   0,  -1,  -2,  -2,  -5,   0,  -4,  -4,  -2,  -6,  -4,   1,   0,  -3,  -2,   5,                               // S
-	  1,  -2,  -5,  -3,  -4,  -6,  -3,  -5,  -1,  -2,  -5,  -2,  -1,  -2,  -4,  -4,   1,   6,                          // T
-	 -1,  -5,  -4,  -6,  -4,  -5,  -4,  -5,   3,  -6,  -1,   0,  -5,  -4,  -5,  -5,  -4,  -1,   6,                     // V
-	-10,  -8, -12, -11, -12,  -3, -11,  -5, -10,  -8,  -4,  -9,  -6, -10,  -9,   0,  -4,  -9, -11,  13,                // W
-	 -6,  -5,  -2,  -8,  -7,   3, -10,  -2,  -4,  -7,  -5,  -7,  -3, -10,  -8,  -8,  -5,  -5,  -5,  -3,   9,           // Y
-	 -2,   1, -10,   2,   5, -10,  -3,   0,  -4,  -2,  -5,  -4,  -1,  -2,   6,  -2,  -3,  -4,  -5, -11,  -7,   5,      // Z
-	 -2,  -3,  -6,  -3,  -3,  -5,  -3,  -3,  -3,  -3,  -4,  -3,  -2,  -3,  -3,  -4,  -2,  -2,  -3,  -8,  -5,  -3,  -3, // x
-};
-
-const int8 kMPam120[] = {
-	  3,                                                                                                               // A
-	  0,   4,                                                                                                          // B
-	 -3,  -6,   9,                                                                                                     // C
-	  0,   4,  -7,   5,                                                                                                // D
-	  0,   3,  -7,   3,   5,                                                                                           // E
-	 -4,  -5,  -6,  -7,  -7,   8,                                                                                      // F
-	  1,   0,  -4,   0,  -1,  -5,   5,                                                                                 // G
-	 -3,   1,  -4,   0,  -1,  -3,  -4,   7,                                                                            // H
-	 -1,  -3,  -3,  -3,  -3,   0,  -4,  -4,   6,                                                                       // I
-	 -2,   0,  -7,  -1,  -1,  -7,  -3,  -2,  -3,   5,                                                                  // K
-	 -3,  -4,  -7,  -5,  -4,   0,  -5,  -3,   1,  -4,   5,                                                             // L
-	 -2,  -4,  -6,  -4,  -3,  -1,  -4,  -4,   1,   0,   3,   8,                                                        // M
-	 -1,   3,  -5,   2,   1,  -4,   0,   2,  -2,   1,  -4,  -3,   4,                                                   // N
-	  1,  -2,  -4,  -3,  -2,  -5,  -2,  -1,  -3,  -2,  -3,  -3,  -2,   6,                                              // P
-	 -1,   0,  -7,   1,   2,  -6,  -3,   3,  -3,   0,  -2,  -1,   0,   0,   6,                                         // Q
-	 -3,  -2,  -4,  -3,  -3,  -5,  -4,   1,  -2,   2,  -4,  -1,  -1,  -1,   1,   6,                                    // R
-	  1,   0,   0,   0,  -1,  -3,   1,  -2,  -2,  -1,  -4,  -2,   1,   1,  -2,  -1,   3,                               // S
-	  1,   0,  -3,  -1,  -2,  -4,  -1,  -3,   0,  -1,  -3,  -1,   0,  -1,  -2,  -2,   2,   4,                          // T
-	  0,  -3,  -3,  -3,  -3,  -3,  -2,  -3,   3,  -4,   1,   1,  -3,  -2,  -3,  -3,  -2,   0,   5,                     // V
-	 -7,  -6,  -8,  -8,  -8,  -1,  -8,  -3,  -6,  -5,  -3,  -6,  -4,  -7,  -6,   1,  -2,  -6,  -8,  12,                // W
-	 -4,  -3,  -1,  -5,  -5,   4,  -6,  -1,  -2,  -5,  -2,  -4,  -2,  -6,  -5,  -5,  -3,  -3,  -3,  -2,   8,           // Y
-	 -1,   2,  -7,   3,   4,  -6,  -2,   1,  -3,  -1,  -3,  -2,   0,  -1,   4,  -1,  -1,  -2,  -3,  -7,  -5,   4,      // Z
-	 -1,  -1,  -4,  -2,  -1,  -3,  -2,  -2,  -1,  -2,  -2,  -2,  -1,  -2,  -1,  -2,  -1,  -1,  -1,  -5,  -3,  -1,  -2, // x
-};
-
-const int8 kMPam350[] = {
-	  2,                                                                                                               // A
-	  1,   3,                                                                                                          // B
-	 -2,  -5,  18,                                                                                                     // C
-	  1,   3,  -6,   4,                                                                                                // D
-	  1,   3,  -6,   4,   4,                                                                                           // E
-	 -4,  -5,  -5,  -6,  -6,  13,                                                                                      // F
-	  2,   1,  -4,   1,   1,  -6,   5,                                                                                 // G
-	 -1,   1,  -4,   1,   1,  -2,  -2,   7,                                                                            // H
-	  0,  -2,  -3,  -2,  -2,   2,  -2,  -2,   5,                                                                       // I
-	 -1,   1,  -6,   1,   0,  -6,  -1,   1,  -2,   5,                                                                  // K
-	 -2,  -4,  -7,  -4,  -4,   3,  -4,  -2,   4,  -3,   8,                                                             // L
-	 -1,  -2,  -6,  -3,  -2,   1,  -3,  -2,   3,   0,   5,   6,                                                        // M
-	  0,   2,  -4,   2,   2,  -4,   1,   2,  -2,   1,  -3,  -2,   2,                                                   // N
-	  1,   0,  -3,   0,   0,  -5,   0,   0,  -2,  -1,  -3,  -2,   0,   6,                                              // P
-	  0,   2,  -6,   2,   3,  -5,  -1,   3,  -2,   1,  -2,  -1,   1,   1,   4,                                         // Q
-	 -1,   0,  -4,  -1,   0,  -5,  -2,   2,  -2,   4,  -3,   0,   1,   0,   2,   7,                                    // R
-	  1,   1,   0,   1,   0,  -4,   1,  -1,  -1,   0,  -3,  -2,   1,   1,   0,   0,   1,                               // S
-	  1,   0,  -2,   0,   0,  -3,   1,  -1,   0,   0,  -2,  -1,   1,   1,   0,  -1,   1,   2,                          // T
-	  0,  -2,  -2,  -2,  -2,  -1,  -1,  -2,   4,  -2,   3,   2,  -2,  -1,  -2,  -3,  -1,   0,   5,                     // V
-	 -7,  -6, -10,  -8,  -8,   1,  -8,  -3,  -6,  -4,  -2,  -5,  -5,  -7,  -5,   4,  -3,  -6,  -7,  27,                // W
-	 -4,  -4,   1,  -5,  -5,  11,  -6,   0,   0,  -5,   0,  -2,  -3,  -6,  -5,  -5,  -3,  -3,  -2,   1,  14,           // Y
-	  0,   2,  -6,   3,   3,  -6,   0,   2,  -2,   1,  -3,  -2,   2,   0,   3,   1,   0,   0,  -2,  -7,  -5,   3,      // Z
-	  0,   0,  -3,  -1,   0,  -2,  -1,   0,   0,  -1,  -1,   0,   0,   0,   0,  -1,   0,   0,   0,  -5,  -2,   0,  -1, // x
-};
-
-const int8* SelectMatrix(float inDistance)
-{
-	if (inDistance >= 0.8f)
-		return kMPam20;
-	else if (inDistance >= 0.6f)
-		return kMPam60;
-	else if (inDistance >= 0.6f)
-		return kMPam120;
-	else
-		return kMPam350;
-}
+const float
+	kMPam250ScalingFactor = log(2.f) / 3.0f,
+	kMPam250MisMatchAverage = -1.484210526f;
 
 // Dayhoff matrix as used by maxhom
 const float kDayhoffData[] =
@@ -404,7 +294,7 @@ struct MHit
 							const string& seq, const sequence& chain);
 
 	void				Update(const matrix<int8>& inTraceBack, const sequence& inChain,
-							int32 inX, int32 inY, const matrix<float>& inB,const int8 inMatrix[]);
+							int32 inX, int32 inY, const matrix<float>& inB);
 
 	string				m_id, m_acc, m_def;
 	sequence			m_seq;
@@ -415,6 +305,21 @@ struct MHit
 	uint32				m_gaps, m_gapn;
 	vector<insertion>	m_insertions;
 };
+
+ostream& operator<<(ostream& os, const MHit& hit)
+{
+	string seq = hit.m_aligned;
+	foreach (char& r, seq)
+		if (r == ' ' or r == '.') r = '-';
+	
+	for (string::size_type i = 72; i < seq.length(); i += 73)
+		seq.insert(seq.begin() + i, '\n');
+	
+	os << '>' << hit.m_id /*<< ' ' << hit.m_def*/ << endl
+	   << seq << endl;
+	
+	return os;
+}
 
 MHit* MHit::Create(const string& id, const string& def, const string& seq, const sequence& chain)
 {
@@ -437,11 +342,16 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq, const
 	
 	result->m_aligned = string(chain.length(), ' ');
 	result->m_distance = calculateDistance(result->m_seq, chain);
+
+	if (result->m_distance < 0.2)
+		cout << result->m_id << ' ' << result->m_distance << endl
+			 << seq << endl;
+
 	return result;
 }
 
 void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
-	int32 inX, int32 inY, const matrix<float>& inB, const int8 inMatrix[])
+	int32 inX, int32 inY, const matrix<float>& inB)
 {
 	m_ilas = inX + 1;
 	m_jlas = inY + 1;
@@ -450,10 +360,7 @@ void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
 
 	int32 x = inX;
 	int32 y = inY;
-	
 	bool gap = false;
-	
-	insertion ins;
 	
 	// trace back the matrix
 	while (x >= 0 and y >= 0 and inB(x, y) > 0)
@@ -463,46 +370,28 @@ void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
 		{
 			case -1:
 				if (not gap)
-				{
 					++m_gaps;
-
-					int32 nx = x + 1;
-					while (nx < m_aligned.length() and (m_aligned[nx] == ' ' or m_aligned[nx] == '.'))
-						++nx;
-					assert(nx < m_aligned.length());
-					m_aligned[nx] |= 040;
-					
-					ins.m_seq = m_aligned[nx];
-				}					
 				++m_gapn;
-				ins.m_seq += kResidues[m_seq[y]];
 				gap = true;
 				--y;
 				break;
 
 			case 1:
-				m_aligned[x] = '.';
+//				m_aligned[x + 1] = '-';
 				--x;
 				break;
 
 			case 0:
-				m_aligned[x] = kResidues[m_seq[y]];
-				if (gap)
+				if (inChain[x] != '-' and m_seq[y] != '-')
 				{
-					m_aligned[x] |= 040;
-					ins.m_seq += m_aligned[x];
-					ins.m_ipos = x + 1;
-					ins.m_jpos = y + 1;
-					
-					reverse(ins.m_seq.begin(), ins.m_seq.end());
-					m_insertions.push_back(ins);
+//					m_aligned[x] = kResidues[m_seq[y]];
+					gap = false;
+	
+					if (inChain[x] == m_seq[y])
+						++m_identical, ++m_similar;
+					else if (score(kDayhoffData, inChain[x], m_seq[y]) > 0)
+						++m_similar;
 				}
-				gap = false;
-
-				if (inChain[x] == m_seq[y])
-					++m_identical, ++m_similar;
-				else if (score(inMatrix, inChain[x], m_seq[y]) > 0)
-					++m_similar;
 				--x;
 				--y;
 				break;
@@ -545,7 +434,6 @@ typedef vector<MResInfo> MResInfoList;
 
 void MResInfo::Add(uint8 r, float inDistance)
 {
-	const int8* mat = SelectMatrix(inDistance);
 	float weight = 1 - inDistance;
 	
 	assert(r < 23);
@@ -560,7 +448,7 @@ void MResInfo::Add(uint8 r, float inDistance)
 		float si = 0;
 		
 		for (int j = 0; j < 23; ++j)
-			si += float(score(mat, i, j)) * m_dist_weight[j];
+			si += float(score(kMPam250, i, j)) * m_dist_weight[j];
 		
 		m_score[i] = si / m_sum_dist_weight;
 	}
@@ -579,16 +467,17 @@ struct MProfile
 
 	void			dump(ostream& os, const matrix<int8>& tb, const sequence& s);
 
+	void			PrintFastA();
+
 	const MChain&	m_chain;
 	sequence		m_seq;
-	vector<uint32>	m_gaps;
 	MResInfoList	m_residues;
 	vector<MHit*>	m_entries;
 	float			m_threshold, m_frag_cutoff;
 };
 
 MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inThreshold, float inFragmentCutOff)
-	: m_chain(inChain), m_seq(inSequence), m_gaps(inSequence.size(), 0)
+	: m_chain(inChain), m_seq(inSequence)
 	, m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff)
 {
 	const vector<MResidue*>& residues = m_chain.GetResidues();
@@ -680,20 +569,20 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 				resSpecific = 2;
 				break;
 
-//			case betabridge:
-//			case strand:
-//				resSpecific = 2;
-//				break;
+			case betabridge:
+			case strand:
+				resSpecific = 2;
+				break;
 
 			default:
-//				resSpecific = kResidueSpecificPenalty[e.m_letter];
+				resSpecific = kResidueSpecificPenalty[e.m_letter];
 				break;
 		}
 
 		// if there is a gap, lower gap open cost
-		if (m_gaps[ix] > 0)
+		if (e.m_del > 0)
 		{
-			gop[ix] *= 0.3f * ((1.0f + m_entries.size() - m_gaps[ix]) / (m_entries.size() + 1));
+			gop[ix] *= 0.3f * ((1.0f + m_entries.size() - e.m_del) / (m_entries.size() + 1));
 			gep[ix] /= 2;
 		}
 		
@@ -702,8 +591,8 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 		{
 			for (int32 d = 0; d < 8; ++d)
 			{
-				if (ix + d >= int32(m_gaps.size()) or m_gaps[ix + d] > 0 or
-					ix - d < 0 or m_gaps[ix - d] > 0)
+				if (ix + d >= int32(m_residues.size()) or m_residues[ix + d].m_del > 0 or
+					ix - d < 0 or m_residues[ix - d].m_del > 0)
 				{
 					gop[ix] *= (2 + ((8 - d) * 2)) / 8.f;
 					break;
@@ -735,8 +624,9 @@ void MProfile::Align(MHit* e)
 	float logdiff = 1.0f + 0.5f * log10(minLength / maxLength);
 	
 	// initial gap open cost, 0.05f is the remaining magical number here...
-//	gop = (gop / (logdiff * logmin)) * abs(smat.mismatch_average()) * smat.scale_factor() * magic;
-	gop = (gop / (logdiff * logmin));
+	float magic = 1; //0.05f;
+	gop = (gop / (logdiff * logmin)) * abs(kMPam250MisMatchAverage) * kMPam250ScalingFactor * magic;
+//	gop = (gop / (logdiff * logmin));
 
 	// position specific gap penalties
 	// initial gap extend cost is adjusted for difference in sequence lengths
@@ -777,7 +667,7 @@ void MProfile::Align(MHit* e)
 				B(x, y) = s = Iy1;
 			}
 			
-			if (highS < s)
+			if (highS < s or (highS == s and (highX > x or highY > y)))
 			{
 				highS = s;
 				highX = x;
@@ -796,7 +686,7 @@ void MProfile::Align(MHit* e)
 //	if (VERBOSE >= 6)
 //		dump(cerr, tb, e->m_seq);
 
-	uint32 ident = 0, length = 0;
+	uint32 ident = 0, length = 0, xgaps = 0;
 
 	// trace back the matrix
 	while (x >= 0 and y >= 0 and B(x, y) > 0)
@@ -806,6 +696,7 @@ void MProfile::Align(MHit* e)
 		{
 			case -1:
 				--y;
+				++xgaps;
 				break;
 
 			case 1:
@@ -814,7 +705,12 @@ void MProfile::Align(MHit* e)
 
 			case 0:
 				if (e->m_seq[y] == m_seq[x])
-					++ident;
+				{
+					if (m_seq[x] == '-')
+						--length;
+					else
+						++ident;
+				}
 				--x;
 				--y;
 				break;
@@ -824,54 +720,96 @@ void MProfile::Align(MHit* e)
 				break;
 		}
 	}
-	
-	if (m_seq.length() * m_frag_cutoff < length and not drop(ident, length, m_threshold))
+
+	static const MResInfo rgap = {};
+
+	if (not drop(ident, length, m_threshold))
 	{
+		// Add the hit since it is within the required parameters.
+		// Calculate the new distance
 		e->m_distance = 1 - float(ident) / length;
-		e->Update(tb, m_seq, highX, highY, B, SelectMatrix(e->m_distance));
-		m_entries.push_back(e);
-		for (uint32 i = 0; i < m_seq.length(); ++i)
+
+		// reserve space, if needed
+		if (xgaps > 0)
 		{
-			int8 r = ResidueNr(e->m_aligned[i]);
-			if (r < 0 or r >= 23)
-				continue;
-			m_residues[i].Add(r, e->m_distance);
+			uint32 n = (((m_residues.size() + xgaps) / 256) + 1) * 256;
+			m_seq.reserve(n);
+			foreach (MHit* e, m_entries)
+				e->m_aligned.reserve(n);
 		}
 		
 		// update insert/delete counters for the residues
 		x = highX;
 		y = highY;
 		bool gap = false;
+		e->m_aligned = string(m_seq.length() + xgaps, ' ');
+		
 		while (x >= 0 and y >= 0 and B(x, y) > 0)
 		{
 			switch (tb(x, y))
 			{
 				case -1:
+					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					if (not gap)
-					{
 						++m_residues[x].m_ins;
-						++m_gaps[x];
-					}
 					gap = true;
+					
+					m_residues.insert(m_residues.begin() + x + 1, rgap);
+					m_residues[x + 1].m_del = m_entries.size() + 1;
+					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
+					m_seq.insert(m_seq.begin() + x + 1, '-');
+					
+					foreach (MHit* e, m_entries)
+						e->m_aligned.insert(e->m_aligned.begin() + x + 1, '-');
+					
 					--y;
+					--xgaps;
 					break;
 	
 				case 1:
-					++m_residues[x].m_del;
-					++m_gaps[x];
+					e->m_aligned[x + xgaps] = '-';
+					++m_residues[x + 1].m_del;
 					--x;
 					break;
 	
 				case 0:
+					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
+					m_residues[x].Add(e->m_seq[y], e->m_distance);
 					gap = false;
 					--x;
 					--y;
 					break;
 			}
 		}
+
+		// update the new entry
+		e->Update(tb, m_seq, highX, highY, B);
+		m_entries.push_back(e);
+//		for (uint32 i = 0; i < m_seq.length(); ++i)
+//		{
+//			int8 r = ResidueNr(e->m_aligned[i]);
+//			if (r < 0 or r >= 23)
+//				continue;
+//			m_residues[i].Add(r, e->m_distance);
+//		}
+
+		//PrintFastA();
 	}
 	else
 		delete e;
+}
+
+void MProfile::PrintFastA()
+{
+	string s = decode(m_seq);
+	for (string::size_type i = 72; i < s.length(); i += 73)
+		s.insert(s.begin() + i, '\n');
+	
+	cout << '>' << "PDB" << endl
+		 << s << endl;
+	
+	foreach (MHit* e, m_entries)
+		cout << *e;
 }
 
 // --------------------------------------------------------------------
@@ -916,6 +854,8 @@ void MProfile::Process(istream& inHits, progress& inProgress)
 	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_score > b->m_score;
 	});
+	
+	PrintFastA();
 }
 
 // --------------------------------------------------------------------
@@ -1074,6 +1014,9 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 		int32 x = 0, nextNr = inResInfo.front().m_seq_nr;
 		foreach (auto& ri, inResInfo)
 		{
+			if (ri.m_chain_id == 0)
+				continue;
+			
 			if (ri.m_seq_nr != nextNr)
 				os << boost::format(" %5.5d        !  !           0   0    0    0    0") % ri.m_seq_nr << endl;
 
@@ -1099,6 +1042,9 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 	int32 nextNr = inResInfo.front().m_seq_nr;
 	foreach (auto& r, inResInfo)
 	{
+		if (r.m_chain_id == 0)
+			continue;
+		
 		if (r.m_seq_nr != nextNr)
 			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
 				% nextNr << endl;
