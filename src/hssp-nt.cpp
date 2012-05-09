@@ -342,11 +342,6 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq, const
 	
 	result->m_aligned = string(chain.length(), ' ');
 	result->m_distance = calculateDistance(result->m_seq, chain);
-
-	if (result->m_distance < 0.2)
-		cout << result->m_id << ' ' << result->m_distance << endl
-			 << seq << endl;
-
 	return result;
 }
 
@@ -360,7 +355,10 @@ void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
 
 	int32 x = inX;
 	int32 y = inY;
+	
 	bool gap = false;
+	
+	insertion ins;
 	
 	// trace back the matrix
 	while (x >= 0 and y >= 0 and inB(x, y) > 0)
@@ -370,28 +368,46 @@ void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
 		{
 			case -1:
 				if (not gap)
+				{
 					++m_gaps;
+
+					int32 nx = x + 1;
+					while (nx < m_aligned.length() and (m_aligned[nx] == ' ' or m_aligned[nx] == '.'))
+						++nx;
+					assert(nx < m_aligned.length());
+					m_aligned[nx] |= 040;
+					
+					ins.m_seq = m_aligned[nx];
+				}					
 				++m_gapn;
+				ins.m_seq += kResidues[m_seq[y]];
 				gap = true;
 				--y;
 				break;
 
 			case 1:
-//				m_aligned[x + 1] = '-';
+				m_aligned[x] = '.';
 				--x;
 				break;
 
 			case 0:
-				if (inChain[x] != '-' and m_seq[y] != '-')
+				m_aligned[x] = kResidues[m_seq[y]];
+				if (gap)
 				{
-//					m_aligned[x] = kResidues[m_seq[y]];
-					gap = false;
-	
-					if (inChain[x] == m_seq[y])
-						++m_identical, ++m_similar;
-					else if (score(kDayhoffData, inChain[x], m_seq[y]) > 0)
-						++m_similar;
+					m_aligned[x] |= 040;
+					ins.m_seq += m_aligned[x];
+					ins.m_ipos = x + 1;
+					ins.m_jpos = y + 1;
+					
+					reverse(ins.m_seq.begin(), ins.m_seq.end());
+					m_insertions.push_back(ins);
 				}
+				gap = false;
+
+				if (inChain[x] == m_seq[y])
+					++m_identical, ++m_similar;
+				else if (score(kMPam250, inChain[x], m_seq[y]) > 0)
+					++m_similar;
 				--x;
 				--y;
 				break;
@@ -467,7 +483,7 @@ struct MProfile
 
 	void			dump(ostream& os, const matrix<int8>& tb, const sequence& s);
 
-	void			PrintFastA();
+	//void			PrintFastA();
 
 	const MChain&	m_chain;
 	sequence		m_seq;
@@ -667,7 +683,7 @@ void MProfile::Align(MHit* e)
 				B(x, y) = s = Iy1;
 			}
 			
-			if (highS < s or (highS == s and (highX > x or highY > y)))
+			if (highS < s)
 			{
 				highS = s;
 				highX = x;
@@ -720,78 +736,114 @@ void MProfile::Align(MHit* e)
 				break;
 		}
 	}
-
-	static const MResInfo rgap = {};
-
-	if (not drop(ident, length, m_threshold))
+	
+	if (m_seq.length() * m_frag_cutoff < length and not drop(ident, length, m_threshold))
 	{
-		// Add the hit since it is within the required parameters.
-		// Calculate the new distance
 		e->m_distance = 1 - float(ident) / length;
-
-		// reserve space, if needed
-		if (xgaps > 0)
+		e->Update(tb, m_seq, highX, highY, B);
+		m_entries.push_back(e);
+		for (uint32 i = 0; i < m_seq.length(); ++i)
 		{
-			uint32 n = (((m_residues.size() + xgaps) / 256) + 1) * 256;
-			m_seq.reserve(n);
-			foreach (MHit* e, m_entries)
-				e->m_aligned.reserve(n);
+			int8 r = ResidueNr(e->m_aligned[i]);
+			if (r < 0 or r >= 23)
+				continue;
+			m_residues[i].Add(r, e->m_distance);
 		}
 		
 		// update insert/delete counters for the residues
 		x = highX;
 		y = highY;
 		bool gap = false;
-		e->m_aligned = string(m_seq.length() + xgaps, ' ');
-		
 		while (x >= 0 and y >= 0 and B(x, y) > 0)
 		{
 			switch (tb(x, y))
 			{
 				case -1:
-					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					if (not gap)
-						++m_residues[x].m_ins;
+						++m_residues[x + 1].m_ins;
 					gap = true;
-					
-					m_residues.insert(m_residues.begin() + x + 1, rgap);
-					m_residues[x + 1].m_del = m_entries.size() + 1;
-					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
-					m_seq.insert(m_seq.begin() + x + 1, '-');
-					
-					foreach (MHit* e, m_entries)
-						e->m_aligned.insert(e->m_aligned.begin() + x + 1, '-');
-					
 					--y;
-					--xgaps;
 					break;
 	
 				case 1:
-					e->m_aligned[x + xgaps] = '-';
-					++m_residues[x + 1].m_del;
+					++m_residues[x].m_del;
 					--x;
 					break;
 	
 				case 0:
-					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
-					m_residues[x].Add(e->m_seq[y], e->m_distance);
 					gap = false;
 					--x;
 					--y;
 					break;
 			}
 		}
-
-		// update the new entry
-		e->Update(tb, m_seq, highX, highY, B);
-		m_entries.push_back(e);
-//		for (uint32 i = 0; i < m_seq.length(); ++i)
+//		// Add the hit since it is within the required parameters.
+//		// Calculate the new distance
+//		e->m_distance = 1 - float(ident) / length;
+//
+//		// reserve space, if needed
+//		if (xgaps > 0)
 //		{
-//			int8 r = ResidueNr(e->m_aligned[i]);
-//			if (r < 0 or r >= 23)
-//				continue;
-//			m_residues[i].Add(r, e->m_distance);
+//			uint32 n = (((m_residues.size() + xgaps) / 256) + 1) * 256;
+//			m_seq.reserve(n);
+//			foreach (MHit* e, m_entries)
+//				e->m_aligned.reserve(n);
 //		}
+//		
+//		// update insert/delete counters for the residues
+//		x = highX;
+//		y = highY;
+//		bool gap = false;
+//		e->m_aligned = string(m_seq.length() + xgaps, ' ');
+//		
+//		while (x >= 0 and y >= 0 and B(x, y) > 0)
+//		{
+//			switch (tb(x, y))
+//			{
+//				case -1:
+//					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
+//					if (not gap)
+//						++m_residues[x].m_ins;
+//					gap = true;
+//					
+//					m_residues.insert(m_residues.begin() + x + 1, rgap);
+//					m_residues[x + 1].m_del = m_entries.size() + 1;
+//					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
+//					m_seq.insert(m_seq.begin() + x + 1, '-');
+//					
+//					foreach (MHit* e, m_entries)
+//						e->m_aligned.insert(e->m_aligned.begin() + x + 1, '-');
+//					
+//					--y;
+//					--xgaps;
+//					break;
+//	
+//				case 1:
+//					e->m_aligned[x + xgaps] = '-';
+//					++m_residues[x + 1].m_del;
+//					--x;
+//					break;
+//	
+//				case 0:
+//					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
+//					m_residues[x].Add(e->m_seq[y], e->m_distance);
+//					gap = false;
+//					--x;
+//					--y;
+//					break;
+//			}
+//		}
+//
+//		// update the new entry
+//		e->Update(tb, m_seq, highX, highY, B);
+//		m_entries.push_back(e);
+////		for (uint32 i = 0; i < m_seq.length(); ++i)
+////		{
+////			int8 r = ResidueNr(e->m_aligned[i]);
+////			if (r < 0 or r >= 23)
+////				continue;
+////			m_residues[i].Add(r, e->m_distance);
+////		}
 
 		//PrintFastA();
 	}
@@ -799,18 +851,18 @@ void MProfile::Align(MHit* e)
 		delete e;
 }
 
-void MProfile::PrintFastA()
-{
-	string s = decode(m_seq);
-	for (string::size_type i = 72; i < s.length(); i += 73)
-		s.insert(s.begin() + i, '\n');
-	
-	cout << '>' << "PDB" << endl
-		 << s << endl;
-	
-	foreach (MHit* e, m_entries)
-		cout << *e;
-}
+//void MProfile::PrintFastA()
+//{
+//	string s = decode(m_seq);
+//	for (string::size_type i = 72; i < s.length(); i += 73)
+//		s.insert(s.begin() + i, '\n');
+//	
+//	cout << '>' << "PDB" << endl
+//		 << s << endl;
+//	
+//	foreach (MHit* e, m_entries)
+//		cout << *e;
+//}
 
 // --------------------------------------------------------------------
 
@@ -855,7 +907,7 @@ void MProfile::Process(istream& inHits, progress& inProgress)
 		return a->m_score > b->m_score;
 	});
 	
-	PrintFastA();
+	//PrintFastA();
 }
 
 // --------------------------------------------------------------------
@@ -1014,9 +1066,6 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 		int32 x = 0, nextNr = inResInfo.front().m_seq_nr;
 		foreach (auto& ri, inResInfo)
 		{
-			if (ri.m_chain_id == 0)
-				continue;
-			
 			if (ri.m_seq_nr != nextNr)
 				os << boost::format(" %5.5d        !  !           0   0    0    0    0") % ri.m_seq_nr << endl;
 
@@ -1042,9 +1091,6 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 	int32 nextNr = inResInfo.front().m_seq_nr;
 	foreach (auto& r, inResInfo)
 	{
-		if (r.m_chain_id == 0)
-			continue;
-		
 		if (r.m_seq_nr != nextNr)
 			os << boost::format("%5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
 				% nextNr << endl;
