@@ -387,10 +387,10 @@ void MHit::Update(const sequence& inChain)
 			gap = true;
 			m_insertions.back().m_seq += m_aligned[x];
 		}
-		else
+		else if (not jgap)
 		{
 			lx = x;
-			if (gap and not jgap)
+			if (gap)
 			{
 				m_aligned[x] |= 040;
 				m_insertions.back().m_seq += m_aligned[x];
@@ -799,10 +799,9 @@ void MProfile::Align(MHit* e)
 		m_entries.push_back(e);
 		for (uint32 i = 0; i < m_seq.length(); ++i)
 		{
-			int8 r = ResidueNr(e->m_aligned[i]);
-			if (r < 0 or r >= 23)
+			if (is_gap(e->m_aligned[i]))
 				continue;
-			m_residues[i].Add(r, e->m_distance);
+			m_residues[i].Add(ResidueNr(e->m_aligned[i]), e->m_distance);
 		}
 		
 		// update insert/delete counters for the residues
@@ -873,7 +872,7 @@ void MProfile::Align(MHit* e)
 					
 					m_residues.insert(m_residues.begin() + x + 1, rgap);
 					m_residues[x + 1].m_del = m_entries.size() + 1;
-					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
+//					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
 					m_seq.insert(m_seq.begin() + x + 1, '-');
 					
 					foreach (MHit* e, m_entries)
@@ -916,7 +915,6 @@ void MProfile::Align(MHit* e)
 		
 		e->m_score = float(e->m_identical) / e->m_length;
 
-//		e->Update(tb, m_seq, highX, highY, B);
 		e->Update(m_seq);
 
 		m_entries.push_back(e);
@@ -979,13 +977,13 @@ void MProfile::Process(istream& inHits, progress& inProgress)
 
 	if (not (id.empty() or seq.empty()))
 		Align(MHit::Create(id, def, seq, m_seq));
+	
+	if (VERBOSE)
+		PrintFastA();
 
 	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_score > b->m_score;
 	});
-	
-	if (VERBOSE)
-		PrintFastA();
 }
 
 // --------------------------------------------------------------------
