@@ -10,6 +10,8 @@
 
 firstTarget: all
 
+include make.config
+
 VERSION				= 2.0.4
 
 DEST_DIR			?= /usr/local/
@@ -21,16 +23,16 @@ MAN_DIR				= $(DEST_DIR)man/man3
 BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
 LIBS				= zeep $(BOOST_LIBS) z bz2
-ifeq ($(DEBUG),1)
-LIBS				+= mrsd
-else
-LIBS				+= mrs
-endif
+#ifeq ($(DEBUG),1)
+#LIBS				+= mrsd
+#else
+#LIBS				+= mrs
+#endif
 
 LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
-CC					= c++
+CC					?= c++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
 					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread \
 					  -std=c++0x -DVERSION='"$(VERSION)"'
@@ -39,7 +41,6 @@ ifneq ($(DEBUG),1)
 OPT					= -O3 -DNDEBUG # -march=native
 endif
 
-include make.config
 
 CFLAGS				+= $(OPT) -g -DLINUX -DUSE_COMPRESSION
 
@@ -55,7 +56,7 @@ VPATH += src $(OBJ)
 SOURCES = $(wildcard src/*.cpp)
 OBJECTS = $(SOURCES:src/%.cpp=$(OBJ)/%.o)
 
-all: mkdssp mkhssp sto2fa aln2hssp # hsspsoap
+all: mkdssp mkhssp sto2fa aln2hssp  | $(OBJ)
 
 mas: $(OBJECTS)
 	@ echo linking $@
@@ -68,6 +69,11 @@ mkdssp: mkdssp.o dssp.o primitives-3d.o structure.o utils.o
 	@ echo OK
 
 mkhssp: mkhssp.o dssp.o hmmer-hssp.o matrix.o primitives-3d.o structure.o utils.o
+	@ echo linking $@
+	@ $(CC) -o $@ $^ $(LDOPTS)
+	@ echo OK
+
+mkhssp-nt: hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
@@ -87,10 +93,13 @@ hsspsoap: dssp.o hsspsoap.o matrix.o maxhom-hssp.o primitives-3d.o structure.o u
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-$(OBJ)/%.o: %.cpp
+$(OBJ)/%.o: %.cpp | $(OBJ)
 	@ if [ ! -d $(OBJ) ]; then mkdir $(OBJ); fi
 	@ echo compiling $@
 	@ $(CC) -MD -c -o $@ $< $(CFLAGS)
+
+$(OBJ):
+	mkdir -p $@
 
 $(OBJ)/matrix.o: mtrx/matrices.h
 

@@ -390,7 +390,7 @@ void MHit::Update(const sequence& inChain)
 		else
 		{
 			lx = x;
-			if (gap)
+			if (gap and not jgap)
 			{
 				m_aligned[x] |= 040;
 				m_insertions.back().m_seq += m_aligned[x];
@@ -634,12 +634,12 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 			case alphahelix:
 			case helix_5:
 			case helix_3:
-				resSpecific = 2;
+				resSpecific = 1.25;
 				break;
 
 			case betabridge:
 			case strand:
-				resSpecific = 2;
+				resSpecific = 1.25;
 				break;
 
 			default:
