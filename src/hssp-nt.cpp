@@ -594,29 +594,29 @@ void MProfile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
 	}
 }
 
-// don't ask me, but looking at the clustal code, they substract 0.2 from the table
-// as mentioned in the article in NAR.
-const float kResidueSpecificPenalty[20] = {
-	1.13f - 0.2f,		// A
-	0.72f - 0.2f,		// R
-	0.63f - 0.2f,		// N
-	0.96f - 0.2f,		// D
-	1.13f - 0.2f,		// C
-	1.07f - 0.2f,		// Q
-	1.31f - 0.2f,		// E
-	0.61f - 0.2f,		// G
-	1.00f - 0.2f,		// H
-	1.32f - 0.2f,		// I
-	1.21f - 0.2f,		// L
-	0.96f - 0.2f,		// K
-	1.29f - 0.2f,		// M
-	1.20f - 0.2f,		// F
-	0.74f - 0.2f,		// P
-	0.76f - 0.2f,		// S
-	0.89f - 0.2f,		// T
-	1.23f - 0.2f,		// W
-	1.00f - 0.2f,		// Y
-	1.25f - 0.2f		// V
+const float kResidueSpecificPenalty[22] = {
+	1.13f,		// A
+	1.00f,		// B
+	1.13f,		// C
+	0.96f,		// D
+	1.31f,		// E
+	1.20f,		// F
+	0.61f,		// G
+	1.00f,		// H
+	1.32f,		// I
+	0.96f,		// K
+	1.21f,		// L
+	1.29f,		// M
+	0.63f,		// N
+	0.74f,		// P
+	1.07f,		// Q
+	0.72f,		// R
+	0.76f,		// S
+	0.89f,		// T
+	1.25f,		// V
+	1.23f,		// W
+	1.00f,		// Y
+	1.00f,		// Z
 };
 
 void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
@@ -688,7 +688,7 @@ void MProfile::Align(MHit* e)
 	if (minLength > maxLength)
 		swap(minLength, maxLength);
 	
-	float gop = 10, gep = 0.2f;
+	float gop = 12, gep = 0.2f;
 	
 	float logmin = 1.0f / log10(minLength);
 	float logdiff = 1.0f + 0.5f * log10(minLength / maxLength);
@@ -696,7 +696,6 @@ void MProfile::Align(MHit* e)
 	// initial gap open cost, 0.05f is the remaining magical number here...
 	float magic = 1; //0.05f;
 	gop = (gop / (logdiff * logmin)) * abs(kMPam250MisMatchAverage) * kMPam250ScalingFactor * magic;
-//	gop = (gop / (logdiff * logmin));
 
 	// position specific gap penalties
 	// initial gap extend cost is adjusted for difference in sequence lengths
@@ -719,6 +718,10 @@ void MProfile::Align(MHit* e)
 			float M = m_residues[x].m_score[e->m_seq[y]];
 			if (x > 0 and y > 0)
 				M += B(x - 1, y - 1);
+
+//cerr << x << ',' << y << ' '
+//	 << kResidues[m_residues[x].m_letter] << kResidues[e->m_seq[y]] << ' '
+//	 << Ix1 << ',' << Iy1 << ',' << M << " => ";
 
 			float s;
 			if (M >= Ix1 and M >= Iy1)
@@ -746,15 +749,66 @@ void MProfile::Align(MHit* e)
 			
 			Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
 			Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
+
+//cerr << Ix(x, y) << ',' << Iy(x, y) << ',' << B(x, y) << " => " << int(tb(x, y)) << endl;
+
 		}
 	}
+
+#ifndef NDEBUG
+
+ofstream log("alignment.log");
+if (not log.is_open()) throw mas_exception("open log");
+
+log << "B" << endl;
+for (int y = 0; y < dimY; ++y)
+{
+	for (int x = 0; x < dimX; ++x)
+	{
+		log << B(x, y) << '\t';
+	}
+	log << endl;
+}
+	
+log << "Ix" << endl;
+for (int y = 0; y < dimY; ++y)
+{
+	for (int x = 0; x < dimX; ++x)
+	{
+		log << Ix(x, y) << '\t';
+	}
+	log << endl;
+}
+	
+log << "Iy" << endl;
+for (int y = 0; y < dimY; ++y)
+{
+	for (int x = 0; x < dimX; ++x)
+	{
+		log << Iy(x, y) << '\t';
+	}
+	log << endl;
+}
+	
+log << "tb" << endl;
+for (int y = 0; y < dimY; ++y)
+{
+	for (int x = 0; x < dimX; ++x)
+	{
+		log << int(tb(x, y)) << '\t';
+	}
+	log << endl;
+}
+
+#endif
+
 
 	// build the alignment
 	x = highX;
 	y = highY;
 
 //	if (VERBOSE >= 6)
-//		dump(cerr, tb, e->m_seq);
+		dump(cerr, tb, e->m_seq);
 
 	uint32 ident = 0, length = 0, xgaps = 0;
 
@@ -920,7 +974,7 @@ void MProfile::Align(MHit* e)
 		m_entries.push_back(e);
 #endif
 
-		//PrintFastA();
+		PrintFastA();
 	}
 	else
 		delete e;
