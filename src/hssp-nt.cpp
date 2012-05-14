@@ -688,7 +688,7 @@ void MProfile::Align(MHit* e)
 	if (minLength > maxLength)
 		swap(minLength, maxLength);
 	
-	float gop = 12, gep = 0.2f;
+	float gop = 10, gep = 0.2f;
 	
 	float logmin = 1.0f / log10(minLength);
 	float logdiff = 1.0f + 0.5f * log10(minLength / maxLength);
@@ -728,16 +728,25 @@ void MProfile::Align(MHit* e)
 			{
 				tb(x, y) = 0;
 				B(x, y) = s = M;
+				
+				Ix(x, y) = M - (x < dimX - 1 ? gop_a[x] : 0);
+				Iy(x, y) = M - (y < dimY - 1 ? gop_b[y] : 0);
 			}
 			else if (Ix1 >= Iy1)
 			{
 				tb(x, y) = 1;
 				B(x, y) = s = Ix1;
+
+				Ix(x, y) = Ix1 - gep_a[x];
+				Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
 			}
 			else
 			{
 				tb(x, y) = -1;
 				B(x, y) = s = Iy1;
+
+				Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
+				Iy(x, y) = Iy1 - gep_b[y];
 			}
 			
 			if (highS < s)
@@ -746,61 +755,57 @@ void MProfile::Align(MHit* e)
 				highX = x;
 				highY = y;
 			}
-			
-			Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
-			Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
 
 //cerr << Ix(x, y) << ',' << Iy(x, y) << ',' << B(x, y) << " => " << int(tb(x, y)) << endl;
-
 		}
 	}
 
-#ifndef NDEBUG
-
-ofstream log("alignment.log");
-if (not log.is_open()) throw mas_exception("open log");
-
-log << "B" << endl;
-for (int y = 0; y < dimY; ++y)
-{
-	for (int x = 0; x < dimX; ++x)
-	{
-		log << B(x, y) << '\t';
-	}
-	log << endl;
-}
-	
-log << "Ix" << endl;
-for (int y = 0; y < dimY; ++y)
-{
-	for (int x = 0; x < dimX; ++x)
-	{
-		log << Ix(x, y) << '\t';
-	}
-	log << endl;
-}
-	
-log << "Iy" << endl;
-for (int y = 0; y < dimY; ++y)
-{
-	for (int x = 0; x < dimX; ++x)
-	{
-		log << Iy(x, y) << '\t';
-	}
-	log << endl;
-}
-	
-log << "tb" << endl;
-for (int y = 0; y < dimY; ++y)
-{
-	for (int x = 0; x < dimX; ++x)
-	{
-		log << int(tb(x, y)) << '\t';
-	}
-	log << endl;
-}
-
-#endif
+//#ifndef NDEBUG
+//
+//ofstream log("alignment.log");
+//if (not log.is_open()) throw mas_exception("open log");
+//
+//log << "B" << endl;
+//for (int y = 0; y < dimY; ++y)
+//{
+//	for (int x = 0; x < dimX; ++x)
+//	{
+//		log << B(x, y) << '\t';
+//	}
+//	log << endl;
+//}
+//	
+//log << "Ix" << endl;
+//for (int y = 0; y < dimY; ++y)
+//{
+//	for (int x = 0; x < dimX; ++x)
+//	{
+//		log << Ix(x, y) << '\t';
+//	}
+//	log << endl;
+//}
+//	
+//log << "Iy" << endl;
+//for (int y = 0; y < dimY; ++y)
+//{
+//	for (int x = 0; x < dimX; ++x)
+//	{
+//		log << Iy(x, y) << '\t';
+//	}
+//	log << endl;
+//}
+//	
+//log << "tb" << endl;
+//for (int y = 0; y < dimY; ++y)
+//{
+//	for (int x = 0; x < dimX; ++x)
+//	{
+//		log << int(tb(x, y)) << '\t';
+//	}
+//	log << endl;
+//}
+//
+//#endif
 
 
 	// build the alignment
@@ -808,7 +813,7 @@ for (int y = 0; y < dimY; ++y)
 	y = highY;
 
 //	if (VERBOSE >= 6)
-		dump(cerr, tb, e->m_seq);
+//		dump(cerr, tb, e->m_seq);
 
 	uint32 ident = 0, length = 0, xgaps = 0;
 
@@ -974,7 +979,7 @@ for (int y = 0; y < dimY; ++y)
 		m_entries.push_back(e);
 #endif
 
-		PrintFastA();
+		//PrintFastA();
 	}
 	else
 		delete e;
