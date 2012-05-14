@@ -462,8 +462,8 @@ struct MProfile
 					MProfile(const MChain& inChain, const sequence& inSequence,
 						float inThreshold, float inFragmentCutOff);
 
-	void			Process(istream& inHits, progress& inProgress);
-	void			Align(MHit* e);
+	void			Process(istream& inHits, progress& inProgress, float inGapOpen, float inGapExtend);
+	void			Align(MHit* e, float inGapOpen, float inGapExtend);
 	void			AdjustGapCosts(vector<float>& gop, vector<float>& gep);
 
 	void			dump(ostream& os, const matrix<int8>& tb, const sequence& s);
@@ -608,7 +608,7 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 	}
 }
 
-void MProfile::Align(MHit* e)
+void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 {
 	int32 x = 0, dimX = static_cast<int32>(m_seq.length());
 	int32 y = 0, dimY = static_cast<int32>(e->m_seq.length());
@@ -622,7 +622,7 @@ void MProfile::Align(MHit* e)
 	if (minLength > maxLength)
 		swap(minLength, maxLength);
 	
-	float gop = 10, gep = 0.2f;
+	float gop = inGapOpen, gep = inGapExtend;
 	
 	float logmin = 1.0f / log10(minLength);
 	float logdiff = 1.0f + 0.5f * log10(minLength / maxLength);
@@ -900,7 +900,7 @@ void MProfile::PrintFastA()
 
 // --------------------------------------------------------------------
 
-void MProfile::Process(istream& inHits, progress& inProgress)
+void MProfile::Process(istream& inHits, progress& inProgress, float inGapOpen, float inGapExtend)
 {
 	string id, def, seq;
 	for (;;)
@@ -915,7 +915,7 @@ void MProfile::Process(istream& inHits, progress& inProgress)
 		if (ba::starts_with(line, ">"))
 		{
 			if (not (id.empty() or seq.empty()))
-				Align(MHit::Create(id, def, seq, m_seq));
+				Align(MHit::Create(id, def, seq, m_seq), inGapOpen, inGapExtend);
 			
 			id.clear();
 			def.clear();
@@ -935,7 +935,7 @@ void MProfile::Process(istream& inHits, progress& inProgress)
 	}
 
 	if (not (id.empty() or seq.empty()))
-		Align(MHit::Create(id, def, seq, m_seq));
+		Align(MHit::Create(id, def, seq, m_seq), inGapOpen, inGapExtend);
 	
 	if (VERBOSE)
 		PrintFastA();
@@ -1321,7 +1321,8 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 // --------------------------------------------------------------------
 
 void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
-	uint32 inMaxhits, uint32 inMinSeqLength, float inThreshold, float inFragmentCutOff, uint32 inThreads, ostream& inOs)
+	uint32 inMaxhits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
+	float inThreshold, float inFragmentCutOff, uint32 inThreads, ostream& inOs)
 {
 	// construct a set of unique sequences, containing only the largest ones in case of overlap
 	vector<sequence> seqset;
@@ -1371,7 +1372,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
 		
 		{
 			progress pr1("processing", fs::file_size(blastHits));
-			profile->Process(file, pr1);
+			profile->Process(file, pr1, inGapOpen, inGapExtend);
 		}
 		
 		CalculateConservation(seqset[ix[i]], profile->m_entries, profile->m_residues);
@@ -1425,6 +1426,8 @@ int main(int argc, char* argv[])
 			("databank,d",	po::value<vector<string>>(),
 												 "Databank(s) to use")
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
+			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 30.0)")
+			("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
 			("min-length",	po::value<uint32>(), "Minimal chain length")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
@@ -1466,6 +1469,14 @@ int main(int argc, char* argv[])
 		uint32 maxhits = 1500;
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
+
+		float gapOpen = 30;
+		if (vm.count("gap-open"))
+			gapOpen = vm["gap-open"].as<float>();
+
+		float gapExtend = 2;
+		if (vm.count("gap-extend"))
+			gapExtend = vm["gap-extend"].as<float>();
 
 		float threshold = HSSP::kThreshold;
 		if (vm.count("threshold"))
@@ -1527,7 +1538,8 @@ int main(int argc, char* argv[])
 		a.CalculateSecondaryStructure();
 		
 		// create the HSSP file
-		HSSP::CreateHSSP(a, databanks, maxhits, minlength, threshold, fragmentCutOff, threads, out);
+		HSSP::CreateHSSP(a, databanks, maxhits, minlength,
+			gapOpen, gapExtend, threshold, fragmentCutOff, threads, out);
 	}
 	catch (exception& e)
 	{
