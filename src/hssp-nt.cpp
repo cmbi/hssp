@@ -295,8 +295,6 @@ struct MHit
 							const string& seq, const sequence& chain);
 
 	void				Update(const sequence& inChain);
-	void				Update(const matrix<int8>& inTraceBack, const sequence& inChain,
-							int32 inX, int32 inY, const matrix<float>& inB);
 
 	string				m_id, m_acc, m_def;
 	sequence			m_seq;
@@ -400,82 +398,6 @@ void MHit::Update(const sequence& inChain)
 	}
 }
 
-void MHit::Update(const matrix<int8>& inTraceBack, const sequence& inChain,
-	int32 inX, int32 inY, const matrix<float>& inB)
-{
-	m_ilas = inX + 1;
-	m_jlas = inY + 1;
-
-	int32 x = inX;
-	int32 y = inY;
-	
-	bool gap = false;
-	
-	insertion ins;
-	
-	// trace back the matrix
-	while (x >= 0 and y >= 0 and inB(x, y) > 0)
-	{
-		++m_length;
-		switch (inTraceBack(x, y))
-		{
-			case -1:
-				if (not gap)
-				{
-					++m_gaps;
-					int32 nx = x + 1;
-					while (nx < m_aligned.length() and is_gap(m_aligned[nx]))
-						++nx;
-					assert(nx < m_aligned.length());
-					m_aligned[nx] |= 040;
-					
-					ins.m_seq = m_aligned[nx];
-				}					
-				++m_gapn;
-				ins.m_seq += kResidues[m_seq[y]];
-				gap = true;
-				--y;
-				break;
-
-			case 1:
-				m_aligned[x] = '.';
-				--x;
-				break;
-
-			case 0:
-				m_aligned[x] = kResidues[m_seq[y]];
-				if (gap)
-				{
-					m_aligned[x] |= 040;
-					ins.m_seq += m_aligned[x];
-					ins.m_ipos = x + 1;
-					ins.m_jpos = y + 1;
-					
-					reverse(ins.m_seq.begin(), ins.m_seq.end());
-					m_insertions.push_back(ins);
-				}
-				gap = false;
-
-				if (inChain[x] == m_seq[y])
-					++m_identical, ++m_similar;
-				else if (score(kMPam250, inChain[x], m_seq[y]) > 0)
-					++m_similar;
-				--x;
-				--y;
-				break;
-
-			default:
-				assert(false);
-		}
-	}
-	
-	assert(gap == false);
-	m_ifir = x + 2;
-	m_jfir = y + 2;
-	
-	m_score = float(m_identical) / m_length;
-}
-
 // --------------------------------------------------------------------
 
 struct MResInfo
@@ -527,8 +449,8 @@ MResInfo MResInfo::NewGap(uint32 inDel, float inSumDistance)
 {
 	MResInfo r = {};
 	
-	r.m_del = inDel;
-	r.m_sum_dist_weight = inSumDistance;
+	r.m_del = r.m_dist[22] = inDel;
+	r.m_sum_dist_weight = r.m_dist_weight[22] = inSumDistance;
 	
 	return r;
 }
@@ -660,9 +582,9 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 		}
 
 		// if there is a gap, lower gap open cost
-		if (e.m_del > 0)
+		if (e.m_del > 0 or e.m_ins > 0)
 		{
-			gop[ix] *= 0.3f * ((1.0f + m_entries.size() - e.m_del) / (m_entries.size() + 1));
+			gop[ix] *= 0.3f * ((1.0f + m_entries.size() - e.m_del - e.m_ins) / (m_entries.size() + 1));
 			gep[ix] /= 2;
 		}
 		
@@ -750,14 +672,14 @@ void MProfile::Align(MHit* e)
 				B(x, y) = s = Ix1;
 
 				Ix(x, y) = Ix1 - gep_a[x];
-				Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
+				Iy(x, y) = -9999;//max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
 			}
 			else
 			{
 				tb(x, y) = -1;
 				B(x, y) = s = Iy1;
 
-				Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
+				Ix(x, y) = -9999;//max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
 				Iy(x, y) = Iy1 - gep_b[y];
 			}
 			
@@ -772,52 +694,63 @@ void MProfile::Align(MHit* e)
 		}
 	}
 
-//#ifndef NDEBUG
-//
-//ofstream log("alignment.log");
-//if (not log.is_open()) throw mas_exception("open log");
-//
-//log << "B" << endl;
-//for (int y = 0; y < dimY; ++y)
-//{
-//	for (int x = 0; x < dimX; ++x)
-//	{
-//		log << B(x, y) << '\t';
-//	}
-//	log << endl;
-//}
-//	
-//log << "Ix" << endl;
-//for (int y = 0; y < dimY; ++y)
-//{
-//	for (int x = 0; x < dimX; ++x)
-//	{
-//		log << Ix(x, y) << '\t';
-//	}
-//	log << endl;
-//}
-//	
-//log << "Iy" << endl;
-//for (int y = 0; y < dimY; ++y)
-//{
-//	for (int x = 0; x < dimX; ++x)
-//	{
-//		log << Iy(x, y) << '\t';
-//	}
-//	log << endl;
-//}
-//	
-//log << "tb" << endl;
-//for (int y = 0; y < dimY; ++y)
-//{
-//	for (int x = 0; x < dimX; ++x)
-//	{
-//		log << int(tb(x, y)) << '\t';
-//	}
-//	log << endl;
-//}
-//
-//#endif
+#if 0 // not defined(NDEBUG)
+
+if (m_entries.size() == 16) {
+ofstream log("alignment.log");
+if (not log.is_open()) throw mas_exception("open log");
+
+log << "B" << endl;
+for (int x = 0; x < dimX; ++x)
+	log << '\t' << kResidues[m_seq[x]];
+log << endl;
+
+for (int y = 0; y < dimY; ++y)
+{
+	log << kResidues[e->m_seq[y]] << '\t';
+	for (int x = 0; x < dimX; ++x)
+	{
+		log << B(x, y) << '\t';
+	}
+	log << endl;
+}
+	
+log << "Ix" << endl;
+for (int y = 0; y < dimY; ++y)
+{
+	log << kResidues[e->m_seq[y]] << '\t';
+	for (int x = 0; x < dimX; ++x)
+	{
+		log << Ix(x, y) << '\t';
+	}
+	log << endl;
+}
+	
+log << "Iy" << endl;
+for (int y = 0; y < dimY; ++y)
+{
+	log << kResidues[e->m_seq[y]] << '\t';
+	for (int x = 0; x < dimX; ++x)
+	{
+		log << Iy(x, y) << '\t';
+	}
+	log << endl;
+}
+	
+log << "tb" << endl;
+for (int y = 0; y < dimY; ++y)
+{
+	log << kResidues[e->m_seq[y]] << '\t';
+	for (int x = 0; x < dimX; ++x)
+	{
+		log << int(tb(x, y)) << '\t';
+	}
+	log << endl;
+}
+
+}
+
+#endif
 
 
 	// build the alignment
@@ -869,44 +802,6 @@ void MProfile::Align(MHit* e)
 		e->m_distance = 1 - float(ident) / length;
 		m_sum_dist_weight += e->m_distance;
 
-#if CUT
-		e->Update(tb, m_seq, highX, highY, B);
-		m_entries.push_back(e);
-		for (uint32 i = 0; i < m_seq.length(); ++i)
-		{
-			if (is_gap(e->m_aligned[i]))
-				continue;
-			m_residues[i].Add(ResidueNr(e->m_aligned[i]), e->m_distance);
-		}
-		
-		// update insert/delete counters for the residues
-		x = highX;
-		y = highY;
-		bool gap = false;
-		while (x >= 0 and y >= 0 and B(x, y) > 0)
-		{
-			switch (tb(x, y))
-			{
-				case -1:
-					if (not gap)
-						++m_residues[x + 1].m_ins;
-					gap = true;
-					--y;
-					break;
-	
-				case 1:
-					++m_residues[x].m_del;
-					--x;
-					break;
-	
-				case 0:
-					gap = false;
-					--x;
-					--y;
-					break;
-			}
-		}
-#else
 		// reserve space, if needed
 		if (xgaps > 0)
 		{
@@ -940,6 +835,7 @@ void MProfile::Align(MHit* e)
 					gap = true;
 					
 					m_residues.insert(m_residues.begin() + x + 1, MResInfo::NewGap(m_entries.size() + 1, m_sum_dist_weight));
+					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
 					m_seq.insert(m_seq.begin() + x + 1, '-');
 					
 					foreach (MHit* e, m_entries)
@@ -973,19 +869,17 @@ void MProfile::Align(MHit* e)
 		}
 
 		// update the new entry
-
 		assert(gap == false);
 		e->m_ifir = x + 2;
 		e->m_jfir = y + 2;
 		
 		e->m_score = float(e->m_identical) / e->m_length;
 
-		e->Update(m_seq);
+//		e->Update(m_seq);
 
 		m_entries.push_back(e);
-#endif
 
-		//PrintFastA();
+//		PrintFastA();
 	}
 	else
 		delete e;
@@ -1045,6 +939,8 @@ void MProfile::Process(istream& inHits, progress& inProgress)
 	
 	if (VERBOSE)
 		PrintFastA();
+
+	for_each(m_entries.begin(), m_entries.end(), [&](MHit* e) { e->Update(m_seq); });
 
 	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_score > b->m_score;
