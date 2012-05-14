@@ -496,6 +496,7 @@ struct MResInfo
 	float			m_score[23];
 
 	void			Add(uint8 r, float inDistance);
+	static MResInfo	NewGap(uint32 inDel, float inSumDistance);
 };
 
 typedef vector<MResInfo> MResInfoList;
@@ -522,6 +523,16 @@ void MResInfo::Add(uint8 r, float inDistance)
 	}
 }
 
+MResInfo MResInfo::NewGap(uint32 inDel, float inSumDistance)
+{
+	MResInfo r = {};
+	
+	r.m_del = inDel;
+	r.m_sum_dist_weight = inSumDistance;
+	
+	return r;
+}
+
 // --------------------------------------------------------------------
 
 struct MProfile
@@ -542,11 +553,12 @@ struct MProfile
 	MResInfoList	m_residues;
 	vector<MHit*>	m_entries;
 	float			m_threshold, m_frag_cutoff;
+	float			m_sum_dist_weight;
 };
 
 MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inThreshold, float inFragmentCutOff)
 	: m_chain(inChain), m_seq(inSequence)
-	, m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff)
+	, m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff), m_sum_dist_weight(0)
 {
 	const vector<MResidue*>& residues = m_chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
@@ -852,8 +864,12 @@ void MProfile::Align(MHit* e)
 	
 	if (m_seq.length() * m_frag_cutoff < length and not drop(ident, length, m_threshold))
 	{
-#if CUT
+		// Add the hit since it is within the required parameters.
+		// Calculate the new distance
 		e->m_distance = 1 - float(ident) / length;
+		m_sum_dist_weight += e->m_distance;
+
+#if CUT
 		e->Update(tb, m_seq, highX, highY, B);
 		m_entries.push_back(e);
 		for (uint32 i = 0; i < m_seq.length(); ++i)
@@ -891,10 +907,6 @@ void MProfile::Align(MHit* e)
 			}
 		}
 #else
-		// Add the hit since it is within the required parameters.
-		// Calculate the new distance
-		e->m_distance = 1 - float(ident) / length;
-
 		// reserve space, if needed
 		if (xgaps > 0)
 		{
@@ -909,8 +921,6 @@ void MProfile::Align(MHit* e)
 		y = highY;	e->m_jlas = y + 1;
 		bool gap = false;
 		e->m_aligned = string(m_seq.length() + xgaps, ' ');
-		
-		const static MResInfo rgap = {};
 		
 		while (x >= 0 and y >= 0 and B(x, y) > 0)
 		{
@@ -929,9 +939,7 @@ void MProfile::Align(MHit* e)
 					++e->m_gapn;
 					gap = true;
 					
-					m_residues.insert(m_residues.begin() + x + 1, rgap);
-					m_residues[x + 1].m_del = m_entries.size() + 1;
-//					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
+					m_residues.insert(m_residues.begin() + x + 1, MResInfo::NewGap(m_entries.size() + 1, m_sum_dist_weight));
 					m_seq.insert(m_seq.begin() + x + 1, '-');
 					
 					foreach (MHit* e, m_entries)
@@ -951,8 +959,6 @@ void MProfile::Align(MHit* e)
 					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					m_residues[x].Add(e->m_seq[y], e->m_distance);
 
-					if (gap)
-						e->m_aligned[x + xgaps] |= 040;
 					gap = false;
 
 					if (m_seq[x] == e->m_seq[y])
