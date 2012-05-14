@@ -821,16 +821,25 @@ void align(
 				{
 					tb(x, y) = 0;
 					B(x, y) = s = M;
+
+					Ix(x, y) = M - (x < dimX - 1 ? gop_a[x] : 0);
+					Iy(x, y) = M - (y < dimY - 1 ? gop_b[y] : 0);
 				}
 				else if (Ix1 >= Iy1)
 				{
 					tb(x, y) = 1;
 					B(x, y) = s = Ix1;
+
+					Ix(x, y) = Ix1 - gep_a[x];
+					Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
 				}
 				else
 				{
 					tb(x, y) = -1;
 					B(x, y) = s = Iy1;
+
+					Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
+					Iy(x, y) = Iy1 - gep_b[y];
 				}
 				
 				if ((x == endX - 1 or y == endY - 1) and high <= s)
@@ -839,9 +848,6 @@ void align(
 					highX = x;
 					highY = y;
 				}
-				
-				Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
-				Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
 			}
 		}
 
