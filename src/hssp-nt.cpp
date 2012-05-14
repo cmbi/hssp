@@ -694,9 +694,9 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 		}
 	}
 
-#if 0 // not defined(NDEBUG)
+#if not defined(NDEBUG)
 
-if (m_entries.size() == 16) {
+if (e->m_id == "Q9I971_SERCA") {
 ofstream log("alignment.log");
 if (not log.is_open()) throw mas_exception("open log");
 
