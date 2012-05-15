@@ -158,23 +158,23 @@ inline T score(const T inMatrix[], uint8 inAA1, uint8 inAA2)
 	return result;	
 }
 
+bool is_gap(char aa)
+{
+	return aa == ' ' or aa == '.' or aa == '-';
+}
+
 sequence encode(const string& s)
 {
 	sequence result(s.length(), 0);
-	transform(s.begin(), s.end(), result.begin(), [](char aa) -> uint8 { return aa == '-' ? '-' : ResidueNr(aa); });
+	transform(s.begin(), s.end(), result.begin(), [](char aa) -> uint8 { return is_gap(aa) ? '-' : ResidueNr(aa); });
 	return result;
 }
 
 string decode(const sequence& s)
 {
 	string result(s.length(), 0);
-	transform(s.begin(), s.end(), result.begin(), [](uint8 r) -> char { return r == '-' ? '-' : kResidues[r]; });
+	transform(s.begin(), s.end(), result.begin(), [](uint8 r) -> char { return is_gap(r) ? '.' : kResidues[r]; });
 	return result;
-}
-
-bool is_gap(char aa)
-{
-	return aa == ' ' or aa == '.' or aa == '-';
 }
 
 bool is_hydrophilic(char aa)
@@ -295,8 +295,8 @@ struct MHit
 							const string& seq, const sequence& chain);
 
 	void				Update(const sequence& inChain);
-
-	string				m_id, m_acc, m_def;
+	
+	string				m_id, m_acc, m_def, m_stid;
 	sequence			m_seq;
 	string				m_aligned;
 	float				m_distance, m_score;
@@ -337,65 +337,68 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq, const
 			result->m_id = m[4];
 		}
 		else
-			result->m_id = m[2];
+			result->m_id = result->m_acc = m[2];
 	}
+	else
+		result->m_acc = result->m_id;
 	
-	result->m_aligned = string(chain.length(), ' ');
 	result->m_distance = calculateDistance(result->m_seq, chain);
 	return result;
 }
 
 void MHit::Update(const sequence& inChain)
 {
-	assert(inChain.length() == m_aligned.length());
+//	assert(inChain.length() == m_aligned.length());
+//	
+//	bool gap = false;
+//
+//	uint32 x = 0;
+//	while (is_gap(m_aligned[x]))
+//		++x;
+//	uint32 lx = x;
+//	
+//	insertion ins;
+//	ins.m_ipos = m_ifir;
+//	ins.m_jpos = m_jfir;
+//	
+//	for ( ; x < m_aligned.length(); ++x)
+//	{
+//		bool igap = is_gap(inChain[x]);
+//		bool jgap = is_gap(m_aligned[x]);
+//		
+//		if (not igap)
+//			++ins.m_ipos;
+//
+//		if (not jgap)
+//			++ins.m_jpos;
+//
+//		if (igap and jgap)
+//			continue;
+//		
+//		if (igap)
+//		{
+//			if (not gap)
+//			{
+//				m_aligned[lx] |= 040;
+//				m_insertions.push_back(ins);
+//				m_insertions.back().m_seq += m_aligned[lx];
+//			}
+//			gap = true;
+//			m_insertions.back().m_seq += m_aligned[x];
+//		}
+//		else if (not jgap)
+//		{
+//			lx = x;
+//			if (gap)
+//			{
+//				m_aligned[x] |= 040;
+//				m_insertions.back().m_seq += m_aligned[x];
+//				gap = false;
+//			}
+//		}
+//	}
 	
-	bool gap = false;
-
-	uint32 x = 0;
-	while (is_gap(m_aligned[x]))
-		++x;
-	uint32 lx = x;
-	
-	insertion ins;
-	ins.m_ipos = m_ifir;
-	ins.m_jpos = m_jfir;
-	
-	for ( ; x < m_aligned.length(); ++x)
-	{
-		bool igap = is_gap(inChain[x]);
-		bool jgap = is_gap(m_aligned[x]);
-		
-		if (not igap)
-			++ins.m_ipos;
-
-		if (not jgap)
-			++ins.m_jpos;
-
-		if (igap and jgap)
-			continue;
-		
-		if (igap)
-		{
-			if (not gap)
-			{
-				m_aligned[lx] |= 040;
-				m_insertions.push_back(ins);
-				m_insertions.back().m_seq += m_aligned[lx];
-			}
-			gap = true;
-			m_insertions.back().m_seq += m_aligned[x];
-		}
-		else if (not jgap)
-		{
-			lx = x;
-			if (gap)
-			{
-				m_aligned[x] |= 040;
-				m_insertions.back().m_seq += m_aligned[x];
-				gap = false;
-			}
-		}
-	}
+	m_stid = (boost::format("%s/%d-%d") % m_acc % m_jfir % m_jlas).str();
 }
 
 // --------------------------------------------------------------------
@@ -416,6 +419,8 @@ struct MResInfo
 	float			m_sum_dist_weight;
 	uint32			m_ins, m_del;
 	float			m_score[23];
+	float			m_freq[20];
+	float			m_entropy;
 
 	void			Add(uint8 r, float inDistance);
 	static MResInfo	NewGap(uint32 inDel, float inSumDistance);
@@ -439,7 +444,7 @@ void MResInfo::Add(uint8 r, float inDistance)
 		float si = 0;
 		
 		for (int j = 0; j < 23; ++j)
-			si += float(score(kMPam250, i, j)) * m_dist_weight[j];
+			si += score(kMPam250, i, j) * m_dist_weight[j];
 		
 		m_score[i] = si / m_sum_dist_weight;
 	}
@@ -449,7 +454,7 @@ MResInfo MResInfo::NewGap(uint32 inDel, float inSumDistance)
 {
 	MResInfo r = {};
 	
-	r.m_del = r.m_dist[22] = inDel;
+	r.m_dist[22] = inDel;
 	r.m_sum_dist_weight = r.m_dist_weight[22] = inSumDistance;
 	
 	return r;
@@ -469,6 +474,8 @@ struct MProfile
 	void			dump(ostream& os, const matrix<int8>& tb, const sequence& s);
 
 	void			PrintFastA();
+	
+	void			PrintStockholm(ostream& os) const;
 
 	const MChain&	m_chain;
 	sequence		m_seq;
@@ -528,75 +535,27 @@ void MProfile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
 	}
 }
 
-const float kResidueSpecificPenalty[22] = {
-	1.13f,		// A
-	1.00f,		// B
-	1.13f,		// C
-	0.96f,		// D
-	1.31f,		// E
-	1.20f,		// F
-	0.61f,		// G
-	1.00f,		// H
-	1.32f,		// I
-	0.96f,		// K
-	1.21f,		// L
-	1.29f,		// M
-	0.63f,		// N
-	0.74f,		// P
-	1.07f,		// Q
-	0.72f,		// R
-	0.76f,		// S
-	0.89f,		// T
-	1.25f,		// V
-	1.23f,		// W
-	1.00f,		// Y
-	1.00f,		// Z
-};
-
 void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 {
 	assert(gop.size() == m_seq.length());
 	assert(gop.size() == m_residues.size());
 	
-	uint32 seqnr = 0;
+	uint32 seqnr = 1;
 
 	for (int32 ix = 0; ix < m_residues.size(); ++ix)
 	{
 		MResInfo& e = m_residues[ix];
-		float resSpecific = 1.0f;
 		
-		switch (e.m_ss)
+		// if there is a gap in the alignments, lower gap open penalty
+		if (e.m_del > 0 or e.m_ins > 0)
 		{
-			case alphahelix:
-			case helix_5:
-			case helix_3:
-				resSpecific = 1.25;
-				break;
-
-			case betabridge:
-			case strand:
-				resSpecific = 1.25;
-				break;
-
-			default:
-				resSpecific = kResidueSpecificPenalty[e.m_letter];
-				break;
-		}
-
-		// if there is a gap in the chain, the gap cost is nil
-		if (e.m_seq_nr > seqnr + 1)
-		{
-			gop[ix] = 0;
-		}
-
-		// if there is a gap in the alignments, lower gap open cost
-		else if (e.m_del > 0 or e.m_ins > 0)
-		{
-			gop[ix] *= 0.3f * ((1.0f + m_entries.size() - e.m_del - e.m_ins) / (m_entries.size() + 1));
+			float factor = float(e.m_del + e.m_ins) / (m_entries.size() + 1);
+			
+			gop[ix] *= 1 - factor / 3;
 			gep[ix] /= 2;
 		}
 		
-		// else if there is a gap within 8 residues, increase gap cost
+		// else if there is a gap within 8 residues, increase gap penalty
 		else
 		{
 			for (int32 d = 0; d < 8; ++d)
@@ -610,11 +569,9 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 					break;
 				}
 			}
-			
-			gop[ix] *= resSpecific;
 		}
 		
-		seqnr = e.m_seq_nr;
+		seqnr = e.m_seq_nr + 1;
 	}
 }
 
@@ -637,12 +594,12 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 	float logmin = 1.0f / log10(minLength);
 	float logdiff = 1.0f + 0.5f * log10(minLength / maxLength);
 	
-	// initial gap open cost, 0.05f is the remaining magical number here...
+	// initial gap open penalty, 0.05f is the remaining magical number here...
 	float magic = 1; //0.05f;
 	gop = (gop / (logdiff * logmin)) * abs(kMPam250MisMatchAverage) * kMPam250ScalingFactor * magic;
 
 	// position specific gap penalties
-	// initial gap extend cost is adjusted for difference in sequence lengths
+	// initial gap extend penalty is adjusted for difference in sequence lengths
 	vector<float> gop_a(dimX, gop), gep_a(dimX, gep /* * (1 + log10(float(dimX) / dimY))*/);
 	AdjustGapCosts(gop_a, gep_a);
 	
@@ -662,10 +619,6 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 			float M = m_residues[x].m_score[e->m_seq[y]];
 			if (x > 0 and y > 0)
 				M += B(x - 1, y - 1);
-
-//cerr << x << ',' << y << ' '
-//	 << kResidues[m_residues[x].m_letter] << kResidues[e->m_seq[y]] << ' '
-//	 << Ix1 << ',' << Iy1 << ',' << M << " => ";
 
 			float s;
 			if (M >= Ix1 and M >= Iy1)
@@ -699,14 +652,12 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 				highX = x;
 				highY = y;
 			}
-
-//cerr << Ix(x, y) << ',' << Iy(x, y) << ',' << B(x, y) << " => " << int(tb(x, y)) << endl;
 		}
 	}
 
 #if not defined(NDEBUG)
 
-if (e->m_id == "Q9I971_SERCA") {
+if (e->m_id == "Q8LSZ9_AVESA") {
 ofstream log("alignment.log");
 if (not log.is_open()) throw mas_exception("open log");
 
@@ -762,7 +713,6 @@ for (int y = 0; y < dimY; ++y)
 
 #endif
 
-
 	// build the alignment
 	x = highX;
 	y = highY;
@@ -790,7 +740,7 @@ for (int y = 0; y < dimY; ++y)
 			case 0:
 				if (e->m_seq[y] == m_seq[x])
 				{
-					if (m_seq[x] == '-')
+					if (m_seq[x] == '.')
 						--length;
 					else
 						++ident;
@@ -824,8 +774,13 @@ for (int y = 0; y < dimY; ++y)
 		// update insert/delete counters for the residues
 		x = highX;	e->m_ilas = x + 1;
 		y = highY;	e->m_jlas = y + 1;
-		bool gap = false;
-		e->m_aligned = string(m_seq.length() + xgaps, ' ');
+		bool xgap = false, ygap = false;
+		e->m_aligned = string(m_seq.length() + xgaps, '.');
+		
+		e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
+		e->m_similar = 1;
+		if (m_seq[x] == e->m_seq[y])
+			e->m_identical = 1;
 		
 		while (x >= 0 and y >= 0 and B(x, y) > 0)
 		{
@@ -834,62 +789,85 @@ for (int y = 0; y < dimY; ++y)
 			switch (tb(x, y))
 			{
 				case -1:
-					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
-
-					if (not gap)
-					{
-						++m_residues[x].m_ins;
+					if (not xgap)
 						++e->m_gaps;
-					}					
 					++e->m_gapn;
-					gap = true;
+					xgap = true;
 					
 					m_residues.insert(m_residues.begin() + x + 1, MResInfo::NewGap(m_entries.size() + 1, m_sum_dist_weight));
 					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
-					m_seq.insert(m_seq.begin() + x + 1, '-');
+					m_seq.insert(m_seq.begin() + x + 1, '.');
 					
 					foreach (MHit* e, m_entries)
-						e->m_aligned.insert(e->m_aligned.begin() + x + 1, '-');
+						e->m_aligned.insert(e->m_aligned.begin() + x + 1, '.');
 					
 					--y;
 					--xgaps;
+					
+					assert(x + xgaps >= 0);
+
+					if (x >= 0 and y >= 0 and B(x, y) > 0)
+						e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					break;
 	
 				case 1:
-					e->m_aligned[x + xgaps] = '-';
-					++m_residues[x + 1].m_del;
+					ygap = true;
 					--x;
+					if (x >= 0 and B(x, y) > 0)
+						e->m_aligned[x + xgaps] = '.';
 					break;
 	
 				case 0:
-					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					m_residues[x].Add(e->m_seq[y], e->m_distance);
+					if (xgap)
+					{
+						int32 z = x + 1;
+						while (z > 0 and is_gap(m_seq[z]))
+							--z;
+						++m_residues[z].m_ins;
 
-					gap = false;
+						xgap = false;
+					}
 
-					if (m_seq[x] == e->m_seq[y])
-						++e->m_identical, ++e->m_similar;
-					else if (score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
-						++e->m_similar;
+					if (ygap)
+					{
+						int32 z = x + 1;
+						while (z > 0 and is_gap(m_seq[z]))
+							--z;
+						++m_residues[z].m_del;
+
+						ygap = false;
+					}
 
 					--x;
 					--y;
+
+					if (x >= 0 and y >= 0 and B(x, y) > 0)
+					{
+						e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
+
+						if (m_seq[x] == e->m_seq[y])
+							++e->m_identical, ++e->m_similar;
+						else if (score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
+							++e->m_similar;
+					}
 					break;
 			}
 		}
 
 		// update the new entry
-		assert(gap == false);
+		assert(xgap == false and ygap == false);
 		e->m_ifir = x + 2;
 		e->m_jfir = y + 2;
 		
 		e->m_score = float(e->m_identical) / e->m_length;
+		e->m_stid = (boost::format("%s/%d-%d") % e->m_acc % e->m_jfir % e->m_jlas).str();
 
 //		e->Update(m_seq);
 
 		m_entries.push_back(e);
 
-//		PrintFastA();
+		PrintFastA();
 	}
 	else
 		delete e;
@@ -906,6 +884,84 @@ void MProfile::PrintFastA()
 	
 	foreach (MHit* e, m_entries)
 		cout << *e;
+}
+
+char map_value_to_char(uint32 v)
+{
+	char result = '0';
+	if (v < 10)
+		result += v;
+	else
+		result = '+';
+	return result;
+}
+
+void MProfile::PrintStockholm(ostream& os) const
+{
+	// write out the profile in Stockholm 1.0 format
+	
+	string chain_id = (boost::format("CHAIN/%c") % m_chain.GetChainID()).str();
+	
+	os << "# STOCKHOLM 1.0" << endl
+	   << "#=GF ID " << chain_id << endl
+	   << "#=GF NO SEQLENGTH " << m_chain.GetResidues().size() << endl
+	   << "#=GF NO NALIGN " << m_entries.size() << endl
+	   << "#=GS " << chain_id << " ID " << m_chain.GetChainID() << endl;
+//	   << "#=GF NO " << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
+
+	uint32 tl = chain_id.length();
+	if (tl < 14)
+		tl = 14;
+
+	foreach (const MHit* e, m_entries)
+	{
+		os << "#=GS " << e->m_stid << " ID " << e->m_id << endl
+		   << "#=GS " << e->m_stid << " DE " << e->m_def << endl;
+		
+		if (tl < e->m_stid.length())
+			tl = e->m_stid.length();
+	}
+
+	uint32 o = 0;
+	while (o < m_seq.length())
+	{
+		uint32 n = 72;
+		if (o + n > m_seq.length())
+			n = m_seq.length() - o;
+		
+		os << chain_id << string(tl - chain_id.length() + 1, ' ') << decode(m_seq.substr(o, n)) << endl;
+		
+		string ss(n, 'C'), ins(n, '0'), del(n, '0'), ent(n, '0'), var(n, '0');
+		for (uint32 i = o; i < o + n; ++i)
+		{
+			switch (m_residues[i].m_ss)
+			{
+				case alphahelix:	ss[i - o] = 'H'; break;
+				case betabridge:	ss[i - o] = 'B'; break;
+				case strand:		ss[i - o] = 'E'; break;
+				case helix_3:		ss[i - o] = 'G'; break;
+				case helix_5:		ss[i - o] = 'I'; break;
+				case turn:			ss[i - o] = 'T'; break;
+				case bend:			ss[i - o] = 'S'; break;
+			}
+			
+			ent[i - o] = map_value_to_char(10 * m_residues[i].m_entropy / log(20.0));
+			var[i - o] = map_value_to_char(10 * (1 - m_residues[i].m_consweight));
+		}
+		
+		os << "#=GC SS      " << string(tl - 13 + 1, ' ') << ss << endl
+		   << "#=GC Entropy " << string(tl - 13 + 1, ' ') << ent << endl
+		   << "#=GC Var     " << string(tl - 13 + 1, ' ') << var << endl;
+		
+		foreach (const MHit* e, m_entries)
+		{
+			os << e->m_stid << string(tl - e->m_stid.length() + 1, ' ') << e->m_aligned.substr(o, n) << endl;
+		}
+		
+		o += n;
+	}
+	
+	os << "//" << endl;
 }
 
 // --------------------------------------------------------------------
@@ -950,7 +1006,7 @@ void MProfile::Process(istream& inHits, progress& inProgress, float inGapOpen, f
 	if (VERBOSE)
 		PrintFastA();
 
-	for_each(m_entries.begin(), m_entries.end(), [&](MHit* e) { e->Update(m_seq); });
+//	for_each(m_entries.begin(), m_entries.end(), [&](MHit* e) { e->Update(m_seq); });
 
 	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_score > b->m_score;
@@ -1150,23 +1206,11 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 
 		os << boost::format("%5.5d%5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
 
-		double entropy = 0;
-
-		static const int8 kResIx[] = {
-			//	V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D
-			   18, 10,  8, 11,  5, 19, 20,  6,  0, 13, 16, 17,  2,  7, 15,  9, 14,  4, 12,  3
-		};
-
 		for (uint32 i = 0; i < 20; ++i)
-		{
-			double freq = double(ri.m_dist[kResIx[i]]) / ri.m_nocc;
-			os << boost::format("%4.4d") % uint32(100.0 * freq + 0.5);
-			if (freq > 0)
-				entropy -= freq * log(freq);
-		}
+			boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
 
-		uint32 relent = uint32(100 * entropy / log(20.0));
-		os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % ri.m_nocc % ri.m_del % ri.m_ins % entropy % relent % ri.m_consweight << endl;
+		uint32 relent = uint32(100 * ri.m_entropy / log(20.0));
+		os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight << endl;
 		
 		nextNr = ri.m_seq_nr + 1;
 	}
@@ -1318,10 +1362,26 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 
 	for (uint32 i = 0; i < inChain.length(); ++i)
 	{
+		MResInfo& ri = inResidues[i];
+		
 		if (sumdist[i] > 0)
-			inResidues[i].m_consweight = sumvar[i] / sumdist[i];
+			ri.m_consweight = sumvar[i] / sumdist[i];
 		else
-			inResidues[i].m_consweight = 1;
+			ri.m_consweight = 1;
+
+		ri.m_entropy = 0;
+
+		static const int8 kResIx[] = {
+			//	V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D
+			   18, 10,  8, 11,  5, 19, 20,  6,  0, 13, 16, 17,  2,  7, 15,  9, 14,  4, 12,  3
+		};
+
+		for (uint32 i = 0; i < 20; ++i)
+		{
+			ri.m_freq[i] = float(ri.m_dist[kResIx[i]]) / ri.m_nocc;
+			if (ri.m_freq[i] > 0)
+				ri.m_entropy -= ri.m_freq[i] * log(ri.m_freq[i]);
+		}
 	}
 
 	if (VERBOSE)
@@ -1391,18 +1451,19 @@ void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
 		profiles.push_back(profile.release());
 	}
 	
-	stringstream desc;
-	if (inProtein.GetHeader().length() >= 50)
-		desc << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl;
-	if (inProtein.GetCompound().length() > 10)
-		desc << "COMPND     " + inProtein.GetCompound().substr(10) << endl;
-	if (inProtein.GetSource().length() > 10)
-		desc << "SOURCE     " + inProtein.GetSource().substr(10) << endl;
-	if (inProtein.GetAuthor().length() > 10)
-		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
-	
-	CreateHSSPOutput(inProtein.GetID(), desc.str(), inThreshold, inFragmentCutOff, seqlength, chains.size(), ix.size(), used,
-		profiles.back()->m_entries, profiles.back()->m_residues, inOs);
+//	stringstream desc;
+//	if (inProtein.GetHeader().length() >= 50)
+//		desc << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl;
+//	if (inProtein.GetCompound().length() > 10)
+//		desc << "COMPND     " + inProtein.GetCompound().substr(10) << endl;
+//	if (inProtein.GetSource().length() > 10)
+//		desc << "SOURCE     " + inProtein.GetSource().substr(10) << endl;
+//	if (inProtein.GetAuthor().length() > 10)
+//		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
+//	
+//	CreateHSSPOutput(inProtein.GetID(), desc.str(), inThreshold, inFragmentCutOff, seqlength, chains.size(), ix.size(), used,
+//		profiles.back()->m_entries, profiles.back()->m_residues, inOs);
+	profiles.back()->PrintStockholm(inOs);
 }
 
 }
@@ -1436,13 +1497,14 @@ int main(int argc, char* argv[])
 			("databank,d",	po::value<vector<string>>(),
 												 "Databank(s) to use")
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
-			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 30.0)")
-			("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
+			("use-seqres",	po::value<bool>(),	 "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
 			("min-length",	po::value<uint32>(), "Minimal chain length")
-			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
-			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
 			("fragment-cutoff",
 							po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
+			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 30.0)")
+			("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
+			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
+			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 			("verbose,v",						 "Verbose output")
 			;
 	
@@ -1454,9 +1516,9 @@ int main(int argc, char* argv[])
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 
 		fs::path home = get_home();
-		if (fs::exists(home / ".hssprc"))
+		if (fs::exists(home / ".mkhssprc"))
 		{
-			fs::ifstream rc(home / ".hssprc");
+			fs::ifstream rc(home / ".mkhssprc");
 			po::store(po::parse_config_file(rc, desc), vm);
 		}
 
@@ -1471,7 +1533,11 @@ int main(int argc, char* argv[])
 		VERBOSE = vm.count("verbose") > 0;
 		
 		vector<string> databanks(vm["databank"].as<vector<string>>());
-			
+		
+		bool useSeqRes = true;
+		if (vm.count("use-seqres"))
+			useSeqRes = vm["use-seqres"].as<bool>();
+		
 		uint32 minlength = 25;
 		if (vm.count("min-length"))
 			minlength= vm["min-length"].as<uint32>();
