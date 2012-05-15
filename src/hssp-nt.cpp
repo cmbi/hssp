@@ -557,6 +557,8 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 {
 	assert(gop.size() == m_seq.length());
 	assert(gop.size() == m_residues.size());
+	
+	uint32 seqnr = 0;
 
 	for (int32 ix = 0; ix < m_residues.size(); ++ix)
 	{
@@ -581,8 +583,14 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 				break;
 		}
 
-		// if there is a gap, lower gap open cost
-		if (e.m_del > 0 or e.m_ins > 0)
+		// if there is a gap in the chain, the gap cost is nil
+		if (e.m_seq_nr > seqnr + 1)
+		{
+			gop[ix] = 0;
+		}
+
+		// if there is a gap in the alignments, lower gap open cost
+		else if (e.m_del > 0 or e.m_ins > 0)
 		{
 			gop[ix] *= 0.3f * ((1.0f + m_entries.size() - e.m_del - e.m_ins) / (m_entries.size() + 1));
 			gep[ix] /= 2;
@@ -605,6 +613,8 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 			
 			gop[ix] *= resSpecific;
 		}
+		
+		seqnr = e.m_seq_nr;
 	}
 }
 
