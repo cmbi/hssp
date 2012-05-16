@@ -277,6 +277,71 @@ float calculateDistance(const sequence& a, const sequence& b)
 
 // --------------------------------------------------------------------
 
+struct MResInfo
+{
+	uint8			m_letter;
+	uint8			m_chain_id;
+	uint32			m_seq_nr;
+	uint32			m_pdb_nr;
+	MSecondaryStructure
+					m_ss;
+	string			m_dssp;
+	float			m_consweight;
+	uint32			m_nocc;
+	uint32			m_dist[23];
+	float			m_dist_weight[23];
+	float			m_sum_dist_weight;
+	uint32			m_ins, m_del;
+	float			m_score[23];
+	float			m_freq[20];
+	float			m_entropy;
+
+	void			Add(uint8 r, float inDistance);
+	static MResInfo	NewGap(uint32 inDel, float inSumDistance);
+	void			AddGap(float inDistance);
+};
+
+typedef vector<MResInfo> MResInfoList;
+
+void MResInfo::Add(uint8 r, float inDistance)
+{
+	float weight = 1 - inDistance;
+	
+	assert(r < 23);
+	m_nocc += 1;
+	m_dist[r] += 1;
+	
+	m_dist_weight[r] += weight;
+	m_sum_dist_weight += weight;
+	
+	for (int i = 0; i < 23; ++i)
+	{
+		float si = 0;
+		
+		for (int j = 0; j < 23; ++j)
+			si += score(kMPam250, i, j) * m_dist_weight[j];
+		
+		m_score[i] = si / m_sum_dist_weight;
+	}
+}
+
+void MResInfo::AddGap(float inDistance)
+{
+	Add(22, inDistance);
+}
+
+MResInfo MResInfo::NewGap(uint32 inDel, float inSumDistance)
+{
+	MResInfo r = {};
+	
+	r.m_dist[22] = inDel;
+	r.m_sum_dist_weight = r.m_dist_weight[22] = inSumDistance;
+	
+	return r;
+}
+
+// --------------------------------------------------------------------
+
 struct MHit
 {
 	MHit(const MHit& e);
@@ -294,7 +359,7 @@ struct MHit
 	static MHit*		Create(const string& id, const string& def,
 							const string& seq, const sequence& chain);
 
-	void				Update(const sequence& inChain);
+	void				Update(const sequence& inChain, MResInfoList& inResidues);
 	
 	string				m_id, m_acc, m_def, m_stid;
 	sequence			m_seq;
@@ -346,118 +411,81 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq, const
 	return result;
 }
 
-void MHit::Update(const sequence& inChain)
+void MHit::Update(const sequence& inChain, MResInfoList& inResidues)
 {
-//	assert(inChain.length() == m_aligned.length());
-//	
-//	bool gap = false;
-//
-//	uint32 x = 0;
-//	while (is_gap(m_aligned[x]))
-//		++x;
-//	uint32 lx = x;
-//	
-//	insertion ins;
-//	ins.m_ipos = m_ifir;
-//	ins.m_jpos = m_jfir;
-//	
-//	for ( ; x < m_aligned.length(); ++x)
-//	{
-//		bool igap = is_gap(inChain[x]);
-//		bool jgap = is_gap(m_aligned[x]);
-//		
-//		if (not igap)
-//			++ins.m_ipos;
-//
-//		if (not jgap)
-//			++ins.m_jpos;
-//
-//		if (igap and jgap)
-//			continue;
-//		
-//		if (igap)
-//		{
-//			if (not gap)
-//			{
-//				m_aligned[lx] |= 040;
-//				m_insertions.push_back(ins);
-//				m_insertions.back().m_seq += m_aligned[lx];
-//			}
-//			gap = true;
-//			m_insertions.back().m_seq += m_aligned[x];
-//		}
-//		else if (not jgap)
-//		{
-//			lx = x;
-//			if (gap)
-//			{
-//				m_aligned[x] |= 040;
-//				m_insertions.back().m_seq += m_aligned[x];
-//				gap = false;
-//			}
-//		}
-//	}
+	assert(inChain.length() == m_aligned.length());
+	
+	bool gappedi = false, gappedj = false;
+
+	uint32 x = 0;
+	while (is_gap(m_aligned[x]) or is_gap(inChain[x]))
+		++x;
+	uint32 lx = x;
+	
+	insertion ins;
+	ins.m_ipos = m_ifir;
+	ins.m_jpos = m_jfir;
+
+	uint32 len = m_length;
+	
+	for ( ; x < m_aligned.length(); ++x)
+	{
+		bool igap = is_gap(inChain[x]);
+		bool jgap = is_gap(m_aligned[x]);
+		
+		if (not igap)
+			++ins.m_ipos;
+
+		if (not jgap)
+			++ins.m_jpos;
+
+		if (igap and jgap)
+			continue;
+		
+		if (--len == 0)
+			break;
+		
+		if (igap)
+		{
+			if (not gappedi)
+			{
+				inResidues[lx].m_ins += 1;
+				
+				m_aligned[lx] |= 040;
+				m_insertions.push_back(ins);
+				m_insertions.back().m_seq += m_aligned[lx];
+			}
+
+			gappedi = true;
+			gappedj = false;
+			m_insertions.back().m_seq += m_aligned[x];
+		}
+		else if (jgap)
+		{
+			if (not gappedj)
+			{
+				m_gaps += 1;
+				inResidues[lx].m_del += 1;
+			}
+
+			m_gapn += 1;
+			
+			gappedj = true;
+		}
+		else
+		{
+			lx = x;
+			if (gappedi)
+			{
+				m_aligned[x] |= 040;
+				m_insertions.back().m_seq += m_aligned[x];
+				gappedi = false;
+			}
+			gappedj = false;
+		}
+	}
 	
 	m_stid = (boost::format("%s/%d-%d") % m_acc % m_jfir % m_jlas).str();
-}
-
-// --------------------------------------------------------------------
-
-struct MResInfo
-{
-	uint8			m_letter;
-	uint8			m_chain_id;
-	uint32			m_seq_nr;
-	uint32			m_pdb_nr;
-	MSecondaryStructure
-					m_ss;
-	string			m_dssp;
-	float			m_consweight;
-	uint32			m_nocc;
-	uint32			m_dist[23];
-	float			m_dist_weight[23];
-	float			m_sum_dist_weight;
-	uint32			m_ins, m_del;
-	float			m_score[23];
-	float			m_freq[20];
-	float			m_entropy;
-
-	void			Add(uint8 r, float inDistance);
-	static MResInfo	NewGap(uint32 inDel, float inSumDistance);
-};
-
-typedef vector<MResInfo> MResInfoList;
-
-void MResInfo::Add(uint8 r, float inDistance)
-{
-	float weight = 1 - inDistance;
-	
-	assert(r < 23);
-	m_nocc += 1;
-	m_dist[r] += 1;
-	
-	m_dist_weight[r] += weight;
-	m_sum_dist_weight += weight;
-	
-	for (int i = 0; i < 23; ++i)
-	{
-		float si = 0;
-		
-		for (int j = 0; j < 23; ++j)
-			si += score(kMPam250, i, j) * m_dist_weight[j];
-		
-		m_score[i] = si / m_sum_dist_weight;
-	}
-}
-
-MResInfo MResInfo::NewGap(uint32 inDel, float inSumDistance)
-{
-	MResInfo r = {};
-	
-	r.m_dist[22] = inDel;
-	r.m_sum_dist_weight = r.m_dist_weight[22] = inSumDistance;
-	
-	return r;
 }
 
 // --------------------------------------------------------------------
@@ -469,7 +497,9 @@ struct MProfile
 
 	void			Process(istream& inHits, progress& inProgress, float inGapOpen, float inGapExtend);
 	void			Align(MHit* e, float inGapOpen, float inGapExtend);
-	void			AdjustGapCosts(vector<float>& gop, vector<float>& gep);
+
+	void			AdjustXGapCosts(vector<float>& gop, vector<float>& gep);
+	void			AdjustYGapCosts(const sequence& s, vector<float>& gop, vector<float>& gep);
 
 	void			dump(const matrix<float>& B, const matrix<float>& Ix, const matrix<float>& Iy,
 						const matrix<int8>& tb, const vector<float>& gopX, const vector<float>& gopY,
@@ -514,30 +544,6 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inTh
 	}
 }
 
-//void MProfile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
-//{
-//	os << ' ';
-//	foreach (auto& e, m_residues)
-//		os << kResidues[e.m_letter];
-//	os << endl;
-//
-//	for (uint32 y = 0; y < s.length(); ++y)
-//	{
-//		os << kResidues[s[y]];
-//		for (uint32 x = 0; x < m_residues.size(); ++x)
-//		{
-//			switch (tb(x, y))
-//			{
-//				case -1:	os << '|'; break;
-//				case 0:		os << '\\'; break;
-//				case 1:		os << '-'; break;
-//				case 2:		os << '.'; break;
-//			}
-//		}
-//		os << endl;
-//	}
-//}
-
 void MProfile::dump(const matrix<float>& B, const matrix<float>& Ix, const matrix<float>& Iy,
 	const matrix<int8>& tb, const vector<float>& gopX, const vector<float>& gopY,
 	const vector<float>& gepX, const vector<float>& gepY, const sequence& sx, const sequence& sy)
@@ -576,29 +582,40 @@ void MProfile::dump(const matrix<float>& B, const matrix<float>& Ix, const matri
 	}
 }
 
-void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
+void MProfile::AdjustXGapCosts(vector<float>& gop, vector<float>& gep)
 {
 	assert(gop.size() == m_seq.length());
 	assert(gop.size() == m_residues.size());
 	
-	uint32 seqnr = 1;
-
 	for (int32 ix = 0; ix < m_residues.size(); ++ix)
 	{
 		MResInfo& e = m_residues[ix];
 		
-		// if there is a gap in the alignments, lower gap open penalty
+		// if there is a gap in the alignments, lower gap penalties
 		if (e.m_del > 0 or e.m_ins > 0)
 		{
 			float factor = float(e.m_del + e.m_ins) / (m_entries.size() + 1);
 			
-			gop[ix] *= 1 - factor / 3;
-			gep[ix] /= 2;
+			gop[ix] *= 1 - factor / 2;
+			gep[ix] *= 1 - factor;
 		}
 		
 		// else if there is a gap within 8 residues, increase gap penalty
 		else
 		{
+			// adjust for secondary structure
+			switch (e.m_ss)
+			{
+				case alphahelix:	gop[ix] *= 3; break;
+				case betabridge:	gop[ix] *= 3; break;
+				case strand:		break;
+				case helix_3:		gop[ix] *= 4; break;
+				case helix_5:		gop[ix] *= 3; break;
+				case turn:			gop[ix] *= 2; break;
+				case bend:			break;
+				case loop:			break;
+			}
+
 			for (int32 d = 0; d < 8; ++d)
 			{
 				if (ix + d >= int32(m_residues.size()) or
@@ -611,8 +628,40 @@ void MProfile::AdjustGapCosts(vector<float>& gop, vector<float>& gep)
 				}
 			}
 		}
-		
-		seqnr = e.m_seq_nr + 1;
+	}
+}
+
+const float kResidueSpecificPenalty[22] = {
+	1.13f,		// A
+	1.00f,		// B
+	1.13f,		// C
+	0.96f,		// D
+	1.31f,		// E
+	1.20f,		// F
+	0.61f,		// G
+	1.00f,		// H
+	1.32f,		// I
+	0.96f,		// K
+	1.21f,		// L
+	1.29f,		// M
+	0.63f,		// N
+	0.74f,		// P
+	1.07f,		// Q
+	0.72f,		// R
+	0.76f,		// S
+	0.89f,		// T
+	1.25f,		// V
+	1.23f,		// W
+	1.00f,		// Y
+	1.00f,		// Z
+};
+
+void MProfile::AdjustYGapCosts(const sequence& s, vector<float>& gop, vector<float>& gep)
+{
+	for (uint32 y = 0; y < s.length(); ++y)
+	{
+		if (s[y] < 22)
+			gop[y] *= kResidueSpecificPenalty[s[y]];
 	}
 }
 
@@ -641,11 +690,11 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 
 	// position specific gap penalties
 	// initial gap extend penalty is adjusted for difference in sequence lengths
-	vector<float> gop_a(dimX, gop), gep_a(dimX, gep /* * (1 + log10(float(dimX) / dimY))*/);
-	AdjustGapCosts(gop_a, gep_a);
+	vector<float> gop_a(dimX, gop), gep_a(dimX, gep * (1 + log10(float(dimX) / dimY)));
+	AdjustXGapCosts(gop_a, gep_a);
 	
-	vector<float> gop_b(dimY, gop), gep_b(dimY, gep /* * (1 + log10(float(dimY) / dimX))*/);
-//	adjust_gp(gop_b, gep_b, b);
+	vector<float> gop_b(dimY, gop), gep_b(dimY, gep * (1 + log10(float(dimY) / dimX)));
+	AdjustYGapCosts(e->m_seq, gop_b, gep_b);
 
 	int32 highX = 0, highY = 0;
 	float highS = 0;
@@ -696,23 +745,20 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 		}
 	}
 
-#if not defined(NDEBUG)
+#if 0 //not NDEBUG
 
-bool write = false;
-//if (e->m_id == "D3ZK19_RAT")
-//{
-//	write = true;
-//	dump(B, Ix, Iy, tb, gop_a, gop_b, gep_a, gep_b, m_seq, e->m_seq);
-//}
+bool dmp = false;
+if (e->m_id == "Q7ZZX1_9PASE")
+{
+	dmp = true;
+	dump(B, Ix, Iy, tb, gop_a, gop_b, gep_a, gep_b, m_seq, e->m_seq);
+}
 
 #endif
 
 	// build the alignment
 	x = highX;
 	y = highY;
-
-//	if (VERBOSE >= 6)
-//		dump(cerr, tb, e->m_seq);
 
 	uint32 ident = 0, length = 0, xgaps = 0;
 
@@ -768,7 +814,6 @@ bool write = false;
 		// update insert/delete counters for the residues
 		x = highX;	e->m_ilas = x + 1;
 		y = highY;	e->m_jlas = y + 1;
-		bool xgap = false, ygap = false;
 		e->m_aligned = string(m_seq.length() + xgaps, '.');
 		
 		while (x >= 0 and y >= 0 and B(x, y) > 0)
@@ -780,11 +825,6 @@ bool write = false;
 				case -1:
 					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 
-					if (not xgap)
-						++e->m_gaps;
-					++e->m_gapn;
-					xgap = true;
-					
 					m_residues.insert(m_residues.begin() + x + 1, MResInfo::NewGap(m_entries.size() + 1, m_sum_dist_weight));
 					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
 					m_seq.insert(m_seq.begin() + x + 1, '.');
@@ -797,33 +837,14 @@ bool write = false;
 					break;
 	
 				case 1:
-					e->m_aligned[x + xgaps] = '-';
-					ygap = true;
+					e->m_aligned[x + xgaps] = '.';
+					m_residues[x].AddGap(e->m_distance);
 					--x;
 					break;
 	
 				case 0:
 					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					m_residues[x].Add(e->m_seq[y], e->m_distance);
-					if (xgap)
-					{
-						int32 z = x + 1;
-						while (z > 0 and is_gap(m_seq[z]))
-							--z;
-						++m_residues[z].m_ins;
-
-						xgap = false;
-					}
-
-					if (ygap)
-					{
-						int32 z = x + 1;
-						while (z > 0 and is_gap(m_seq[z]))
-							--z;
-						++m_residues[z].m_del;
-
-						ygap = false;
-					}
 
 					if (m_seq[x] == e->m_seq[y])
 						++e->m_identical, ++e->m_similar;
@@ -837,19 +858,18 @@ bool write = false;
 		}
 
 		// update the new entry
-		assert(xgap == false and ygap == false);
 		e->m_ifir = x + 2;
 		e->m_jfir = y + 2;
 		
 		e->m_score = float(e->m_identical) / e->m_length;
-		e->m_stid = (boost::format("%s/%d-%d") % e->m_acc % e->m_jfir % e->m_jlas).str();
+//		e->m_stid = (boost::format("%s/%d-%d") % e->m_acc % e->m_jfir % e->m_jlas).str();
 
-//		e->Update(m_seq);
+		e->Update(m_seq, m_residues);
 
 		m_entries.push_back(e);
 
-#if not defined(NDEBUG)
-		if (write)
+#if 0 //not defined(NDEBUG)
+		if (dmp)
 			PrintFastA();
 #endif
 	}
@@ -894,10 +914,10 @@ void MProfile::PrintStockholm(ostream& os) const
 //	   << "#=GF NO " << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
 
 	uint32 tl = chain_id.length();
-	if (tl < 14)
-		tl = 14;
+	if (tl < 17)
+		tl = 17;
 
-	boost::format fmt("#=GS %s HSSP score=%4.2f/%4.2f aligned=%d-%d/%d-%d length=%d ins=%d del=%d seqlen=%d");
+	boost::format fmt("#=GS %s HSSP score=%4.2f/%4.2f aligned=%d-%d/%d-%d length=%d ngaps=%d gaplen=%d seqlen=%d");
 
 	foreach (const MHit* e, m_entries)
 	{
@@ -945,9 +965,9 @@ void MProfile::PrintStockholm(ostream& os) const
 		foreach (const MHit* e, m_entries)
 			os << e->m_stid << string(tl - e->m_stid.length() + 1, ' ') << e->m_aligned.substr(o, n) << endl;
 		
-		os << "#=GC SS      " << string(tl - 13 + 1, ' ') << ss << endl
-		   << "#=GC Entropy " << string(tl - 13 + 1, ' ') << ent << endl
-		   << "#=GC Var     " << string(tl - 13 + 1, ' ') << var << endl
+		os << "#=GC SS          " << string(tl - 17 + 1, ' ') << ss << endl
+		   << "#=GC Entropy     " << string(tl - 17 + 1, ' ') << ent << endl
+		   << "#=GC Variability " << string(tl - 17 + 1, ' ') << var << endl
 		   << endl;
 		
 		o += n;
@@ -997,8 +1017,6 @@ void MProfile::Process(istream& inHits, progress& inProgress, float inGapOpen, f
 	
 	if (VERBOSE)
 		PrintFastA();
-
-//	for_each(m_entries.begin(), m_entries.end(), [&](MHit* e) { e->Update(m_seq); });
 
 	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_score > b->m_score;
@@ -1493,7 +1511,7 @@ int main(int argc, char* argv[])
 			("min-length",	po::value<uint32>(), "Minimal chain length")
 			("fragment-cutoff",
 							po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
-			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 30.0)")
+			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 10.0)")
 			("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
@@ -1615,11 +1633,11 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-#if defined(_MSC_VER) && ! NDEBUG
-	cerr << "Press any key to quit application ";
-	char ch = _getch();
-	cerr << endl;
-#endif
+//#if defined(_MSC_VER) && ! NDEBUG
+//	cerr << "Press any key to quit application ";
+//	char ch = _getch();
+//	cerr << endl;
+//#endif
 	
 	return 0;
 }

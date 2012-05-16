@@ -151,14 +151,14 @@ void progress::run()
 				}
 			}
 
-			cout << '\r' << msg << flush;
+			cerr << '\r' << msg << flush;
 			first = false;
 		}
 	}
 	catch (boost::thread_interrupted&)
 	{
 		if (not first)
-			cout << '\r' << m_msg << " done" << string(width - m_msg.length() - 5, ' ') << endl;
+			cerr << '\r' << m_msg << " done" << string(width - m_msg.length() - 5, ' ') << endl;
 	}
 }
 
