@@ -848,8 +848,10 @@ bool write = false;
 
 		m_entries.push_back(e);
 
+#if not defined(NDEBUG)
 		if (write)
 			PrintFastA();
+#endif
 	}
 	else
 		delete e;
