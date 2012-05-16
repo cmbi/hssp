@@ -471,7 +471,10 @@ struct MProfile
 	void			Align(MHit* e, float inGapOpen, float inGapExtend);
 	void			AdjustGapCosts(vector<float>& gop, vector<float>& gep);
 
-	void			dump(ostream& os, const matrix<int8>& tb, const sequence& s);
+	void			dump(const matrix<float>& B, const matrix<float>& Ix, const matrix<float>& Iy,
+						const matrix<int8>& tb, const vector<float>& gopX, const vector<float>& gopY,
+						const vector<float>& gepX, const vector<float>& gepY,
+						const sequence& sx, const sequence& sy);
 
 	void			PrintFastA();
 	
@@ -511,24 +514,62 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inTh
 	}
 }
 
-void MProfile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
-{
-	os << ' ';
-	foreach (auto& e, m_residues)
-		os << kResidues[e.m_letter];
-	os << endl;
+//void MProfile::dump(ostream& os, const matrix<int8>& tb, const sequence& s)
+//{
+//	os << ' ';
+//	foreach (auto& e, m_residues)
+//		os << kResidues[e.m_letter];
+//	os << endl;
+//
+//	for (uint32 y = 0; y < s.length(); ++y)
+//	{
+//		os << kResidues[s[y]];
+//		for (uint32 x = 0; x < m_residues.size(); ++x)
+//		{
+//			switch (tb(x, y))
+//			{
+//				case -1:	os << '|'; break;
+//				case 0:		os << '\\'; break;
+//				case 1:		os << '-'; break;
+//				case 2:		os << '.'; break;
+//			}
+//		}
+//		os << endl;
+//	}
+//}
 
-	for (uint32 y = 0; y < s.length(); ++y)
+void MProfile::dump(const matrix<float>& B, const matrix<float>& Ix, const matrix<float>& Iy,
+	const matrix<int8>& tb, const vector<float>& gopX, const vector<float>& gopY,
+	const vector<float>& gepX, const vector<float>& gepY, const sequence& sx, const sequence& sy)
+{
+	ofstream os("alignment.log");
+	os.imbue(locale(""));
+	
+	assert(sx.length() == m_residues.size());
+	assert(sx.length() == gopX.size());
+	assert(sx.length() == B.dim_m());
+	assert(gopY.size() == B.dim_n());
+	
+	for (uint32 x = 0; x < sx.length(); ++x)
+		os << '\t' << (is_gap(sx[x]) ? '.' : kResidues[sx[x]]) << '\t' << gopX[x];
+	os << endl;
+	
+	for (uint32 y = 0; y < sy.length(); ++y)
 	{
-		os << kResidues[s[y]];
+		os << kResidues[sy[y]];
+		for (uint32 x = 0; x < m_residues.size(); ++x)
+			os << '\t' << B(x, y) << '\t' << Iy(x, y);
+		os << endl
+		   << gopY[y];
+
 		for (uint32 x = 0; x < m_residues.size(); ++x)
 		{
 			switch (tb(x, y))
 			{
-				case -1:	os << '|'; break;
-				case 0:		os << '\\'; break;
-				case 1:		os << '-'; break;
-				case 2:		os << '.'; break;
+				case -1:	os << '\t' << Ix(x, y) << '\t' << "|"; break;
+				case  0:	os << '\t' << Ix(x, y) << '\t' << "\\"; break;
+				case  1:	os << '\t' << Ix(x, y) << '\t' << "-"; break;
+				case  2:	os << '\t' << Ix(x, y) << '\t' << "."; break;
 			}
 		}
 		os << endl;
@@ -657,59 +698,12 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 
 #if not defined(NDEBUG)
 
-if (e->m_id == "Q8LSZ9_AVESA") {
-ofstream log("alignment.log");
-if (not log.is_open()) throw mas_exception("open log");
-
-log << "B" << endl;
-for (int x = 0; x < dimX; ++x)
-	log << '\t' << kResidues[m_seq[x]];
-log << endl;
-
-for (int y = 0; y < dimY; ++y)
-{
-	log << kResidues[e->m_seq[y]] << '\t';
-	for (int x = 0; x < dimX; ++x)
-	{
-		log << B(x, y) << '\t';
-	}
-	log << endl;
-}
-	
-log << "Ix" << endl;
-for (int y = 0; y < dimY; ++y)
-{
-	log << kResidues[e->m_seq[y]] << '\t';
-	for (int x = 0; x < dimX; ++x)
-	{
-		log << Ix(x, y) << '\t';
-	}
-	log << endl;
-}
-	
-log << "Iy" << endl;
-for (int y = 0; y < dimY; ++y)
-{
-	log << kResidues[e->m_seq[y]] << '\t';
-	for (int x = 0; x < dimX; ++x)
-	{
-		log << Iy(x, y) << '\t';
-	}
-	log << endl;
-}
-	
-log << "tb" << endl;
-for (int y = 0; y < dimY; ++y)
-{
-	log << kResidues[e->m_seq[y]] << '\t';
-	for (int x = 0; x < dimX; ++x)
-	{
-		log << int(tb(x, y)) << '\t';
-	}
-	log << endl;
-}
-
-}
+bool write = false;
+//if (e->m_id == "D3ZK19_RAT")
+//{
+//	write = true;
+//	dump(B, Ix, Iy, tb, gop_a, gop_b, gep_a, gep_b, m_seq, e->m_seq);
+//}
 
 #endif
 
@@ -777,11 +771,6 @@ for (int y = 0; y < dimY; ++y)
 		bool xgap = false, ygap = false;
 		e->m_aligned = string(m_seq.length() + xgaps, '.');
 		
-		e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
-		e->m_similar = 1;
-		if (m_seq[x] == e->m_seq[y])
-			e->m_identical = 1;
-		
 		while (x >= 0 and y >= 0 and B(x, y) > 0)
 		{
 			++e->m_length;
@@ -789,6 +778,8 @@ for (int y = 0; y < dimY; ++y)
 			switch (tb(x, y))
 			{
 				case -1:
+					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
+
 					if (not xgap)
 						++e->m_gaps;
 					++e->m_gapn;
@@ -803,21 +794,16 @@ for (int y = 0; y < dimY; ++y)
 					
 					--y;
 					--xgaps;
-					
-					assert(x + xgaps >= 0);
-
-					if (x >= 0 and y >= 0 and B(x, y) > 0)
-						e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					break;
 	
 				case 1:
+					e->m_aligned[x + xgaps] = '-';
 					ygap = true;
 					--x;
-					if (x >= 0 and B(x, y) > 0)
-						e->m_aligned[x + xgaps] = '.';
 					break;
 	
 				case 0:
+					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					m_residues[x].Add(e->m_seq[y], e->m_distance);
 					if (xgap)
 					{
@@ -839,18 +825,13 @@ for (int y = 0; y < dimY; ++y)
 						ygap = false;
 					}
 
+					if (m_seq[x] == e->m_seq[y])
+						++e->m_identical, ++e->m_similar;
+					else if (score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
+						++e->m_similar;
+
 					--x;
 					--y;
-
-					if (x >= 0 and y >= 0 and B(x, y) > 0)
-					{
-						e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
-
-						if (m_seq[x] == e->m_seq[y])
-							++e->m_identical, ++e->m_similar;
-						else if (score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
-							++e->m_similar;
-					}
 					break;
 			}
 		}
@@ -867,7 +848,8 @@ for (int y = 0; y < dimY; ++y)
 
 		m_entries.push_back(e);
 
-		PrintFastA();
+		if (write)
+			PrintFastA();
 	}
 	else
 		delete e;
@@ -913,11 +895,16 @@ void MProfile::PrintStockholm(ostream& os) const
 	if (tl < 14)
 		tl = 14;
 
+	boost::format fmt("#=GS %s HSSP score=%4.2f/%4.2f aligned=%d-%d/%d-%d length=%d ins=%d del=%d seqlen=%d");
+
 	foreach (const MHit* e, m_entries)
 	{
 		os << "#=GS " << e->m_stid << " ID " << e->m_id << endl
-		   << "#=GS " << e->m_stid << " DE " << e->m_def << endl;
-		
+		   << "#=GS " << e->m_stid << " DE " << e->m_def << endl
+		   << fmt % e->m_stid % e->m_score % (float(e->m_similar) / e->m_length)
+				   % e->m_ifir % e->m_ilas % e->m_jfir % e->m_jlas % e->m_length
+				   % e->m_gaps % e->m_gapn % e->m_seq.length() << endl;
+	
 		if (tl < e->m_stid.length())
 			tl = e->m_stid.length();
 	}
@@ -931,9 +918,12 @@ void MProfile::PrintStockholm(ostream& os) const
 		
 		os << chain_id << string(tl - chain_id.length() + 1, ' ') << decode(m_seq.substr(o, n)) << endl;
 		
-		string ss(n, 'C'), ins(n, '0'), del(n, '0'), ent(n, '0'), var(n, '0');
+		string ss(n, '.'), ins(n, ' '), del(n, ' '), ent(n, '-'), var(n, '-');
 		for (uint32 i = o; i < o + n; ++i)
 		{
+			if (m_residues[i].m_seq_nr == 0)
+				continue;
+			
 			switch (m_residues[i].m_ss)
 			{
 				case alphahelix:	ss[i - o] = 'H'; break;
@@ -943,20 +933,20 @@ void MProfile::PrintStockholm(ostream& os) const
 				case helix_5:		ss[i - o] = 'I'; break;
 				case turn:			ss[i - o] = 'T'; break;
 				case bend:			ss[i - o] = 'S'; break;
+				case loop:			ss[i - o] = 'C'; break;
 			}
 			
 			ent[i - o] = map_value_to_char(10 * m_residues[i].m_entropy / log(20.0));
 			var[i - o] = map_value_to_char(10 * (1 - m_residues[i].m_consweight));
 		}
 		
+		foreach (const MHit* e, m_entries)
+			os << e->m_stid << string(tl - e->m_stid.length() + 1, ' ') << e->m_aligned.substr(o, n) << endl;
+		
 		os << "#=GC SS      " << string(tl - 13 + 1, ' ') << ss << endl
 		   << "#=GC Entropy " << string(tl - 13 + 1, ' ') << ent << endl
-		   << "#=GC Var     " << string(tl - 13 + 1, ' ') << var << endl;
-		
-		foreach (const MHit* e, m_entries)
-		{
-			os << e->m_stid << string(tl - e->m_stid.length() + 1, ' ') << e->m_aligned.substr(o, n) << endl;
-		}
+		   << "#=GC Var     " << string(tl - 13 + 1, ' ') << var << endl
+		   << endl;
 		
 		o += n;
 	}
