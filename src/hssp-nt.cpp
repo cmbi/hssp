@@ -317,9 +317,9 @@ void MHit::Update(const sequence& inChain, MResInfoList& inResidues)
 		++x;
 	uint32 lx = x;
 	
-	insertion ins;
-	ins.m_ipos = m_ifir;
-	ins.m_jpos = m_jfir;
+//	insertion ins;
+//	ins.m_ipos = m_ifir;
+//	ins.m_jpos = m_jfir;
 
 	uint32 len = m_length;
 	
@@ -328,11 +328,11 @@ void MHit::Update(const sequence& inChain, MResInfoList& inResidues)
 		bool igap = is_gap(inChain[x]);
 		bool jgap = is_gap(m_aligned[x]);
 		
-		if (not igap)
-			++ins.m_ipos;
-
-		if (not jgap)
-			++ins.m_jpos;
+//		if (not igap)
+//			++ins.m_ipos;
+//
+//		if (not jgap)
+//			++ins.m_jpos;
 
 		if (igap and jgap)
 			continue;
@@ -346,14 +346,14 @@ void MHit::Update(const sequence& inChain, MResInfoList& inResidues)
 			{
 				inResidues[lx].m_ins += 1;
 				
-				m_aligned[lx] |= 040;
-				m_insertions.push_back(ins);
-				m_insertions.back().m_seq += m_aligned[lx];
+//				m_aligned[lx] |= 040;
+//				m_insertions.push_back(ins);
+//				m_insertions.back().m_seq += m_aligned[lx];
 			}
 
 			gappedi = true;
 			gappedj = false;
-			m_insertions.back().m_seq += m_aligned[x];
+//			m_insertions.back().m_seq += m_aligned[x];
 		}
 		else if (jgap)
 		{
@@ -372,8 +372,8 @@ void MHit::Update(const sequence& inChain, MResInfoList& inResidues)
 			lx = x;
 			if (gappedi)
 			{
-				m_aligned[x] |= 040;
-				m_insertions.back().m_seq += m_aligned[x];
+//				m_aligned[x] |= 040;
+//				m_insertions.back().m_seq += m_aligned[x];
 				gappedi = false;
 			}
 			gappedj = false;
@@ -390,7 +390,7 @@ struct MProfile
 					MProfile(const MChain& inChain, const sequence& inSequence,
 						float inThreshold, float inFragmentCutOff);
 
-	void			Process(istream& inHits, MProgress& inProgress, float inGapOpen, float inGapExtend);
+	void			Process(istream& inHits, MProgress& inProgress, float inGapOpen, float inGapExtend, uint32 inMaxHits);
 	void			Align(MHit* e, float inGapOpen, float inGapExtend);
 
 	void			AdjustXGapCosts(vector<float>& gop, vector<float>& gep);
@@ -403,7 +403,8 @@ struct MProfile
 
 	void			PrintFastA();
 	
-	void			PrintStockholm(ostream& os) const;
+	void			PrintStockholm(ostream& os, const string& header, const string& compound,
+						const string& source, const string& author, const string& used) const;
 
 	const MChain&	m_chain;
 	sequence		m_seq;
@@ -795,16 +796,21 @@ char map_value_to_char(uint32 v)
 	return result;
 }
 
-void MProfile::PrintStockholm(ostream& os) const
+void MProfile::PrintStockholm(ostream& os, const string& header, const string& compound,
+	const string& source, const string& author, const string& used) const
 {
 	// write out the profile in Stockholm 1.0 format
-	
 	string chain_id = (boost::format("CHAIN/%c") % m_chain.GetChainID()).str();
 	
 	os << "# STOCKHOLM 1.0" << endl
+	   << "#=GF CC HEADER " << header << endl
+	   << "#=GF CC COMPND " << compound << endl
+	   << "#=GF CC SOURCE " << source << endl
+	   << "#=GF CC AUTHOR " << author << endl
 	   << "#=GF ID " << chain_id << endl
+	   << "#=GF CC this is chain " << m_chain.GetChainID() << " of " << used << endl
 	   << "#=GF NO SEQLENGTH " << m_chain.GetResidues().size() << endl
-	   << "#=GF NO NALIGN " << m_entries.size() << endl
+	   << "#=GF SQ " << m_entries.size() << endl
 	   << "#=GS " << chain_id << " ID " << m_chain.GetChainID() << endl;
 //	   << "#=GF NO " << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
 
@@ -833,7 +839,8 @@ void MProfile::PrintStockholm(ostream& os) const
 		if (o + n > m_seq.length())
 			n = m_seq.length() - o;
 		
-		os << chain_id << string(tl - chain_id.length() + 1, ' ') << decode(m_seq.substr(o, n)) << endl;
+		os << endl
+		   << chain_id << string(tl - chain_id.length() + 1, ' ') << decode(m_seq.substr(o, n)) << endl;
 		
 		string ss(n, '.'), ins(n, ' '), del(n, ' '), ent(n, '-'), var(n, '-');
 		for (uint32 i = o; i < o + n; ++i)
@@ -862,8 +869,7 @@ void MProfile::PrintStockholm(ostream& os) const
 		
 		os << "#=GC SS          " << string(tl - 17 + 1, ' ') << ss << endl
 		   << "#=GC Entropy     " << string(tl - 17 + 1, ' ') << ent << endl
-		   << "#=GC Variability " << string(tl - 17 + 1, ' ') << var << endl
-		   << endl;
+		   << "#=GC Variability " << string(tl - 17 + 1, ' ') << var << endl;
 		
 		o += n;
 	}
@@ -873,7 +879,7 @@ void MProfile::PrintStockholm(ostream& os) const
 
 // --------------------------------------------------------------------
 
-void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, float inGapExtend)
+void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, float inGapExtend, uint32 inMaxhits)
 {
 	string id, def, seq;
 	for (;;)
@@ -916,6 +922,9 @@ void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, 
 	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_score > b->m_score;
 	});
+	
+	if (m_entries.size() > inMaxhits)
+		m_entries.erase(m_entries.begin() + inMaxhits, m_entries.end());
 }
 
 // --------------------------------------------------------------------
@@ -1327,24 +1336,30 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	// only take the unique sequences
 	ix.erase(unique(ix.begin(), ix.end()), ix.end());
 
-	vector<MProfile*> profiles;
+	// collect some data to print out later
+	string header, compound, source, author;
 
-	uint32 seqlength = 0;
+	if (inProtein.GetHeader().length() >= 50)
+		header = inProtein.GetHeader().substr(10, 40);
+	if (inProtein.GetCompound().length() > 10)
+		compound = inProtein.GetCompound().substr(10);
+	if (inProtein.GetSource().length() > 10)
+		source = inProtein.GetSource().substr(10);
+	if (inProtein.GetAuthor().length() > 10)
+		author = inProtein.GetAuthor().substr(10);
+
+	foreach (uint32 i, ix)
+	{
+		if (not used.empty())
+			used += ", ";
+		used += chains[i]->GetChainID();
+	}
+
 	foreach (uint32 i, ix)
 	{
 		const MChain& chain(*chains[i]);
 		
-		if (not used.empty())
-			used += ", ";
-		used += chain.GetChainID();
-		
-		unique_ptr<MProfile> profile(new MProfile(chain, seqset[i], inThreshold, inFragmentCutOff));
-		
-//		fs::path blastHits(inProtein.GetID() + '-' + chain.GetChainID() + "-hits.fa");
-//		fs::ifstream file(blastHits);
-		
 		// do a blast search for inMaxhits * 4 hits.
-		
 		vector<char> blastHits;
 		blastHits.reserve(inMaxhits * 4 * (chain.GetResidues().size() + 100));
 		
@@ -1356,34 +1371,23 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		}
 
 		if (blastHits.empty())
-			throw mas_exception(boost::format("No hits found"));
+		{
+//			throw mas_exception(boost::format("No hits found"));
+			continue;
+		}
+
+		MProfile profile(chain, seqset[i], inThreshold, inFragmentCutOff);
 		
 		{
 			MProgress pr1(blastHits.size(), "processing");
 			
 			io::filtering_istream in(boost::make_iterator_range(blastHits));
-			profile->Process(in, pr1, inGapOpen, inGapExtend);
+			profile.Process(in, pr1, inGapOpen, inGapExtend, inMaxhits);
 		}
 		
-		CalculateConservation(seqset[i], profile->m_entries, profile->m_residues);
-
-		seqlength += seqset[i].length();
-		profiles.push_back(profile.release());
+		CalculateConservation(seqset[i], profile.m_entries, profile.m_residues);
+		profile.PrintStockholm(inOs, header, compound, source, author, used);
 	}
-	
-//	stringstream desc;
-//	if (inProtein.GetHeader().length() >= 50)
-//		desc << "HEADER     " + inProtein.GetHeader().substr(10, 40) << endl;
-//	if (inProtein.GetCompound().length() > 10)
-//		desc << "COMPND     " + inProtein.GetCompound().substr(10) << endl;
-//	if (inProtein.GetSource().length() > 10)
-//		desc << "SOURCE     " + inProtein.GetSource().substr(10) << endl;
-//	if (inProtein.GetAuthor().length() > 10)
-//		desc << "AUTHOR     " + inProtein.GetAuthor().substr(10) << endl;
-//	
-//	CreateHSSPOutput(inProtein.GetID(), desc.str(), inThreshold, inFragmentCutOff, seqlength, chains.size(), ix.size(), used,
-//		profiles.back()->m_entries, profiles.back()->m_residues, inOs);
-	profiles.back()->PrintStockholm(inOs);
 }
 
 }
@@ -1468,7 +1472,7 @@ int main(int argc, char* argv[])
 		if (vm.count("min-length"))
 			minlength= vm["min-length"].as<uint32>();
 
-		uint32 maxhits = 1500;
+		uint32 maxhits = 5000;
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
 
@@ -1513,6 +1517,10 @@ int main(int argc, char* argv[])
 		}
 		in.push(infile);
 
+		// read protein and calculate the secondary structure
+		MProtein a(in);
+		a.CalculateSecondaryStructure();
+		
 		// Where to write our HSSP file to:
 		// either to cout or an (optionally compressed) file.
 		ofstream outfile;
@@ -1535,10 +1543,6 @@ int main(int argc, char* argv[])
 		else
 			out.push(cout);
 
-		// read protein and calculate the secondary structure
-		MProtein a(in);
-		a.CalculateSecondaryStructure();
-		
 		// create the HSSP file
 		HSSP::CreateHSSP(a, databanks, maxhits, minlength,
 			gapOpen, gapExtend, threshold, fragmentCutOff, threads, out);
