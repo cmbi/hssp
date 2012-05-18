@@ -78,23 +78,22 @@ class mas_exception : public std::exception
 
 // --------------------------------------------------------------------
 
-class progress
+class MProgress
 {
   public:
-					progress(const std::string& message, uint32 max);
-					~progress();
+				MProgress(int64 inMax, const std::string& inAction);
+	virtual		~MProgress();
+	
+	void		Consumed(int64 inConsumed);	// consumed is relative
+	void		Progress(int64 inProgress);	// progress is absolute
 
-	void			step(uint32 advance = 1);
+	void		Message(const std::string& inMessage);
 
   private:
-	
-	void			run();
+				MProgress(const MProgress&);
+	MProgress&	operator=(const MProgress&);
 
-	std::string		m_msg;
-	uint32			m_step, m_max;
-	boost::mutex	m_mutex;
-	boost::thread	m_thread;
-	std::time_t		m_start;
+	struct MProgressImpl*	mImpl;
 };
 
 // --------------------------------------------------------------------

@@ -3,25 +3,32 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at    
 //             http://www.boost.org/LICENSE_1_0.txt)      
 // 
-// Blast code for hssp/dssp
-//
-//	Copyright, M.L. Hekkelman, UMC St. Radboud, Nijmegen
-//
+//	Simplified Blast algorithm implementation. Works on
+//	FastA formatted files containing proteins.
 
 #pragma once
 
-#include "CDatabank.h"
+#include <vector>
 
-class MProtein;
+#include <boost/filesystem/path.hpp>
 
-extern int BLAST_THREADS;
+//struct BlastHit
+//{
+//	std::string	id;
+//	std::string	acc;
+//	std::string	def;
+//	float		score;
+//	sequence	seq;
+//};
+//
+//// blast with default parameters
+//void Blast(const std::string& seq,
+//	const std::vector<boost::filesystem::path>& db,
+//	uint32 inReportLimit, std::vector<BlastHit>& outHits);
 
-void BlastSequence(
-	CDatabankPtr			inDatabank,
-	const std::string&		inSequence,
-	std::vector<uint32>&	outHits);
-
-void BlastProtein(
-	CDatabankPtr			inDatabank,
-	const MProtein&			inProtein,
-	std::vector<uint32>&	outHits);
+void SearchAndWriteResultsAsFastA(std::ostream& inOutFile,
+	const std::vector<boost::filesystem::path>& inDatabanks,
+	const std::string& inQuery, const std::string& inProgram,
+	const std::string& inMatrix, uint32 inWordSize, double inExpect,
+	bool inFilter, bool inGapped, int32 inGapOpen, int32 inGapExtend,
+	uint32 inReportLimit, uint32 inThreads);

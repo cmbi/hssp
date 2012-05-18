@@ -9,35 +9,7 @@
 #include <vector>
 #include <algorithm>
 
-// --------------------------------------------------------------------
-
-typedef uint8					aa;
-typedef std::basic_string<aa>	sequence;
-
-std::string decode(const sequence& s);
-sequence encode(const std::string& s);
-aa encode(char r);
-
-const uint8 kAA[] = {
-	'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G',
-	'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S',
-	'T', 'W', 'Y', 'V', 'B', 'Z', 'X', '*',
-	'-'
-};
-
-// CSEQUENCE_H is defined in the MRS library, to avoid
-// redefinition conflicts we do a check here.
-#ifndef CSEQUENCE_H
-const uint32
-	kAACount = sizeof(kAA),
-	kFilteredCode = 22,
-	kUnknownCode = 23,
-	kSignalGapCode = 24,
-	kSentinalScore = kSignalGapCode;
-#endif
-
-typedef uint8					ss;
-typedef std::basic_string<ss>	sec_structure;
+typedef std::basic_string<uint8> sec_structure;
 
 // --------------------------------------------------------------------
 // entry is a multiple sequence alignment 'entry', a sequence with an ID and more.
@@ -63,7 +35,7 @@ struct entry
 	float			weight() const					{ return m_weight; }
 	uint32			length() const					{ return static_cast<uint32>(m_seq.length()); }
 
-	bool			has_gaps() const				{ return std::find(m_seq.begin(), m_seq.end(), kSignalGapCode) != m_seq.end(); }
+	//bool			has_gaps() const				{ return std::find(m_seq.begin(), m_seq.end(), kSignalGapCode) != m_seq.end(); }
 
 	void			insert_gap(uint32 pos);
 	void			append_gap();

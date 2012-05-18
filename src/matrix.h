@@ -15,6 +15,47 @@
 #include <cassert>
 #include <stdexcept>
 
+// Some predefined matrices
+
+// PAM250 is used by hssp-nt in aligning the sequences
+
+extern const int8 kMBlosum45[], kMBlosum50[], kMBlosum62[], kMBlosum80[], kMBlosum90[],
+	kMPam250[], kMPam30[], kMPam70[];
+extern const float kMPam250ScalingFactor, kMPam250MisMatchAverage;
+
+struct MMtrxStats
+{
+	double	lambda, kappa, entropy, alpha, beta;
+};
+
+struct MMatrixData
+{
+	const char*	mName;
+	int8		mGapOpen, mGapExtend;
+	const int8*	mMatrix;
+	MMtrxStats	mGappedStats, mUngappedStats;
+};
+
+extern const MMatrixData kMMatrixData[];
+
+// Dayhoff matrix is used for calculating similarity in HSSP
+
+extern const float kDayhoffData[];
+
+// Simple scoring function using the predefined matrices
+template<typename T>
+inline T score(const T inMatrix[], uint8 inAA1, uint8 inAA2)
+{
+	T result;
+
+	if (inAA1 >= inAA2)
+		result = inMatrix[(inAA1 * (inAA1 + 1)) / 2 + inAA2];
+	else
+		result = inMatrix[(inAA2 * (inAA2 + 1)) / 2 + inAA1];
+
+	return result;	
+}
+
 // --------------------------------------------------------------------
 // uBlas compatible matrix types
 // matrix is m x n, addressing i,j is 0 <= i < m and 0 <= j < n
@@ -331,99 +372,99 @@ matrix<T> operator-(const matrix_base<T>& lhs, T rhs)
 	return result;
 }
 
-// --------------------------------------------------------------------
-
-class substitution_matrix
-{
-  public:
-						substitution_matrix(const std::string& name);
-						substitution_matrix(
-							const substitution_matrix& m, bool positive);
-
-	virtual				~substitution_matrix() {}
-
-	int8				operator()(aa a, aa b) const
-						{
-							return m_matrix(a, b);
-						}
-
-	int8				operator()(char a, char b) const
-						{
-							return m_matrix(encode(a), encode(b));
-						}
-
-	float				mismatch_average() const		{ return m_mismatch_average; }
-	float				scale_factor() const			{ return m_scale_factor; }
-
-  private:
-						substitution_matrix(
-							const substitution_matrix&);
-	substitution_matrix&
-						operator=(const substitution_matrix&);
-
-	void				read(std::istream& is);
-
-	matrix<int8>		m_matrix;
-	float				m_mismatch_average;
-	float				m_scale_factor;
-};
-
-class substitution_matrix_family
-{
-  public:
-						substitution_matrix_family(
-							const std::string& name);
-
-						~substitution_matrix_family();
-
-	const substitution_matrix&
-						operator()(float distance, bool positive) const
-						{
-							const substitution_matrix* result;
-							
-							uint32 ix = 0;
-							while (distance < m_cutoff[ix] and ix < 3)
-								++ix;
-							
-							if (positive)
-								result = m_pos_smat[ix];
-							else
-								result = m_smat[ix];
-							
-							return *result;
-						}
-
-  private:
-						substitution_matrix_family(
-							const substitution_matrix_family&);
-	substitution_matrix_family&
-						operator=(const substitution_matrix_family&);
-
-	float				m_cutoff[4];
-	substitution_matrix*
-						m_smat[4];
-	substitution_matrix*
-						m_pos_smat[4];
-};
-
-//ostream& operator<<(ostream& os, substitution_matrix& m)
-//{
-//	// print header
-//	os << ' ';
-//	for (uint32 i = 0; i < sizeof(kAA); ++i)
-//		os << "  " << kAA[i];
-//	os << endl;
-//	
-//	// print matrix
-//	for (uint32 r = 0; r < sizeof(kAA); ++r)
-//	{
-//		os << kAA[r];
-//		
-//		for (uint32 c = 0; c < sizeof(kAA); ++c)
-//			os << setw(3) << m(r, c);
+//// --------------------------------------------------------------------
 //
-//		os << endl;
-//	}
-//	
-//	return os;
-//}
+//class substitution_matrix
+//{
+//  public:
+//						substitution_matrix(const std::string& name);
+//						substitution_matrix(
+//							const substitution_matrix& m, bool positive);
+//
+//	virtual				~substitution_matrix() {}
+//
+//	int8				operator()(aa a, aa b) const
+//						{
+//							return m_matrix(a, b);
+//						}
+//
+//	int8				operator()(char a, char b) const
+//						{
+//							return m_matrix(encode(a), encode(b));
+//						}
+//
+//	float				mismatch_average() const		{ return m_mismatch_average; }
+//	float				scale_factor() const			{ return m_scale_factor; }
+//
+//  private:
+//						substitution_matrix(
+//							const substitution_matrix&);
+//	substitution_matrix&
+//						operator=(const substitution_matrix&);
+//
+//	void				read(std::istream& is);
+//
+//	matrix<int8>		m_matrix;
+//	float				m_mismatch_average;
+//	float				m_scale_factor;
+//};
+//
+//class substitution_matrix_family
+//{
+//  public:
+//						substitution_matrix_family(
+//							const std::string& name);
+//
+//						~substitution_matrix_family();
+//
+//	const substitution_matrix&
+//						operator()(float distance, bool positive) const
+//						{
+//							const substitution_matrix* result;
+//							
+//							uint32 ix = 0;
+//							while (distance < m_cutoff[ix] and ix < 3)
+//								++ix;
+//							
+//							if (positive)
+//								result = m_pos_smat[ix];
+//							else
+//								result = m_smat[ix];
+//							
+//							return *result;
+//						}
+//
+//  private:
+//						substitution_matrix_family(
+//							const substitution_matrix_family&);
+//	substitution_matrix_family&
+//						operator=(const substitution_matrix_family&);
+//
+//	float				m_cutoff[4];
+//	substitution_matrix*
+//						m_smat[4];
+//	substitution_matrix*
+//						m_pos_smat[4];
+//};
+//
+////ostream& operator<<(ostream& os, substitution_matrix& m)
+////{
+////	// print header
+////	os << ' ';
+////	for (uint32 i = 0; i < sizeof(kAA); ++i)
+////		os << "  " << kAA[i];
+////	os << endl;
+////	
+////	// print matrix
+////	for (uint32 r = 0; r < sizeof(kAA); ++r)
+////	{
+////		os << kAA[r];
+////		
+////		for (uint32 c = 0; c < sizeof(kAA); ++c)
+////			os << setw(3) << m(r, c);
+////
+////		os << endl;
+////	}
+////	
+////	return os;
+////}

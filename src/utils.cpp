@@ -19,6 +19,7 @@
 #include <boost/thread.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
+#include <boost/timer/timer.hpp>
 
 #include "align-2d.h"
 #include "utils.h"
@@ -85,153 +86,251 @@ uint32 get_terminal_width()
 
 // --------------------------------------------------------------------
 
-progress::progress(const string& msg, uint32 max)
-	: m_msg(msg)
-	, m_step(0)
-	, m_max(max)
-	, m_thread(boost::bind(&progress::run, this))
+#if defined(__linux__) || defined(__INTEL_COMPILER_BUILD_DATE)
+#include <atomic>
+
+typedef std::atomic<int64>	MCounter;
+
+inline int64 add(MCounter& ioCounter, int64 inIncrement)
 {
-	time(&m_start);
+	return ioCounter += inIncrement;
+} 
+
+inline int64 set(MCounter& ioCounter, int64 inValue)
+{
+	return ioCounter = inValue;
 }
 
-progress::~progress()
+#else
+
+#include <Windows.h>
+
+typedef int64 MCounter;
+
+inline int64 add(MCounter& ioCounter, int64 inIncrement)
 {
-	boost::mutex::scoped_lock lock(m_mutex);
-	m_step = m_max;
-	m_thread.interrupt();
-	m_thread.join();
+	return ::InterlockedExchangeAdd64(&ioCounter, inIncrement);
+} 
+
+inline int64 set(MCounter& ioCounter, int64 inValue)
+{
+	::InterlockedExchange64(&ioCounter, inValue);
+	return inValue;
 }
 
-void progress::step(uint32 advance)
+#define STDOUT_FILENO 1
+bool isatty(int) { return true; }
+
+#endif
+
+struct MProgressImpl
 {
-	boost::mutex::scoped_lock lock(m_mutex);
-	m_step += advance;
-}
+					MProgressImpl(int64 inMax, const string& inAction)
+						: mMax(inMax), mConsumed(0), mAction(inAction), mMessage(inAction)
+						, mThread(boost::bind(&MProgressImpl::Run, this)) {}
 
-void progress::run()
+	void			Run();
+	
+	void			PrintProgress();
+	void			PrintDone();
+
+	int64			mMax;
+	MCounter		mConsumed;
+	string			mAction, mMessage;
+	boost::mutex	mMutex;
+	boost::thread	mThread;
+	boost::timer::cpu_timer
+					mTimer;
+};
+
+void MProgressImpl::Run()
 {
-	if (VERBOSE)
-		return;
-
-	bool first = true;
-
-	// first, get the current terminal width
-	uint32 width = get_terminal_width();
-	if (width < 10)
-		return;
-
 	try
 	{
 		for (;;)
 		{
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
-
-			string msg;
-			if (m_msg.length() > width)
-				msg = m_msg.substr(0, width);
-			else
-			{
-				msg = m_msg;
-				
-				if (msg.length() + 10 < width)
-				{
-					float fraction = float(m_step) / m_max;
-					if (fraction < 0)
-						fraction = 0;
-					else if (fraction > 1)
-						fraction = 1;
-					
-					uint32 thermometer_width = width - msg.length() - 10;
-					uint32 thermometer_done_width = uint32(fraction * thermometer_width);
-					msg += " [";
-					msg += string(thermometer_done_width, '#');
-					msg += string(thermometer_width - thermometer_done_width, '-');
-					msg += ']';
-					msg += string(width - msg.length(), ' ');
-				}
-			}
-
-			cerr << '\r' << msg << flush;
-			first = false;
+			
+			boost::mutex::scoped_lock lock(mMutex);
+			
+			if (mConsumed == mMax)
+				break;
+			
+			if (isatty(STDOUT_FILENO))
+				PrintProgress();
 		}
 	}
-	catch (boost::thread_interrupted&)
+	catch (...) {}
+	
+	PrintDone();
+}
+
+void MProgressImpl::PrintProgress()
+{
+	int width = get_terminal_width();
+	
+	string msg;
+	msg.reserve(width + 1);
+	if (mMessage.length() <= 20)
 	{
-		if (not first)
-			cerr << '\r' << m_msg << " done" << string(width - m_msg.length() - 5, ' ') << endl;
+		msg = mMessage;
+		if (msg.length() < 20)
+			msg.append(20 - msg.length(), ' ');
 	}
-}
-
-// --------------------------------------------------------------------
-
-string decode(const sequence& s)
-{
-	string result;
-	result.reserve(s.length());
+	else
+		msg = mMessage.substr(0, 17) + "...";
 	
-	foreach (aa a, s)
-		result.push_back(kAA[a]);
-
-	return result;
+	msg += " [";
+	
+	float progress = static_cast<float>(mConsumed) / mMax;
+	int tw = width - 28;
+	int twd = static_cast<int>(tw * progress + 0.5f);
+	msg.append(twd, '=');
+	msg.append(tw - twd, ' ');
+	msg.append("] ");
+	
+	int perc = static_cast<int>(100 * progress);
+	if (perc < 100)
+		msg += ' ';
+	if (perc < 10)
+		msg += ' ';
+	msg += boost::lexical_cast<string>(perc);
+	msg += '%';
+	
+	cout << '\r' << msg;
+	cout.flush();
 }
 
-namespace {
-
-bool sInited = false;
-uint8 kAA_Reverse[256];
-
-inline void init_reverse()
+void MProgressImpl::PrintDone()
 {
-	if (not sInited)
+	string msg = mAction + " done in " + mTimer.format(0, "%ts cpu / %ws wall");
+
+	if (isatty(STDOUT_FILENO))
 	{
-		// init global reverse mapping
-		for (uint32 a = 0; a < 256; ++a)
-			kAA_Reverse[a] = 255;
-		for (uint8 a = 0; a < sizeof(kAA); ++a)
-		{
-			kAA_Reverse[toupper(kAA[a])] = a;
-			kAA_Reverse[tolower(kAA[a])] = a;
-		}
-	}
-}
-
-}
-
-aa encode(char r)
-{
-	init_reverse();
-
-	if (r == '.' or r == '*' or r == '~' or r == '_')
-		r = '-';
+		int width = get_terminal_width();
 	
-	aa result = kAA_Reverse[static_cast<uint8>(r)];
-	if (result >= sizeof(kAA))
-		throw mas_exception(boost::format("invalid residue %1%") % r);
-	
-	return result;
-}
-
-sequence encode(const string& s)
-{
-	init_reverse();
-	
-	sequence result;
-	result.reserve(s.length());
-
-	foreach (char r, s)
-	{
-		if (r == '.' or r == '*' or r == '~' or r == '_')
-			r = '-';
+		if (msg.length() < width)
+			msg += string(width - msg.length(), ' ');
 		
-		aa rc = kAA_Reverse[static_cast<uint8>(r)];
-		if (rc >= sizeof(kAA))
-			throw mas_exception(boost::format("invalid residue in sequence %1%") % r);
-
-		result.push_back(rc);
+		cout << '\r' << msg << endl;
 	}
-	
-	return result;
+	else
+		cout << msg << endl;
 }
+
+MProgress::MProgress(int64 inMax, const string& inAction)
+	: mImpl(new MProgressImpl(inMax, inAction))
+{
+}
+
+MProgress::~MProgress()
+{
+	if (mImpl->mThread.joinable())
+	{
+		mImpl->mThread.interrupt();
+		mImpl->mThread.join();
+	}
+
+	delete mImpl;
+}
+	
+void MProgress::Consumed(int64 inConsumed)
+{
+	if (add(mImpl->mConsumed, inConsumed) >= mImpl->mMax and
+		mImpl->mThread.joinable())
+	{
+		mImpl->mThread.interrupt();
+		mImpl->mThread.join();
+	}
+}
+
+void MProgress::Progress(int64 inProgress)
+{
+	if (set(mImpl->mConsumed, inProgress) >= mImpl->mMax and
+		mImpl->mThread.joinable())
+	{
+		mImpl->mThread.interrupt();
+		mImpl->mThread.join();
+	}
+}
+
+void MProgress::Message(const std::string& inMessage)
+{
+	boost::mutex::scoped_lock lock(mImpl->mMutex);
+	mImpl->mMessage = inMessage;
+}
+
+
+//// --------------------------------------------------------------------
+//
+//string decode(const sequence& s)
+//{
+//	string result;
+//	result.reserve(s.length());
+//	
+//	foreach (aa a, s)
+//		result.push_back(kAA[a]);
+//
+//	return result;
+//}
+//
+//namespace {
+//
+//bool sInited = false;
+//uint8 kAA_Reverse[256];
+//
+//inline void init_reverse()
+//{
+//	if (not sInited)
+//	{
+//		// init global reverse mapping
+//		for (uint32 a = 0; a < 256; ++a)
+//			kAA_Reverse[a] = 255;
+//		for (uint8 a = 0; a < sizeof(kAA); ++a)
+//		{
+//			kAA_Reverse[toupper(kAA[a])] = a;
+//			kAA_Reverse[tolower(kAA[a])] = a;
+//		}
+//	}
+//}
+//
+//}
+//
+//aa encode(char r)
+//{
+//	init_reverse();
+//
+//	if (r == '.' or r == '*' or r == '~' or r == '_')
+//		r = '-';
+//	
+//	aa result = kAA_Reverse[static_cast<uint8>(r)];
+//	if (result >= sizeof(kAA))
+//		throw mas_exception(boost::format("invalid residue %1%") % r);
+//	
+//	return result;
+//}
+//
+//sequence encode(const string& s)
+//{
+//	init_reverse();
+//	
+//	sequence result;
+//	result.reserve(s.length());
+//
+//	foreach (char r, s)
+//	{
+//		if (r == '.' or r == '*' or r == '~' or r == '_')
+//			r = '-';
+//		
+//		aa rc = kAA_Reverse[static_cast<uint8>(r)];
+//		if (rc >= sizeof(kAA))
+//			throw mas_exception(boost::format("invalid residue in sequence %1%") % r);
+//
+//		result.push_back(rc);
+//	}
+//	
+//	return result;
+//}
 
 // --------------------------------------------------------------------
 

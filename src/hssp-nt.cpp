@@ -31,6 +31,7 @@
 #include "dssp.h"
 #include "matrix.h"
 #include "buffer.h"
+#include "blast.h"
 
 using namespace std;
 namespace fs = boost::filesystem;
@@ -70,118 +71,12 @@ bool drop(uint32 ident, uint32 length, float threshold)
 
 // --------------------------------------------------------------------
 
-const int8 kMPam250[] = {
-	  2,                                                                                                               // A
-	  0,   3,                                                                                                          // B
-	 -2,  -4,  12,                                                                                                     // C
-	  0,   3,  -5,   4,                                                                                                // D
-	  0,   3,  -5,   3,   4,                                                                                           // E
-	 -3,  -4,  -4,  -6,  -5,   9,                                                                                      // F
-	  1,   0,  -3,   1,   0,  -5,   5,                                                                                 // G
-	 -1,   1,  -3,   1,   1,  -2,  -2,   6,                                                                            // H
-	 -1,  -2,  -2,  -2,  -2,   1,  -3,  -2,   5,                                                                       // I
-	 -1,   1,  -5,   0,   0,  -5,  -2,   0,  -2,   5,                                                                  // K
-	 -2,  -3,  -6,  -4,  -3,   2,  -4,  -2,   2,  -3,   6,                                                             // L
-	 -1,  -2,  -5,  -3,  -2,   0,  -3,  -2,   2,   0,   4,   6,                                                        // M
-	  0,   2,  -4,   2,   1,  -3,   0,   2,  -2,   1,  -3,  -2,   2,                                                   // N
-	  1,  -1,  -3,  -1,  -1,  -5,   0,   0,  -2,  -1,  -3,  -2,   0,   6,                                              // P
-	  0,   1,  -5,   2,   2,  -5,  -1,   3,  -2,   1,  -2,  -1,   1,   0,   4,                                         // Q
-	 -2,  -1,  -4,  -1,  -1,  -4,  -3,   2,  -2,   3,  -3,   0,   0,   0,   1,   6,                                    // R
-	  1,   0,   0,   0,   0,  -3,   1,  -1,  -1,   0,  -3,  -2,   1,   1,  -1,   0,   2,                               // S
-	  1,   0,  -2,   0,   0,  -3,   0,  -1,   0,   0,  -2,  -1,   0,   0,  -1,  -1,   1,   3,                          // T
-	  0,  -2,  -2,  -2,  -2,  -1,  -1,  -2,   4,  -2,   2,   2,  -2,  -1,  -2,  -2,  -1,   0,   4,                     // V
-	 -6,  -5,  -8,  -7,  -7,   0,  -7,  -3,  -5,  -3,  -2,  -4,  -4,  -6,  -5,   2,  -2,  -5,  -6,  17,                // W
-	 -3,  -3,   0,  -4,  -4,   7,  -5,   0,  -1,  -4,  -1,  -2,  -2,  -5,  -4,  -4,  -3,  -3,  -2,   0,  10,           // Y
-	  0,   2,  -5,   3,   3,  -5,   0,   2,  -2,   0,  -3,  -2,   1,   0,   3,   0,   0,  -1,  -2,  -6,  -4,   3,      // Z
-	  0,  -1,  -3,  -1,  -1,  -2,  -1,  -1,  -1,  -1,  -1,  -1,   0,  -1,  -1,  -1,   0,   0,  -1,  -4,  -2,  -1,  -1, // x
-};
-
-const float
-	kMPam250ScalingFactor = log(2.f) / 3.0f,
-	kMPam250MisMatchAverage = -1.484210526f;
-
-// Dayhoff matrix as used by maxhom
-const float kDayhoffData[] =
-{
-	 1.5f,																																 // A
-	 0.0f, 0.0f,                                                                                                                         // B
-	 0.3f, 0.0f, 1.5f,                                                                                                                   // C
-	 0.3f, 0.0f,-0.5f, 1.5f,                                                                                                             // D
-	 0.3f, 0.0f,-0.6f, 1.0f, 1.5f,                                                                                                       // E
-	-0.5f, 0.0f,-0.1f,-1.0f,-0.7f, 1.5f,                                                                                                 // F
-	 0.7f, 0.0f, 0.2f, 0.7f, 0.5f,-0.6f, 1.5f,                                                                                           // G
-	-0.1f, 0.0f,-0.1f, 0.4f, 0.4f,-0.1f,-0.2f, 1.5f,                                                                                     // H
-	 0.0f, 0.0f, 0.2f,-0.2f,-0.2f, 0.7f,-0.3f,-0.3f, 1.5f,                                                                               // I
-	 0.0f, 0.0f,-0.6f, 0.3f, 0.3f,-0.7f,-0.1f, 0.1f,-0.2f, 1.5f,                                                                         // K
-	-0.1f, 0.0f,-0.8f,-0.5f,-0.3f, 1.2f,-0.5f,-0.2f, 0.8f,-0.3f, 1.5f,                                                                   // L
-	 0.0f, 0.0f,-0.6f,-0.4f,-0.2f, 0.5f,-0.3f,-0.3f, 0.6f, 0.2f, 1.3f, 1.5f,                                                             // M
-	 0.2f, 0.0f,-0.3f, 0.7f, 0.5f,-0.5f, 0.4f, 0.5f,-0.3f, 0.4f,-0.4f,-0.3f, 1.5f,                                                       // N
-	 0.5f, 0.0f, 0.1f, 0.1f, 0.1f,-0.7f, 0.3f, 0.2f,-0.2f, 0.1f,-0.3f,-0.2f, 0.0f, 1.5f,                                                 // P
-	 0.2f, 0.0f,-0.6f, 0.7f, 0.7f,-0.8f, 0.2f, 0.7f,-0.3f, 0.4f,-0.1f, 0.0f, 0.4f, 0.3f, 1.5f,                                           // Q
-	-0.3f, 0.0f,-0.3f, 0.0f, 0.0f,-0.5f,-0.3f, 0.5f,-0.3f, 0.8f,-0.4f, 0.2f, 0.1f, 0.3f, 0.4f, 1.5f,                                     // R
-	 0.4f, 0.0f, 0.7f, 0.2f, 0.2f,-0.3f, 0.6f,-0.2f,-0.1f, 0.2f,-0.4f,-0.3f, 0.3f, 0.4f,-0.1f, 0.1f, 1.5f,                               // S
-	 0.4f, 0.0f, 0.2f, 0.2f, 0.2f,-0.3f, 0.4f,-0.1f, 0.2f, 0.2f,-0.1f, 0.0f, 0.2f, 0.3f,-0.1f,-0.1f, 0.3f, 1.5f,                         // T
-	 0.2f, 0.0f, 0.2f,-0.2f,-0.2f, 0.2f, 0.2f,-0.3f, 1.1f,-0.2f, 0.8f, 0.6f,-0.3f, 0.1f,-0.2f,-0.3f,-0.1f, 0.2f, 1.5f,                   // V
-	-0.8f, 0.0f,-1.2f,-1.1f,-1.1f, 1.3f,-1.0f,-0.1f,-0.5f, 0.1f, 0.5f,-0.3f,-0.3f,-0.8f,-0.5f, 1.4f, 0.3f,-0.6f,-0.8f, 1.5f,             // W
-	-0.3f, 0.0f, 1.0f,-0.5f,-0.5f, 1.4f,-0.7f, 0.3f, 0.1f,-0.6f, 0.3f,-0.1f,-0.1f,-0.8f,-0.6f,-0.6f,-0.4f,-0.3f,-0.1f, 1.1f, 1.5f,       // Y
-	 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f  // Z
-};
-
-// 22 real letters and 1 dummy
-const char kResidues[] = "ABCDEFGHIKLMNPQRSTVWYZX";
-
-inline uint8 ResidueNr(char inAA)
-{
-	int result = 23;
-
-	const static uint8 kResidueNrTable[] = {
-	//	A   B   C   D   E   F   G   H   I       K   L   M   N       P   Q   R   S   T  U=X  V   W   X   Y   Z
-		0,  1,  2,  3,  4,  5,  6,  7,  8, 23,  9, 10, 11, 12, 23, 13, 14, 15, 16, 17, 22, 18, 19, 22, 20, 21
-	};
-	
-	inAA |= 040;
-	if (inAA >= 'a' and inAA <= 'z')
-		result = kResidueNrTable[inAA - 'a'];
-	return result;
-}
-
-template<typename T>
-inline T score(const T inMatrix[], uint8 inAA1, uint8 inAA2)
-{
-	T result;
-
-	if (inAA1 >= inAA2)
-		result = inMatrix[(inAA1 * (inAA1 + 1)) / 2 + inAA2];
-	else
-		result = inMatrix[(inAA2 * (inAA2 + 1)) / 2 + inAA1];
-
-	return result;	
-}
-
-bool is_gap(char aa)
-{
-	return aa == ' ' or aa == '.' or aa == '-';
-}
-
-sequence encode(const string& s)
-{
-	sequence result(s.length(), 0);
-	transform(s.begin(), s.end(), result.begin(), [](char aa) -> uint8 { return is_gap(aa) ? '-' : ResidueNr(aa); });
-	return result;
-}
-
-string decode(const sequence& s)
-{
-	string result(s.length(), 0);
-	transform(s.begin(), s.end(), result.begin(), [](uint8 r) -> char { return is_gap(r) ? '.' : kResidues[r]; });
-	return result;
-}
-
-bool is_hydrophilic(char aa)
-{
-	aa &= ~040;
-	return aa == 'D' or aa == 'E' or aa == 'G' or aa == 'K' or aa == 'N' or aa == 'Q' or aa == 'P' or aa == 'R' or aa == 'S';
-}
+//
+//bool is_hydrophilic(char aa)
+//{
+//	aa &= ~040;
+//	return aa == 'D' or aa == 'E' or aa == 'G' or aa == 'K' or aa == 'N' or aa == 'Q' or aa == 'P' or aa == 'R' or aa == 'S';
+//}
 
 // --------------------------------------------------------------------
 
@@ -495,7 +390,7 @@ struct MProfile
 					MProfile(const MChain& inChain, const sequence& inSequence,
 						float inThreshold, float inFragmentCutOff);
 
-	void			Process(istream& inHits, progress& inProgress, float inGapOpen, float inGapExtend);
+	void			Process(istream& inHits, MProgress& inProgress, float inGapOpen, float inGapExtend);
 	void			Align(MHit* e, float inGapOpen, float inGapExtend);
 
 	void			AdjustXGapCosts(vector<float>& gop, vector<float>& gep);
@@ -745,16 +640,16 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 		}
 	}
 
-#if 0 //not NDEBUG
-
-bool dmp = false;
-if (e->m_id == "Q7ZZX1_9PASE")
-{
-	dmp = true;
-	dump(B, Ix, Iy, tb, gop_a, gop_b, gep_a, gep_b, m_seq, e->m_seq);
-}
-
-#endif
+//#if 0 //not NDEBUG
+//
+//bool dmp = false;
+//if (e->m_id == "Q7ZZX1_9PASE")
+//{
+//	dmp = true;
+//	dump(B, Ix, Iy, tb, gop_a, gop_b, gep_a, gep_b, m_seq, e->m_seq);
+//}
+//
+//#endif
 
 	// build the alignment
 	x = highX;
@@ -868,10 +763,10 @@ if (e->m_id == "Q7ZZX1_9PASE")
 
 		m_entries.push_back(e);
 
-#if 0 //not defined(NDEBUG)
-		if (dmp)
-			PrintFastA();
-#endif
+//#if 0 //not defined(NDEBUG)
+//		if (dmp)
+//			PrintFastA();
+//#endif
 	}
 	else
 		delete e;
@@ -978,7 +873,7 @@ void MProfile::PrintStockholm(ostream& os) const
 
 // --------------------------------------------------------------------
 
-void MProfile::Process(istream& inHits, progress& inProgress, float inGapOpen, float inGapExtend)
+void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, float inGapExtend)
 {
 	string id, def, seq;
 	for (;;)
@@ -988,7 +883,7 @@ void MProfile::Process(istream& inHits, progress& inProgress, float inGapOpen, f
 		if (line.empty() and inHits.eof())
 			break;
 
-		inProgress.step(line.length() + 1);
+		inProgress.Consumed(line.length() + 1);
 		
 		if (ba::starts_with(line, ">"))
 		{
@@ -1354,17 +1249,17 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 			}
 		});
 	
-	progress p("conservation", (inHits.size() * (inHits.size() + 1)) / 2);
+	MProgress p((inHits.size() * (inHits.size() + 1)) / 2, "conservation");
 	
 	string s(decode(inChain));
 	b.put(make_pair(s.c_str(), 0));
 
-	p.step(inHits.size());
+	p.Consumed(inHits.size());
 	
 	for (uint32 i = 0; i + 1 < inHits.size(); ++i)
 	{
 		b.put(make_pair(inHits[i]->m_aligned.c_str(), i + 1));
-		p.step(inHits.size() - i);
+		p.Consumed(inHits.size() - i);
 	}
 	
 	b.put(kSentinel);
@@ -1400,7 +1295,7 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 
 // --------------------------------------------------------------------
 
-void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
+void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	uint32 inMaxhits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
 	float inThreshold, float inFragmentCutOff, uint32 inThreads, ostream& inOs)
 {
@@ -1437,27 +1332,42 @@ void CreateHSSP(const MProtein& inProtein, const vector<string>& inDatabanks,
 	uint32 seqlength = 0;
 	foreach (uint32 i, ix)
 	{
-		const MChain& chain(*chains[ix[i]]);
+		const MChain& chain(*chains[i]);
 		
 		if (not used.empty())
 			used += ", ";
 		used += chain.GetChainID();
 		
-		unique_ptr<MProfile> profile(new MProfile(chain, seqset[ix[i]], inThreshold, inFragmentCutOff));
+		unique_ptr<MProfile> profile(new MProfile(chain, seqset[i], inThreshold, inFragmentCutOff));
 		
-		fs::path blastHits(inProtein.GetID() + '-' + chain.GetChainID() + "-hits.fa");
-		fs::ifstream file(blastHits);
-		if (not file.is_open())
-			throw mas_exception(boost::format("Could not open blast hit file %1%") % blastHits);
+//		fs::path blastHits(inProtein.GetID() + '-' + chain.GetChainID() + "-hits.fa");
+//		fs::ifstream file(blastHits);
+		
+		// do a blast search for inMaxhits * 4 hits.
+		
+		vector<char> blastHits;
+		blastHits.reserve(inMaxhits * 4 * (chain.GetResidues().size() + 100));
 		
 		{
-			progress pr1("processing", fs::file_size(blastHits));
-			profile->Process(file, pr1, inGapOpen, inGapExtend);
+			io::filtering_ostream out(io::back_inserter(blastHits));
+			SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
+				"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 4 * inMaxhits,
+				boost::thread::hardware_concurrency());
+		}
+
+		if (blastHits.empty())
+			throw mas_exception(boost::format("No hits found"));
+		
+		{
+			MProgress pr1(blastHits.size(), "processing");
+			
+			io::filtering_istream in(boost::make_iterator_range(blastHits));
+			profile->Process(in, pr1, inGapOpen, inGapExtend);
 		}
 		
-		CalculateConservation(seqset[ix[i]], profile->m_entries, profile->m_residues);
+		CalculateConservation(seqset[i], profile->m_entries, profile->m_residues);
 
-		seqlength += seqset[ix[i]].length();
+		seqlength += seqset[i].length();
 		profiles.push_back(profile.release());
 	}
 	
@@ -1511,7 +1421,7 @@ int main(int argc, char* argv[])
 			("min-length",	po::value<uint32>(), "Minimal chain length")
 			("fragment-cutoff",
 							po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
-			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 10.0)")
+			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 30.0)")
 			("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
@@ -1542,7 +1452,13 @@ int main(int argc, char* argv[])
 
 		VERBOSE = vm.count("verbose") > 0;
 		
-		vector<string> databanks(vm["databank"].as<vector<string>>());
+		vector<fs::path> databanks;
+		foreach (string db, vm["databank"].as<vector<string>>())
+		{
+			databanks.push_back(db);
+			if (not fs::exists(databanks.back()))
+				throw mas_exception(boost::format("Databank %s does not exist") % db);
+		}
 		
 		bool useSeqRes = true;
 		if (vm.count("use-seqres"))

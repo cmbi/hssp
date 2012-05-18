@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <string>
+
 #if defined(_MSC_VER)
 
 #ifndef P_WIN
@@ -39,3 +41,30 @@ typedef uint64_t	uint64;
 
 // we even have globals:
 extern int VERBOSE, MULTI_THREADED;
+
+// Code for amino acid sequences
+
+typedef std::basic_string<uint8> sequence;
+
+// 22 real letters and 1 dummy (X is the dummy, B and Z are pseudo letters)
+extern const char kResidues[]; // = "ABCDEFGHIKLMNPQRSTVWYZX";
+extern const uint8 kResidueNrTable[];
+
+inline uint8 ResidueNr(char inAA)
+{
+	int result = 23;
+
+	inAA |= 040;
+	if (inAA >= 'a' and inAA <= 'z')
+		result = kResidueNrTable[inAA - 'a'];
+
+	return result;
+}
+
+inline bool is_gap(char aa)
+{
+	return aa == ' ' or aa == '.' or aa == '-';
+}
+
+sequence encode(const std::string& s);
+std::string decode(const sequence& s);
