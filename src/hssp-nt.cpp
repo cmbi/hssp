@@ -403,8 +403,10 @@ struct MProfile
 
 	void			PrintFastA();
 	
-	void			PrintStockholm(ostream& os, const string& header, const string& compound,
+	void			PrintStockholm(ostream& os, const string& pdbid, const string& header, const string& compound,
 						const string& source, const string& author, const string& used) const;
+
+	void			CalculateConservation();
 
 	const MChain&	m_chain;
 	sequence		m_seq;
@@ -796,23 +798,53 @@ char map_value_to_char(uint32 v)
 	return result;
 }
 
-void MProfile::PrintStockholm(ostream& os, const string& header, const string& compound,
-	const string& source, const string& author, const string& used) const
+void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& header,
+	const string& compound, const string& source, const string& author, const string& used) const
 {
+	using namespace boost::gregorian;
+	date today = day_clock::local_day();
+
 	// write out the profile in Stockholm 1.0 format
 	string chain_id = (boost::format("CHAIN/%c") % m_chain.GetChainID()).str();
 	
 	os << "# STOCKHOLM 1.0" << endl
+	   << "#=GF CC PDBID  " << pdbid << endl
+	   << "#=GF CC DATE   " << to_iso_extended_string(today) << endl
 	   << "#=GF CC HEADER " << header << endl
 	   << "#=GF CC COMPND " << compound << endl
 	   << "#=GF CC SOURCE " << source << endl
 	   << "#=GF CC AUTHOR " << author << endl
 	   << "#=GF ID " << chain_id << endl
-	   << "#=GF CC this is chain " << m_chain.GetChainID() << " of " << used << endl
-	   << "#=GF NO SEQLENGTH " << m_chain.GetResidues().size() << endl
+//	   << "#=GF NO SEQLENGTH " << m_chain.GetResidues().size() << endl
 	   << "#=GF SQ " << m_entries.size() << endl
 	   << "#=GS " << chain_id << " ID " << m_chain.GetChainID() << endl;
 //	   << "#=GF NO " << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
+
+	// ## SEQUENCE PROFILE AND ENTROPY
+	os << "#=GF PR ## SEQUENCE PROFILE AND ENTROPY" << endl
+	   << "#=GF PR  SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
+	
+	int32 nextNr = m_residues.front().m_seq_nr;
+	foreach (auto& ri, m_residues)
+	{
+		if (ri.m_chain_id == 0)
+			continue;
+		
+		if (ri.m_seq_nr != nextNr)
+			os << boost::format("#=GF PR %5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
+				% nextNr << endl;
+
+		os << boost::format("#=GF PR %5.5d%5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
+
+		for (uint32 i = 0; i < 20; ++i)
+			boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
+
+		uint32 relent = uint32(100 * ri.m_entropy / log(20.0));
+		os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight << endl;
+		
+		nextNr = ri.m_seq_nr + 1;
+	}
+
 
 	uint32 tl = chain_id.length();
 	if (tl < 17)
@@ -925,6 +957,8 @@ void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, 
 	
 	if (m_entries.size() > inMaxhits)
 		m_entries.erase(m_entries.begin() + inMaxhits, m_entries.end());
+	
+	CalculateConservation();
 }
 
 // --------------------------------------------------------------------
@@ -1230,12 +1264,9 @@ void CalculateConservation(buffer<pair<const char*,uint32>>& b,
 	b.put(kSentinel);
 }
 
-void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResInfoList& inResidues)
+void MProfile::CalculateConservation()
 {
-	if (VERBOSE)
-		cerr << "Calculating conservation weights...";
-
-	vector<float> sumvar(inChain.length(), 0), sumdist(inChain.length(), 0);
+	vector<float> sumvar(m_seq.length(), 0), sumdist(m_seq.length(), 0);
 	
 	// Calculate conservation weights in multiple threads to gain speed.
 	buffer<pair<const char*,uint32>> b;
@@ -1246,7 +1277,7 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 		threads.create_thread([&]() {
 			vector<float> csumvar(sumvar.size(), 0), csumdist(sumdist.size(), 0);
 			
-			CalculateConservation(b, inHits, csumvar, csumdist);
+			HSSP::CalculateConservation(b, m_entries, csumvar, csumdist);
 
 			// accumulate our data
 			boost::mutex::scoped_lock l(sumLock);
@@ -1258,25 +1289,25 @@ void CalculateConservation(const sequence& inChain, vector<MHit*>& inHits, MResI
 			}
 		});
 	
-	MProgress p((inHits.size() * (inHits.size() + 1)) / 2, "conservation");
+	MProgress p((m_entries.size() * (m_entries.size() + 1)) / 2, "conservation");
 	
-	string s(decode(inChain));
+	string s(decode(m_seq));
 	b.put(make_pair(s.c_str(), 0));
 
-	p.Consumed(inHits.size());
+	p.Consumed(m_entries.size());
 	
-	for (uint32 i = 0; i + 1 < inHits.size(); ++i)
+	for (uint32 i = 0; i + 1 < m_entries.size(); ++i)
 	{
-		b.put(make_pair(inHits[i]->m_aligned.c_str(), i + 1));
-		p.Consumed(inHits.size() - i);
+		b.put(make_pair(m_entries[i]->m_aligned.c_str(), i + 1));
+		p.Consumed(m_entries.size() - i);
 	}
 	
 	b.put(kSentinel);
 	threads.join_all();
 
-	for (uint32 i = 0; i < inChain.length(); ++i)
+	for (uint32 i = 0; i < m_seq.length(); ++i)
 	{
-		MResInfo& ri = inResidues[i];
+		MResInfo& ri = m_residues[i];
 		
 		if (sumdist[i] > 0)
 			ri.m_consweight = sumvar[i] / sumdist[i];
@@ -1367,7 +1398,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 			io::filtering_ostream out(io::back_inserter(blastHits));
 			SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
 				"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 4 * inMaxhits,
-				boost::thread::hardware_concurrency());
+				inThreads);
 		}
 
 		if (blastHits.empty())
@@ -1385,8 +1416,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 			profile.Process(in, pr1, inGapOpen, inGapExtend, inMaxhits);
 		}
 		
-		CalculateConservation(seqset[i], profile.m_entries, profile.m_residues);
-		profile.PrintStockholm(inOs, header, compound, source, author, used);
+		profile.PrintStockholm(inOs, inProtein.GetID(), header, compound, source, author, used);
 	}
 }
 
