@@ -831,13 +831,13 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 			continue;
 
 		if (ri.m_seq_nr != nextNr)
-			os << boost::format("#=GF PR %5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
+			os << boost::format("#=GF PR %5.5d           0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
 				% nextNr << endl;
 
 		uint32 ivar = uint32(100 * (1 - ri.m_consweight));
 
 		os << boost::format("#=GF RI %5.5d %s nocc=%d var=%d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl
-		   << boost::format("#=GF PR %5.5d%5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
+		   << boost::format("#=GF PR %5.5d %5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
 
 		for (uint32 i = 0; i < 20; ++i)
 			os << boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
@@ -1489,7 +1489,8 @@ int main(int argc, char* argv[])
 		VERBOSE = vm.count("verbose") > 0;
 		
 		vector<fs::path> databanks;
-		foreach (string db, vm["databank"].as<vector<string>>())
+		vector<string> dbs = vm["databank"].as<vector<string>>(); 
+		foreach (string db, dbs)
 		{
 			databanks.push_back(db);
 			if (not fs::exists(databanks.back()))
