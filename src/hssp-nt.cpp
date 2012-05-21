@@ -820,9 +820,25 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 	   << "#=GS " << chain_id << " ID " << m_chain.GetChainID() << endl;
 //	   << "#=GF NO " << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
 
+	// ## per residue information
+	
+	int32 nextNr = m_residues.front().m_seq_nr;
+	os << "#=GF CC ## RESIDUE INFORMATION" << endl
+	   << "#=GF CC  SeqNo PDBNo DSSP NOCC VAR" << endl;
+	foreach (auto& ri, m_residues)
+	{
+		if (ri.m_chain_id == 0)
+			continue;
+
+		uint32 ivar = uint32(100 * (1 - ri.m_consweight));
+		os << boost::format("#=GF RI %5.5d %s nocc=%d var=%d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl;
+
+		nextNr = ri.m_seq_nr + 1;
+	}
+
 	// ## SEQUENCE PROFILE AND ENTROPY
-	os << "#=GF PR ## SEQUENCE PROFILE AND ENTROPY" << endl
-	   << "#=GF PR  SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
+	os << "#=GF CC ## SEQUENCE PROFILE AND ENTROPY" << endl
+	   << "#=GF CC  SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
 	
 	int32 nextNr = m_residues.front().m_seq_nr;
 	foreach (auto& ri, m_residues)
@@ -830,14 +846,7 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 		if (ri.m_chain_id == 0)
 			continue;
 
-		if (ri.m_seq_nr != nextNr)
-			os << boost::format("#=GF PR %5.5d           0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
-				% nextNr << endl;
-
-		uint32 ivar = uint32(100 * (1 - ri.m_consweight));
-
-		os << boost::format("#=GF RI %5.5d %s nocc=%d var=%d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl
-		   << boost::format("#=GF PR %5.5d %5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
+		os << boost::format("#=GF PR %5.5d %5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
 
 		for (uint32 i = 0; i < 20; ++i)
 			os << boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
