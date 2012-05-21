@@ -14,6 +14,7 @@
 #include <istream>
 #include <cassert>
 #include <stdexcept>
+#include <algorithm>
 
 // Some predefined matrices
 
@@ -325,7 +326,7 @@ class identity_matrix : public matrix_base<T>
 template<typename T>
 matrix<T> operator*(const matrix_base<T>& lhs, const matrix_base<T>& rhs)
 {
-	matrix<T> result(min(lhs.dim_m(), rhs.dim_m()), min(lhs.dim_n(), rhs.dim_n()));
+	matrix<T> result(std::min(lhs.dim_m(), rhs.dim_m()), std::min(lhs.dim_n(), rhs.dim_n()));
 	
 	for (uint32 i = 0; i < result.dim_m(); ++i)
 	{

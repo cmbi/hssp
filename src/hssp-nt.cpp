@@ -829,22 +829,24 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 	{
 		if (ri.m_chain_id == 0)
 			continue;
-		
+
 		if (ri.m_seq_nr != nextNr)
 			os << boost::format("#=GF PR %5.5d          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
 				% nextNr << endl;
 
-		os << boost::format("#=GF PR %5.5d%5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
+		uint32 ivar = uint32(100 * (1 - ri.m_consweight));
+
+		os << boost::format("#=GF RI %5.5d %s nocc=%d var=%d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl
+		   << boost::format("#=GF PR %5.5d%5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
 
 		for (uint32 i = 0; i < 20; ++i)
-			boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
+			os << boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
 
 		uint32 relent = uint32(100 * ri.m_entropy / log(20.0));
 		os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight << endl;
 		
 		nextNr = ri.m_seq_nr + 1;
 	}
-
 
 	uint32 tl = chain_id.length();
 	if (tl < 17)
