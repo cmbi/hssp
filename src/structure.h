@@ -330,6 +330,8 @@ class MProtein
 	std::string			GetCompound() const;
 	std::string			GetSource() const;
 	std::string			GetAuthor() const;
+	const std::vector<std::string>&
+						GetDbRef() const				{ return mDbRef; }
 
 	void				CalculateSecondaryStructure();
 	
@@ -391,7 +393,7 @@ class MProtein
 	std::string			mID, mHeader;
 
 	std::vector<std::string>
-						mCompound, mSource, mAuthor;
+						mCompound, mSource, mAuthor, mDbRef;
 	std::vector<MChain*>mChains;
 	uint32				mResidueCount, mChainBreaks;
 	

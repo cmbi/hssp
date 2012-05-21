@@ -403,9 +403,9 @@ struct MProfile
 						const sequence& sx, const sequence& sy);
 
 	void			PrintFastA();
-	
-	void			PrintStockholm(ostream& os, const string& pdbid, const string& header, const string& compound,
-						const string& source, const string& author, const string& used) const;
+
+	void			PrintStockholm(ostream& os, const string& inChainID) const;
+	void			PrintStockholm(ostream& os, const MProtein& inProtein, const string& used) const;
 
 	void			CalculateConservation();
 
@@ -799,26 +799,12 @@ char map_value_to_char(uint32 v)
 	return result;
 }
 
-void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& header,
-	const string& compound, const string& source, const string& author, const string& used) const
+void MProfile::PrintStockholm(ostream& os, const string& inChainID) const
 {
-	using namespace boost::gregorian;
-	date today = day_clock::local_day();
-
-	// write out the profile in Stockholm 1.0 format
-	string chain_id = (boost::format("CHAIN/%c") % m_chain.GetChainID()).str();
-	
-	os << "# STOCKHOLM 1.0" << endl
-	   << "#=GF CC PDBID  " << pdbid << endl
-	   << "#=GF CC DATE   " << to_iso_extended_string(today) << endl
-	   << "#=GF CC HEADER " << header << endl
-	   << "#=GF CC COMPND " << compound << endl
-	   << "#=GF CC SOURCE " << source << endl
-	   << "#=GF CC AUTHOR " << author << endl
-	   << "#=GF ID " << chain_id << endl
+	os << "#=GF ID " << inChainID << endl
 //	   << "#=GF NO SEQLENGTH " << m_chain.GetResidues().size() << endl
 	   << "#=GF SQ " << m_entries.size() << endl
-	   << "#=GS " << chain_id << " ID " << m_chain.GetChainID() << endl;
+	   << "#=GS " << inChainID << " ID " << m_chain.GetChainID() << endl;
 //	   << "#=GF NO " << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
 
 	// ## per residue information
@@ -866,7 +852,7 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 	}
 
 	// find the longest ID string length
-	uint32 tl = chain_id.length();
+	uint32 tl = inChainID.length();
 	foreach (const MHit* e, m_entries)
 	{
 		if (tl < e->m_stid.length())
@@ -903,7 +889,7 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 			n = m_seq.length() - o;
 		
 		os << endl
-		   << chain_id << string(tl - chain_id.length() + 1, ' ') << decode(m_seq.substr(o, n)) << endl;
+		   << inChainID << string(tl - inChainID.length() + 1, ' ') << decode(m_seq.substr(o, n)) << endl;
 		
 		string ss(n, '.'), ins(n, ' '), del(n, ' '), ent(n, '-'), var(n, '-');
 		for (uint32 i = o; i < o + n; ++i)
@@ -938,6 +924,43 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 	}
 	
 	os << "//" << endl;
+}
+
+void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, const string& inUsed) const
+{
+	using namespace boost::gregorian;
+	date today = day_clock::local_day();
+
+	// write out the profile in Stockholm 1.0 format
+	
+	os << "# STOCKHOLM 1.0" << endl
+	   << "#=GF CC DATE   " << to_iso_extended_string(today) << endl;
+	
+	string s = inProtein.GetID();
+	if (not s.empty())
+		os << "#=GF CC PDBID  " << s << endl;
+	
+	s = inProtein.GetHeader();
+	if (not s.empty())
+		os << "#=GF CC HEADER " << s << endl;
+	
+	s = inProtein.GetCompound();
+	if (not s.empty())
+		os << "#=GF CC COMPND " << s<< endl;
+	
+	s = inProtein.GetSource();
+	if (not s.empty())
+		os << "#=GF CC SOURCE " << s << endl;
+	
+	s = inProtein.GetAuthor();
+	if (not s.empty())
+		os << "#=GF CC AUTHOR " << s << endl;
+
+	foreach (auto dbref, inProtein.GetDbRef())
+		os << "#=GF CC " << dbref << endl;
+	
+	string chain_id = (boost::format("CHAIN/%c") % m_chain.GetChainID()).str();
+	PrintStockholm(os, chain_id);
 }
 
 // --------------------------------------------------------------------
@@ -1398,24 +1421,14 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	// only take the unique sequences
 	ix.erase(unique(ix.begin(), ix.end()), ix.end());
 
-	// collect some data to print out later
-	string header, compound, source, author;
-
-	if (inProtein.GetHeader().length() >= 50)
-		header = inProtein.GetHeader().substr(10, 40);
-	if (inProtein.GetCompound().length() > 10)
-		compound = inProtein.GetCompound().substr(10);
-	if (inProtein.GetSource().length() > 10)
-		source = inProtein.GetSource().substr(10);
-	if (inProtein.GetAuthor().length() > 10)
-		author = inProtein.GetAuthor().substr(10);
-
 	foreach (uint32 i, ix)
 	{
 		if (not used.empty())
 			used += ", ";
 		used += chains[i]->GetChainID();
 	}
+
+	bool empty = true;
 
 	foreach (uint32 i, ix)
 	{
@@ -1433,11 +1446,8 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		}
 
 		if (blastHits.empty())
-		{
-//			throw mas_exception(boost::format("No hits found"));
 			continue;
-		}
-
+		
 		MProfile profile(chain, seqset[i], inThreshold, inFragmentCutOff);
 		
 		{
@@ -1447,8 +1457,15 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 			profile.Process(in, pr1, inGapOpen, inGapExtend, inMaxhits);
 		}
 		
-		profile.PrintStockholm(inOs, inProtein.GetID(), header, compound, source, author, used);
+		if (profile.m_entries.empty())
+			continue;
+
+		empty = false;
+		profile.PrintStockholm(inOs, inProtein, used);
 	}
+	
+	if (empty)
+		throw mas_exception("No hits found");
 }
 
 }

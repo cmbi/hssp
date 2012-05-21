@@ -1042,6 +1042,13 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			continue;
 		}
 		
+		if (ba::starts_with(line, "DBREF"))
+		{
+			ba::trim(line);
+			mDbRef.push_back(line);
+			continue;
+		}
+		
 		// brain dead support for only the first model in the file (NMR)
 		if (ba::starts_with(line, "MODEL"))
 		{
