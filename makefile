@@ -20,9 +20,9 @@ INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
 					  $(ZEEP_DIR) src/
 MAN_DIR				= $(DEST_DIR)man/man3
 
-BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system
+BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system timer chrono
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
-LIBS				= zeep $(BOOST_LIBS) z bz2
+LIBS				= zeep $(BOOST_LIBS) z bz2 rt
 #ifeq ($(DEBUG),1)
 #LIBS				+= mrsd
 #else
@@ -68,14 +68,9 @@ mkdssp: mkdssp.o dssp.o primitives-3d.o structure.o utils.o
 	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-mkhssp: mkhssp.o dssp.o hmmer-hssp.o matrix.o primitives-3d.o structure.o utils.o
+mkhssp: hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o blast.o mas.o matrix.o fetchdbrefs.o
 	@ echo linking $@
-	@ $(CC) -o $@ $^ $(LDOPTS)
-	@ echo OK
-
-mkhssp-nt: hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o
-	@ echo linking $@
-	@ $(CC) -o $@ $^ $(LDOPTS)
+	@ $(CC) -o $@ $^ $(LDOPTS) 
 	@ echo OK
 
 aln2hssp: aln2hssp.o dssp.o hssp.o matrix.o primitives-3d.o structure.o utils.o

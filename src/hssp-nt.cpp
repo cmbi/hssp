@@ -825,27 +825,34 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 	
 	int32 nextNr = m_residues.front().m_seq_nr;
 	os << "#=GF CC ## RESIDUE INFORMATION" << endl
-	   << "#=GF CC  SeqNo PDBNo DSSP NOCC VAR" << endl;
+	   << "#=GF CC SeqNo RESIDUE AA STRUCTURE BP1 BP2  ACC  NOCC VAR" << endl;
 	foreach (auto& ri, m_residues)
 	{
 		if (ri.m_chain_id == 0)
 			continue;
 
+		if (ri.m_seq_nr != nextNr)
+			os << boost::format("#=GF RI %5.5d       !  !             0   0    0    0    0") % nextNr << endl;
+
 		uint32 ivar = uint32(100 * (1 - ri.m_consweight));
-		os << boost::format("#=GF RI %5.5d %s nocc=%d var=%d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl;
+		os << boost::format("#=GF RI %5.5d %s%5.5d  %2.2d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl;
 
 		nextNr = ri.m_seq_nr + 1;
 	}
 
 	// ## SEQUENCE PROFILE AND ENTROPY
 	os << "#=GF CC ## SEQUENCE PROFILE AND ENTROPY" << endl
-	   << "#=GF CC  SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
+	   << "#=GF CC   SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
 	
 	nextNr = m_residues.front().m_seq_nr;
 	foreach (auto& ri, m_residues)
 	{
 		if (ri.m_chain_id == 0)
 			continue;
+
+		if (ri.m_seq_nr != nextNr)
+			os << boost::format("#=GF PR %5.5d           0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
+				% nextNr << endl;
 
 		os << boost::format("#=GF PR %5.5d %5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
 
@@ -858,17 +865,23 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 		nextNr = ri.m_seq_nr + 1;
 	}
 
+	// find the longest ID string length
 	uint32 tl = chain_id.length();
-	if (tl < 17)
-		tl = 17;
+	foreach (const MHit* e, m_entries)
+	{
+		if (tl < e->m_stid.length())
+			tl = e->m_stid.length();
+	}
 
 	boost::format fmt("#=GS %s HSSP score=%4.2f/%4.2f aligned=%d-%d/%d-%d length=%d ngaps=%d gaplen=%d seqlen=%d");
 
 	foreach (const MHit* e, m_entries)
 	{
-		os << "#=GS " << e->m_stid << " ID " << e->m_id << endl
-		   << "#=GS " << e->m_stid << " DE " << e->m_def << endl
-		   << fmt % e->m_stid % e->m_score % (float(e->m_similar) / e->m_length)
+		string id = e->m_stid + string(tl - e->m_stid.length(), ' ');
+		
+		os << "#=GS " << id << " ID " << e->m_id << endl
+		   << "#=GS " << id << " DE " << e->m_def << endl
+		   << fmt % id % e->m_score % (float(e->m_similar) / e->m_length)
 				   % e->m_ifir % e->m_ilas % e->m_jfir % e->m_jlas % e->m_length
 				   % e->m_gaps % e->m_gapn % e->m_seq.length() << endl;
 	
@@ -876,11 +889,11 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 		const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search/rest/GetLinked/db/uniprot/linkedDatabank/pdb/id/";
 		FetchPDBReferences(kBaseURL + e->m_id, pdb);
 		if (not pdb.empty())
-			os << "#=GS " << e->m_stid << " DR PDB " << ba::join(pdb, ", ") << endl;
-	
-		if (tl < e->m_stid.length())
-			tl = e->m_stid.length();
+			os << "#=GS " << id << " DR PDB " << ba::join(pdb, ", ") << endl;
 	}
+
+	if (tl < 17)
+		tl = 17;
 
 	uint32 o = 0;
 	while (o < m_seq.length())

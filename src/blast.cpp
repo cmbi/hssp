@@ -381,7 +381,7 @@ static double lnprob(vector<long>& inState, long inTotal, const M6Alphabet& inAl
 	if (ans1 > -100000.0 and inState[0] != numeric_limits<long>::min())
 		ans2 = lnperm(inState, inTotal);
 	else
-		cerr << "Error in calculating lnass" << endl;
+		throw mas_exception("Error in calculating lnass");
 	return ans1 + ans2 - totseq;
 }
 
