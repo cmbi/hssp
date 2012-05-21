@@ -32,6 +32,7 @@
 #include "matrix.h"
 #include "buffer.h"
 #include "blast.h"
+#include "fetchdbrefs.h"
 
 using namespace std;
 namespace fs = boost::filesystem;
@@ -840,7 +841,7 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 	os << "#=GF CC ## SEQUENCE PROFILE AND ENTROPY" << endl
 	   << "#=GF CC  SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
 	
-	int32 nextNr = m_residues.front().m_seq_nr;
+	nextNr = m_residues.front().m_seq_nr;
 	foreach (auto& ri, m_residues)
 	{
 		if (ri.m_chain_id == 0)
@@ -870,6 +871,12 @@ void MProfile::PrintStockholm(ostream& os, const string& pdbid, const string& he
 		   << fmt % e->m_stid % e->m_score % (float(e->m_similar) / e->m_length)
 				   % e->m_ifir % e->m_ilas % e->m_jfir % e->m_jlas % e->m_length
 				   % e->m_gaps % e->m_gapn % e->m_seq.length() << endl;
+	
+		vector<string> pdb;
+		const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search/rest/GetLinked/db/uniprot/linkedDatabank/pdb/id/";
+		FetchPDBReferences(kBaseURL + e->m_id, pdb);
+		if (not pdb.empty())
+			os << "#=GS " << e->m_stid << " DR PDB " << ba::join(pdb, ", ") << endl;
 	
 		if (tl < e->m_stid.length())
 			tl = e->m_stid.length();
