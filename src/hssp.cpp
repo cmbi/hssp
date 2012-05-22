@@ -1406,7 +1406,6 @@ void CreateHSSP(
 			throw mas_exception(boost::format("Invalid chain/stockholm pair specified: '%s'") % ch);
 
 		const MChain& chain = inProtein.GetChain(ch[0]);
-		chains.push_back(&chain);
 
 		string seq;
 		chain.GetSequence(seq);
@@ -1418,8 +1417,6 @@ void CreateHSSP(
 		if (VERBOSE > 1)
 			cerr << "Chain " << ch[0] << " => '" << seq << '\'' << endl;
 
-		seqlength += seq.length();
-		
 		// alignments are stored in datadir
 		fs::path afp = ch.substr(2);
 		if (not fs::exists(afp))
@@ -1447,8 +1444,11 @@ void CreateHSSP(
 		catch (...)
 		{
 			cerr << "exception while reading file " << afp << endl;
-			throw;
+			continue;
 		}
+
+		chains.push_back(&chain);
+		seqlength += seq.length();
 
 		// Remove all hits that are not above the threshold here
 		mseq& msa = alignments[kchain];

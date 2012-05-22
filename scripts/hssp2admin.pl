@@ -80,6 +80,10 @@ elsif ($action eq 'make')
 #	&CreateHSSPFiles();
 	&CreateHSSPMakefile();
 }
+elsif ($action eq 'no-hits')
+{
+	&ProcessNoHits();
+}
 else
 {
 	# assume id is a HSSP id
@@ -277,6 +281,28 @@ sub ProcessUpdate
 			$representative = $1 if $2 eq '*';
 		}
 	}
+}
+
+
+# ---------------------------------------------------------------------
+# update the chain_seq table to have 'no hits' for all the missing alignment files
+
+sub ProcessNoHits
+{
+	my $stmt = $dbh->prepare(qq{SELECT * FROM chain_seq WHERE alignment != 'no hits'});
+	
+	my @update;
+	
+	$stmt->execute() or die "execute: ".$dbh->errstr."\n";
+	while (my $r = $stmt->fetchrow_hashref()) {
+		push @update, $r->{id} if (not -f $r->{alignment});
+	}
+	
+	foreach my $id (@update) {
+		$update_seq_aln_stmt->execute('no hits', $id) or die "Fout: " . $dbh->errstr . "\n";
+	}
+	
+	printf("Updated %d records\n",  scalar @update);
 }
 
 # ---------------------------------------------------------------------

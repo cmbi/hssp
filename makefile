@@ -68,7 +68,7 @@ mkdssp: mkdssp.o dssp.o primitives-3d.o structure.o utils.o
 	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-mkhssp: hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o blast.o mas.o matrix.o fetchdbrefs.o
+mkhssp: mkhssp.o hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o blast.o mas.o matrix.o fetchdbrefs.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS) 
 	@ echo OK
@@ -83,7 +83,7 @@ sto2fa: sto2fa.o dssp.o hmmer-hssp.o matrix.o primitives-3d.o structure.o utils.
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-hsspsoap: dssp.o hsspsoap.o matrix.o maxhom-hssp.o primitives-3d.o structure.o utils.o
+hsspsoap: hsspsoap.o hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o blast.o mas.o matrix.o fetchdbrefs.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK

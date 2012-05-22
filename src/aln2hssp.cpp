@@ -72,6 +72,8 @@ int main(int argc, char* argv[])
 	}
 #endif
 
+	fs::path outputFile;
+
 	try
 	{
 		po::options_description desc("aln2hssp options");
@@ -165,20 +167,20 @@ int main(int argc, char* argv[])
 
 		// Where to write our HSSP file to:
 		// either to cout or an (optionally compressed) file.
-		ofstream outfile;
+		fs::ofstream outfile;
 		io::filtering_stream<io::output> out;
 
 		if (vm.count("output") and vm["output"].as<string>() != "stdout")
 		{
-			string output = vm["output"].as<string>();
-			outfile.open(output.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
+			outputFile = vm["output"].as<string>();
+			outfile.open(outputFile, ios_base::out|ios_base::trunc|ios_base::binary);
 			
 			if (not outfile.is_open())
 				throw runtime_error("could not create output file");
 			
-			if (ba::ends_with(output, ".bz2"))
+			if (ba::ends_with(outputFile.string(), ".bz2"))
 				out.push(io::bzip2_compressor());
-			else if (ba::ends_with(output, ".gz"))
+			else if (ba::ends_with(outputFile.string(), ".gz"))
 				out.push(io::gzip_compressor());
 			out.push(outfile);
 		}
@@ -190,6 +192,10 @@ int main(int argc, char* argv[])
 	catch (exception& e)
 	{
 		cerr << e.what() << endl;
+		
+		if (fs::exists(outputFile))
+			fs::remove(outputFile);
+		
 		exit(1);
 	}
 

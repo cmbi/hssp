@@ -23,6 +23,8 @@
 #include <boost/program_options.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/regex.hpp>
+#include <boost/foreach.hpp>
+#define foreach BOOST_FOREACH
 
 #include "zeep/config.hpp"
 #include "zeep/server.hpp"
@@ -33,27 +35,23 @@
 #include "structure.h"
 #include "dssp.h"
 #include "hssp-nt.h"
+#include "utils.h"
 
 #define HSSPSOAP_PID_FILE	"/var/run/hsspsoap.pid"
 #define HSSPSOAP_LOG_FILE	"/var/log/hsspsoap.log"
 
 using namespace std;
 namespace ba = boost::algorithm;
+namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
 // globals
-
-CDatabankTable gDBTable;
-fs::path gTempDir	= "/tmp/hssp-2/";
-uint32 gMaxRunTime	= 3600;
 uint32 gNrOfThreads;
 
 #ifdef NDEBUG || ! defined(DEBUG)
 int VERBOSE = 0;
 #endif
-
-const float kHomologyThreshold = 0.05f;
 
 void GetDSSPForSequence(
 	const string&		inSequence,
@@ -101,7 +99,7 @@ void GetPDBFileFromPayload(
 		
 		// sanity check
 		if (line.empty() and in.eof())
-			THROW(("Unexpected end of file"));
+			throw mas_exception("Unexpected end of file");
 		
 		// skip header fields until we have "Content-Disposition: form-data"
 		if (ba::starts_with(line, "Content-Disposition: form-data"))
@@ -116,7 +114,7 @@ void GetPDBFileFromPayload(
 
 			static const boost::regex fre("\\bfilename=\\\"([^\"]+)\\\"");
 			if (boost::regex_search(line, m, fre))
-				file = m[1];
+				file = m[1].str();
 
 			continue;
 		}
@@ -134,7 +132,7 @@ void GetPDBFileFromPayload(
 			getline(in, line);
 
 			if (line.empty() and in.eof())
-				THROW(("Unexpected end of file"));
+				throw mas_exception("Unexpected end of file");
 			
 			if (ba::starts_with(line, boundary))
 				break;
@@ -258,7 +256,7 @@ void hssp_server::handle_request(
 			{
 				string::size_type p = req.payload.find("seq=");
 				if (p == string::npos)
-					THROW(("Missing sequence parameters"));
+					throw mas_exception("Missing sequence parameters");
 				
 				string seq = req.payload.substr(p + 4);
 				seq = zeep::http::decode_url(seq);
@@ -321,7 +319,8 @@ void hssp_server::GetHSSPForPDBFile(
 	// finally, create the HSSP
 	io::filtering_ostream out(io::back_inserter(hssp));
 	HSSP::CreateHSSP(a, mDatabank, 5000, 25, 30, 2,
-		kHomologyThreshold, kFragmentCutOff, gNrOfThreads, out);
+		HSSP::kThreshold, HSSP::kFragmentCutOff,
+		gNrOfThreads, out);
 }
 
 void hssp_server::GetHSSPForSequence(
@@ -330,7 +329,8 @@ void hssp_server::GetHSSPForSequence(
 {
 	io::filtering_ostream out(io::back_inserter(hssp));
 	HSSP::CreateHSSP(sequence, mDatabank, 5000, 25, 30, 2,
-		kHomologyThreshold, kFragmentCutOff, gNrOfThreads, out);
+		HSSP::kThreshold, HSSP::kFragmentCutOff,
+		gNrOfThreads, out);
 }
 
 // --------------------------------------------------------------------
