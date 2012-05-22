@@ -4,7 +4,6 @@
 //             http://www.boost.org/LICENSE_1_0.txt)      
 
 #include "mas.h"
-#include "MRS.h"
 
 #include <pwd.h>
 #include <signal.h>
@@ -26,12 +25,6 @@
 #include <boost/regex.hpp>
 
 #include "zeep/config.hpp"
-
-#include "CDatabank.h"
-#include "CDatabankTable.h"
-#include "CBlast.h"
-#include "CQuery.h"
-
 #include "zeep/server.hpp"
 
 #include "mrsrc.h"
@@ -39,9 +32,7 @@
 #include "blast.h"
 #include "structure.h"
 #include "dssp.h"
-//#include "maxhom-hssp.h"
-//#include "hh-hssp.h"
-#include "hmmer-hssp.h"
+#include "hssp-nt.h"
 
 #define HSSPSOAP_PID_FILE	"/var/run/hsspsoap.pid"
 #define HSSPSOAP_LOG_FILE	"/var/log/hsspsoap.log"
@@ -167,41 +158,22 @@ void GetPDBFileFromPayload(
 class hssp_server : public zeep::server
 {
   public:
-					hssp_server(
-						const fs::path&	inJackhmmer,
-						const fs::path&	inFastaDir,
-						const string&	inDatabank,
-						uint32			inIterations);
+					hssp_server(const vector<fs::path>& inDatabank);
 
-	virtual void	handle_request(
-						const zeep::http::request&	req,
-						zeep::http::reply&			rep);
+	virtual void	handle_request(const zeep::http::request& req,
+						zeep::http::reply& rep);
 
-	virtual void	GetDSSPForPDBFile(
-						const string&	pdbfile,
-						string&			dssp);
-		
-	virtual void	GetHSSPForPDBFile(
-						const string&	pdbfile,
-						string&			hssp);
-		
-	virtual void	GetHSSPForSequence(
-						const string&	sequence,
-						string&			hssp);
+	virtual void	GetDSSPForPDBFile(const string& pdbfile, string& dssp);
+	virtual void	GetHSSPForPDBFile(const string&	pdbfile, string& hssp);
+	virtual void	GetHSSPForSequence(const string& sequence, string& hssp);
 
-	CDatabankTable	mDBTable;
-	string			mDatabank;
-	fs::path		mJackhmmer, mFastaDir;
-	uint32			mIterations;
+	vector<fs::path>
+					mDatabank;
 };
 
-hssp_server::hssp_server(const fs::path& inJackhmmer, const fs::path& inFastaDir,
-	const string& inDatabank, uint32 inIterations)
+hssp_server::hssp_server(const vector<fs::path>& inDatabank)
 	: zeep::server("http://www.cmbi.ru.nl/hsspsoap", "hsspsoap")
 	, mDatabank(inDatabank)
-	, mJackhmmer(inJackhmmer)
-	, mFastaDir(inFastaDir)
-	, mIterations(inIterations)
 {
 	const char* kGetDSSPForPDBFileParameterNames[] = {
 		"pdbfile", "dssp"
@@ -347,19 +319,18 @@ void hssp_server::GetHSSPForPDBFile(
 	a.CalculateSecondaryStructure();
 
 	// finally, create the HSSP
-	CDatabankPtr db = mDBTable.Load(mDatabank);
 	io::filtering_ostream out(io::back_inserter(hssp));
-	hmmer::CreateHSSP(db, a, mFastaDir, mJackhmmer, mIterations, 1500, 25, kHomologyThreshold, out);
+	HSSP::CreateHSSP(a, mDatabank, 5000, 25, 30, 2,
+		kHomologyThreshold, kFragmentCutOff, gNrOfThreads, out);
 }
 
 void hssp_server::GetHSSPForSequence(
 	const string&				sequence,
 	string&						hssp)
 {
-	CDatabankPtr db = mDBTable.Load(mDatabank);
-
 	io::filtering_ostream out(io::back_inserter(hssp));
-	hmmer::CreateHSSP(db, sequence, "undefined", fs::path(), mFastaDir, mJackhmmer, mIterations, 1500, kHomologyThreshold, out);
+	HSSP::CreateHSSP(sequence, mDatabank, 5000, 25, 30, 2,
+		kHomologyThreshold, kFragmentCutOff, gNrOfThreads, out);
 }
 
 // --------------------------------------------------------------------
@@ -471,13 +442,8 @@ int main(int argc, char* argv[])
 		("location,l",	po::value<string>(),	"location advertised in wsdl")
 		("user,u",		po::value<string>(),	"user to run as")
 		("threads,a",	po::value<uint32>(),	"number of threads to use")
-		("jackhmmer",	po::value<string>(),	"Path to the jackhmmer application")
-		("iterations",	po::value<uint32>(),	"Number of jackhmmer iterations (default=5)")
-		("tmpdir",		po::value<string>(),	"Scratch directory")
-		("databank",	po::value<string>(),	"Databank to use (default = uniprot)")
-		("fasta-dir",	po::value<string>(),	"Directory containing FastA formatted uniprot databank")
+		("databank",	po::value<string>(),	"Databank(s) to use (default = /data/fasta/uniprot_sprot.fasta and /data/fasta/uniprot_trembl.fasta)")
 		("no-daemon,D",							"do not fork a daemon")
-		("max-runtime",	po::value<uint16>(),	"Maximum runtime for jackhmmer in seconds")
 		("verbose,v",							"Verbose mode")
 		;
 	
@@ -496,7 +462,7 @@ int main(int argc, char* argv[])
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	po::notify(vm);
 	
-	if (vm.count("help"))
+	if (vm.count("help") or vm.count("databank") == 0)
 	{
 		cout << desc << endl;
 		exit(1);
@@ -514,49 +480,24 @@ int main(int argc, char* argv[])
 	if (vm.count("user"))
 		user = vm["user"].as<string>();
 
-	if (vm.count("max-runtime"))
-		gMaxRunTime = vm["max-runtime"].as<uint16>();
-
 	gNrOfThreads = boost::thread::hardware_concurrency();
 	if (vm.count("threads"))
 		gNrOfThreads = vm["threads"].as<uint32>();
 	if (gNrOfThreads < 1)
 		gNrOfThreads = 1;
 
-	if (vm.count("tmpdir"))
-		gTempDir = fs::path(vm["tmpdir"].as<string>());
-		
 	if (vm.count("verbose"))
 		VERBOSE = 1;
 		
-	uint32 iterations = 5;
-	if (vm.count("iterations"))
-		iterations = vm["iterations"].as<uint32>();
-	
-	string databank = "uniprot";
-	if (vm.count("databank"))
-		databank = vm["databank"].as<string>();
-
-	string jackhmmer = "/usr/local/bin/jackhmmer";
-	if (vm.count("jackhmmer"))
-		jackhmmer = vm["jackhmmer"].as<string>();
-
-	if (not fs::exists(jackhmmer))
+	vector<fs::path> databanks;
+	vector<string> dbs = vm["databank"].as<vector<string>>(); 
+	foreach (string db, dbs)
 	{
-		cerr << "No jackhmmer found" << endl;
-		exit(1);
+		databanks.push_back(db);
+		if (not fs::exists(databanks.back()))
+			throw mas_exception(boost::format("Databank %s does not exist") % db);
 	}
 
-	string fastadir = "/data/fasta";
-	if (vm.count("fasta-dir"))
-		fastadir = vm["fasta-dir"].as<string>();
-
-	if (not fs::exists(fastadir) or not fs::is_directory(fastadir))
-	{
-		cerr << "FastA directory '" << fastadir << "' not found" << endl;
-		exit(1);
-	}
-	
 	if (vm.count("no-daemon"))
 		daemon = false;
 
@@ -573,7 +514,7 @@ int main(int argc, char* argv[])
 #endif
 	
 	// create server
-	hssp_server server(jackhmmer, fastadir, databank, iterations);
+	hssp_server server(databanks);
 	server.bind(address, port);
 	
 	if (not location.empty())

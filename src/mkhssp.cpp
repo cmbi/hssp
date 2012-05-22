@@ -4,23 +4,15 @@
 //          http://www.boost.org/LICENSE_1_0.txt)
 
 #include "mas.h"
-#include "MRS.h"
 
-#include <iostream>
-#include <set>
-
-#if P_UNIX
-#include <wait.h>
-#elif P_WIN
+#if defined(_MSC_VER)
 #include <conio.h>
 #endif
 
-#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
-#include <boost/format.hpp>
+#include <boost/program_options.hpp>
+#include <boost/program_options/config.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
@@ -30,62 +22,18 @@
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
-#include <boost/program_options.hpp>
-#include <boost/program_options/config.hpp>
-#include <boost/ptr_container/ptr_vector.hpp>
-#include <boost/date_time/gregorian/gregorian.hpp>
-#include <boost/date_time/date_clock_device.hpp>
 
-#include "CDatabank.h"
-#include "CDatabankTable.h"
-#include "CBlast.h"
-#include "CQuery.h"
-
-#include "mas.h"
-#include "matrix.h"
-#include "dssp.h"
-#include "blast.h"
-#include "structure.h"
 #include "utils.h"
-#include "hmmer-hssp.h"
-#include "mkhssp.h"
+#include "structure.h"
+#include "hssp-nt.h"
 
 using namespace std;
 namespace ba = boost::algorithm;
+namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
-// Globals section
-
-fs::path gTempDir	= "/tmp/hssp-2/";
-uint32 gMaxRunTime	= 3600;
-uint32 gNrOfThreads;
-CDatabankTable gDBTable;
-
-// read-fasta
-bool readFastA(istream& inFile, string& outID, string& outProtein)
-{
-	string line;
-	getline(inFile, line);
-	if (not ba::starts_with(line, ">"))
-		return false;
-	ba::erase_all(line, "\r");
-	outID = line.substr(1);
-	string::size_type s = outID.find(' ');
-	if (s != string::npos)
-		outID.erase(s, string::npos);
-	for (;;)
-	{
-		getline(inFile, line);
-		ba::erase_all(line, "\r");
-		if (line.empty() and inFile.eof())
-			break;
-		outProtein += line;
-	}
-	return not outProtein.empty();
-}
-
-// main
+// --------------------------------------------------------------------
 
 int main(int argc, char* argv[])
 {
@@ -107,22 +55,18 @@ int main(int argc, char* argv[])
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
-			("databank,b",	po::value<string>(), "Databank to use (default is uniprot)")
-			("fastadir,f",	po::value<string>(), "Directory containing fasta databank files)")
-			("tmpdir",		po::value<string>(), "Directory used for temporary files (default=/tmp/hssp-2)")
-			("jackhmmer",	po::value<string>(), "Jackhmmer executable path (default=/usr/local/bin/jackhmmer)")
-			("no-jackhmmer",					 "Do not run jackhmmer when needed, but exit with error")
-			("max-runtime",	po::value<uint32>(), "Max runtime in seconds for jackhmmer (default = 3600)")
+			("databank,d",	po::value<vector<string>>(),
+												 "Databank(s) to use")
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
-			("iterations",	po::value<uint32>(), "Number of jackhmmer iterations (default = 5)")
-			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
+			("use-seqres",	po::value<bool>(),	 "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
+			("min-length",	po::value<uint32>(), "Minimal chain length")
+			("fragment-cutoff",
+							po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
+			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 30.0)")
+			("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
-
-			("datadir",		po::value<string>(), "Data directory containing stockholm files")
-			("chain",		po::value<vector<string>>(),
-												 "Mappings for chain => stockholm file")
+			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 			("verbose,v",						 "Verbose output")
-			("debug,d",		po::value<int>(),	 "Debug level (for even more verbose output)")
 			;
 	
 		po::positional_options_description p;
@@ -141,105 +85,80 @@ int main(int argc, char* argv[])
 
 		po::notify(vm);
 
-		if (vm.count("help") or not vm.count("input"))
+		if (vm.count("help") or not vm.count("input") or vm.count("databank") == 0)
 		{
 			cerr << desc << endl;
 			exit(1);
 		}
 
-		VERBOSE = vm.count("verbose") ? 1 : 0;
-		if (vm.count("debug"))
-			VERBOSE = vm["debug"].as<int>();
+		VERBOSE = vm.count("verbose") > 0;
 		
-		string databank = "uniprot";
-		if (vm.count("databank"))
-			databank = vm["databank"].as<string>();
-			
-		vector<string> chains;
-		if (vm.count("chain"))
-			chains = vm["chain"].as<vector<string>>();
+		vector<fs::path> databanks;
+		vector<string> dbs = vm["databank"].as<vector<string>>(); 
+		foreach (string db, dbs)
+		{
+			databanks.push_back(db);
+			if (not fs::exists(databanks.back()))
+				throw mas_exception(boost::format("Databank %s does not exist") % db);
+		}
+		
+		bool useSeqRes = true;
+		if (vm.count("use-seqres"))
+			useSeqRes = vm["use-seqres"].as<bool>();
+		
+		uint32 minlength = 25;
+		if (vm.count("min-length"))
+			minlength= vm["min-length"].as<uint32>();
 
-		fs::path jackhmmer("/usr/local/bin/jackhmmer");
-		if (vm.count("jackhmmer"))
-			jackhmmer = fs::path(vm["jackhmmer"].as<string>());
-		if (chains.empty() and not fs::exists(jackhmmer))
-			throw mas_exception("Jackhmmer executable not found");
-		if (vm.count("no-jackhmmer"))
-			jackhmmer.clear();
-		
-		if (vm.count("max-runtime"))
-			gMaxRunTime = vm["max-runtime"].as<uint32>();
-		
-		uint32 maxhits = 1500;
+		uint32 maxhits = 5000;
 		if (vm.count("max-hits"))
 			maxhits= vm["max-hits"].as<uint32>();
 
-		float threshold = 0.05f;
+		float gapOpen = 30;
+		if (vm.count("gap-open"))
+			gapOpen = vm["gap-open"].as<float>();
+
+		float gapExtend = 2;
+		if (vm.count("gap-extend"))
+			gapExtend = vm["gap-extend"].as<float>();
+
+		float threshold = HSSP::kThreshold;
 		if (vm.count("threshold"))
 			threshold = vm["threshold"].as<float>();
 
-		gNrOfThreads = boost::thread::hardware_concurrency();
+		float fragmentCutOff = HSSP::kFragmentCutOff;
+		if (vm.count("fragment-cutoff"))
+			fragmentCutOff = vm["fragment-cutoff"].as<float>();
+
+		uint32 threads = boost::thread::hardware_concurrency();
 		if (vm.count("threads"))
-			gNrOfThreads = vm["threads"].as<uint32>();
-		if (gNrOfThreads < 1)
-			gNrOfThreads = 1;
+			threads = vm["threads"].as<uint32>();
+		if (threads < 1)
+			threads = 1;
 			
-		fs::path fastadir("/data/fasta");
-		if (vm.count("fastadir"))
-			fastadir = fs::path(vm["fastadir"].as<string>());
-		if (chains.empty() and not fs::exists(fastadir))
-			throw mas_exception("Fasta databank directory not found");
-			
-		if (vm.count("tmpdir"))
-			gTempDir = fs::path(vm["tmpdir"].as<string>());
-			
-		uint32 iterations = 5;
-		if (vm.count("iterations"))
-			iterations = vm["iterations"].as<uint32>();
-
-		fs::path datadir(".");
-		if (vm.count("datadir"))
-			datadir = fs::path(vm["datadir"].as<string>());
-		if (not fs::exists(datadir))
-			throw mas_exception("Data directory not found");
-
-		// got parameters
-
-		CDatabankPtr db = gDBTable.Load(databank);
-
 		// what input to use
 		string input = vm["input"].as<string>();
 		io::filtering_stream<io::input> in;
-
 		ifstream infile(input.c_str(), ios_base::in | ios_base::binary);
-		istringstream indata;
+		if (not infile.is_open())
+			throw runtime_error("Error opening input file");
 
-		// first see if input is a local file, otherwise it might be a
-		// PDB ID.
-		if (not infile.is_open() and input.length() == 4)
+		if (ba::ends_with(input, ".bz2"))
 		{
-			CDatabankPtr pdb = gDBTable.Load("pdb");
-			uint32 docNr;
-			if (not pdb->GetDocumentNr(input, docNr))
-				THROW(("Entry %s not found in PDB", input.c_str()));
-			indata.str(pdb->GetDocument(docNr));
-			in.push(indata);
+			in.push(io::bzip2_decompressor());
+			input.erase(input.length() - 4, string::npos);
 		}
-		else
+		else if (ba::ends_with(input, ".gz"))
 		{
-			if (ba::ends_with(input, ".bz2"))
-			{
-				in.push(io::bzip2_decompressor());
-				input.erase(input.length() - 4, string::npos);
-			}
-			else if (ba::ends_with(input, ".gz"))
-			{
-				in.push(io::gzip_decompressor());
-				input.erase(input.length() - 3, string::npos);
-			}
-			in.push(infile);
+			in.push(io::gzip_decompressor());
+			input.erase(input.length() - 3, string::npos);
 		}
+		in.push(infile);
 
+		// read protein and calculate the secondary structure
+		MProtein a(in);
+		a.CalculateSecondaryStructure();
+		
 		// Where to write our HSSP file to:
 		// either to cout or an (optionally compressed) file.
 		ofstream outfile;
@@ -262,44 +181,9 @@ int main(int argc, char* argv[])
 		else
 			out.push(cout);
 
-		// OK, we've got the file, can be a FastA or a PDB file
-		// use a boost::function to postpone the work
-		boost::function<void(ostream&)> work;
-
-		if (ba::ends_with(input, ".fa") or ba::ends_with(input, ".aln"))
-		{
-			string id, seq;
-			if (not readFastA(in, id, seq))
-				throw mas_exception("File does not contain a valid FastA formatted sequence");
-			hmmer::CreateHSSP(db, seq, id, datadir, fastadir, jackhmmer, iterations, maxhits, threshold, out);
-		}
-		else
-		{
-			MProtein a(in);
-			
-			// then calculate the secondary structure
-			a.CalculateSecondaryStructure();
-
-			// see if we have per-chain information for this protein
-			if (chains.empty())
-			{
-				try
-				{
-					CDatabankPtr ix = gDBTable.Load("hssp2ix");
-
-					string chaininfo = ix->GetDocument(a.GetID());
-					ba::split(chains, chaininfo, ba::is_any_of("\n"));
-
-					chains.erase(remove_if(chains.begin(), chains.end(), boost::bind(&string::empty, _1)), chains.end());
-				}
-				catch (exception& e)
-				{
-					cerr << "Missing hssp2ix file: " << e.what() << endl;
-				}
-			}
-			
-			hmmer::CreateHSSP(db, a, datadir, fastadir, jackhmmer, iterations, maxhits, chains, threshold, out);
-		}
+		// create the HSSP file
+		HSSP::CreateHSSP(a, databanks, maxhits, minlength,
+			gapOpen, gapExtend, threshold, fragmentCutOff, threads, out);
 	}
 	catch (exception& e)
 	{
@@ -307,11 +191,12 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-#if P_WIN && P_DEBUG
-	cerr << "Press any key to quit application ";
-	char ch = _getch();
-	cerr << endl;
-#endif
+//#if defined(_MSC_VER) && ! NDEBUG
+//	cerr << "Press any key to quit application ";
+//	char ch = _getch();
+//	cerr << endl;
+//#endif
 	
 	return 0;
 }
+
