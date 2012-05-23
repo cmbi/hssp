@@ -78,6 +78,47 @@ class mas_exception : public std::exception
 
 // --------------------------------------------------------------------
 
+#if defined(__linux__) || defined(__INTEL_COMPILER_BUILD_DATE)
+#include <atomic>
+
+typedef std::atomic<int64>	MCounter;
+
+inline int64 add(MCounter& ioCounter, int64 inIncrement)
+{
+	return ioCounter += inIncrement;
+} 
+
+inline int64 set(MCounter& ioCounter, int64 inValue)
+{
+	return ioCounter = inValue;
+}
+
+#else
+
+struct MCounter
+{
+	MCounter(int64 inValue) : m_value(inValue) {}
+
+			operator int64() const					{ return m_value; }
+
+	int64	operator++();
+	int64	operator+=(int64 inValue);
+	int64	operator=(int64 inValue);
+//	bool	operator==(const MCounter& rhs) const 	{ return m_value == rhs.m_value; }
+
+	int64	m_value;
+};
+
+
+//typedef int64 MCounter;
+//
+//int64 add(MCounter& ioCounter, int64 inIncrement);
+//int64 set(MCounter& ioCounter, int64 inValue);
+
+#endif
+
+// --------------------------------------------------------------------
+
 class MProgress
 {
   public:

@@ -28,8 +28,6 @@
 #include "fetchdbrefs.h"
 #include "hssp-nt.h"
 
-#include <atomic>
-
 using namespace std;
 namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;
@@ -1018,14 +1016,14 @@ void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, 
 	MProgress p1(hits.size(), "distance");
 
 	boost::thread_group threads;
-	atomic<int32> ix(-1);
+	MCounter ix(-1);
 
 	for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
 		threads.create_thread([this, &ix, &hits, &p1]() {
 			for (;;)
 			{
-				int32 next = ++ix;
-				if (next >= static_cast<int32>(hits.size()))
+				int64 next = ++ix;
+				if (next >= hits.size())
 					break;
 				
 				hits[next]->CalculateDistance(m_seq);

@@ -69,6 +69,10 @@ mas_exception::mas_exception(const boost::format& msg)
 
 // --------------------------------------------------------------------
 
+#ifdef _MSC_VER
+
+#include <Windows.h>
+
 uint32 get_terminal_width()
 {
 	uint32 width;
@@ -84,39 +88,23 @@ uint32 get_terminal_width()
 	return width;
 }
 
-// --------------------------------------------------------------------
-
-#if defined(__linux__) || defined(__INTEL_COMPILER_BUILD_DATE)
-#include <atomic>
-
-typedef std::atomic<int64>	MCounter;
-
-inline int64 add(MCounter& ioCounter, int64 inIncrement)
+int64 MCounter::operator++()
 {
-	return ioCounter += inIncrement;
+	return ::InterlockedExchangeAdd64(&m_value, 1);
 } 
 
-inline int64 set(MCounter& ioCounter, int64 inValue)
+int64 MCounter::operator+=(int64 inValue)
 {
-	return ioCounter = inValue;
+	return ::InterlockedExchangeAdd64(&m_value, inValue);
 }
 
-#else
-
-#include <Windows.h>
-
-typedef int64 MCounter;
-
-inline int64 add(MCounter& ioCounter, int64 inIncrement)
+int64 MCounter::operator=(int64 inValue)
 {
-	return ::InterlockedExchangeAdd64(&ioCounter, inIncrement);
-} 
-
-inline int64 set(MCounter& ioCounter, int64 inValue)
-{
-	::InterlockedExchange64(&ioCounter, inValue);
+	::InterlockedExchange64(&m_value, inValue);
 	return inValue;
 }
+
+// --------------------------------------------------------------------
 
 #define STDOUT_FILENO 1
 bool isatty(int) { return true; }
@@ -236,7 +224,7 @@ MProgress::~MProgress()
 	
 void MProgress::Consumed(int64 inConsumed)
 {
-	if (add(mImpl->mConsumed, inConsumed) >= mImpl->mMax and
+	if ((mImpl->mConsumed += inConsumed) >= mImpl->mMax and
 		mImpl->mThread.joinable())
 	{
 		mImpl->mThread.interrupt();
@@ -246,7 +234,7 @@ void MProgress::Consumed(int64 inConsumed)
 
 void MProgress::Progress(int64 inProgress)
 {
-	if (set(mImpl->mConsumed, inProgress) >= mImpl->mMax and
+	if ((mImpl->mConsumed = inProgress) >= mImpl->mMax and
 		mImpl->mThread.joinable())
 	{
 		mImpl->mThread.interrupt();
