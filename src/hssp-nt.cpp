@@ -28,6 +28,8 @@
 #include "fetchdbrefs.h"
 #include "hssp-nt.h"
 
+#include <atomic>
+
 using namespace std;
 namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;
@@ -101,15 +103,17 @@ float calculateDistance(const sequence& a, const sequence& b)
 	float high = -numeric_limits<float>::max();
 	uint16 highIdSub = 0;
 
-	for (x = startX; x < dimX; ++x)
+	sequence::const_iterator ia = a.begin();
+	for (x = startX; x < dimX; ++x, ++ia)
 	{
-		for (y = startY; y < dimY; ++y)
+		sequence::const_iterator ib = b.begin();
+		for (y = startY; y < dimY; ++y, ++ib)
 		{
 			float Ix1 = 0; if (x > startX) Ix1 = Ix(x - 1, y);
 			float Iy1 = 0; if (y > startY) Iy1 = Iy(x, y - 1);
 
 			// (1)
-			float M = score(kMPam250, a[x], b[y]);
+			float M = score(kMPam250, *ia, *ib);
 			if (x > startX and y > startY)
 				M += B(x - 1, y - 1);
 
@@ -245,9 +249,9 @@ struct MHit
 		string			m_seq;
 	};
 	
-	static MHit*		Create(const string& id, const string& def,
-							const string& seq, const sequence& chain);
+	static MHit*		Create(const string& id, const string& def, const string& seq);
 
+	void				CalculateDistance(const sequence& chain);
 	void				Update(const sequence& inChain, MResInfoList& inResidues);
 	
 	string				m_id, m_acc, m_def, m_stid;
@@ -275,7 +279,7 @@ ostream& operator<<(ostream& os, const MHit& hit)
 	return os;
 }
 
-MHit* MHit::Create(const string& id, const string& def, const string& seq, const sequence& chain)
+MHit* MHit::Create(const string& id, const string& def, const string& seq)
 {
 	MHit* result = new MHit(id, def, encode(seq));
 
@@ -296,8 +300,14 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq, const
 	else
 		result->m_acc = result->m_id;
 	
-	result->m_distance = calculateDistance(result->m_seq, chain);
+	result->m_distance = 0;
+
 	return result;
+}
+
+void MHit::CalculateDistance(const sequence& chain)
+{
+	m_distance = calculateDistance(m_seq, chain);
 }
 
 void MHit::Update(const sequence& inChain, MResInfoList& inResidues)
@@ -966,6 +976,8 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, const stri
 
 void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, float inGapExtend, uint32 inMaxhits)
 {
+	vector<MHit*> hits;
+
 	string id, def, seq;
 	for (;;)
 	{
@@ -979,7 +991,7 @@ void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, 
 		if (ba::starts_with(line, ">"))
 		{
 			if (not (id.empty() or seq.empty()))
-				Align(MHit::Create(id, def, seq, m_seq), inGapOpen, inGapExtend);
+				hits.push_back(MHit::Create(id, def, seq));
 			
 			id.clear();
 			def.clear();
@@ -999,7 +1011,43 @@ void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, 
 	}
 
 	if (not (id.empty() or seq.empty()))
-		Align(MHit::Create(id, def, seq, m_seq), inGapOpen, inGapExtend);
+		hits.push_back(MHit::Create(id, def, seq));
+
+	// Now calculate distances
+
+	MProgress p1(hits.size(), "distance");
+
+	boost::thread_group threads;
+	atomic<int32> ix(-1);
+
+	for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
+		threads.create_thread([this, &ix, &hits, &p1]() {
+			for (;;)
+			{
+				int32 next = ++ix;
+				if (next >= static_cast<int32>(hits.size()))
+					break;
+				
+				hits[next]->CalculateDistance(m_seq);
+				p1.Consumed(1);
+			}
+		});
+	
+	threads.join_all();
+	
+	// sort them
+	sort(hits.begin(), hits.end(), [](const MHit* a, const MHit* b) -> bool {
+		return a->m_distance < b->m_distance;
+	});
+	
+	// and then align all the hits
+	
+	MProgress p2(hits.size(), "aligning");
+	foreach (MHit* e, hits)
+	{
+		Align(e, inGapOpen, inGapExtend);
+		p2.Consumed(1);
+	}
 	
 	if (VERBOSE)
 		PrintFastA();
