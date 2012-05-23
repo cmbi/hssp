@@ -28,6 +28,8 @@
 #include "fetchdbrefs.h"
 #include "hssp-nt.h"
 
+#include <atomic>
+
 using namespace std;
 namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;
@@ -391,8 +393,9 @@ struct MProfile
 {
 					MProfile(const MChain& inChain, const sequence& inSequence,
 						float inThreshold, float inFragmentCutOff);
+					~MProfile();
 
-	void			Process(istream& inHits, MProgress& inProgress, float inGapOpen, float inGapExtend, uint32 inMaxHits);
+	void			Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxHits);
 	void			Align(MHit* e, float inGapOpen, float inGapExtend);
 
 	void			AdjustXGapCosts(vector<float>& gop, vector<float>& gep);
@@ -444,6 +447,12 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inTh
 	}
 }
 
+MProfile::~MProfile()
+{
+	foreach (auto e, m_entries)
+		delete e;
+}
+
 void MProfile::dump(const matrix<float>& B, const matrix<float>& Ix, const matrix<float>& Iy,
 	const matrix<int8>& tb, const vector<float>& gopX, const vector<float>& gopY,
 	const vector<float>& gepX, const vector<float>& gepY, const sequence& sx, const sequence& sy)
@@ -490,42 +499,39 @@ void MProfile::AdjustXGapCosts(vector<float>& gop, vector<float>& gep)
 	for (int32 ix = 0; ix < m_residues.size(); ++ix)
 	{
 		MResInfo& e = m_residues[ix];
+
+		// adjust for secondary structure
+		switch (e.m_ss)
+		{
+			case alphahelix:	gop[ix] *= 2; break;
+			case betabridge:	gop[ix] *= 2; break;
+			case strand:		break;
+			case helix_3:		gop[ix] *= 3; break;
+			case helix_5:		gop[ix] *= 2; break;
+			case turn:			gop[ix] *= 1.5; break;
+			case bend:			break;
+			case loop:			break;
+		}
 		
 		// if there is a gap in the alignments, lower gap penalties
-		if (e.m_del > 0 or e.m_ins > 0)
+		if (e.m_dist[22] > 0)
 		{
-			float factor = float(e.m_del + e.m_ins) / (m_entries.size() + 1);
+			float factor = e.m_dist[22] / (m_entries.size() + 1);
 			
-			gop[ix] *= 1 - factor / 2;
+			gop[ix] *= 1 - factor;
 			gep[ix] *= 1 - factor;
 		}
 		
-		// else if there is a gap within 8 residues, increase gap penalty
-		else
+		// if there is a gap within 8 residues, increase gap penalty
+		for (int32 d = 0; d < 8; ++d)
 		{
-			// adjust for secondary structure
-			switch (e.m_ss)
+			if (ix + d >= int32(m_residues.size()) or
+				m_residues[ix + d].m_dist[22] > 0 or
+				ix - d < 0 or
+				m_residues[ix - d].m_dist[22] > 0)
 			{
-				case alphahelix:	gop[ix] *= 3; break;
-				case betabridge:	gop[ix] *= 3; break;
-				case strand:		break;
-				case helix_3:		gop[ix] *= 4; break;
-				case helix_5:		gop[ix] *= 3; break;
-				case turn:			gop[ix] *= 2; break;
-				case bend:			break;
-				case loop:			break;
-			}
-
-			for (int32 d = 0; d < 8; ++d)
-			{
-				if (ix + d >= int32(m_residues.size()) or
-					(m_residues[ix + d].m_del + m_residues[ix + d].m_ins) > 0 or
-					ix - d < 0 or
-					(m_residues[ix - d].m_del + m_residues[ix - d].m_ins) > 0)
-				{
-					gop[ix] *= (2 + ((8 - d) * 2)) / 8.f;
-					break;
-				}
+				gop[ix] *= (2 + ((8 - d) * 2)) / 8.f;
+				break;
 			}
 		}
 	}
@@ -567,6 +573,8 @@ void MProfile::AdjustYGapCosts(const sequence& s, vector<float>& gop, vector<flo
 
 void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 {
+cerr << "aligning " << e->m_id << " distance: " << e->m_distance << endl;
+
 	int32 x = 0, dimX = static_cast<int32>(m_seq.length());
 	int32 y = 0, dimY = static_cast<int32>(e->m_seq.length());
 	
@@ -625,14 +633,14 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 				B(x, y) = s = Ix1;
 
 				Ix(x, y) = Ix1 - gep_a[x];
-				Iy(x, y) = -9999;//max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
+				Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
 			}
 			else
 			{
 				tb(x, y) = -1;
 				B(x, y) = s = Iy1;
 
-				Ix(x, y) = -9999;//max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
+				Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
 				Iy(x, y) = Iy1 - gep_b[y];
 			}
 			
@@ -699,7 +707,12 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 	{
 		// Add the hit since it is within the required parameters.
 		// Calculate the new distance
+
+		e->m_identical = e->m_similar = ident;
+		e->m_length = length;
 		e->m_distance = 1 - float(ident) / length;
+		e->m_score = 1 - e->m_distance;
+
 		m_sum_dist_weight += e->m_distance;
 
 		// reserve space, if needed
@@ -718,8 +731,6 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 		
 		while (x >= 0 and y >= 0 and B(x, y) > 0)
 		{
-			++e->m_length;
-			
 			switch (tb(x, y))
 			{
 				case -1:
@@ -747,9 +758,7 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					m_residues[x].Add(e->m_seq[y], e->m_distance);
 
-					if (m_seq[x] == e->m_seq[y])
-						++e->m_identical, ++e->m_similar;
-					else if (score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
+					if (score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
 						++e->m_similar;
 
 					--x;
@@ -757,12 +766,15 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 					break;
 			}
 		}
+		
+if (ident != e->m_identical or length != e->m_length)
+	cerr << "ident: " << ident << '/' << e->m_identical << "; length: " << length << '/' << e->m_length << endl;
 
 		// update the new entry
 		e->m_ifir = x + 2;
 		e->m_jfir = y + 2;
 		
-		e->m_score = float(e->m_identical) / e->m_length;
+cerr << "score: " << e->m_score << endl;
 //		e->m_stid = (boost::format("%s/%d-%d") % e->m_acc % e->m_jfir % e->m_jlas).str();
 
 		e->Update(m_seq, m_residues);
@@ -775,7 +787,11 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 //#endif
 	}
 	else
+	{
+cerr << "dropped i=" << ident << "; l=" << length << " s=" << (float(ident) / length) << endl;
+
 		delete e;
+	}
 }
 
 void MProfile::PrintFastA()
@@ -972,7 +988,7 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, const stri
 
 // --------------------------------------------------------------------
 
-void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, float inGapExtend, uint32 inMaxhits)
+void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxhits)
 {
 	vector<MHit*> hits;
 
@@ -984,8 +1000,6 @@ void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, 
 		if (line.empty() and inHits.eof())
 			break;
 
-		inProgress.Consumed(line.length() + 1);
-		
 		if (ba::starts_with(line, ">"))
 		{
 			if (not (id.empty() or seq.empty()))
@@ -1016,14 +1030,14 @@ void MProfile::Process(istream& inHits, MProgress& inProgress, float inGapOpen, 
 	MProgress p1(hits.size(), "distance");
 
 	boost::thread_group threads;
-	MCounter ix(-1);
+	atomic<int32> ix(-1);
 
 	for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
 		threads.create_thread([this, &ix, &hits, &p1]() {
 			for (;;)
 			{
-				int64 next = ++ix;
-				if (next >= hits.size())
+				int32 next = ++ix;
+				if (next >= static_cast<int32>(hits.size()))
 					break;
 				
 				hits[next]->CalculateDistance(m_seq);
@@ -1495,12 +1509,8 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		
 		MProfile profile(chain, seqset[i], inThreshold, inFragmentCutOff);
 		
-		{
-			MProgress pr1(blastHits.size(), "processing");
-			
-			io::filtering_istream in(boost::make_iterator_range(blastHits));
-			profile.Process(in, pr1, inGapOpen, inGapExtend, inMaxhits);
-		}
+		io::filtering_istream in(boost::make_iterator_range(blastHits));
+		profile.Process(in, inGapOpen, inGapExtend, inMaxhits);
 		
 		if (profile.m_entries.empty())
 			continue;
@@ -1511,6 +1521,28 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	
 	if (empty)
 		throw mas_exception("No hits found");
+}
+
+// --------------------------------------------------------------------
+
+void CreateHSSP(const string& inProtein, const vector<fs::path>& inDatabanks,
+	uint32 inMaxhits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
+	float inThreshold, float inFragmentCutOff, uint32 inThreads, ostream& inOs)
+{
+	MChain* chain = new MChain('A');
+	vector<MResidue*>& residues = chain->GetResidues();
+	MResidue* last = nullptr;
+	uint32 nr = 1;
+	foreach (char r, inProtein)
+	{
+		residues.push_back(new MResidue(nr, r, last));
+		++nr;
+		last = residues.back();
+	}
+	
+	MProtein protein("UNDF", chain);
+	CreateHSSP(protein, inDatabanks, inMaxhits, inMinSeqLength, inGapOpen, inGapExtend,
+		inThreshold, inFragmentCutOff, inThreads, inOs);
 }
 
 }

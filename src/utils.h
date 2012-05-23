@@ -83,16 +83,6 @@ class mas_exception : public std::exception
 
 typedef std::atomic<int64>	MCounter;
 
-inline int64 add(MCounter& ioCounter, int64 inIncrement)
-{
-	return ioCounter += inIncrement;
-} 
-
-inline int64 set(MCounter& ioCounter, int64 inValue)
-{
-	return ioCounter = inValue;
-}
-
 #else
 
 struct MCounter

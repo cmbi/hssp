@@ -9,27 +9,26 @@
   </syspaths>
   <userpaths>
     <path>src</path>
-    <path>../mrs/lib/Sources</path>
   </userpaths>
   <libpaths>
 	<path>/usr/lib</path>
-    <path>../mrs/lib</path>
     <path>../libzeep</path>
 	<path>../boost/lib</path>
   </libpaths>
   <files>
     <group name="Sources">
       <file>hsspsoap.cpp</file>
-<!--      <file>blast.cpp</file> -->
       <file>dssp.cpp</file>
+      <file>blast.cpp</file>
+      <file>fetchdbrefs.cpp</file>
+      <file>mas.cpp</file>
       <file>matrix.cpp</file>
-      <file>hmmer-hssp.cpp</file>
+      <file>hssp-nt.cpp</file>
       <file>primitives-3d.cpp</file>
       <file>structure.cpp</file>
       <file>utils.cpp</file>
     </group>
     <group name="Libraries">
-      <link>mrs</link>
       <link>zeep</link>
       <link>boost_date_time</link>
       <link>boost_filesystem</link>
@@ -40,6 +39,9 @@
       <link>bz2</link>
       <link>boost_math_c99</link>
       <link>boost_system</link>
+      <link>boost_timer</link>
+      <link>boost_chrono</link>
+      <link>rt</link>
       <link>z</link>
     </group>
   </files>
@@ -51,7 +53,7 @@
     <target kind="Executable">
       <name>hsspsoap-Debug</name>
       <linkTarget>hsspsoap</linkTarget>
-      <compiler>/usr/bin/g++</compiler>
+      <compiler>/home/maarten/intel/composer_xe_2011_sp1.9.293/bin/intel64/icpc</compiler>
       <defines>
         <define>DEBUG</define>
         <define>LINUX</define>
@@ -72,7 +74,7 @@
     <target kind="Executable">
       <name>hsspsoap-Release</name>
       <linkTarget>hsspsoap</linkTarget>
-      <compiler>/usr/bin/g++</compiler>
+      <compiler>/home/maarten/intel/composer_xe_2011_sp1.9.293/bin/intel64/icpc</compiler>
       <defines>
         <define>NDEBUG</define>
         <define>LINUX</define>

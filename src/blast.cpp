@@ -1169,7 +1169,7 @@ class BlastQuery
 						uint32 inReportLimit);
 					~BlastQuery();
 
-	void			Search(const vector<fs::path>& inDatabanks, uint32 inNrOfThreads);
+	void			Search(const vector<fs::path>& inDatabanks, MProgress& inProgress, uint32 inNrOfThreads);
 	//void			Report(Result& outResult);
 	void			WriteAsFasta(ostream& inStream);
 
@@ -1248,13 +1248,8 @@ BlastQuery<WORDSIZE>::~BlastQuery()
 }
 
 template<int WORDSIZE>
-void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, uint32 inNrOfThreads)
+void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress& inProgress, uint32 inNrOfThreads)
 {
-	int64 totalLength = accumulate(inDatabanks.begin(), inDatabanks.end(), 0LL,
-		[](int64 l, const fs::path& p) -> int64 { return l + fs::file_size(p); });
-	
-	MProgress progress(totalLength, "blast");
-	
 	foreach (const fs::path& p, inDatabanks)
 	{
 		io::mapped_file file(p.string().c_str(), io::mapped_file::readonly);
@@ -1265,7 +1260,7 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, uint32 in
 		size_t length = file.size();
 
 		if (inNrOfThreads <= 1)
-			SearchPart(data, length, progress, mDbCount, mDbLength, mHits);
+			SearchPart(data, length, inProgress, mDbCount, mDbLength, mHits);
 		else
 		{
 			boost::thread_group t;
@@ -1281,12 +1276,12 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, uint32 in
 				while (n < length and *end != '>')
 					++end, ++n;
 	
-				t.create_thread([data, n, &m, &progress, this]() {
+				t.create_thread([data, n, &m, &inProgress, this]() {
 					uint32 dbCount = 0;
 					int64 dbLength = 0;
 					vector<Hit*> hits;
 					
-					SearchPart(data, n, progress, dbCount, dbLength, hits);
+					SearchPart(data, n, inProgress, dbCount, dbLength, hits);
 	
 					boost::mutex::scoped_lock lock(m);
 					mDbCount += dbCount;
@@ -2048,12 +2043,17 @@ void SearchAndWriteResultsAsFastA(ostream& inOutFile, const vector<fs::path>& in
 		}
 	}
 
+	int64 totalLength = accumulate(inDatabanks.begin(), inDatabanks.end(), 0LL,
+		[](int64 l, const fs::path& p) -> int64 { return l + fs::file_size(p); });
+	
+	MProgress progress(totalLength, "blast");
+
 	switch (inWordSize)
 	{
 		case 2:
 		{
 			BlastQuery<2> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen, inGapExtend, inReportLimit);
-			q.Search(inDatabanks, inThreads);
+			q.Search(inDatabanks, progress, inThreads);
 			q.WriteAsFasta(inOutFile);
 			break;
 		}
@@ -2061,7 +2061,7 @@ void SearchAndWriteResultsAsFastA(ostream& inOutFile, const vector<fs::path>& in
 		case 3:
 		{
 			BlastQuery<3> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen, inGapExtend, inReportLimit);
-			q.Search(inDatabanks, inThreads);
+			q.Search(inDatabanks, progress, inThreads);
 			q.WriteAsFasta(inOutFile);
 			break;
 		}
@@ -2069,7 +2069,7 @@ void SearchAndWriteResultsAsFastA(ostream& inOutFile, const vector<fs::path>& in
 		case 4:
 		{
 			BlastQuery<4> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen, inGapExtend, inReportLimit);
-			q.Search(inDatabanks, inThreads);
+			q.Search(inDatabanks, progress, inThreads);
 			q.WriteAsFasta(inOutFile);
 			break;
 		}

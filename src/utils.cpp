@@ -75,17 +75,7 @@ mas_exception::mas_exception(const boost::format& msg)
 
 uint32 get_terminal_width()
 {
-	uint32 width;
-
-#if defined(_MSC_VER)
-	width = TERM_WIDTH;
-#else
-	struct winsize w;
-	ioctl(0, TIOCGWINSZ, &w);
-	width = w.ws_col;
-#endif
-
-	return width;
+	return TERM_WIDTH;
 }
 
 int64 MCounter::operator++()
@@ -108,6 +98,15 @@ int64 MCounter::operator=(int64 inValue)
 
 #define STDOUT_FILENO 1
 bool isatty(int) { return true; }
+
+#else
+
+uint32 get_terminal_width()
+{
+	struct winsize w;
+	ioctl(0, TIOCGWINSZ, &w);
+	return w.ws_col;
+}
 
 #endif
 
@@ -144,8 +143,7 @@ void MProgressImpl::Run()
 			if (mConsumed == mMax)
 				break;
 			
-			if (isatty(STDOUT_FILENO))
-				PrintProgress();
+			PrintProgress();
 		}
 	}
 	catch (...) {}
@@ -193,27 +191,24 @@ void MProgressImpl::PrintDone()
 {
 	string msg = mAction + " done in " + mTimer.format(0, "%ts cpu / %ws wall");
 
-	if (isatty(STDOUT_FILENO))
-	{
-		int width = get_terminal_width();
+	int width = get_terminal_width();
+
+	if (msg.length() < width)
+		msg += string(width - msg.length(), ' ');
 	
-		if (msg.length() < width)
-			msg += string(width - msg.length(), ' ');
-		
-		cout << '\r' << msg << endl;
-	}
-	else
-		cout << msg << endl;
+	cout << '\r' << msg << endl;
 }
 
 MProgress::MProgress(int64 inMax, const string& inAction)
-	: mImpl(new MProgressImpl(inMax, inAction))
+	: mImpl(nullptr)
 {
+	if (isatty(STDOUT_FILENO))
+		mImpl = new MProgressImpl(inMax, inAction);
 }
 
 MProgress::~MProgress()
 {
-	if (mImpl->mThread.joinable())
+	if (mImpl != nullptr and mImpl->mThread.joinable())
 	{
 		mImpl->mThread.interrupt();
 		mImpl->mThread.join();
@@ -224,7 +219,8 @@ MProgress::~MProgress()
 	
 void MProgress::Consumed(int64 inConsumed)
 {
-	if ((mImpl->mConsumed += inConsumed) >= mImpl->mMax and
+	if (mImpl != nullptr and 
+		(mImpl->mConsumed += inConsumed) >= mImpl->mMax and
 		mImpl->mThread.joinable())
 	{
 		mImpl->mThread.interrupt();
@@ -234,7 +230,8 @@ void MProgress::Consumed(int64 inConsumed)
 
 void MProgress::Progress(int64 inProgress)
 {
-	if ((mImpl->mConsumed = inProgress) >= mImpl->mMax and
+	if (mImpl != nullptr and 
+		(mImpl->mConsumed = inProgress) >= mImpl->mMax and
 		mImpl->mThread.joinable())
 	{
 		mImpl->mThread.interrupt();
@@ -244,8 +241,11 @@ void MProgress::Progress(int64 inProgress)
 
 void MProgress::Message(const std::string& inMessage)
 {
-	boost::mutex::scoped_lock lock(mImpl->mMutex);
-	mImpl->mMessage = inMessage;
+	if (mImpl != nullptr)
+	{
+		boost::mutex::scoped_lock lock(mImpl->mMutex);
+		mImpl->mMessage = inMessage;
+	}
 }
 
 

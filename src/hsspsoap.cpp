@@ -49,10 +49,6 @@ namespace po = boost::program_options;
 // globals
 uint32 gNrOfThreads;
 
-#ifdef NDEBUG || ! defined(DEBUG)
-int VERBOSE = 0;
-#endif
-
 void GetDSSPForSequence(
 	const string&		inSequence,
 	string&				outDSSP)
@@ -442,7 +438,8 @@ int main(int argc, char* argv[])
 		("location,l",	po::value<string>(),	"location advertised in wsdl")
 		("user,u",		po::value<string>(),	"user to run as")
 		("threads,a",	po::value<uint32>(),	"number of threads to use")
-		("databank",	po::value<string>(),	"Databank(s) to use (default = /data/fasta/uniprot_sprot.fasta and /data/fasta/uniprot_trembl.fasta)")
+		("databank",	po::value<vector<string>>(),
+												"Databank(s) to use (default = /data/fasta/uniprot_sprot.fasta and /data/fasta/uniprot_trembl.fasta)")
 		("no-daemon,D",							"do not fork a daemon")
 		("verbose,v",							"Verbose mode")
 		;
