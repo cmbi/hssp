@@ -66,6 +66,7 @@ int main(int argc, char* argv[])
 			("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
+			("fetch-dbrefs",					 "Fetch DBREF records for each UniProt ID")
 			("verbose,v",						 "Verbose output")
 			;
 	
@@ -130,6 +131,8 @@ int main(int argc, char* argv[])
 		if (vm.count("fragment-cutoff"))
 			fragmentCutOff = vm["fragment-cutoff"].as<float>();
 
+		bool fetchDbRefs = vm.count("fetch-dbrefs") > 0;
+
 		uint32 threads = boost::thread::hardware_concurrency();
 		if (vm.count("threads"))
 			threads = vm["threads"].as<uint32>();
@@ -183,7 +186,7 @@ int main(int argc, char* argv[])
 
 		// create the HSSP file
 		HSSP::CreateHSSP(a, databanks, maxhits, minlength,
-			gapOpen, gapExtend, threshold, fragmentCutOff, threads, out);
+			gapOpen, gapExtend, threshold, fragmentCutOff, threads, fetchDbRefs, out);
 	}
 	catch (exception& e)
 	{

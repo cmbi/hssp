@@ -78,7 +78,7 @@ uint32 get_terminal_width()
 	return TERM_WIDTH;
 }
 
-int64 MCounter::operator++()
+int64 MCounter::operator++(int)
 {
 	return ::InterlockedExchangeAdd64(&m_value, 1);
 } 

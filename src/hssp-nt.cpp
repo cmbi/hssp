@@ -18,6 +18,7 @@
 #include <boost/tr1/cmath.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
+#include <boost/iostreams/copy.hpp>
 
 #include "utils.h"
 #include "structure.h"
@@ -27,8 +28,6 @@
 #include "blast.h"
 #include "fetchdbrefs.h"
 #include "hssp-nt.h"
-
-#include <atomic>
 
 using namespace std;
 namespace fs = boost::filesystem;
@@ -408,8 +407,8 @@ struct MProfile
 
 	void			PrintFastA();
 
-	void			PrintStockholm(ostream& os, const string& inChainID) const;
-	void			PrintStockholm(ostream& os, const MProtein& inProtein, const string& used) const;
+	void			PrintStockholm(ostream& os, const string& inChainID, bool inFetchDBRefs) const;
+	void			PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs, const string& used) const;
 
 	void			CalculateConservation();
 
@@ -514,13 +513,11 @@ void MProfile::AdjustXGapCosts(vector<float>& gop, vector<float>& gep)
 		}
 		
 		// if there is a gap in the alignments, lower gap penalties
-		if (e.m_dist[22] > 0)
-		{
-			float factor = e.m_dist[22] / (m_entries.size() + 1);
-			
-			gop[ix] *= 1 - factor;
-			gep[ix] *= 1 - factor;
-		}
+		if (e.m_ins > 0)		// gap open penalty is zero when another gap was already created here
+			gop[ix] = 0;
+
+		if (e.m_dist[22] > 0)	// lower gap extension penalty for existing gaps here
+			gep[ix] = float(e.m_dist[22]) / (m_entries.size() + 1);
 		
 		// if there is a gap within 8 residues, increase gap penalty
 		for (int32 d = 0; d < 8; ++d)
@@ -573,7 +570,7 @@ void MProfile::AdjustYGapCosts(const sequence& s, vector<float>& gop, vector<flo
 
 void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 {
-cerr << "aligning " << e->m_id << " distance: " << e->m_distance << endl;
+//cerr << "aligning " << e->m_id << " distance: " << e->m_distance << endl;
 
 	int32 x = 0, dimX = static_cast<int32>(m_seq.length());
 	int32 y = 0, dimY = static_cast<int32>(e->m_seq.length());
@@ -653,10 +650,10 @@ cerr << "aligning " << e->m_id << " distance: " << e->m_distance << endl;
 		}
 	}
 
-//#if 0 //not NDEBUG
+//#if not NDEBUG
 //
 //bool dmp = false;
-//if (e->m_id == "Q7ZZX1_9PASE")
+//if (e->m_acc == "D2CRJ5")
 //{
 //	dmp = true;
 //	dump(B, Ix, Iy, tb, gop_a, gop_b, gep_a, gep_b, m_seq, e->m_seq);
@@ -767,28 +764,27 @@ cerr << "aligning " << e->m_id << " distance: " << e->m_distance << endl;
 			}
 		}
 		
-if (ident != e->m_identical or length != e->m_length)
-	cerr << "ident: " << ident << '/' << e->m_identical << "; length: " << length << '/' << e->m_length << endl;
-
 		// update the new entry
 		e->m_ifir = x + 2;
 		e->m_jfir = y + 2;
 		
-cerr << "score: " << e->m_score << endl;
-//		e->m_stid = (boost::format("%s/%d-%d") % e->m_acc % e->m_jfir % e->m_jlas).str();
+//cerr << "score: " << e->m_score << endl;
 
 		e->Update(m_seq, m_residues);
 
 		m_entries.push_back(e);
 
-//#if 0 //not defined(NDEBUG)
+//#if not defined(NDEBUG)
 //		if (dmp)
+//		{
 //			PrintFastA();
+//			exit(1);
+//		}
 //#endif
 	}
 	else
 	{
-cerr << "dropped i=" << ident << "; l=" << length << " s=" << (float(ident) / length) << endl;
+//cerr << "dropped i=" << ident << "; l=" << length << " s=" << (float(ident) / length) << endl;
 
 		delete e;
 	}
@@ -822,7 +818,7 @@ char map_value_to_char(double v)
 	return map_value_to_char(static_cast<uint32>(v));
 }
 
-void MProfile::PrintStockholm(ostream& os, const string& inChainID) const
+void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetchDBRefs) const
 {
 	os << "#=GF ID " << inChainID << endl
 //	   << "#=GF NO SEQLENGTH " << m_chain.GetResidues().size() << endl
@@ -894,11 +890,14 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID) const
 				   % e->m_ifir % e->m_ilas % e->m_jfir % e->m_jlas % e->m_length
 				   % e->m_gaps % e->m_gapn % e->m_seq.length() << endl;
 	
-		vector<string> pdb;
-		const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search/rest/GetLinked/db/uniprot/linkedDatabank/pdb/id/";
-		FetchPDBReferences(kBaseURL + e->m_id, pdb);
-		if (not pdb.empty())
-			os << "#=GS " << id << " DR PDB " << ba::join(pdb, ", ") << endl;
+		if (inFetchDBRefs)
+		{
+			vector<string> pdb;
+			const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search/rest/GetLinked/db/uniprot/linkedDatabank/pdb/id/";
+			FetchPDBReferences(kBaseURL + e->m_id, pdb);
+			if (not pdb.empty())
+				os << "#=GS " << id << " DR PDB " << ba::join(pdb, ", ") << endl;
+		}
 	}
 
 	if (tl < 17)
@@ -949,7 +948,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID) const
 	os << "//" << endl;
 }
 
-void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, const string& inUsed) const
+void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs, const string& inUsed) const
 {
 	using namespace boost::gregorian;
 	date today = day_clock::local_day();
@@ -983,7 +982,7 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, const stri
 		os << "#=GF CC " << dbref << endl;
 	
 	string chain_id = (boost::format("CHAIN/%c") % m_chain.GetChainID()).str();
-	PrintStockholm(os, chain_id);
+	PrintStockholm(os, chain_id, inFetchDBRefs  );
 }
 
 // --------------------------------------------------------------------
@@ -1026,18 +1025,17 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 		hits.push_back(MHit::Create(id, def, seq));
 
 	// Now calculate distances
-
 	MProgress p1(hits.size(), "distance");
 
 	boost::thread_group threads;
-	atomic<int32> ix(-1);
+	MCounter ix(0);
 
 	for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
 		threads.create_thread([this, &ix, &hits, &p1]() {
 			for (;;)
 			{
-				int32 next = ++ix;
-				if (next >= static_cast<int32>(hits.size()))
+				uint64 next = ix++;
+				if (next >= hits.size())
 					break;
 				
 				hits[next]->CalculateDistance(m_seq);
@@ -1047,13 +1045,12 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 	
 	threads.join_all();
 	
-	// sort them
+	// sort them by distance
 	sort(hits.begin(), hits.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_distance < b->m_distance;
 	});
 	
 	// and then align all the hits
-	
 	MProgress p2(hits.size(), "aligning");
 	foreach (MHit* e, hits)
 	{
@@ -1064,9 +1061,10 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 	if (VERBOSE)
 		PrintFastA();
 
-	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
-		return a->m_score > b->m_score;
-	});
+	//// sort by score
+	//sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
+	//	return a->m_score > b->m_score;
+	//});
 	
 	if (m_entries.size() > inMaxhits)
 		m_entries.erase(m_entries.begin() + inMaxhits, m_entries.end());
@@ -1450,7 +1448,8 @@ void MProfile::CalculateConservation()
 
 void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	uint32 inMaxhits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
-	float inThreshold, float inFragmentCutOff, uint32 inThreads, ostream& inOs)
+	float inThreshold, float inFragmentCutOff, uint32 inThreads, bool inFetchDBRefs,
+	ostream& inOs)
 {
 	// construct a set of unique sequences, containing only the largest ones in case of overlap
 	vector<sequence> seqset;
@@ -1499,6 +1498,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		
 		{
 			io::filtering_ostream out(io::back_inserter(blastHits));
+
 			SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
 				"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 4 * inMaxhits,
 				inThreads);
@@ -1516,7 +1516,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 			continue;
 
 		empty = false;
-		profile.PrintStockholm(inOs, inProtein, used);
+		profile.PrintStockholm(inOs, inProtein, inFetchDBRefs, used);
 	}
 	
 	if (empty)
@@ -1527,7 +1527,8 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 
 void CreateHSSP(const string& inProtein, const vector<fs::path>& inDatabanks,
 	uint32 inMaxhits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
-	float inThreshold, float inFragmentCutOff, uint32 inThreads, ostream& inOs)
+	float inThreshold, float inFragmentCutOff, uint32 inThreads, bool inFetchDBRefs,
+	ostream& inOs)
 {
 	MChain* chain = new MChain('A');
 	vector<MResidue*>& residues = chain->GetResidues();
@@ -1542,7 +1543,7 @@ void CreateHSSP(const string& inProtein, const vector<fs::path>& inDatabanks,
 	
 	MProtein protein("UNDF", chain);
 	CreateHSSP(protein, inDatabanks, inMaxhits, inMinSeqLength, inGapOpen, inGapExtend,
-		inThreshold, inFragmentCutOff, inThreads, inOs);
+		inThreshold, inFragmentCutOff, inThreads, inFetchDBRefs, inOs);
 }
 
 }

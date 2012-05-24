@@ -91,7 +91,7 @@ struct MCounter
 
 			operator int64() const					{ return m_value; }
 
-	int64	operator++();
+	int64	operator++(int);
 	int64	operator+=(int64 inValue);
 	int64	operator=(int64 inValue);
 //	bool	operator==(const MCounter& rhs) const 	{ return m_value == rhs.m_value; }
