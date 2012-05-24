@@ -174,7 +174,7 @@ struct MResInfo
 	float			m_entropy;
 
 	void			Add(uint8 r, float inDistance);
-	static MResInfo	NewGap(uint32 inDel, float inSumDistance);
+	static MResInfo	NewGap(size_t inDel, float inSumDistance, uint8 inResidue, float inDistance);
 	void			AddGap(float inDistance);
 };
 
@@ -207,12 +207,13 @@ void MResInfo::AddGap(float inDistance)
 	Add(22, inDistance);
 }
 
-MResInfo MResInfo::NewGap(uint32 inDel, float inSumDistance)
+MResInfo MResInfo::NewGap(size_t inDel, float inSumDistance, uint8 inResidue, float inDistance)
 {
 	MResInfo r = {};
 	
-	r.m_dist[22] = inDel;
+	r.m_dist[22] = static_cast<uint32>(inDel);
 	r.m_sum_dist_weight = r.m_dist_weight[22] = inSumDistance;
+	r.Add(inResidue, inDistance);
 	
 	return r;
 }
@@ -544,14 +545,12 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 	if (minLength > maxLength)
 		swap(minLength, maxLength);
 	
-	float gop = inGapOpen, gep = inGapExtend;
-	
 	float logmin = 1.0f / log10(minLength);
 	float logdiff = 1.0f + 0.5f * log10(minLength / maxLength);
 	
-	// initial gap open penalty, 0.05f is the remaining magical number here...
-	float magic = 1; //0.05f;
-	gop = (gop / (logdiff * logmin)) * abs(kMPam250MisMatchAverage) * kMPam250ScalingFactor * magic;
+	// initial gap open penalty
+	float gop = (inGapOpen / (logdiff * logmin)) * abs(kMPam250MisMatchAverage) * kMPam250ScalingFactor;
+	float gep = inGapExtend;
 
 	// position specific gap penalties
 	// initial gap extend penalty is adjusted for difference in sequence lengths
@@ -575,19 +574,25 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 			if (x > 0 and y > 0)
 				M += B(x - 1, y - 1);
 
-			float s;
 			if (M >= Ix1 and M >= Iy1)
 			{
 				tb(x, y) = 0;
-				B(x, y) = s = M;
+				B(x, y) = M;
 				
 				Ix(x, y) = M - (x < dimX - 1 ? gop_a[x] : 0);
 				Iy(x, y) = M - (y < dimY - 1 ? gop_b[y] : 0);
+				
+				if (highS < M)
+				{
+					highS = M;
+					highX = x;
+					highY = y;
+				}
 			}
 			else if (Ix1 >= Iy1)
 			{
 				tb(x, y) = 1;
-				B(x, y) = s = Ix1;
+				B(x, y) = Ix1;
 
 				Ix(x, y) = Ix1 - gep_a[x];
 				Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
@@ -595,17 +600,10 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 			else
 			{
 				tb(x, y) = -1;
-				B(x, y) = s = Iy1;
+				B(x, y) = Iy1;
 
 				Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
 				Iy(x, y) = Iy1 - gep_b[y];
-			}
-			
-			if (highS < s)
-			{
-				highS = s;
-				highX = x;
-				highY = y;
 			}
 		}
 	}
@@ -625,7 +623,7 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 	x = highX;
 	y = highY;
 
-	uint32 ident = 0, length = 0, xgaps = 0;
+	uint32 ident = 0, similar = 0, length = 0, xgaps = 0;
 
 	// trace back the matrix
 	while (x >= 0 and y >= 0 and B(x, y) > 0)
@@ -648,8 +646,10 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 					if (m_seq[x] == '.')
 						--length;
 					else
-						++ident;
+						++ident, ++similar;
 				}
+				else if (score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
+					++similar;
 				--x;
 				--y;
 				break;
@@ -662,23 +662,15 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 	
 	uint32 tix = max(10U, min(length, 80U)) - 10;
 	
-	if (length >= m_seq.length() * m_frag_cutoff and					// accept only alignment long enough (suppress fragments)
+	// Add the hit only if it is within the required parameters.
+	if (length >= m_seq.length() * m_frag_cutoff and				// accept only alignment long enough (suppress fragments)
 		ident >= length * (kHomologyThreshold[tix] + m_threshold))	// and those that score high enough
 	{
-		// Add the hit since it is within the required parameters.
-		// Calculate the new distance
-
-		e->m_identical = ident;
-		e->m_length = length;
-		e->m_distance = 1 - float(ident) / length;
-		e->m_score = 1 - e->m_distance;
-
-		m_sum_dist_weight += e->m_distance;
-
 		// reserve space, if needed
 		if (xgaps > 0)
 		{
-			uint32 n = static_cast<uint32>((((m_residues.size() + xgaps) / 256) + 1) * 256);
+			const uint32 kBlockSize = 1024;
+			uint32 n = static_cast<uint32>((((m_residues.size() + xgaps) / kBlockSize) + 1) * kBlockSize);
 			m_seq.reserve(n);
 			foreach (MHit* e, m_entries)
 				e->m_aligned.reserve(n);
@@ -687,6 +679,8 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 		// update insert/delete counters for the residues
 		x = highX;	e->m_ilas = x + 1;
 		y = highY;	e->m_jlas = y + 1;
+
+		// trace back to fill aligned sequence and to create gaps in MSA
 		e->m_aligned = string(m_seq.length() + xgaps, '.');
 		
 		while (x >= 0 and y >= 0 and B(x, y) > 0)
@@ -697,8 +691,8 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 
 					m_residues.insert(m_residues.begin() + x + 1,
-						MResInfo::NewGap(static_cast<uint32>(m_entries.size() + 1), m_sum_dist_weight));
-					m_residues[x + 1].Add(e->m_seq[y], e->m_distance);
+						MResInfo::NewGap(m_entries.size() + 1, m_sum_dist_weight, e->m_seq[y], e->m_distance));
+
 					m_seq.insert(m_seq.begin() + x + 1, '.');
 					
 					foreach (MHit* e, m_entries)
@@ -709,7 +703,6 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 					break;
 	
 				case 1:
-					e->m_aligned[x + xgaps] = '.';
 					m_residues[x].AddGap(e->m_distance);
 					--x;
 					break;
@@ -717,10 +710,6 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 				case 0:
 					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					m_residues[x].Add(e->m_seq[y], e->m_distance);
-
-					if (m_seq[x] == e->m_seq[y] or score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
-						++e->m_similar;
-
 					--x;
 					--y;
 					break;
@@ -728,12 +717,19 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 		}
 		
 		// update the new entry
+		e->m_identical = ident;
+		e->m_similar = similar;
+		e->m_length = length;
+		e->m_distance = 1 - float(ident) / length;
+		e->m_score = 1 - e->m_distance;
+
 		e->m_ifir = x + 2;
 		e->m_jfir = y + 2;
 
 		e->Update(m_seq, m_residues);
-
 		m_entries.push_back(e);
+
+		m_sum_dist_weight += e->m_distance;
 
 //#if not defined(NDEBUG)
 //		if (dmp)
@@ -773,9 +769,7 @@ char map_value_to_char(double v)
 void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetchDBRefs) const
 {
 	os << "#=GF ID " << inChainID << endl
-//	   << "#=GF NO SEQLENGTH " << m_chain.GetResidues().size() << endl
-	   << "#=GF SQ " << m_entries.size() << endl
-	   << "#=GS " << inChainID << " ID " << m_chain.GetChainID() << endl;
+	   << "#=GF SQ " << m_entries.size() << endl;
 //	   << "#=GF NO " << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
 
 	// ## per residue information
@@ -829,6 +823,8 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 		if (tl < e->m_stid.length())
 			tl = e->m_stid.length();
 	}
+	
+	os << "#=GS " << inChainID << string(tl - inChainID.length(), ' ') << " CC The query chain" << endl;
 
 	boost::format fmt("#=GS %s HSSP score=%4.2f/%4.2f aligned=%d-%d/%d-%d length=%d ngaps=%d gaplen=%d seqlen=%d");
 
@@ -933,8 +929,14 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 	foreach (auto dbref, inProtein.GetDbRef())
 		os << "#=GF CC " << dbref << endl;
 	
-	string chain_id = (boost::format("CHAIN/%c") % m_chain.GetChainID()).str();
-	PrintStockholm(os, chain_id, inFetchDBRefs);
+	string queryID = inProtein.GetID();
+	if (inProtein.GetChains().size() > 1)
+	{
+		os << "#=GF CC PDB file contains " << inProtein.GetChains().size() << " chains. This file uses chains " << inUsed << endl;
+		queryID = inProtein.GetID() + '/' + m_chain.GetChainID();
+	}
+	
+	PrintStockholm(os, queryID, inFetchDBRefs);
 }
 
 // --------------------------------------------------------------------
@@ -1490,7 +1492,7 @@ void CreateHSSP(const string& inProtein, const vector<fs::path>& inDatabanks,
 		last = residues.back();
 	}
 	
-	MProtein protein("UNDF", chain);
+	MProtein protein("INPUT", chain);
 	CreateHSSP(protein, inDatabanks, inMaxhits, inMinSeqLength, inGapOpen, inGapExtend,
 		inThreshold, inFragmentCutOff, inThreads, inFetchDBRefs, inOs);
 }
