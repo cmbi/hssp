@@ -358,7 +358,7 @@ struct MProfile
 						float inThreshold, float inFragmentCutOff);
 					~MProfile();
 
-	void			Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxHits);
+	void			Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxHits, uint32 inThreads);
 	void			Align(MHit* e, float inGapOpen, float inGapExtend);
 
 	void			AdjustXGapCosts(vector<float>& gop, vector<float>& gep);
@@ -372,7 +372,7 @@ struct MProfile
 	void			PrintStockholm(ostream& os, const string& inChainID, bool inFetchDBRefs) const;
 	void			PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs, const string& used) const;
 
-	void			CalculateConservation();
+	void			CalculateConservation(uint32 inThreads);
 
 	const MChain&	m_chain;
 	sequence		m_seq;
@@ -662,8 +662,8 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 	
 	uint32 tix = max(10U, min(length, 80U)) - 10;
 	
-	if (m_seq.length() * m_frag_cutoff < length and					// accept only alignment long enough (suppress fragments)
-		ident < length * (kHomologyThreshold[tix] + m_threshold))	// and those that score high enough
+	if (length >= m_seq.length() * m_frag_cutoff and					// accept only alignment long enough (suppress fragments)
+		ident >= length * (kHomologyThreshold[tix] + m_threshold))	// and those that score high enough
 	{
 		// Add the hit since it is within the required parameters.
 		// Calculate the new distance
@@ -939,7 +939,7 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 
 // --------------------------------------------------------------------
 
-void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxhits)
+void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxhits, uint32 inThreads)
 {
 	vector<MHit*> hits;
 
@@ -982,7 +982,7 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 	boost::thread_group threads;
 	MCounter ix(0);
 
-	for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
+	for (uint32 t = 0; t < inThreads; ++t)
 		threads.create_thread([this, &ix, &hits, &p1]() {
 			for (;;)
 			{
@@ -1018,7 +1018,7 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 	if (m_entries.size() > inMaxhits)
 		m_entries.erase(m_entries.begin() + inMaxhits, m_entries.end());
 	
-	CalculateConservation();
+	CalculateConservation(inThreads);
 }
 
 // --------------------------------------------------------------------
@@ -1324,7 +1324,7 @@ void CalculateConservation(buffer<pair<const char*,uint32>>& b,
 	b.put(kSentinel);
 }
 
-void MProfile::CalculateConservation()
+void MProfile::CalculateConservation(uint32 inThreads)
 {
 	vector<float> sumvar(m_seq.length(), 0), sumdist(m_seq.length(), 0);
 	
@@ -1333,7 +1333,7 @@ void MProfile::CalculateConservation()
 	boost::thread_group threads;
 	boost::mutex sumLock;
 
-	for (uint32 t = 0; t < boost::thread::hardware_concurrency(); ++t)
+	for (uint32 t = 0; t < inThreads; ++t)
 		threads.create_thread([&]() {
 			vector<float> csumvar(sumvar.size(), 0), csumdist(sumdist.size(), 0);
 			
@@ -1459,7 +1459,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		MProfile profile(chain, seqset[i], inThreshold, inFragmentCutOff);
 		
 		io::filtering_istream in(boost::make_iterator_range(blastHits));
-		profile.Process(in, inGapOpen, inGapExtend, inMaxhits);
+		profile.Process(in, inGapOpen, inGapExtend, inMaxhits, inThreads);
 		
 		if (profile.m_entries.empty())
 			continue;
