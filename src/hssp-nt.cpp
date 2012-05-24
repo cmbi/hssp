@@ -934,7 +934,7 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 		os << "#=GF CC " << dbref << endl;
 	
 	string chain_id = (boost::format("CHAIN/%c") % m_chain.GetChainID()).str();
-	PrintStockholm(os, chain_id, inFetchDBRefs  );
+	PrintStockholm(os, chain_id, inFetchDBRefs);
 }
 
 // --------------------------------------------------------------------
