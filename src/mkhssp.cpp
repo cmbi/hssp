@@ -56,9 +56,9 @@ int main(int argc, char* argv[])
 			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
 			("databank,d",	po::value<vector<string>>(),
-												 "Databank(s) to use")
+												 "Databank to use (can be specified multiple times)")
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
-			("use-seqres",	po::value<bool>(),	 "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
+//			("use-seqres",	po::value<bool>(),	 "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
 			("min-length",	po::value<uint32>(), "Minimal chain length")
 			("fragment-cutoff",
 							po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
@@ -103,9 +103,9 @@ int main(int argc, char* argv[])
 				throw mas_exception(boost::format("Databank %s does not exist") % db);
 		}
 		
-		bool useSeqRes = true;
-		if (vm.count("use-seqres"))
-			useSeqRes = vm["use-seqres"].as<bool>();
+//		bool useSeqRes = true;
+//		if (vm.count("use-seqres"))
+//			useSeqRes = vm["use-seqres"].as<bool>();
 		
 		uint32 minlength = 25;
 		if (vm.count("min-length"))
