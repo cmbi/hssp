@@ -8,7 +8,6 @@
 #pragma once
 
 #include "mas.h"
-#include "align-2d.h"
 
 #include <string>
 #include <istream>
