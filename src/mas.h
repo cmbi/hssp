@@ -40,7 +40,7 @@ typedef uint64_t	uint64;
 #endif
 
 // we even have globals:
-extern int VERBOSE, MULTI_THREADED;
+extern int VERBOSE;
 
 // Code for amino acid sequences
 

@@ -33,6 +33,8 @@ namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
+int VERBOSE = 0;
+
 // --------------------------------------------------------------------
 
 int main(int argc, char* argv[])
@@ -67,7 +69,6 @@ int main(int argc, char* argv[])
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 			("fetch-dbrefs",					 "Fetch DBREF records for each UniProt ID")
-			("verbose,v",						 "Verbose output")
 			;
 	
 		po::positional_options_description p;
@@ -92,8 +93,6 @@ int main(int argc, char* argv[])
 			exit(1);
 		}
 
-		VERBOSE = vm.count("verbose") > 0;
-		
 		vector<fs::path> databanks;
 		vector<string> dbs = vm["databank"].as<vector<string>>(); 
 		foreach (string db, dbs)

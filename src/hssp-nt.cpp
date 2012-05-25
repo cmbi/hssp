@@ -34,8 +34,6 @@ namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
 
-int VERBOSE = 0;
-
 namespace HSSP
 {
 
@@ -237,7 +235,6 @@ struct MHit
 	static MHit*		Create(const string& id, const string& def, const string& seq);
 
 	void				CalculateDistance(const sequence& chain);
-	void				Update(const sequence& inChain, MResInfoList& inResidues);
 	
 	string				m_id, m_acc, m_def, m_stid;
 	sequence			m_seq;
@@ -293,62 +290,6 @@ MHit* MHit::Create(const string& id, const string& def, const string& seq)
 void MHit::CalculateDistance(const sequence& chain)
 {
 	m_distance = calculateDistance(m_seq, chain);
-}
-
-void MHit::Update(const sequence& inChain, MResInfoList& inResidues)
-{
-	assert(inChain.length() == m_aligned.length());
-	
-	bool gappedi = false, gappedj = false;
-
-	uint32 x = 0;
-	while (is_gap(m_aligned[x]) or is_gap(inChain[x]))
-		++x;
-	uint32 lx = x;
-	
-	uint32 len = m_length;
-	
-	for ( ; x < m_aligned.length(); ++x)
-	{
-		bool igap = is_gap(inChain[x]);
-		bool jgap = is_gap(m_aligned[x]);
-		
-		if (igap and jgap)
-			continue;
-		
-		if (--len == 0)
-			break;
-		
-		if (igap)
-		{
-			if (not gappedi)
-			{
-				inResidues[lx].m_ins += 1;
-				gappedi = true;
-			}
-
-			gappedj = false;
-		}
-		else if (jgap)
-		{
-			if (not gappedj)
-			{
-				m_gaps += 1;
-				inResidues[lx].m_del += 1;
-				gappedj = true;
-			}
-
-			m_gapn += 1;
-		}
-		else
-		{
-			lx = x;
-			gappedi = false;
-			gappedj = false;
-		}
-	}
-	
-	m_stid = (boost::format("%s/%d-%d") % m_acc % m_jfir % m_jlas).str();
 }
 
 // --------------------------------------------------------------------
@@ -682,6 +623,7 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 
 		// trace back to fill aligned sequence and to create gaps in MSA
 		e->m_aligned = string(m_seq.length() + xgaps, '.');
+		bool gappedx = false, gappedy = false;
 		
 		while (x >= 0 and y >= 0 and B(x, y) > 0)
 		{
@@ -700,9 +642,18 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 					
 					--y;
 					--xgaps;
+					gappedx = true;
 					break;
 	
 				case 1:
+					if (m_residues[x].m_chain_id != 0)
+					{
+						if (not gappedy)
+							++e->m_gaps;
+						++e->m_gapn;
+						gappedy = true;
+					}
+
 					m_residues[x].AddGap(e->m_distance);
 					--x;
 					break;
@@ -710,6 +661,15 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 				case 0:
 					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					m_residues[x].Add(e->m_seq[y], e->m_distance);
+					
+					if (gappedx or (x + 1 < m_seq.size() and is_gap(m_seq[x + 1]) and not is_gap(m_seq[x])))
+						++m_residues[x].m_ins;
+					
+					if (gappedy)
+						++m_residues[x].m_del;
+					
+					gappedx = gappedy = false;
+					
 					--x;
 					--y;
 					break;
@@ -725,8 +685,9 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 
 		e->m_ifir = x + 2;
 		e->m_jfir = y + 2;
+		e->m_stid = e->m_acc + '/' +
+			boost::lexical_cast<string>(e->m_jfir) + '-' + boost::lexical_cast<string>(e->m_jlas);
 
-		e->Update(m_seq, m_residues);
 		m_entries.push_back(e);
 
 		m_sum_dist_weight += e->m_distance;
@@ -1194,9 +1155,6 @@ void MProfile::CalculateConservation(uint32 inThreads)
 				ri.m_entropy -= ri.m_freq[i] * log(ri.m_freq[i]);
 		}
 	}
-
-	if (VERBOSE)
-		cerr << " done" << endl;
 }
 
 // --------------------------------------------------------------------
@@ -1251,13 +1209,11 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		vector<char> blastHits;
 		blastHits.reserve(inMaxhits * 4 * (chain.GetResidues().size() + 100));
 		
-		{
-			io::filtering_ostream out(io::back_inserter(blastHits));
-
-			SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
-				"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 4 * inMaxhits,
-				inThreads);
-		}
+		io::filtering_ostream out(io::back_inserter(blastHits));
+		SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
+			"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 4 * inMaxhits,
+			inThreads);
+		out.flush();
 
 		if (blastHits.empty())
 			continue;

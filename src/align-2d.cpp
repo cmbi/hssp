@@ -362,9 +362,6 @@ void calculateDistanceMatrix(symmetric_matrix<float>& d, vector<entry>& data)
 
 	uint32 nr_of_threads = boost::thread::hardware_concurrency();
 
-	if (not MULTI_THREADED)
-		nr_of_threads = 1;
-
 	for (uint32 ti = 0; ti < nr_of_threads; ++ti)
 		t.create_thread(boost::bind(&calculateDistance,
 			boost::ref(queue), boost::ref(d), boost::ref(data), boost::ref(pr)));
@@ -956,38 +953,23 @@ void createAlignment(joined_node* node, vector<entry*>& alignment,
 {
 	vector<entry*> a, b;
 
-	if (MULTI_THREADED)
-	{
-		boost::thread_group t;
+	boost::thread_group t;
 
-		if (dynamic_cast<leaf_node*>(node->left()) != NULL)
-			a.push_back(&static_cast<leaf_node*>(node->left())->m_entry);
-		else
-			t.create_thread(boost::bind(&createAlignment,
-				static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep, magic, 
-				boost::ref(pr)));
-
-		if (dynamic_cast<leaf_node*>(node->right()) != NULL)
-			b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);
-		else
-			t.create_thread(boost::bind(&createAlignment,
-				static_cast<joined_node*>(node->right()), boost::ref(b), boost::ref(mat), gop, gep, magic, 
-				boost::ref(pr)));
-	
-		t.join_all();
-	}
+	if (dynamic_cast<leaf_node*>(node->left()) != NULL)
+		a.push_back(&static_cast<leaf_node*>(node->left())->m_entry);
 	else
-	{
-		if (dynamic_cast<leaf_node*>(node->left()) != NULL)
-			a.push_back(&static_cast<leaf_node*>(node->left())->m_entry);
-		else
-			createAlignment(static_cast<joined_node*>(node->left()), a, mat, gop, gep, magic, pr);
+		t.create_thread(boost::bind(&createAlignment,
+			static_cast<joined_node*>(node->left()), boost::ref(a), boost::ref(mat), gop, gep, magic, 
+			boost::ref(pr)));
 
-		if (dynamic_cast<leaf_node*>(node->right()) != NULL)
-			b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);
-		else
-			createAlignment(static_cast<joined_node*>(node->right()), b, mat, gop, gep, magic, pr);
-	}
+	if (dynamic_cast<leaf_node*>(node->right()) != NULL)
+		b.push_back(&static_cast<leaf_node*>(node->right())->m_entry);
+	else
+		t.create_thread(boost::bind(&createAlignment,
+			static_cast<joined_node*>(node->right()), boost::ref(b), boost::ref(mat), gop, gep, magic, 
+			boost::ref(pr)));
+
+	t.join_all();
 
 	align(node, a, b, alignment, mat, gop, gep, magic, false);
 	
