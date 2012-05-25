@@ -5,11 +5,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mas", "msvc\mas\mas.vcxproj
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dssp", "msvc\dssp\dssp.vcxproj", "{5C4CA68D-F589-48F7-ACF9-48E217D737F0}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "stockholm2fasta", "msvc\stockholm2fasta\stockholm2fasta.vcxproj", "{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libzeep", "msvc\libzeep\libzeep.vcxproj", "{8DB71094-266D-4B6B-8076-0F58A3944F4B}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hssp-nt", "msvc\hssp-nt\hssp-nt.vcxproj", "{4D63C0E5-90F4-4B79-AD1D-83C3C8F8E657}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hssp", "msvc\hssp-nt\hssp-nt.vcxproj", "{4D63C0E5-90F4-4B79-AD1D-83C3C8F8E657}"
 	ProjectSection(ProjectDependencies) = postProject
 		{8DB71094-266D-4B6B-8076-0F58A3944F4B} = {8DB71094-266D-4B6B-8076-0F58A3944F4B}
 	EndProjectSection
@@ -24,8 +22,6 @@ Global
 		{B465B0E9-8D4E-480D-9697-55FA15D740F6}.Release|x64.ActiveCfg = Release|x64
 		{5C4CA68D-F589-48F7-ACF9-48E217D737F0}.Debug|x64.ActiveCfg = Debug|x64
 		{5C4CA68D-F589-48F7-ACF9-48E217D737F0}.Release|x64.ActiveCfg = Release|x64
-		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Debug|x64.ActiveCfg = Debug|x64
-		{E4CC016C-3988-40C6-A63D-6553FC2C2DF2}.Release|x64.ActiveCfg = Release|x64
 		{8DB71094-266D-4B6B-8076-0F58A3944F4B}.Debug|x64.ActiveCfg = Debug|x64
 		{8DB71094-266D-4B6B-8076-0F58A3944F4B}.Release|x64.ActiveCfg = Release|x64
 		{4D63C0E5-90F4-4B79-AD1D-83C3C8F8E657}.Debug|x64.ActiveCfg = Debug|x64
