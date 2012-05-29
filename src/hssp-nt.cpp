@@ -184,7 +184,8 @@ void MResInfo::Add(uint8 r, float inDistance)
 	float weight = 1 - inDistance;
 	
 	assert(r < 23);
-	m_nocc += 1;
+	if (r < 22)
+		m_nocc += 1;
 	m_dist[r] += 1;
 	
 	m_dist_weight[r] += weight;
@@ -909,7 +910,7 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 		};
 		
 		os << "#=GF CC PDB file contains " << inProtein.GetChains().size() << " chains. Used chain" << ( inUsed.size() > 1 ? "s are " : " is " ) << fmt(inUsed) << endl
-		   << "#=GF CC Chain " << m_chain.GetChainID() << " is considered the same as " << fmt(inAKA) << endl;
+		   << "#=GF CC Chain " << m_chain.GetChainID() << " is considered to be the same as " << fmt(inAKA) << endl;
 		queryID = inProtein.GetID() + '/' + m_chain.GetChainID();
 	}
 	
