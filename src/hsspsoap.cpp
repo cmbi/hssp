@@ -47,6 +47,7 @@ namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
 // globals
+int VERBOSE;
 uint32 gNrOfThreads;
 
 void GetDSSPForSequence(
@@ -316,7 +317,7 @@ void hssp_server::GetHSSPForPDBFile(
 	io::filtering_ostream out(io::back_inserter(hssp));
 	HSSP::CreateHSSP(a, mDatabank, 5000, 25, 30, 2,
 		HSSP::kThreshold, HSSP::kFragmentCutOff,
-		gNrOfThreads, out);
+		gNrOfThreads, false, out);
 }
 
 void hssp_server::GetHSSPForSequence(
@@ -326,7 +327,7 @@ void hssp_server::GetHSSPForSequence(
 	io::filtering_ostream out(io::back_inserter(hssp));
 	HSSP::CreateHSSP(sequence, mDatabank, 5000, 25, 30, 2,
 		HSSP::kThreshold, HSSP::kFragmentCutOff,
-		gNrOfThreads, out);
+		gNrOfThreads, false, out);
 }
 
 // --------------------------------------------------------------------
