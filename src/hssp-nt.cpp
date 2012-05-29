@@ -312,7 +312,8 @@ struct MProfile
 						const sequence& sx, const sequence& sy);
 
 	void			PrintStockholm(ostream& os, const string& inChainID, bool inFetchDBRefs) const;
-	void			PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs, const string& used) const;
+	void			PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs,
+						const string& inUsed, const string& inAKA) const;
 
 	void			CalculateConservation(uint32 inThreads);
 
@@ -856,7 +857,8 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 	os << "//" << endl;
 }
 
-void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs, const string& inUsed) const
+void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs,
+	const string& inUsed, const string& inAKA) const
 {
 	using namespace boost::gregorian;
 	date today = day_clock::local_day();
@@ -892,7 +894,8 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 	string queryID = inProtein.GetID();
 	if (inProtein.GetChains().size() > 1)
 	{
-		os << "#=GF CC PDB file contains " << inProtein.GetChains().size() << " chains. This file uses chains " << inUsed << endl;
+		os << "#=GF CC PDB file contains " << inProtein.GetChains().size() << " chains. This file uses chains " << inUsed << endl
+		   << "#=GF CC Chain " << m_chain.GetChainID() << " also known as " << inAKA << endl;
 		queryID = inProtein.GetID() + '/' + m_chain.GetChainID();
 	}
 	
@@ -1168,6 +1171,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	vector<sequence> seqset;
 	vector<size_t> ix;
 	vector<const MChain*> chains;
+	vector<string> aka;
 	string used;
 	
 	foreach (const MChain* chain, inProtein.GetChains())
@@ -1181,6 +1185,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		chains.push_back(chain);
 		seqset.push_back(encode(seq));
 		ix.push_back(ix.size());
+		aka.push_back("");
 	}
 	
 	if (seqset.empty())
@@ -1190,6 +1195,16 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		ClusterSequences(seqset, ix);
 	
 	// only take the unique sequences
+	for (size_t i = 0; i < ix.size(); ++i)
+	{
+		if (ix[i] != i)
+		{
+			if (not aka[ix[i]].empty())
+				aka[ix[i]] += ", ";
+			aka[ix[i]] += chains[i]->GetChainID();
+		}
+	}
+
 	ix.erase(unique(ix.begin(), ix.end()), ix.end());
 
 	foreach (size_t i, ix)
@@ -1227,7 +1242,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 			continue;
 
 		empty = false;
-		profile.PrintStockholm(inOs, inProtein, inFetchDBRefs, used);
+		profile.PrintStockholm(inOs, inProtein, inFetchDBRefs, used, aka[i]);
 	}
 	
 	if (empty)
