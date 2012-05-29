@@ -6,6 +6,7 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/range/adaptor/sliced.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -313,7 +314,7 @@ struct MProfile
 
 	void			PrintStockholm(ostream& os, const string& inChainID, bool inFetchDBRefs) const;
 	void			PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs,
-						const string& inUsed, const string& inAKA) const;
+						const vector<string>& inUsed, const vector<string>& inAKA) const;
 
 	void			CalculateConservation(uint32 inThreads);
 
@@ -858,7 +859,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 }
 
 void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs,
-	const string& inUsed, const string& inAKA) const
+	const vector<string>& inUsed, const vector<string>& inAKA) const
 {
 	using namespace boost::gregorian;
 	date today = day_clock::local_day();
@@ -894,8 +895,21 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 	string queryID = inProtein.GetID();
 	if (inProtein.GetChains().size() > 1)
 	{
-		os << "#=GF CC PDB file contains " << inProtein.GetChains().size() << " chains. This file uses chains " << inUsed << endl
-		   << "#=GF CC Chain " << m_chain.GetChainID() << " also known as " << inAKA << endl;
+		auto fmt = [](const vector<string>& a) -> string {
+			string result;
+			if (a.size() == 1)
+				result += a.front();
+			else if (not a.empty())
+			{
+				result = ba::join(a | boost::adaptors::sliced(0, a.size() - 1), ", ");
+				result += " and ";
+				result += a.back();
+			}
+			return result;
+		};
+		
+		os << "#=GF CC PDB file contains " << inProtein.GetChains().size() << " chains. Used chain" << ( inUsed.size() > 1 ? "s are " : " is " ) << fmt(inUsed) << endl
+		   << "#=GF CC Chain " << m_chain.GetChainID() << " is considered the same as " << fmt(inAKA) << endl;
 		queryID = inProtein.GetID() + '/' + m_chain.GetChainID();
 	}
 	
@@ -1171,8 +1185,8 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	vector<sequence> seqset;
 	vector<size_t> ix;
 	vector<const MChain*> chains;
-	vector<string> aka;
-	string used;
+	vector<vector<string>> aka;
+	vector<string> used;
 	
 	foreach (const MChain* chain, inProtein.GetChains())
 	{
@@ -1185,7 +1199,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		chains.push_back(chain);
 		seqset.push_back(encode(seq));
 		ix.push_back(ix.size());
-		aka.push_back("");
+		aka.push_back(vector<string>());
 	}
 	
 	if (seqset.empty())
@@ -1198,21 +1212,13 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	for (size_t i = 0; i < ix.size(); ++i)
 	{
 		if (ix[i] != i)
-		{
-			if (not aka[ix[i]].empty())
-				aka[ix[i]] += ", ";
-			aka[ix[i]] += chains[i]->GetChainID();
-		}
+			aka[ix[i]].push_back(string(1, chains[i]->GetChainID()));
 	}
 
 	ix.erase(unique(ix.begin(), ix.end()), ix.end());
 
 	foreach (size_t i, ix)
-	{
-		if (not used.empty())
-			used += ", ";
-		used += chains[i]->GetChainID();
-	}
+		used.push_back(string(1, chains[i]->GetChainID()));
 
 	bool empty = true;
 
