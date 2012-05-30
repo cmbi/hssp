@@ -326,13 +326,11 @@ struct MProfile
 	vector<MHit*>	m_entries;
 	float			m_threshold, m_frag_cutoff;
 	float			m_sum_dist_weight;
-	bool			m_shuffled;
 };
 
 MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inThreshold, float inFragmentCutOff)
 	: m_chain(inChain), m_seq(inSequence)
 	, m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff), m_sum_dist_weight(0)
-	, m_shuffled(false)
 {
 	const vector<MResidue*>& residues = m_chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
@@ -742,9 +740,6 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 	os << "#=GF ID " << inChainID << endl
 	   << "#=GF SQ " << m_entries.size() << endl;
 
-	if (m_shuffled)
-		os << "#=GF CC Since the number of hits exceeded the max-hits parameter, a random set was chosen" << endl;
-	
 	// ## per residue information
 	
 	int32 nextNr = m_residues.front().m_seq_nr;
@@ -886,19 +881,19 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 	
 	s = inProtein.GetHeader();
 	if (not s.empty())
-		os << "#=GF CC HEADER " << s << endl;
+		os << "#=GF CC " << s << endl;
 	
 	s = inProtein.GetCompound();
 	if (not s.empty())
-		os << "#=GF CC COMPND " << s<< endl;
+		os << "#=GF CC " << s<< endl;
 	
 	s = inProtein.GetSource();
 	if (not s.empty())
-		os << "#=GF CC SOURCE " << s << endl;
+		os << "#=GF CC " << s << endl;
 	
 	s = inProtein.GetAuthor();
 	if (not s.empty())
-		os << "#=GF CC AUTHOR " << s << endl;
+		os << "#=GF CC " << s << endl;
 
 	foreach (auto dbref, inProtein.GetDbRef())
 		os << "#=GF CC " << dbref << endl;
@@ -1000,23 +995,12 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 		p2.Consumed(1);
 	}
 
-	// now if we have too many entries left, take a random set
-	if (m_entries.size() > inMaxHits)
-	{
-		random_shuffle(m_entries.begin(), m_entries.end());
-	
-		for_each(m_entries.begin() + inMaxHits, m_entries.end(), [](MHit* e) { delete e; });
-		m_entries.erase(m_entries.begin() + inMaxHits, m_entries.end());
-		
-		m_shuffled = true;
-	}
-	
 	// sort by score
 	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_score > b->m_score;
 	});
 	
-	if (m_entries.size() > inMaxHits)
+	if (m_entries.size() > inMaxHits and inMaxHits > 0)
 		m_entries.erase(m_entries.begin() + inMaxHits, m_entries.end());
 	
 	CalculateConservation(inThreads);
@@ -1250,7 +1234,6 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		
 		// do a blast search for inMaxHits * 4 hits.
 		vector<char> blastHits;
-		blastHits.reserve(inMaxHits * 4 * (chain.GetResidues().size() + 100));
 		
 		io::filtering_ostream out(io::back_inserter(blastHits));
 		SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
