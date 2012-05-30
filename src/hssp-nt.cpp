@@ -988,7 +988,7 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 	threads.join_all();
 	
 	// now if we have too many entries left, take a random set
-	if (hits.size() > 2 * inMaxHits)
+	if (hits.size() > 3 * inMaxHits)
 	{
 		random_shuffle(hits.begin(), hits.end());
 	
