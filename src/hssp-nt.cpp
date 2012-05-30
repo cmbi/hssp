@@ -3,6 +3,7 @@
 #include <iostream>
 #include <set>
 #include <cmath>
+#include <algorithm>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
@@ -325,11 +326,13 @@ struct MProfile
 	vector<MHit*>	m_entries;
 	float			m_threshold, m_frag_cutoff;
 	float			m_sum_dist_weight;
+	bool			m_shuffled;
 };
 
 MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inThreshold, float inFragmentCutOff)
 	: m_chain(inChain), m_seq(inSequence)
 	, m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff), m_sum_dist_weight(0)
+	, m_shuffled(false)
 {
 	const vector<MResidue*>& residues = m_chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
@@ -739,6 +742,9 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 	os << "#=GF ID " << inChainID << endl
 	   << "#=GF SQ " << m_entries.size() << endl;
 
+	if (m_shuffled)
+		os << "#=GF CC Since the number of hits exceeded the max-hits parameter, a random set was chosen" << endl;
+	
 	// ## per residue information
 	
 	int32 nextNr = m_residues.front().m_seq_nr;
@@ -923,7 +929,7 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 
 // --------------------------------------------------------------------
 
-void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxhits, uint32 inThreads)
+void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxHits, uint32 inThreads)
 {
 	vector<MHit*> hits;
 
@@ -993,14 +999,25 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 		Align(e, inGapOpen, inGapExtend);
 		p2.Consumed(1);
 	}
+
+	// now if we have too many entries left, take a random set
+	if (m_entries.size() > inMaxHits)
+	{
+		random_shuffle(m_entries.begin(), m_entries.end());
+	
+		for_each(m_entries.begin() + inMaxHits, m_entries.end(), [](MHit* e) { delete e; });
+		m_entries.erase(m_entries.begin() + inMaxHits, m_entries.end());
+		
+		m_shuffled = true;
+	}
 	
 	// sort by score
 	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_score > b->m_score;
 	});
 	
-	if (m_entries.size() > inMaxhits)
-		m_entries.erase(m_entries.begin() + inMaxhits, m_entries.end());
+	if (m_entries.size() > inMaxHits)
+		m_entries.erase(m_entries.begin() + inMaxHits, m_entries.end());
 	
 	CalculateConservation(inThreads);
 }
@@ -1182,7 +1199,7 @@ void MProfile::CalculateConservation(uint32 inThreads)
 // --------------------------------------------------------------------
 
 void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
-	uint32 inMaxhits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
+	uint32 inMaxHits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
 	float inThreshold, float inFragmentCutOff, uint32 inThreads, bool inFetchDBRefs,
 	ostream& inOs)
 {
@@ -1231,14 +1248,13 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	{
 		const MChain& chain(*chains[i]);
 		
-		// do a blast search for inMaxhits * 4 hits.
+		// do a blast search for inMaxHits * 4 hits.
 		vector<char> blastHits;
-		blastHits.reserve(inMaxhits * 4 * (chain.GetResidues().size() + 100));
+		blastHits.reserve(inMaxHits * 4 * (chain.GetResidues().size() + 100));
 		
 		io::filtering_ostream out(io::back_inserter(blastHits));
 		SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
-			"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 4 * inMaxhits,
-			inThreads);
+			"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 0, inThreads);
 		out.flush();
 
 		if (blastHits.empty())
@@ -1247,7 +1263,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		MProfile profile(chain, seqset[i], inThreshold, inFragmentCutOff);
 		
 		io::filtering_istream in(boost::make_iterator_range(blastHits));
-		profile.Process(in, inGapOpen, inGapExtend, inMaxhits, inThreads);
+		profile.Process(in, inGapOpen, inGapExtend, inMaxHits, inThreads);
 		
 		if (profile.m_entries.empty())
 			continue;
@@ -1263,7 +1279,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 // --------------------------------------------------------------------
 
 void CreateHSSP(const string& inProtein, const vector<fs::path>& inDatabanks,
-	uint32 inMaxhits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
+	uint32 inMaxHits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
 	float inThreshold, float inFragmentCutOff, uint32 inThreads, bool inFetchDBRefs,
 	ostream& inOs)
 {
@@ -1279,7 +1295,7 @@ void CreateHSSP(const string& inProtein, const vector<fs::path>& inDatabanks,
 	}
 	
 	MProtein protein("INPUT", chain);
-	CreateHSSP(protein, inDatabanks, inMaxhits, inMinSeqLength, inGapOpen, inGapExtend,
+	CreateHSSP(protein, inDatabanks, inMaxHits, inMinSeqLength, inGapOpen, inGapExtend,
 		inThreshold, inFragmentCutOff, inThreads, inFetchDBRefs, inOs);
 }
 

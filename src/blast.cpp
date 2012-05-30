@@ -1341,7 +1341,7 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
 			(a->mHsps.front().mScore == b->mHsps.front().mScore and a->mDefLine < b->mDefLine);
 	});
 
-	if (mHits.size() > mReportLimit)
+	if (mHits.size() > mReportLimit and mReportLimit > 0)
 	{
 		for_each(mHits.begin() + mReportLimit, mHits.end(), [](Hit* hit) { delete hit; });
 		mHits.erase(mHits.begin() + mReportLimit, mHits.end());
@@ -1898,7 +1898,7 @@ void BlastQuery<WORDSIZE>::AddHit(Hit* inHit, vector<Hit*>& inHitList) const
 	};
 	
 	push_heap(inHitList.begin(), inHitList.end(), cmp);
-	if (inHitList.size() > mReportLimit)
+	if (inHitList.size() > mReportLimit and mReportLimit > 0)
 	{
 		pop_heap(inHitList.begin(), inHitList.end(), cmp);
 		delete inHitList.back();
