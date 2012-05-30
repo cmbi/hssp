@@ -645,6 +645,10 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 					
 					--y;
 					--xgaps;
+
+					if (not gappedx)
+						++e->m_gaps;
+					++e->m_gapn;
 					gappedx = true;
 					break;
 	
