@@ -326,11 +326,13 @@ struct MProfile
 	vector<MHit*>	m_entries;
 	float			m_threshold, m_frag_cutoff;
 	float			m_sum_dist_weight;
+	bool			m_shuffled;
 };
 
 MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inThreshold, float inFragmentCutOff)
 	: m_chain(inChain), m_seq(inSequence)
 	, m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff), m_sum_dist_weight(0)
+	, m_shuffled(false)
 {
 	const vector<MResidue*>& residues = m_chain.GetResidues();
 	vector<MResidue*>::const_iterator ri = residues.begin();
@@ -740,6 +742,9 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 	os << "#=GF ID " << inChainID << endl
 	   << "#=GF SQ " << m_entries.size() << endl;
 
+	if (m_shuffled)
+		os << "#=GF CC Since the number of hits exceeded the max-hits parameter, a random set was chosen" << endl;
+	
 	// ## per residue information
 	
 	int32 nextNr = m_residues.front().m_seq_nr;
@@ -982,6 +987,17 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 	
 	threads.join_all();
 	
+	// now if we have too many entries left, take a random set
+	if (hits.size() > 2 * inMaxHits)
+	{
+		random_shuffle(hits.begin(), hits.end());
+	
+		for_each(hits.begin() + inMaxHits, hits.end(), [](MHit* e) { delete e; });
+		hits.erase(hits.begin() + inMaxHits, hits.end());
+		
+		m_shuffled = true;
+	}
+
 	// sort them by distance
 	sort(hits.begin(), hits.end(), [](const MHit* a, const MHit* b) -> bool {
 		return a->m_distance < b->m_distance;
