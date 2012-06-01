@@ -221,6 +221,9 @@ MResInfo MResInfo::NewGap(size_t inDel, float inSumDistance, uint8 inResidue, fl
 
 // --------------------------------------------------------------------
 
+struct MHit;
+typedef shared_ptr<MHit> MHitPtr;
+
 struct MHit
 {
 	MHit(const MHit& e);
@@ -235,7 +238,7 @@ struct MHit
 		string			m_seq;
 	};
 	
-	static MHit*		Create(const string& id, const string& def, const string& seq);
+	static MHitPtr		Create(const string& id, const string& def, const string& seq);
 
 	void				CalculateDistance(const sequence& chain);
 	
@@ -264,9 +267,9 @@ ostream& operator<<(ostream& os, const MHit& hit)
 	return os;
 }
 
-MHit* MHit::Create(const string& id, const string& def, const string& seq)
+MHitPtr MHit::Create(const string& id, const string& def, const string& seq)
 {
-	MHit* result = new MHit(id, def, encode(seq));
+	MHitPtr result(new MHit(id, def, encode(seq)));
 
 	static const boost::regex
 		kM6FastARE("^(\\w+)((?:\\|([^| ]*))(?:\\|([^| ]+))?(?:\\|([^| ]+))?(?:\\|([^| ]+))?)");
@@ -304,7 +307,7 @@ struct MProfile
 					~MProfile();
 
 	void			Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxHits, uint32 inThreads);
-	void			Align(MHit* e, float inGapOpen, float inGapExtend);
+	void			Align(MHitPtr e, float inGapOpen, float inGapExtend);
 
 	void			AdjustXGapCosts(vector<float>& gop, vector<float>& gep);
 	void			AdjustYGapCosts(const sequence& s, vector<float>& gop, vector<float>& gep);
@@ -323,7 +326,7 @@ struct MProfile
 	const MChain&	m_chain;
 	sequence		m_seq;
 	MResInfoList	m_residues;
-	vector<MHit*>	m_entries;
+	vector<MHitPtr>	m_entries;
 	float			m_threshold, m_frag_cutoff;
 	float			m_sum_dist_weight;
 	bool			m_shuffled;
@@ -358,8 +361,6 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inTh
 
 MProfile::~MProfile()
 {
-	foreach (auto e, m_entries)
-		delete e;
 }
 
 void MProfile::dump(const matrix<float>& B, const matrix<float>& Ix, const matrix<float>& Iy,
@@ -478,7 +479,7 @@ void MProfile::AdjustYGapCosts(const sequence& s, vector<float>& gop, vector<flo
 	}
 }
 
-void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
+void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 {
 	int32 x = 0, dimX = static_cast<int32>(m_seq.length());
 	int32 y = 0, dimY = static_cast<int32>(e->m_seq.length());
@@ -619,7 +620,7 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 			const uint32 kBlockSize = 1024;
 			uint32 n = static_cast<uint32>((((m_residues.size() + xgaps) / kBlockSize) + 1) * kBlockSize);
 			m_seq.reserve(n);
-			foreach (MHit* e, m_entries)
+			foreach (MHitPtr e, m_entries)
 				e->m_aligned.reserve(n);
 		}
 		
@@ -643,7 +644,7 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 
 					m_seq.insert(m_seq.begin() + x + 1, '.');
 					
-					foreach (MHit* e, m_entries)
+					foreach (MHitPtr e, m_entries)
 						e->m_aligned.insert(e->m_aligned.begin() + x + 1, '.');
 					
 					--y;
@@ -712,14 +713,12 @@ void MProfile::Align(MHit* e, float inGapOpen, float inGapExtend)
 //			cout << '>' << "PDB" << endl
 //				 << s << endl;
 //			
-//			foreach (MHit* e, m_entries)
+//			foreach (MHitPtr e, m_entries)
 //				cout << *e;
 //			exit(1);
 //		}
 //#endif
 	}
-	else
-		delete e;
 }
 
 char map_value_to_char(uint32 v)
@@ -791,7 +790,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 
 	// find the longest ID string length
 	string::size_type tl = inChainID.length();
-	foreach (const MHit* e, m_entries)
+	foreach (const MHitPtr e, m_entries)
 	{
 		if (tl < e->m_stid.length())
 			tl = e->m_stid.length();
@@ -801,7 +800,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 
 	boost::format fmt("#=GS %s HSSP score=%4.2f/%4.2f aligned=%d-%d/%d-%d length=%d ngaps=%d gaplen=%d seqlen=%d");
 
-	foreach (const MHit* e, m_entries)
+	foreach (const MHitPtr e, m_entries)
 	{
 		string id = e->m_stid + string(tl - e->m_stid.length(), ' ');
 		
@@ -856,7 +855,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 			var[i - o] = map_value_to_char(10 * (1 - m_residues[i].m_consweight));
 		}
 		
-		foreach (const MHit* e, m_entries)
+		foreach (const MHitPtr e, m_entries)
 			os << e->m_stid << string(tl - e->m_stid.length() + 1, ' ') << e->m_aligned.substr(o, n) << endl;
 		
 		os << "#=GC SS          " << string(tl - 17 + 1, ' ') << ss << endl
@@ -931,7 +930,7 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 
 void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxHits, uint32 inThreads)
 {
-	vector<MHit*> hits;
+	vector<MHitPtr> hits;
 
 	string id, def, seq;
 	for (;;)
@@ -987,37 +986,31 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 	
 	threads.join_all();
 	
-	// now if we have too many entries left, take a random set
-	if (hits.size() > 3 * inMaxHits)
-	{
-		random_shuffle(hits.begin(), hits.end());
-	
-		for_each(hits.begin() + inMaxHits, hits.end(), [](MHit* e) { delete e; });
-		hits.erase(hits.begin() + inMaxHits, hits.end());
-		
-		m_shuffled = true;
-	}
-
 	// sort them by distance
-	sort(hits.begin(), hits.end(), [](const MHit* a, const MHit* b) -> bool {
+	sort(hits.begin(), hits.end(), [](const MHitPtr a, const MHitPtr b) -> bool {
 		return a->m_distance < b->m_distance;
 	});
 	
 	// and then align all the hits
 	MProgress p2(hits.size(), "aligning");
-	foreach (MHit* e, hits)
+	foreach (MHitPtr e, hits)
 	{
 		Align(e, inGapOpen, inGapExtend);
 		p2.Consumed(1);
 	}
 
+	// now if we have too many entries, take a random set
+	if (m_entries.size() > inMaxHits and inMaxHits > 0)
+	{
+		random_shuffle(m_entries.begin(), m_entries.end());
+		m_entries.erase(m_entries.begin() + inMaxHits, m_entries.end());
+		m_shuffled = true;
+	}
+
 	// sort by score
-	sort(m_entries.begin(), m_entries.end(), [](const MHit* a, const MHit* b) -> bool {
+	sort(m_entries.begin(), m_entries.end(), [](const MHitPtr a, const MHitPtr b) -> bool {
 		return a->m_score > b->m_score;
 	});
-	
-	if (m_entries.size() > inMaxHits and inMaxHits > 0)
-		m_entries.erase(m_entries.begin() + inMaxHits, m_entries.end());
 	
 	CalculateConservation(inThreads);
 }
@@ -1077,7 +1070,7 @@ void ClusterSequences(vector<sequence>& s, vector<size_t>& ix)
 pair<const char*,uint32> kSentinel((const char*)nullptr, 0);
 
 void CalculateConservation(buffer<pair<const char*,uint32>>& b,
-	const vector<MHit*>& inHits, vector<float>& sumvar, vector<float>& sumdist)
+	const vector<MHitPtr>& inHits, vector<float>& sumvar, vector<float>& sumdist)
 {
 	size_t length = sumvar.size();
 	vector<float> simval(length);
@@ -1155,7 +1148,32 @@ void MProfile::CalculateConservation(uint32 inThreads)
 			}
 		});
 	
-	MProgress p((m_entries.size() * (m_entries.size() + 1)) / 2, "conservation");
+	int64 N = (m_entries.size() * (m_entries.size() + 1)) / 2;
+	if (m_shuffled)
+		N += m_seq.length();
+	
+	MProgress p(N, "conservation");
+
+	if (m_shuffled)	// need to recalculate m_dist[] and m_nocc
+	{
+		for (uint32 i = 0; i < m_seq.length(); ++i)
+		{
+			MResInfo& ri = m_residues[i];
+
+			ri.m_nocc = is_gap(m_seq[i]) ? 0 : 1;
+			for (uint32 j = 0; j < sizeof(ri.m_dist); ++j)
+				ri.m_dist[j] = m_seq[i] == j ? 1 : 0;
+			
+			foreach (MHitPtr e, m_entries)
+			{
+				uint8 r = ResidueNr(e->m_aligned[i]);
+				if (r < 23)
+					++ri.m_dist[r];
+			}
+			
+			p.Consumed(1);
+		}
+	}
 	
 	string s(decode(m_seq));
 	b.put(make_pair(s.c_str(), 0));
@@ -1252,9 +1270,13 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		vector<char> blastHits;
 		
 		io::filtering_ostream out(io::back_inserter(blastHits));
-		SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
-			"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 0, inThreads);
-		out.flush();
+	
+		ifstream f("1F88-A-hits.fa");
+		io::copy(f, out);
+
+//		SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
+//			"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 0, inThreads);
+//		out.flush();
 
 		if (blastHits.empty())
 			continue;
