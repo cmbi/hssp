@@ -1091,6 +1091,9 @@ void Hsp::CalculateExpect(int64 inSearchSpace, double inLambda, double inLogKapp
 
 // --------------------------------------------------------------------
 
+struct Hit;
+typedef shared_ptr<Hit> HitPtr;
+
 struct Hit
 {
 					Hit(const char* inEntry, const sequence& inTarget);
@@ -1100,7 +1103,7 @@ struct Hit
 	
 	string			mDefLine;
 	sequence		mTarget;
-	vector<Hsp>	mHsps;
+	vector<Hsp>		mHsps;
 };
 
 Hit::Hit(const char* inEntry, const sequence& inTarget)
@@ -1176,7 +1179,7 @@ class BlastQuery
   private:
 
 	void			SearchPart(const char* inFasta, size_t inLength, MProgress& inProgress,
-						uint32& outDbCount, int64& outDbLength, vector<Hit*>& outHits) const;
+						uint32& outDbCount, int64& outDbLength, vector<HitPtr>& outHits) const;
 
 	int32			Extend(int32& ioQueryStart, const sequence& inTarget, int32& ioTargetStart, int32& ioDistance) const;
 	template<class Iterator1, class Iterator2, class TraceBack>
@@ -1187,7 +1190,7 @@ class BlastQuery
 	int32			AlignGappedFirst(const sequence& inTarget, Hsp& ioHsp) const;
 	int32			AlignGappedSecond(const sequence& inTarget, Hsp& ioHsp) const;
 
-	void			AddHit(Hit* inHit, vector<Hit*>& inHitList) const;
+	void			AddHit(HitPtr inHit, vector<HitPtr>& inHitList) const;
 
 	typedef WordHitIterator<WORDSIZE>								WordHitIterator;
 	typedef typename WordHitIterator::WordHitIteratorStaticData	StaticData;
@@ -1203,7 +1206,7 @@ class BlastQuery
 	uint32			mDbCount;
 	int64			mDbLength, mSearchSpace;
 	
-	vector<Hit*>	mHits;
+	vector<HitPtr>	mHits;
 	
 	StaticData	mWordHitData;
 };
@@ -1244,7 +1247,6 @@ BlastQuery<WORDSIZE>::BlastQuery(const string& inQuery, bool inFilter, double in
 template<int WORDSIZE>
 BlastQuery<WORDSIZE>::~BlastQuery()
 {
-	for_each(mHits.begin(), mHits.end(), [](Hit* hit) { delete hit; });
 }
 
 template<int WORDSIZE>
@@ -1279,7 +1281,7 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
 				t.create_thread([data, n, &m, &inProgress, this]() {
 					uint32 dbCount = 0;
 					int64 dbLength = 0;
-					vector<Hit*> hits;
+					vector<HitPtr> hits;
 					
 					SearchPart(data, n, inProgress, dbCount, dbLength, hits);
 	
@@ -1320,7 +1322,7 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
 					if (next >= mHits.size())
 						break;
 					
-					Hit* hit = mHits[next];
+					HitPtr hit = mHits[next];
 					
 					foreach (Hsp& hsp, hit->mHsps)
 						hsp.mScore = AlignGappedSecond(hit->mTarget, hsp);
@@ -1333,19 +1335,16 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
 	}
 
 	mHits.erase(
-		remove_if(mHits.begin(), mHits.end(), [](const Hit* hit) -> bool { return hit->mHsps.empty(); }),
+		remove_if(mHits.begin(), mHits.end(), [](const HitPtr hit) -> bool { return hit->mHsps.empty(); }),
 		mHits.end());
 
-	sort(mHits.begin(), mHits.end(), [](const Hit* a, const Hit* b) -> bool {
+	sort(mHits.begin(), mHits.end(), [](const HitPtr a, const HitPtr b) -> bool {
 		return a->mHsps.front().mScore > b->mHsps.front().mScore or
 			(a->mHsps.front().mScore == b->mHsps.front().mScore and a->mDefLine < b->mDefLine);
 	});
 
 	if (mHits.size() > mReportLimit and mReportLimit > 0)
-	{
-		for_each(mHits.begin() + mReportLimit, mHits.end(), [](Hit* hit) { delete hit; });
 		mHits.erase(mHits.begin() + mReportLimit, mHits.end());
-	}
 }
 
 //template<int WORDSIZE>
@@ -1358,7 +1357,7 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
 //	outResult.mLambda = mMatrix.GappedLambda();
 //	outResult.mEntropy = mMatrix.GappedEntropy();
 //
-//	foreach (Hit* hit, mHits)
+//	foreach (HitPtr hit, mHits)
 //	{
 //		Hit h;
 //		h.mHitNr = static_cast<uint32>(outResult.mHits.size() + 1);
@@ -1430,7 +1429,7 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
 template<int WORDSIZE>
 void BlastQuery<WORDSIZE>::WriteAsFasta(ostream& inStream)
 {
-	foreach (Hit* hit, mHits)
+	foreach (HitPtr hit, mHits)
 	{
 		string seq;
 		foreach (uint8 r, hit->mTarget)
@@ -1447,7 +1446,7 @@ void BlastQuery<WORDSIZE>::WriteAsFasta(ostream& inStream)
 
 template<int WORDSIZE>
 void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength, MProgress& inProgress,
-	uint32& outDbCount, int64& outDbLength, vector<Hit*>& outHits) const
+	uint32& outDbCount, int64& outDbLength, vector<HitPtr>& outHits) const
 {
 	const char* end = inFasta + inLength;
 	int32 queryLength = static_cast<int32>(mQuery.length());
@@ -1458,12 +1457,15 @@ void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength, MPro
 	target.reserve(kMaxSequenceLength);
 	
 	int64 hitsToDb = 0, extensions = 0, successfulExtensions = 0;
-	unique_ptr<Hit> hit;
+	HitPtr hit;
 	
 	while (inFasta != end)
 	{
 		if (hit)
-			AddHit(hit.release(), outHits);
+		{
+			AddHit(hit, outHits);
+			hit.reset();
+		}
 		
 		const char* entry = inFasta;
 		ReadEntry(inFasta, end, target);
@@ -1514,7 +1516,7 @@ void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength, MPro
 					hsp.mTargetStart = targetStart;
 					hsp.mTargetEnd = targetStart + alignmentDistance;
 
-					if (hit.get() == nullptr)
+					if (not hit)
 						hit.reset(new Hit(entry, target));
 
 					if (mGapped)
@@ -1535,7 +1537,7 @@ void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength, MPro
 	}
 
 	if (hit)
-		AddHit(hit.release(), outHits);
+		AddHit(hit, outHits);
 }
 
 template<int WORDSIZE>
@@ -1887,13 +1889,13 @@ int32 BlastQuery<WORDSIZE>::AlignGappedSecond(const sequence& inTarget, Hsp& ioH
 }
 
 template<int WORDSIZE>
-void BlastQuery<WORDSIZE>::AddHit(Hit* inHit, vector<Hit*>& inHitList) const
+void BlastQuery<WORDSIZE>::AddHit(HitPtr inHit, vector<HitPtr>& inHitList) const
 {
 	sort(inHit->mHsps.begin(), inHit->mHsps.end(), greater<Hsp>());
 
 	inHitList.push_back(inHit);
 	
-	auto cmp = [](const Hit* a, const Hit* b) -> bool {
+	auto cmp = [](const HitPtr a, const HitPtr b) -> bool {
 		return a->mHsps.front().mScore > b->mHsps.front().mScore;
 	};
 	
@@ -1901,7 +1903,6 @@ void BlastQuery<WORDSIZE>::AddHit(Hit* inHit, vector<Hit*>& inHitList) const
 	if (inHitList.size() > mReportLimit and mReportLimit > 0)
 	{
 		pop_heap(inHitList.begin(), inHitList.end(), cmp);
-		delete inHitList.back();
 		inHitList.erase(inHitList.end() - 1);
 	}
 }

@@ -1271,12 +1271,12 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		
 		io::filtering_ostream out(io::back_inserter(blastHits));
 	
-		ifstream f("1F88-A-hits.fa");
-		io::copy(f, out);
+		//ifstream f("1F88-A-hits.fa");
+		//io::copy(f, out);
 
-//		SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
-//			"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 0, inThreads);
-//		out.flush();
+		SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
+			"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 0, inThreads);
+		out.flush();
 
 		if (blastHits.empty())
 			continue;
