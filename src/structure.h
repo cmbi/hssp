@@ -333,7 +333,7 @@ class MProtein
 	const std::vector<std::string>&
 						GetDbRef() const				{ return mDbRef; }
 
-	void				CalculateSecondaryStructure();
+	void				CalculateSecondaryStructure(bool inPreferPiHelices = true);
 	
 	void				GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
 							uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges,
@@ -382,7 +382,7 @@ class MProtein
 	void				AddResidue(const std::vector<MAtom>& inAtoms);
 
 	void				CalculateHBondEnergies(const std::vector<MResidue*>& inResidues);
-	void				CalculateAlphaHelices(const std::vector<MResidue*>& inResidues);
+	void				CalculateAlphaHelices(const std::vector<MResidue*>& inResidues, bool inPreferPiHelices);
 	void				CalculateBetaSheets(const std::vector<MResidue*>& inResidues);
 	void				CalculateAccessibilities(const std::vector<MResidue*>& inResidues);
 

@@ -12,7 +12,7 @@ firstTarget: all
 
 include make.config
 
-VERSION				= 2.0.4
+VERSION				= 2.1.0
 
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR) $(ZEEP_DIR) $(DEST_DIR)lib $(HOME)/projects/mrs/lib

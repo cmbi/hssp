@@ -1457,7 +1457,7 @@ void MProtein::Rotate(const MQuaternion& inRotation)
 		chain->Rotate(inRotation);
 }
 
-void MProtein::CalculateSecondaryStructure()
+void MProtein::CalculateSecondaryStructure(bool inPreferPiHelices)
 {
 	vector<MResidue*> residues;
 	residues.reserve(mResidueCount);
@@ -1471,7 +1471,7 @@ void MProtein::CalculateSecondaryStructure()
 
 	CalculateHBondEnergies(residues);
 	CalculateBetaSheets(residues);
-	CalculateAlphaHelices(residues);
+	CalculateAlphaHelices(residues, inPreferPiHelices);
 
 	t.join();
 }
@@ -1501,7 +1501,7 @@ void MProtein::CalculateHBondEnergies(const std::vector<MResidue*>& inResidues)
 }
 
 // TODO: improve alpha helix calculation by better recognizing pi-helices 
-void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
+void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues, bool inPreferPiHelices)
 {
 	if (VERBOSE)
 		cerr << "Calculate alhpa helices" << endl;
@@ -1571,7 +1571,8 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues)
 		{
 			bool empty = true;
 			for (uint32 j = i; empty and j <= i + 4; ++j)
-				empty = inResidues[j]->GetSecondaryStructure() == loop or inResidues[j]->GetSecondaryStructure() == helix_5;
+				empty = inResidues[j]->GetSecondaryStructure() == loop or inResidues[j]->GetSecondaryStructure() == helix_5 or
+							(inPreferPiHelices and inResidues[j]->GetSecondaryStructure() == alphahelix);
 			if (empty)
 			{
 				for (uint32 j = i; j <= i + 4; ++j)
