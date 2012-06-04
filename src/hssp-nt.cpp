@@ -918,8 +918,9 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 			return result;
 		};
 		
-		os << "#=GF CC PDB file contains " << inProtein.GetChains().size() << " chains. Used chain" << ( inUsed.size() > 1 ? "s are " : " is " ) << fmt(inUsed) << endl
-		   << "#=GF CC Chain " << m_chain.GetChainID() << " is considered to be the same as " << fmt(inAKA) << endl;
+		os << "#=GF CC PDB file contains " << inProtein.GetChains().size() << " chains. Used chain" << ( inUsed.size() > 1 ? "s are " : " is " ) << fmt(inUsed) << endl;
+		if (not inAKA.empty())
+			os << "#=GF CC Chain " << m_chain.GetChainID() << " is considered to be the same as " << fmt(inAKA) << endl;
 		queryID = inProtein.GetID() + '/' + m_chain.GetChainID();
 	}
 	
