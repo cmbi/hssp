@@ -1256,6 +1256,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 			aka[ix[i]].push_back(string(1, chains[i]->GetChainID()));
 	}
 
+	sort(ix.begin(), ix.end());
 	ix.erase(unique(ix.begin(), ix.end()), ix.end());
 
 	foreach (size_t i, ix)
