@@ -748,7 +748,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 	
 	int32 nextNr = m_residues.front().m_seq_nr;
 	os << "#=GF CC ## RESIDUE INFORMATION" << endl
-	   << "#=GF CC SeqNo RESIDUE AA STRUCTURE BP1 BP2  ACC  NOCC VAR" << endl;
+	   << "#=GF CC SeqNo   PDBNo AA STRUCTURE BP1 BP2  ACC  NOCC VAR" << endl;
 	foreach (auto& ri, m_residues)
 	{
 		if (ri.m_chain_id == 0)
@@ -885,19 +885,19 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 	
 	s = inProtein.GetHeader();
 	if (not s.empty())
-		os << "#=GF CC " << s << endl;
+		os << "#=GF CC HEADER " << s.substr(10) << endl;
 	
 	s = inProtein.GetCompound();
 	if (not s.empty())
-		os << "#=GF CC " << s<< endl;
+		os << "#=GF CC COMPND " << s.substr(10) << endl;
 	
 	s = inProtein.GetSource();
 	if (not s.empty())
-		os << "#=GF CC " << s << endl;
+		os << "#=GF CC SOURCE " << s.substr(10) << endl;
 	
 	s = inProtein.GetAuthor();
 	if (not s.empty())
-		os << "#=GF CC " << s << endl;
+		os << "#=GF CC AUTHOR " << s.substr(10) << endl;
 
 	foreach (auto dbref, inProtein.GetDbRef())
 		os << "#=GF CC " << dbref << endl;
