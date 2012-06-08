@@ -625,7 +625,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 		}
 		
 		// update insert/delete counters for the residues
-		x = highX;	e->m_ilas = x + 1;
+		x = highX;	e->m_ilas = m_residues[x].m_seq_nr;
 		y = highY;	e->m_jlas = y + 1;
 
 		// trace back to fill aligned sequence and to create gaps in MSA

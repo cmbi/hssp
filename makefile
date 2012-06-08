@@ -63,7 +63,7 @@ mas: $(OBJECTS)
 	@ $(CC) -o $@ $(OBJECTS) $(LDOPTS)
 	@ echo OK
 
-mkdssp: mkdssp.o dssp.o primitives-3d.o structure.o utils.o
+mkdssp: mkdssp.o dssp.o primitives-3d.o structure.o utils.o mas.o
 	@ echo linking $@
 	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
