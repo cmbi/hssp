@@ -461,7 +461,6 @@ static void GetMaskSegments(bool inProtein, const string& inSequence, long inOff
 {
 	double loCut, hiCut;
 	long window, maxbogus, maxtrim;
-	bool overlaps;
 	const M6Alphabet* alphabet;
 
 	if (inProtein)
@@ -469,7 +468,6 @@ static void GetMaskSegments(bool inProtein, const string& inSequence, long inOff
 		window = 12;
 		loCut = 2.2;
 		hiCut = 2.5;
-		overlaps = false;
 		maxtrim = 50;
 		maxbogus = 2;
 		alphabet = &kProtAlphabet;
@@ -479,7 +477,6 @@ static void GetMaskSegments(bool inProtein, const string& inSequence, long inOff
 		window = 32;
 		loCut = 1.4;
 		hiCut = 1.6;
-		overlaps = false;
 		maxtrim = 100;
 		maxbogus = 3;
 		alphabet = &kNuclAlphabet;
@@ -746,7 +743,7 @@ struct Word
 	{
 	  public:
 						PermutationIterator(Word inWord, const Matrix& inMatrix, int32 inThreshold)
-							: mWord(inWord), mMatrix(inMatrix), mThreshold(inThreshold), mIndex(0) {}
+							: mWord(inWord), mIndex(0), mMatrix(inMatrix), mThreshold(inThreshold) {}
 		
 		bool			Next(uint32& outIndex);
 	
@@ -813,8 +810,8 @@ class WordHitIterator
 
   public:
 
-	typedef Word<WORDSIZE>						Word;
-	typedef typename Word::PermutationIterator	WordPermutationIterator;
+	typedef Word<WORDSIZE>						IWord;
+	typedef typename IWord::PermutationIterator	WordPermutationIterator;
 
 	struct WordHitIteratorStaticData
 	{
@@ -851,14 +848,14 @@ template<int WORDSIZE>
 void WordHitIterator<WORDSIZE>::Init(const sequence& inQuery, 
 	const Matrix& inMatrix, uint32 inThreshhold, WordHitIteratorStaticData& outStaticData)
 {
-	uint64 N = Word::kMaxWordIndex;
+	uint64 N = IWord::kMaxWordIndex;
 	size_t M = 0;
 	
 	vector<vector<uint16>> test(N);
 	
 	for (uint16 i = 0; i < inQuery.length() - WORDSIZE + 1; ++i)
 	{
-		Word w(inQuery.c_str() + i);
+		IWord w(inQuery.c_str() + i);
 		
 		WordPermutationIterator p(w, inMatrix, inThreshhold);
 		uint32 ix;
@@ -1192,8 +1189,8 @@ class BlastQuery
 
 	void			AddHit(HitPtr inHit, vector<HitPtr>& inHitList) const;
 
-	typedef WordHitIterator<WORDSIZE>								WordHitIterator;
-	typedef typename WordHitIterator::WordHitIteratorStaticData	StaticData;
+	typedef WordHitIterator<WORDSIZE>								IWordHitIterator;
+	typedef typename IWordHitIterator::WordHitIteratorStaticData	StaticData;
 
 	string			mUnfiltered;
 	sequence		mQuery;
@@ -1241,7 +1238,7 @@ BlastQuery<WORDSIZE>::BlastQuery(const string& inQuery, bool inFilter, double in
 	// we're not using S2
 	mS2 =		static_cast<int32>((kLn2 * kGapTrigger + log(mMatrix.GappedKappa())) / mMatrix.GappedLambda());;	// yeah, that sucks... perhaps
 
-	WordHitIterator::Init(mQuery, mMatrix, kThreshold, mWordHitData);
+	IWordHitIterator::Init(mQuery, mMatrix, kThreshold, mWordHitData);
 }
 
 template<int WORDSIZE>
@@ -1283,12 +1280,12 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
 					int64 dbLength = 0;
 					vector<HitPtr> hits;
 					
-					SearchPart(data, n, inProgress, dbCount, dbLength, hits);
+					this->SearchPart(data, n, inProgress, dbCount, dbLength, hits);
 	
 					boost::mutex::scoped_lock lock(m);
 					mDbCount += dbCount;
 					mDbLength += dbLength;
-					mHits.insert(mHits.end(), hits.begin(), hits.end());
+					this->mHits.insert(mHits.end(), hits.begin(), hits.end());
 				});
 	
 				data += n;
@@ -1325,7 +1322,7 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
 					HitPtr hit = mHits[next];
 					
 					foreach (Hsp& hsp, hit->mHsps)
-						hsp.mScore = AlignGappedSecond(hit->mTarget, hsp);
+						hsp.mScore = this->AlignGappedSecond(hit->mTarget, hsp);
 					
 					hit->Cleanup(mSearchSpace, lambda, logK, mExpect);
 				}
@@ -1451,7 +1448,7 @@ void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength, MPro
 	const char* end = inFasta + inLength;
 	int32 queryLength = static_cast<int32>(mQuery.length());
 	
-	WordHitIterator iter(mWordHitData);
+	IWordHitIterator iter(mWordHitData);
 	DiagonalStartTable diagonals;
 	sequence target;
 	target.reserve(kMaxSequenceLength);

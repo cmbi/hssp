@@ -78,8 +78,16 @@ class mas_exception : public std::exception
 
 // --------------------------------------------------------------------
 
-#if defined(__linux__) || defined(__INTEL_COMPILER_BUILD_DATE)
+
+#if defined(__linux__)
+
+#if defined(__INTEL_COMPILER_BUILD_DATE)
 #include <atomic>
+#elif defined(__GNUC__) && (__GNUC__ < 4 || __GNUC_MINOR__ <= 4)
+#include <cstdatomic>
+#else
+#error "Now what?"
+#endif
 
 typedef std::atomic<int64>	MCounter;
 

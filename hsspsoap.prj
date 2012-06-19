@@ -53,7 +53,7 @@
     <target kind="Executable">
       <name>hsspsoap-Debug</name>
       <linkTarget>hsspsoap</linkTarget>
-      <compiler>/srv/opt/intel/composer_xe_2011_sp1.9.293/bin/intel64/icpc</compiler>
+      <compiler>/usr/bin/c++</compiler>
       <defines>
         <define>DEBUG</define>
         <define>LINUX</define>
@@ -74,7 +74,7 @@
     <target kind="Executable">
       <name>hsspsoap-Release</name>
       <linkTarget>hsspsoap</linkTarget>
-      <compiler>/srv/opt/intel/composer_xe_2011_sp1.9.293/bin/intel64/icpc</compiler>
+      <compiler>/home/staf/maarten/bin/c++-4.6</compiler>
       <defines>
         <define>NDEBUG</define>
         <define>LINUX</define>
