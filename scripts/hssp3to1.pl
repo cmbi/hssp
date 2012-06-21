@@ -198,6 +198,10 @@ $header
 SEQLENGTH  $seqlen
 NCHAIN     $nchain chain(s) in $pdbid data set
 NALIGN     $nalign
+WARNING  : The information in this file is generated from another file.
+WARNING  : It is possible that information in this file is truncated to
+WARNING  : accomodate the limited formatting capabilities. Please consult
+WARNING  : the original file to see the full information.
 NOTATION : ID: EMBL/SWISSPROT identifier of the aligned (homologous) protein
 NOTATION : STRID: if the 3-D structure of the aligned protein is known, then STRID is the Protein Data Bank identifier as taken
 NOTATION : from the database reference or DR-line of the EMBL/SWISSPROT entry
