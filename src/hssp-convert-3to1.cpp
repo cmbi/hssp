@@ -21,16 +21,10 @@
 #include <boost/date_time/date_clock_device.hpp>
 #include <boost/regex.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
-#include <boost/pool/pool_alloc.hpp>
 
 // our includes
 #include "buffer.h"
-#include "matrix.h"
-#include "dssp.h"
-#include "structure.h"
 #include "utils.h"
-#include "hmmer-hssp.h"
-#include "mkhssp.h"		// for our globals
 
 #if P_WIN
 #pragma warning (disable: 4267)
@@ -61,19 +55,25 @@ struct insertion
 class seq
 {
   public:
-				seq(const seq&);
-				//seq(const string& id);
-				seq(const string& id, const string& desc);
+				seq(const string& acc);
 				~seq();
 				
 	seq&		operator=(const seq&);
 
 	void		swap(seq& o);
 
-	string		id() const							{ return m_impl->m_id; }
 	string		acc() const							{ return m_impl->m_acc; }
+
+	void		id(const string& id);
+	string		id() const							{ return m_impl->m_id; }
+
+	void		pdb(const string& pdb);
 	string		pdb() const							{ return m_impl->m_pdb; }
+	
+	void		desc(const string& desc);
 	string		desc() const						{ return m_impl->m_desc; }
+	
+	void		hssp(const string& hssp);
 
 	float		identity() const					{ return m_impl->m_identical; }
 	float		similarity() const					{ return m_impl->m_similar; }
@@ -85,9 +85,6 @@ class seq
 	uint32		gapn() const						{ return m_impl->m_gapn; }
 	uint32		gaps() const						{ return m_impl->m_gaps; }
 	
-	uint32		alignment_begin() const				{ return m_impl->m_begin; }
-	uint32		alignment_end() const				{ return m_impl->m_end; }
-
 	uint32		alignment_length() const			{ return m_impl->m_length; }
 	uint32		seqlen() const						{ return m_impl->m_seqlen; }
 	
@@ -95,7 +92,6 @@ class seq
 				insertions() const					{ return m_impl->m_insertions; }
 
 	void		append(const string& seq);
-	void		cut(uint32 pos, uint32 n);
 
 	void		update(const seq& qseq);
 	static void	update_all(buffer<seq*>& b, const seq& qseq);
@@ -172,7 +168,6 @@ class seq
 					~seq_impl();
 
 		void		update(const seq_impl& qseq);
-		void		cut(uint32 pos, uint32 n);
 
 		iterator	begin()							{ return iterator(m_seq); }
 		iterator	end()							{ return iterator(m_seq + m_size); }
@@ -213,26 +208,23 @@ typedef vector<seq>				mseq;
 
 const uint32 kBlockSize = 512;
 
-seq::seq_impl::seq_impl(const string& id, const string& desc)
-	: m_id(id)
-	, m_id2(id)
-	, m_desc(desc)
+seq::seq_impl::seq_impl(const string& acc)
+	: m_acc(acc)
 	, m_identical(0)
 	, m_similar(0)
 	, m_length(0)
 	, m_score(0)
 	, m_begin(0)
 	, m_end(0)
-	, m_pruned(false)
 	, m_gaps(0)
 	, m_gapn(0)
+	, m_data(nullptr)
 	, m_seq(nullptr)
 	, m_refcount(1)
 	, m_size(0)
 	, m_space(0)
 {
 	m_ifir = m_ilas = m_jfir = m_jlas = 0;
-	m_data = m_seq = nullptr;
 }
 
 seq::seq_impl::~seq_impl()
@@ -245,29 +237,6 @@ seq::seq(const seq& s)
 	: m_impl(s.m_impl)
 {
 	++m_impl->m_refcount;
-}
-
-seq::seq(const string& id, const string& desc)
-	: m_impl(new seq_impl(id, desc))
-{
-	static const boost::regex re1("([-a-zA-Z0-9_]+)/(\\d+)-(\\d+)"),
-				  			  re2("(?:tr|sp)\\|([[:alnum:]]+)\\|(.+)");
-	boost::smatch sm;
-
-	if (boost::regex_match(m_impl->m_id2, sm, re2))
-	{
-		m_impl->m_acc = sm[1];
-		m_impl->m_id2 = sm[2];
-	}
-
-	if (boost::regex_match(m_impl->m_id2, sm, re1))
-	{
-		// jfir/jlas can be taken over from jackhmmer output
-		m_impl->m_jfir = boost::lexical_cast<uint32>(sm.str(2));
-		m_impl->m_jlas = boost::lexical_cast<uint32>(sm.str(3));
-
-		m_impl->m_id2 = sm[1];
-	}
 }
 
 seq& seq::operator=(const seq& rhs)
@@ -296,6 +265,61 @@ void seq::swap(seq& o)
 	std::swap(m_impl, o.m_impl);
 }
 
+void seq::id(const string& id)
+{
+	m_impl->m_id = id;
+}
+
+void seq::pdb(const string& pdb)
+{
+	m_impl->m_pdb = pdb;
+}
+
+void seq::desc(const string& desc)
+{
+	m_impl->m_desc = desc;
+}
+
+void seq::hssp(const string& hssp)
+{
+	// HSSP score=0.98/1.00 aligned=1-46/1-46 length=46 ngaps=0 gaplen=0 seqlen=46
+	
+	static const boost::regex
+		re1("score=(\\d\\.\\d+)/(\\d\\.\\d+)"),
+		re2("aligned=(\\d+)-(\\d+)/(\\d+)-(\\d+)"),
+		re3("length=(\\d+)"),
+		re4("ngaps=(\\d+)"),
+		re5("gaplen=(\\d+)"),
+		re6("seqlen=(\\d+)");
+	
+	boost::smatch m;
+	if (boost::regex_search(hssp, m, re1))
+	{
+		m_impl->m_identical = boost::lexical_cast<float>(m[1]);
+		m_impl->m_similar = boost::lexical_cast<float>(m[2]);
+	}
+	
+	if (boost::regex_search(hssp, m, re2))
+	{
+		m_impl->m_ifir = boost::lexical_cast<uint32>(m[1]);
+		m_impl->m_ilas = boost::lexical_cast<uint32>(m[2]);
+		m_impl->m_jfir = boost::lexical_cast<uint32>(m[3]);
+		m_impl->m_jlas = boost::lexical_cast<uint32>(m[4]);
+	}
+
+	if (boost::regex_search(hssp, m, re3))
+		m_impl->m_length = boost::lexical_cast<uint32>(m[1]);
+	
+	if (boost::regex_search(hssp, m, re4))
+		m_impl->m_ngaps = boost::lexical_cast<uint32>(m[1]);
+	
+	if (boost::regex_search(hssp, m, re5))
+		m_impl->m_gapn = boost::lexical_cast<uint32>(m[1]);
+	
+	if (boost::regex_search(hssp, m, re6))
+		m_impl->m_seqlen = boost::lexical_cast<uint32>(m[1]);
+}
+
 void seq::append(const string& seq)
 {
 	if (m_impl->m_size + seq.length() > m_impl->m_space)
@@ -316,53 +340,6 @@ void seq::append(const string& seq)
 
 	memcpy(m_impl->m_seq + m_impl->m_size, seq.c_str(), seq.length());
 	m_impl->m_end = m_impl->m_size += seq.length();
-
-	//const char* s = seq.c_str();
-	//uint32 l = seq.length();
-	//
-	//while (l > 0)
-	//{
-	//	uint32 o = m_size % sizeof(fragment);
-	//	
-	//	if (o == 0)
-	//		m_seq.push_back(fragment());
-	//	
-	//	uint32 k = l;
-	//	if (k > sizeof(fragment) - o)
-	//		k = sizeof(fragment) - o;
-	//	
-	//	char* d = m_seq.back().m_char;
-	//	memcpy(d + o, s, k);
-	//	
-	//	m_size += k;
-	//	l -= k;
-	//}
-}
-
-void seq::cut(uint32 pos, uint32 n)
-{
-	m_impl->cut(pos, n);
-}
-
-void seq::seq_impl::cut(uint32 pos, uint32 n)
-{
-	assert(pos + n <= m_size);
-
-	m_seq += pos;
-	m_size = n;
-
-	if (m_begin > pos)
-		m_begin -= pos;
-	else
-		m_begin = 0;
-	
-	if (m_end > pos)
-		m_end -= pos;
-	else
-		m_end = 0;
-
-	if (m_end > m_size)
-		m_end = m_size;
 }
 
 void seq::update_all(buffer<seq*>& b, const seq& qseq)
@@ -521,18 +498,6 @@ void seq::seq_impl::update(const seq_impl& qseq)
 	m_score = float(m_identical) / m_length;
 }
 
-bool seq::drop(float inThreshold) const
-{
-	uint32 ix = max(10U, min(m_impl->m_length, 80U)) - 10;
-	
-	bool result = m_impl->m_score < kHomologyThreshold[ix] + inThreshold;
-	
-	if (result and VERBOSE > 2)
-		cerr << "dropping " << m_impl->m_id << " because identity " << m_impl->m_score << " is below threshold " << kHomologyThreshold[ix] << endl;
-	
-	return result;
-}
-
 namespace std
 {
 	template<>
@@ -548,21 +513,22 @@ namespace std
 
 struct ResidueHInfo
 {
-					ResidueHInfo(uint32 seqNr);
-					ResidueHInfo(char a, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
-						const string& dssp);
+			ResidueHInfo(const string& ri);
 
-	void			CalculateVariability(hit_list& hits);
-
-	char			letter;
-	char			chain;
-	string			dssp;
-	uint32			seqNr, pdbNr;
-	uint32			pos;
-	uint32			nocc, ndel, nins;
-	float			entropy, consweight;
-	uint32			dist[20];
+	string	m_ri, m_pr;
 };
+
+ResidueHInfo::ResidueHInfo(const string& ri)
+	: m_ri(ri)
+{
+	for (int i = 6; i > 1; --i)
+		m_ri[i] = m_ri[i - 1];
+	m_ri[0] = ' ';
+	
+	for (int i = 40; i < 44; ++i)
+		m_ri[i] = m_ri[i + 1];
+	m_ri[45] = ' ';
+}
 
 typedef shared_ptr<ResidueHInfo>						res_ptr;
 typedef vector<res_ptr>									res_list;
@@ -570,14 +536,18 @@ typedef boost::iterator_range<res_list::iterator>::type	res_range;
 
 // --------------------------------------------------------------------
 
-void ReadStockholm(istream& is, string& id, string& header, mseq& msa, res_list& residues, const string& q)
+void ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, res_list& residues, const string& q)
 {
-	string line, qseq, qr;
+	string line, qseq, qr, qid;
+
 	getline(is, line);
 	if (line != "# STOCKHOLM 1.0")
 		throw mas_exception("Not a stockholm file, missing first line");
 
 	uint32 ix = 0, n = 0;
+	string::size_type ccOffset = 0;
+	
+	map<string,uint32> index;
 	
 	for (;;)
 	{
@@ -593,6 +563,14 @@ void ReadStockholm(istream& is, string& id, string& header, mseq& msa, res_list&
 		
 		if (line == "//")
 			break;
+
+		if (ba::starts_with(line, "#=GF ID "))
+		{
+			qid = line.substr(8);
+			index[qid] = msa.size();
+			msa.push_back(seq(qid));
+			continue;
+		}
 
 		if (ba::starts_with(line, "#=GF CC PDBID "))
 		{
@@ -613,40 +591,60 @@ void ReadStockholm(istream& is, string& id, string& header, mseq& msa, res_list&
 
 		if (ba::starts_with(line, "#=RI "))
 		{
+			residues.push_back(new ResidueHInfo(line.substr(8)));
+			continue;
+		}
+		
+		if (ba::starts_with(line, "#=PR "))
+		{
+			uint32 nr = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(8, 5))) - 1;
+			if (nr >= residues.size())
+				throw mas_exception("invalid input file");
 			
+			residues[nr]->m_pr = line.substr(13);
 			continue;
 		}
 	
 		if (ba::starts_with(line, "#=GS "))
 		{
-			string id = line.substr(5), desc;
-			string::size_type s = id.find("DE ");
-			if (s != string::npos)
+			line.erase(0, 5);
+			if (msa.empty() and ba::starts_with(line, qid))	// first GS line, fetch the width
 			{
-				desc = id.substr(s + 3);
-				id = id.substr(0, s);
+				ccOffset = line.find("CC");
 			}
-			
-			ba::trim(id);
-			if (msa.size() > 1 or msa.front().id() != id)
-				msa.push_back(seq(id, desc));
+			else
+			{
+				string id = line.substr(0, ccOffset);
+				ba::trim(id);
+				
+				if (index.find(id) == index.end())
+				{
+					index.push_back(msa.size());
+					msa.push_back(seq(id));
+				}
+				
+				line.erase(0, ccOffset)
+				
+				if (ba::starts_with(line, "ID "))
+					msa[index[id]].m_id = line.substr(3);
+				else if (ba::starts_with(line, "DE "))
+					msa[index[id]].m_de = line.substr(3);
+				else if (ba::starts_with(line, "HSSP "))
+					msa[index[id]].m_hssp = line.substr(5);
+				else if (ba::starts_with(line, "PDB "))
+					msa[index[id]].m_pdb = line.substr(4, 4);
+			}
 			continue;
 		}
 		
-		if (line[0] != '#')
+		if (line[0] != '#' and line.length() > ccOffset)
 		{
-			string::size_type s = line.find(' ');
-			if (s == string::npos)
-				throw mas_exception("Invalid stockholm file");
+			string id = line.substr(0, ccOffset);
+			ba::trim(id);
 			
-			string id = line.substr(0, s);
+			string sseq = line.substr(ccOffset);
 			
-			while (s < line.length() and line[s] == ' ')
-				++s;
-			
-			string sseq = line.substr(s);
-			
-			if (id == msa[0].id())
+			if (id == qid())
 			{
 				ix = 0;
 				qseq = sseq;
@@ -661,80 +659,13 @@ void ReadStockholm(istream& is, string& id, string& header, mseq& msa, res_list&
 			else
 			{
 				++ix;
-				if (ix >= msa.size())
-					msa.push_back(seq(id, ""));
-
-				if (ix < msa.size() and id != msa[ix].id())
-					THROW(("Invalid Stockholm file, ID does not match (%s != %s)", id.c_str(), msa[ix].id().c_str()));
+				if (ix >= msa.size() or id != msa[ix].m_id)
+					throw mas_exception("Invalid input file");
 			}
 
-			if (ix < msa.size())
-				msa[ix].append(sseq);
+			msa[ix].append(sseq);
 		}
 	}
-	
-	if (msa.size() < 2)
-		THROW(("Insufficient sequences in Stockholm MSA"));
-
-	if (VERBOSE)
-		cerr << " done, alignment width = " << n << ", nr of hits = " << msa.size() << endl << "Checking for threshold...";
-
-	// first cut the msa, if needed:
-	if (not q.empty() and q != qr)
-	{
-		if (qr.length() < q.length())
-			THROW(("Query used for Stockholm file is too short for the chain"));
-
-		string::size_type offset = qr.find(q);
-		if (offset == string::npos)
-			THROW(("Invalid Stockholm file for chain"));
-		
-		seq::iterator r = msa.front().begin();
-		uint32 pos = 0;
-		for (; r != msa.front().end(); ++r)
-		{
-			if (is_gap(*r) or offset-- > 0)
-			{
-				++pos;
-				continue;
-			}
-			break;
-		}
-		
-		uint32 n = 0, length = q.length();
-		for (; r != msa.front().end(); ++r)
-		{
-			if (is_gap(*r) or length-- > 0)
-			{
-				++n;
-				continue;
-			}
-			break;
-		}
-
-		foreach (seq& s, msa)
-			s.cut(pos, n);
-	}
-	
-	// update seq counters, try to do this multi threaded
-	if (gNrOfThreads > 1)
-	{
-		buffer<seq*> b;
-		boost::thread_group threads;
-		for (uint32 t = 0; t < gNrOfThreads; ++t)
-			threads.create_thread(boost::bind(&seq::update_all, boost::ref(b), boost::ref(msa.front())));
-		
-		for (uint32 i = 1; i < msa.size(); ++i)
-			b.put(&msa[i]);
-	
-		b.put(nullptr);
-		threads.join_all();
-	}
-	else
-		for_each(msa.begin() + 1, msa.end(), boost::bind(&seq::update, _1, msa.front()));
-
-	if (VERBOSE)
-		cerr << "done" << endl;
 }
 
 // --------------------------------------------------------------------
@@ -742,14 +673,13 @@ void ReadStockholm(istream& is, string& id, string& header, mseq& msa, res_list&
 	
 struct Hit
 {
-					Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 offset);
+					Hit(seq& s, seq& q, char chain, uint32 offset);
 					~Hit();
 
 	seq&			m_seq;
 	seq&			m_qseq;
 	char			m_chain;
 	uint32			m_nr, m_ifir, m_ilas, m_offset;
-	float			m_ide, m_wsim;
 
 	bool			operator<(const Hit& rhs) const
 					{
@@ -777,104 +707,16 @@ Hit::Hit(CDatabankPtr inDatabank, seq& s, seq& q, char chain, uint32 offset)
 	, m_offset(offset)
 {
 	string id = m_seq.id2();
-
-	m_ide = float(m_seq.identical()) / float(m_seq.alignment_length());
-	m_wsim = float(m_seq.similar()) / float(m_seq.alignment_length());
 }
 
 Hit::~Hit()
 {
-	m_seq.prune();
 }
 
 struct compare_hit
 {
 	bool operator()(hit_ptr a, hit_ptr b) const { return *a < *b; }
 };
-
-// --------------------------------------------------------------------
-// first constructor is for a 'chain-break'
-ResidueHInfo::ResidueHInfo(uint32 seqNr)
-	: letter(0)
-	, seqNr(seqNr)
-	, nocc(1)
-	, ndel(0)
-	, nins(0)
-	, consweight(1)
-{
-}
-
-ResidueHInfo::ResidueHInfo(char a, uint32 pos, char chain, uint32 seqNr, uint32 pdbNr,
-		const string& dssp)
-	: letter(a)
-	, chain(chain)
-	, dssp(dssp)
-	, seqNr(seqNr)
-	, pdbNr(pdbNr)
-	, pos(pos)
-	, nocc(1)
-	, ndel(0)
-	, nins(0)
-	, consweight(1)
-{
-}
-
-void ResidueHInfo::CalculateVariability(hit_list& hits)
-{
-	if (hits.empty())
-		return;
-
-	fill(dist, dist + 20, 0);
-	entropy = 0;
-	
-	int8 ix = kResidueIX[uint8(letter)];
-	if (ix >= 0)
-	{
-		dist[ix] = 1;
-	
-		foreach (hit_ptr hit, hits)
-		{
-			if (hit->m_chain != chain)
-				continue;
-	
-			ix = kResidueIX[uint8(hit->m_seq[pos])];
-			if (ix >= 0)
-			{
-				++nocc;
-				dist[ix] += 1;
-			}
-		}
-
-		for (uint32 a = 0; a < 20; ++a)
-		{
-			double freq = double(dist[a]) / nocc;
-			
-			dist[a] = uint32((100.0 * freq) + 0.5);
-			
-			if (freq > 0)
-				entropy -= static_cast<float>(freq * log(freq));
-		}
-
-		// calculate ndel and nins
-		const seq& q = hits.front()->m_qseq;
-		
-		bool gap = pos + 1 < q.length() and is_gap(q[pos + 1]);
-		
-		foreach (hit_ptr hit, hits)
-		{
-			if (hit->m_chain != chain)
-				continue;
-	
-			const seq& t = hit->m_seq;
-			
-			if (pos > t.alignment_begin() and pos < t.alignment_end() and is_gap(t[pos]))
-				++ndel;
-			
-			if (gap and t[pos] >= 'a' and t[pos] <= 'y')
-				++nins;
-		}
-	}
-}
 
 // --------------------------------------------------------------------
 // Write collected information as a HSSP file to the output stream
@@ -1078,144 +920,10 @@ void CreateHSSPOutput(
 }
 
 // --------------------------------------------------------------------
-// Calculate the variability of a residue, based on dayhoff similarity
-// and weights
-
-uint32 kSentinel = numeric_limits<uint32>::max();
-boost::mutex sSumLock;
-
-void CalculateConservation(const mseq& msa, buffer<uint32>& b, vector<float>& csumvar, vector<float>& csumdist)
-{
-	const seq& s = msa.front();
-	vector<float> sumvar(s.length()), sumdist(s.length()), simval(s.length());
-
-	for (;;)
-	{
-		uint32 i = b.get();
-		if (i == kSentinel)
-			break;
-
-		assert (msa[i].pruned() == false);
-
-		const seq& si = msa[i];
-		
-		for (uint32 j = i + 1; j < msa.size(); ++j)
-		{
-			if (msa[j].pruned())
-				continue;
-
-			const seq& sj = msa[j];
-	
-			uint32 b = msa[i].alignment_begin();
-			if (b < msa[j].alignment_begin())
-				b = msa[j].alignment_begin();
-			
-			uint32 e = msa[i].alignment_end();
-			if (e > msa[j].alignment_end())
-				e = msa[j].alignment_end();
-	
-			uint32 len = 0, agr = 0;
-			for (uint32 k = b; k < e; ++k)
-			{
-				if (not is_gap(si[k]) and not is_gap(sj[k]))
-				{
-					++len;
-					if (si[k] == sj[k])
-						++agr;
-
-					int8 ri = kResidueIX[uint8(si[k])];
-					int8 rj = kResidueIX[uint8(sj[k])];
-					
-					if (ri >= 0 and rj >= 0)
-						simval[k] = kD(ri, rj);
-					else
-						simval[k] = numeric_limits<float>::min();
-				}
-			}
-
-			if (len > 0)
-			{
-				float distance = 1 - (float(agr) / float(len));
-				for (uint32 k = b; k < e; ++k)
-				{
-					if (simval[k] != numeric_limits<float>::min())
-					{
-						sumvar[k] += distance * simval[k];
-						sumdist[k] += distance * 1.5f;
-					}
-				}
-			}
-		}
-	}
-
-	b.put(kSentinel);
-	
-	// accumulate our data
-	boost::mutex::scoped_lock l(sSumLock);
-	
-	transform(sumvar.begin(), sumvar.end(), csumvar.begin(), csumvar.begin(), plus<float>());
-	transform(sumdist.begin(), sumdist.end(), csumdist.begin(), csumdist.begin(), plus<float>());
-}
-
-void CalculateConservation(mseq& msa, boost::iterator_range<res_list::iterator>& res)
-{
-	if (VERBOSE)
-		cerr << "Calculating conservation weights...";
-
-	// first remove pruned seqs from msa
-	//msa.erase(remove_if(msa.begin(), msa.end(), [](seq& s) { return s.m_pruned; }), msa.end());
-	//msa.erase(remove_if(msa.begin(), msa.end(), boost::bind(&seq::pruned, _1)), msa.end());
-
-	const seq& s = msa.front();
-	vector<float> sumvar(s.length()), sumdist(s.length());
-	
-	// Calculate conservation weights in multiple threads to gain speed.
-	buffer<uint32> b;
-	boost::thread_group threads;
-	for (uint32 t = 0; t < gNrOfThreads; ++t)
-	{
-		threads.create_thread(boost::bind(&CalculateConservation, boost::ref(msa),
-			boost::ref(b), boost::ref(sumvar), boost::ref(sumdist)));
-	}
-		
-	for (uint32 i = 0; i + 1 < msa.size(); ++i)
-	{
-		if (msa[i].pruned())
-			continue;
-		b.put(i);
-	}
-	
-	b.put(kSentinel);
-	threads.join_all();
-
-	res_list::iterator ri = res.begin();
-	for (uint32 i = 0; i < s.length(); ++i)
-	{
-		if (is_gap(s[i]))
-			continue;
-
-		float weight = 1.0f;
-		if (sumdist[i] > 0)
-			weight = sumvar[i] / sumdist[i];
-		
-		(*ri)->consweight = weight;
-		
-		do {
-			++ri;
-		} while (ri != res.end() and (*ri)->letter == 0);
-	}
-	assert(ri == res.end());
-
-	if (VERBOSE)
-		cerr << " done" << endl;
-}
-
-// --------------------------------------------------------------------
 // Convert a multiple sequence alignment as created by jackhmmer to 
 // a set of information as used by HSSP.
 
-void ChainToHits(CDatabankPtr inDatabank, mseq& msa, const MChain& chain,
-	hit_list& hits, res_list& res)
+void ChainToHits(mseq& msa, const MChain& chain, hit_list& hits, res_list& res)
 {
 	if (VERBOSE)
 		cerr << "Creating hits...";
@@ -1602,7 +1310,7 @@ void ConvertHsspFile(
 
 	for (;;)
 	{
-		
+		ReadHSSP2File
 		
 
 
@@ -1767,8 +1475,6 @@ void ConvertHsspFile(
 	
 	CreateHSSPOutput(inDatabank, inProtein.GetID(), desc.str(), inCutOff, seqlength,
 		inProtein.GetChains().size(), kchain, usedChains, hits, res, out);
-}
-
 }
 
 
