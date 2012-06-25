@@ -944,9 +944,7 @@ int main(int argc, char* const argv[])
 		}
 		
 		io::filtering_stream<io::input> in;
-		io::filtering_stream<io::output> out;
 		fs::ifstream ifs;
-		fs::ofstream ofs;
 		
 		if (vm.count("input") == 0)
 			in.push(cin);
@@ -966,23 +964,25 @@ int main(int argc, char* const argv[])
 		}
 
 		if (vm.count("output") == 0)
-			out.push(cout);
+			ConvertHsspFile(in, cout);
 		else
 		{
 			fs::path output = vm["output"].as<string>();
 
-			ofs.open(output, ios::binary);
+			fs::ofstream ofs(output, ios::binary);
 			if (not ofs.is_open())
 				throw mas_exception(boost::format("Could not open output file '%s'") % output);
+
+			io::filtering_stream<io::output> out;
 	
 			if (output.extension() == ".bz2")
 				out.push(io::bzip2_compressor());
 			else if (output.extension() == ".gz")
 				out.push(io::gzip_compressor());
 			out.push(ofs);
+
+			ConvertHsspFile(in, out);
 		}
-	
-		ConvertHsspFile(in, out);
 	}
 	catch (exception& e)
 	{

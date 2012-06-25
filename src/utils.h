@@ -81,10 +81,8 @@ class mas_exception : public std::exception
 
 #if defined(__linux__)
 
-#if defined(__INTEL_COMPILER_BUILD_DATE)
+#if defined(__INTEL_COMPILER_BUILD_DATE) || (defined(__GNUC__) && (__GNUC__ > 4 || ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
 #include <atomic>
-#elif defined(__GNUC__) && (__GNUC__ < 4 || __GNUC_MINOR__ <= 4)
-#include <cstdatomic>
 #else
 #error "Now what?"
 #endif
