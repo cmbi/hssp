@@ -755,7 +755,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 			continue;
 
 		if (ri.m_seq_nr != nextNr)
-			os << boost::format("#=GF RI %5.5d       !  !             0   0    0    0    0") % nextNr << endl;
+			os << boost::format("#=GF RI %5.5d       ! !              0   0    0     0   0") % nextNr << endl;
 
 		uint32 ivar = uint32(100 * (1 - ri.m_consweight));
 		os << boost::format("#=GF RI %5.5d %s%5.5d %3.3d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl;

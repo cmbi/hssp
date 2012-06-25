@@ -19,6 +19,8 @@
 #define foreach BOOST_FOREACH
 #include <boost/regex.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
+#include <boost/program_options.hpp>
+#include <boost/program_options/config.hpp>
 
 // our includes
 #include "buffer.h"
@@ -32,6 +34,7 @@ using namespace std;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
 namespace fs = boost::filesystem;
+namespace po = boost::program_options;
 
 int VERBOSE = 0;
 
@@ -559,11 +562,11 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 		
 		if (ba::starts_with(line, "#=GF PR "))
 		{
-			uint32 nr = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(8, 5))) - 1;
+			uint32 nr = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(8, 5))) - 1 + offset;
 			if (nr >= residues.size())
 				throw mas_exception("invalid input file");
 			
-			residues[nr]->m_pr = line.substr(8, 5) + line.substr(14);
+			residues[nr]->m_pr = line.substr(14);
 			continue;
 		}
 	
@@ -594,8 +597,8 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 					msa[index[id]].desc(line.substr(3));
 				else if (ba::starts_with(line, "HSSP "))
 					msa[index[id]].hssp(line.substr(5));
-				else if (ba::starts_with(line, "PDB "))
-					msa[index[id]].pdb(line.substr(4, 4));
+				else if (ba::starts_with(line, "DR PDB "))
+					msa[index[id]].pdb(line.substr(7, 4));
 			}
 
 			continue;
@@ -787,8 +790,15 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 	   << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
 	
 	res_ptr last;
+	nr = 1;
 	foreach (res_ptr r, res)
-		os << r->m_pr << endl;
+	{
+		if (r->m_pr.empty())
+			os << boost::format(" %5.5d") % nr << "          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00" << endl;
+		else
+			os << boost::format(" %5.5d") % nr << r->m_pr << endl;
+		++nr;
+	}
 	
 	// insertion list
 	
@@ -899,33 +909,90 @@ void ConvertHsspFile(istream& in, ostream& out)
 
 // --------------------------------------------------------------------
 
-int main()
+int main(int argc, char* const argv[])
 {
-	fs::path infile = "4rhv.hssp3";
-	fs::path outfile = "4rhv.hssp1";
+	try
+	{
+		po::options_description desc("MKHSSP options");
+		desc.add_options()
+			("help,h",							 "Display help message")
+			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
+			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
+			;
+	
+		po::positional_options_description p;
+		p.add("input", 1);
+		p.add("output", 2);
+	
+		po::variables_map vm;
+		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 
-	fs::ifstream sf(infile, ios::binary);
-	if (not sf.is_open())
-		throw mas_exception(boost::format("Could not open input file '%s'") % infile);
+		//fs::path home = get_home();
+		//if (fs::exists(home / ".mkhssprc"))
+		//{
+		//	fs::ifstream rc(home / ".mkhssprc");
+		//	po::store(po::parse_config_file(rc, desc), vm);
+		//}
 
-	io::filtering_stream<io::input> in;
-	if (infile.extension() == ".bz2")
-		in.push(io::bzip2_decompressor());
-	else if (infile.extension() == ".gz")
-		in.push(io::gzip_decompressor());
-	in.push(sf);
+		po::notify(vm);
+
+		if (vm.count("help"))
+		{
+			cerr << desc << endl;
+			exit(1);
+		}
+		
+		io::filtering_stream<io::input> in;
+		io::filtering_stream<io::output> out;
+		fs::ifstream ifs;
+		fs::ofstream ofs;
+		
+		if (vm.count("input") == 0)
+			in.push(cin);
+		else
+		{
+			fs::path input = vm["input"].as<string>();
+			ifs.open(input, ios::binary);
+
+			if (not ifs.is_open())
+				throw mas_exception(boost::format("Could not open input file '%s'") % input);
+
+			if (input.extension() == ".bz2")
+				in.push(io::bzip2_decompressor());
+			else if (input.extension() == ".gz")
+				in.push(io::gzip_decompressor());
+			in.push(ifs);
+		}
+
+		if (vm.count("output") == 0)
+			out.push(cout);
+		else
+		{
+			fs::path output = vm["output"].as<string>();
+
+			ofs.open(output, ios::binary);
+			if (not ofs.is_open())
+				throw mas_exception(boost::format("Could not open output file '%s'") % output);
 	
-	fs::ofstream ff(outfile, ios::binary);
-	if (not ff.is_open())
-		throw mas_exception(boost::format("Could not open output file '%s'") % outfile);
+			if (output.extension() == ".bz2")
+				out.push(io::bzip2_compressor());
+			else if (output.extension() == ".gz")
+				out.push(io::gzip_compressor());
+			out.push(ofs);
+		}
 	
-	io::filtering_stream<io::output> out;
-	if (outfile.extension() == ".bz2")
-		out.push(io::bzip2_compressor());
-	else if (outfile.extension() == ".gz")
-		out.push(io::gzip_compressor());
-	out.push(ff);
-	
-	ConvertHsspFile(in, out);
+		ConvertHsspFile(in, out);
+	}
+	catch (exception& e)
+	{
+		cerr << e.what() << endl;
+		exit(1);
+	}
+	catch (...)
+	{
+		cerr << "Unknown exception" << endl;
+		exit(1);
+	}
+
 	return 0;
 }
