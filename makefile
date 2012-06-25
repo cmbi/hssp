@@ -78,6 +78,11 @@ hsspsoap: hsspsoap.o hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
+hsspconv: hssp-convert-3to1.o utils.o
+	@ echo linking $@
+	@ $(CC) -o $@ $^ $(LDOPTS)
+	@ echo OK
+
 $(OBJ)/%.o: %.cpp | $(OBJ)
 	@ if [ ! -d $(OBJ) ]; then mkdir $(OBJ); fi
 	@ echo compiling $@

@@ -6,6 +6,7 @@
 #include "mas.h"
 
 #include <cmath>
+#include <iostream>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/convenience.hpp>
@@ -630,7 +631,10 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 						
 						if (rix < residues.size() and residues[rix]->m_ri[8] == '!')
 							++rix;
-						assert(r == residues[rix]->m_ri[8] or r == 'C' and islower(residues[rix]->m_ri[8]));
+
+						if (r != residues[rix]->m_ri[8] and not (r == 'C' or islower(residues[rix]->m_ri[8])))
+							throw mas_exception("Invalid hssp3 file");
+							
 						residues[rix]->m_pos = pos;
 						++rix;
 					}
@@ -876,9 +880,6 @@ void ConvertHsspFile(istream& in, ostream& out)
 		++kchain;
 		seqlength += chainLength;
 		usedChains.push_back(string(&hits.back()->m_chain, 1));
-
-		if (in.eof())
-			break;
 	}
 	
 	sort(hits.begin(), hits.end(),

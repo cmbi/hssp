@@ -654,6 +654,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 						++e->m_gaps;
 					++e->m_gapn;
 					gappedx = true;
+					gappedy = false;
 					break;
 	
 				case 1:
@@ -662,6 +663,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 						if (not gappedy)
 							++e->m_gaps;
 						++e->m_gapn;
+						gappedx = false;
 						gappedy = true;
 					}
 
@@ -1169,7 +1171,10 @@ void MProfile::CalculateConservation(uint32 inThreads)
 			{
 				uint8 r = ResidueNr(e->m_aligned[i]);
 				if (r < 23)
+				{
 					++ri.m_dist[r];
+					++ri.m_nocc;
+				}
 			}
 			
 			p.Consumed(1);
