@@ -444,18 +444,13 @@ struct ResidueInfo
 ResidueInfo::ResidueInfo(const string& ri)
 	: m_ri(ri), m_pos(0)
 {
-	for (int i = 6; i > 1; --i)
-		m_ri[i] = m_ri[i - 1];
-	m_ri[0] = ' ';
-	
-	for (int i = 40; i < 44; ++i)
+	for (int i = 34; i < 38; ++i)
 		m_ri[i] = m_ri[i + 1];
-	m_ri[45] = ' ';
+	m_ri[38] = ' ';
 }
 
-typedef shared_ptr<ResidueInfo>						res_ptr;
-typedef vector<res_ptr>									res_list;
-typedef boost::iterator_range<res_list::iterator>::type	res_range;
+typedef shared_ptr<ResidueInfo> res_ptr;
+typedef vector<res_ptr>			res_list;
 
 // --------------------------------------------------------------------
 	
@@ -518,7 +513,7 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 			
 			if (ba::starts_with(line, "PDBID "))
 			{
-				id = line.substr(6);
+				id = line.substr(7);
 				continue;
 			}
 	
@@ -558,7 +553,7 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 		if (ba::starts_with(line, "#=GF RI "))
 		{
 			chainId = line[20];
-			residues.push_back(res_ptr(new ResidueInfo(line.substr(8))));
+			residues.push_back(res_ptr(new ResidueInfo(line.substr(14))));
 			continue;
 		}
 		
@@ -575,7 +570,7 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 		if (ba::starts_with(line, "#=GS "))
 		{
 			line.erase(0, 5);
-			if (msa.size() == 1 and ba::starts_with(line, qid))	// first GS line, fetch the width
+			if (msa.size() == queryNr + 1 and ba::starts_with(line, qid))	// first GS line, fetch the width
 			{
 				ccOffset = 5 + line.find("CC");
 			}
@@ -630,9 +625,9 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 					{
 						++result;
 						
-						if (rix < residues.size() and residues[rix]->m_ri[15] == '!')
+						if (rix < residues.size() and residues[rix]->m_ri[8] == '!')
 							++rix;
-						assert(r == residues[rix]->m_ri[14] or r == 'C' and islower(residues[rix]->m_ri[14]));
+						assert(r == residues[rix]->m_ri[8] or r == 'C' and islower(residues[rix]->m_ri[8]));
 						residues[rix]->m_pos = pos;
 						++rix;
 					}
@@ -766,7 +761,7 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 		{
 			string aln;
 
-			if (ri->m_ri[12] != '!')
+			if (ri->m_ri[6] != '!')
 			{
 				foreach (hit_ptr hit, boost::make_iterator_range(hits.begin() + i, hits.begin() + n))
 				{
@@ -782,7 +777,7 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 				}
 			}
 				
-			os << ri->m_ri << "  " << aln << endl;
+			os << boost::format(" %5.5d") % nr << ri->m_ri << "  " << aln << endl;
 			++nr;
 		}
 	}
@@ -855,10 +850,16 @@ void ConvertHsspFile(istream& in, ostream& out)
 			throw mas_exception("Not a stockholm file, missing first line");
 
 		if (not residues.empty())
-			residues.push_back(res_ptr(new ResidueInfo("  236      !  !             0   0    0    0    0")));
+			residues.push_back(res_ptr(new ResidueInfo("      ! !              0   0    0    0    0")));
 		uint32 first = residues.size();
 
+		string h;
+		swap(header, h);
+		
 		uint32 chainLength = ReadHSSP2File(in, id, header, msa, hits, residues, nchain);
+		if (not h.empty() and h != header)
+			throw mas_exception("Inconsistent HSSP3 file, different header parts");
+		
 		if (chainLength == 0)
 			break;
 
@@ -870,15 +871,16 @@ void ConvertHsspFile(istream& in, ostream& out)
 			break;
 	}
 	
-	sort(hits.begin(), hits.end(), [&msa](hit_ptr a, hit_ptr b) -> bool
-	{
-		const seq& sa = msa[a->m_seq];
-		const seq& sb = msa[b->m_seq];
-		
-		return sa.identity() > sb.identity() or
-			(sa.identity() == sb.identity() and (
-				(sa.id() < sb.id() or (sa.id() == sb.id() and sa.ifir() < sb.ifir()))));
-	}
+	sort(hits.begin(), hits.end(),
+		[&msa](hit_ptr a, hit_ptr b) -> bool
+		{
+			const seq& sa = msa[a->m_seq];
+			const seq& sb = msa[b->m_seq];
+			
+			return sa.identity() > sb.identity() or
+				(sa.identity() == sb.identity() and (
+					(sa.id() < sb.id() or (sa.id() == sb.id() and sa.ifir() < sb.ifir()))));
+		}
 	);
 	
 	if (hits.size() > 9999)
@@ -899,8 +901,8 @@ void ConvertHsspFile(istream& in, ostream& out)
 
 int main()
 {
-	fs::path infile = "1f88.hssp3";
-	fs::path outfile = "1f88.hssp1";
+	fs::path infile = "4rhv.hssp3";
+	fs::path outfile = "4rhv.hssp1";
 
 	fs::ifstream sf(infile, ios::binary);
 	if (not sf.is_open())

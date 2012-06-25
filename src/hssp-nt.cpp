@@ -758,7 +758,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 			os << boost::format("#=GF RI %5.5d       !  !             0   0    0    0    0") % nextNr << endl;
 
 		uint32 ivar = uint32(100 * (1 - ri.m_consweight));
-		os << boost::format("#=GF RI %5.5d %s%5.5d  %2.2d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl;
+		os << boost::format("#=GF RI %5.5d %s%5.5d %3.3d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl;
 
 		nextNr = ri.m_seq_nr + 1;
 	}
@@ -1195,7 +1195,7 @@ void MProfile::CalculateConservation(uint32 inThreads)
 		MResInfo& ri = m_residues[i];
 		
 		if (sumdist[i] > 0)
-			ri.m_consweight = sumvar[i] / sumdist[i];
+			ri.m_consweight = min(1.0f, sumvar[i] / sumdist[i]);
 		else
 			ri.m_consweight = 1;
 
