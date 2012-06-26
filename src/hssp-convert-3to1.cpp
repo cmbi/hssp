@@ -576,7 +576,7 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 			line.erase(0, 5);
 			if (msa.size() == queryNr + 1 and ba::starts_with(line, qid))	// first GS line, fetch the width
 			{
-				ccOffset = 5 + line.find("CC");
+				ccOffset = 6 + line.find(" CC ");
 			}
 			else
 			{
