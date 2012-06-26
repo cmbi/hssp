@@ -70,17 +70,17 @@ mkdssp: mkdssp.o dssp.o primitives-3d.o structure.o utils.o mas.o
 
 mkhssp: mkhssp.o hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o blast.o mas.o matrix.o fetchdbrefs.o
 	@ echo linking $@
-	@ $(CC) -o $@ $^ $(LDOPTS) 
+	@ $(CC) -static -o $@ $^ $(LDOPTS) 
 	@ echo OK
 
 hsspsoap: hsspsoap.o hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o blast.o mas.o matrix.o fetchdbrefs.o
 	@ echo linking $@
-	@ $(CC) -o $@ $^ $(LDOPTS)
+	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
 
 hsspconv: hssp-convert-3to1.o utils.o
 	@ echo linking $@
-	@ $(CC) -o $@ $^ $(LDOPTS)
+	@ $(CC) -static -o $@ $^ $(LDOPTS)
 	@ echo OK
 
 $(OBJ)/%.o: %.cpp | $(OBJ)
