@@ -798,9 +798,9 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
 	foreach (res_ptr r, res)
 	{
 		if (r->m_pr.empty())
-			os << boost::format(" %5.5d") % nr << "          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00" << endl;
+			os << boost::format("%5.5d") % nr << "          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00" << endl;
 		else
-			os << boost::format(" %5.5d") % nr << r->m_pr << endl;
+			os << boost::format("%5.5d") % nr << r->m_pr << endl;
 		++nr;
 	}
 	

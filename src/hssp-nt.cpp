@@ -760,7 +760,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 			os << boost::format("#=GF RI %5.5d       ! !              0   0    0     0   0") % nextNr << endl;
 
 		uint32 ivar = uint32(100 * (1 - ri.m_consweight));
-		os << boost::format("#=GF RI %5.5d %s%5.5d %3.3d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl;
+		os << boost::format("#=GF RI %5.5d %s%5.5d%4.4d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl;
 
 		nextNr = ri.m_seq_nr + 1;
 	}
@@ -785,7 +785,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 			os << boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
 
 		uint32 relent = uint32(100 * ri.m_entropy / log(20.0));
-		os << "  " << boost::format("%4.4d %4.4d %4.4d   %5.3f   %4.4d  %4.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight << endl;
+		os << "  " << boost::format("%4.4d %4.4d %4.4d  %6.3f   %4.4d %5.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight << endl;
 		
 		nextNr = ri.m_seq_nr + 1;
 	}
