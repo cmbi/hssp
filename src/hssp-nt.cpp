@@ -989,16 +989,16 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 	
 	threads.join_all();
 	
-	// if we have way too many hits, take a random set
-	if (hits.size() > inMaxHits * 2 and inMaxHits > 0)
-	{
-		if (VERBOSE)
-			cerr << "dropping " << (hits.size() - 2 * inMaxHits) << " hits" << endl;
-		
-		random_shuffle(hits.begin(), hits.end());
-		hits.erase(hits.begin() + inMaxHits * 2, hits.end());
-		m_shuffled = true;
-	}
+//	// if we have way too many hits, take a random set
+//	if (hits.size() > inMaxHits * 2 and inMaxHits > 0)
+//	{
+//		if (VERBOSE)
+//			cerr << "dropping " << (hits.size() - 2 * inMaxHits) << " hits" << endl;
+//		
+//		random_shuffle(hits.begin(), hits.end());
+//		hits.erase(hits.begin() + inMaxHits * 2, hits.end());
+//		m_shuffled = true;
+//	}
 	
 	// sort them by distance
 	sort(hits.begin(), hits.end(), [](const MHitPtr a, const MHitPtr b) -> bool {
@@ -1033,8 +1033,10 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 
 // Find the minimal set of overlapping sequences
 // In case of strong similarity (distance <= 0.01) we take the longest chain.
-void ClusterSequences(vector<sequence>& s, vector<size_t>& ix)
+void ClusterSequences(const vector<sequence>& s, vector<size_t>& ix)
 {
+	vector<bool> skip(s.size(), false);
+
 	for (;;)
 	{
 		bool found = false;
@@ -1042,15 +1044,15 @@ void ClusterSequences(vector<sequence>& s, vector<size_t>& ix)
 		{
 			for (uint32 j = i + 1; not found and j < s.size(); ++j)
 			{
-				sequence& a = s[i];
-				sequence& b = s[j];
-
-				if (a.empty() or b.empty())
+				if (skip[i] or skip[j])
 					continue;
 				
+				const sequence& a = s[i];
+				const sequence& b = s[j];
+
 				if (a == b)
 				{
-					s[j].clear();
+					skip[j] = true;
 					ix[j] = i;
 					found = true;
 				}
@@ -1064,7 +1066,7 @@ void ClusterSequences(vector<sequence>& s, vector<size_t>& ix)
 						if (b.length() > a.length())
 							swap(i, j);
 
-						s[j].clear();
+						skip[j] = true;
 						ix[j] = i;
 						found = true;
 					}
@@ -1292,7 +1294,8 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 		//ifstream f("1F88-A-hits.fa");
 		//io::copy(f, out);
 
-		SearchAndWriteResultsAsFastA(out, inDatabanks, decode(seqset[i]),
+		string seq = decode(seqset[i]);
+		SearchAndWriteResultsAsFastA(out, inDatabanks, seq,
 			"blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 0, inThreads);
 		out.flush();
 
