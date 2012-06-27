@@ -871,8 +871,8 @@ void ConvertHsspFile(istream& in, ostream& out)
 		swap(header, h);
 		
 		uint32 chainLength = ReadHSSP2File(in, id, header, msa, hits, residues, nchain);
-		if (not h.empty() and h != header)
-			throw mas_exception("Inconsistent HSSP3 file, different header parts");
+//		if (not h.empty() and h != header)
+//			throw mas_exception("Inconsistent HSSP3 file, different header parts");
 		
 		if (chainLength == 0)
 			break;

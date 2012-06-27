@@ -87,6 +87,9 @@
         <cflag>-pthread</cflag>
         <cflag>-std=c++0x</cflag>
       </cflags>
+	  <ldflags>
+	    <ldflag>-static</ldflag>
+	  </ldflags>
       <warnings>
         <warning>all</warning>
         <warning>no-multichar</warning>
