@@ -69,6 +69,7 @@ int main(int argc, char* argv[])
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
 			("fetch-dbrefs",					 "Fetch DBREF records for each UniProt ID")
+			("verbose,v",						 "Verbose mode")
 			;
 	
 		po::positional_options_description p;
@@ -92,6 +93,8 @@ int main(int argc, char* argv[])
 			cerr << desc << endl;
 			exit(1);
 		}
+		
+		VERBOSE = vm.count("verbose");
 
 		vector<fs::path> databanks;
 		vector<string> dbs = vm["databank"].as<vector<string>>(); 

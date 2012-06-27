@@ -989,6 +989,17 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 	
 	threads.join_all();
 	
+	// if we have way too many hits, take a random set
+	if (hits.size() > inMaxHits * 2 and inMaxHits > 0)
+	{
+		if (VERBOSE)
+			cerr << "dropping " << (hits.size() - 2 * inMaxHits) << " hits" << endl;
+		
+		random_shuffle(hits.begin(), hits.end());
+		hits.erase(hits.begin() + inMaxHits * 2, hits.end());
+		m_shuffled = true;
+	}
+	
 	// sort them by distance
 	sort(hits.begin(), hits.end(), [](const MHitPtr a, const MHitPtr b) -> bool {
 		return a->m_distance < b->m_distance;
