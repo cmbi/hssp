@@ -38,7 +38,7 @@ form {
 	<p>This is the CMBI DSSP/HSSP server. You can access the functionality by using the forms
 	below, or by using SOAP from a script by using the <a href="wsdl">WSDL</a>.</p>
 
-	<form action="./PDB2DSSP" method="POST" enctype="multipart/form-data">
+	<form action="PDB2DSSP" method="POST" enctype="multipart/form-data">
 		<h3>DSSP</h3>
 		Paste the contents of a PDB file in the box below or select a file and press 'Calculate DSSP'
 		<br/>
@@ -50,7 +50,7 @@ form {
 		<input type="reset" name="Clear" value="Clear"/>
 	</form>
 	<br/>
-	<form action="./PDB2HSSP" method="POST" enctype="multipart/form-data"
+	<form action="PDB2HSSP" method="POST" enctype="multipart/form-data"
 		onsubmit="alert('HSSP calculations can take a long time, please be patient'); return true;">
 		<h3>HSSP</h3>
 		Paste the contents of a PDB file in the box below or select a file and press 'Calculate HSSP'
@@ -63,7 +63,7 @@ form {
 		<input type="reset" name="Clear" value="Clear"/>
 	</form>
 	<br/>
-	<form action="./SEQ2HSSP" method="POST"
+	<form action="SEQ2HSSP" method="POST"
 		onsubmit="alert('HSSP calculations can take a long time, please be patient'); return true;">
 		<h3>HSSP for sequence</h3>
 		Paste a raw sequence in the box below and press 'Calculate HSSP'
