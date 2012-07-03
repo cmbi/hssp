@@ -19,7 +19,7 @@
 #include <boost/thread.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
-#include <boost/timer/timer.hpp>
+//#include <boost/timer/timer.hpp>
 
 #include "align-2d.h"
 #include "utils.h"
@@ -126,8 +126,8 @@ struct MProgressImpl
 	string			mAction, mMessage;
 	boost::mutex	mMutex;
 	boost::thread	mThread;
-	boost::timer::cpu_timer
-					mTimer;
+//	boost::timer::cpu_timer
+//					mTimer;
 };
 
 void MProgressImpl::Run()
@@ -189,7 +189,8 @@ void MProgressImpl::PrintProgress()
 
 void MProgressImpl::PrintDone()
 {
-	string msg = mAction + " done in " + mTimer.format(0, "%ts cpu / %ws wall");
+	string msg;
+//	string msg = mAction + " done in " + mTimer.format(0, "%ts cpu / %ws wall");
 
 	int width = get_terminal_width();
 
