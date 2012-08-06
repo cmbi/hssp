@@ -350,7 +350,7 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inTh
 
 		string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
 		MResInfo res = { inSequence[i], m_chain.GetChainID(), seq_nr,
-			(*ri)->GetNumber(), (*ri)->GetSecondaryStructure(), dssp };
+			(*ri)->GetSeqNumber(), (*ri)->GetSecondaryStructure(), dssp };
 		res.Add(res.m_letter, 0);
 		m_residues.push_back(res);
 		

@@ -446,7 +446,7 @@ int main(int argc, char* argv[])
 		;
 	
 	string
-		location = "http://mrs.cmbi.ru.nl/hsspsoap/wsdl",
+		location = "http://www.cmbi.ru.nl/hsspsoap/wsdl",
 		address = "0.0.0.0",
 		user = "nobody";
 
