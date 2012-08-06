@@ -571,12 +571,12 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 	x = highX;
 	y = highY;
 
-	uint32 ident = 0, similar = 0, length = 0, xgaps = 0;
+	uint32 ident = 0, similar = 0, length = 0, lengthI = 0, xgaps = 0;
 
 	// trace back the matrix
 	while (x >= 0 and y >= 0 and B(x, y) > 0)
 	{
-		++length;
+		++lengthI;
 		switch (tb(x, y))
 		{
 			case -1:
@@ -589,15 +589,16 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 				break;
 
 			case 0:
-				if (e->m_seq[y] == m_seq[x])
+				if (m_seq[x] != '.')
 				{
-					if (m_seq[x] == '.')
-						--length;
-					else
+					length = lengthI;
+
+					if (e->m_seq[y] == m_seq[x])
 						++ident, ++similar;
+					else if (score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
+						++similar;
 				}
-				else if (score(kMPam250, m_seq[x], e->m_seq[y]) > 0)
-					++similar;
+
 				--x;
 				--y;
 				break;

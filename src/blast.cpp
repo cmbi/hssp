@@ -118,10 +118,10 @@ inline int8 Matrix::operator()(char inAA1, char inAA2) const
 namespace filter
 {
 
-class M6Alphabet
+class Alphabet
 {
   public:
-					M6Alphabet(const char* inChars);
+					Alphabet(const char* inChars);
 	
 	bool			Contains(char inChar) const;
 	long			GetIndex(char inChar) const;
@@ -135,7 +135,7 @@ class M6Alphabet
 	const char*		mAlphaChars;
 };
 
-M6Alphabet::M6Alphabet(const char* inChars)
+Alphabet::Alphabet(const char* inChars)
 	: mAlphaChars(inChars)
 {
 	mAlphaSize = static_cast<int>(strlen(inChars));
@@ -148,7 +148,7 @@ M6Alphabet::M6Alphabet(const char* inChars)
 	}
 }
 
-bool M6Alphabet::Contains(char inChar) const
+bool Alphabet::Contains(char inChar) const
 {
 	bool result = false;
 	if (inChar >= 0)
@@ -156,19 +156,19 @@ bool M6Alphabet::Contains(char inChar) const
 	return result;
 }
 
-long M6Alphabet::GetIndex(char inChar) const
+long Alphabet::GetIndex(char inChar) const
 {
 	return mAlphaIndex[toupper(inChar)];
 }
 
-const M6Alphabet
-	kProtAlphabet = M6Alphabet("ACDEFGHIKLMNPQRSTVWY"),
-	kNuclAlphabet = M6Alphabet("ACGTU");
+const Alphabet
+	kProtAlphabet = Alphabet("ACDEFGHIKLMNPQRSTVWY"),
+	kNuclAlphabet = Alphabet("ACGTU");
 
-class M6Window
+class Window
 {
   public:
-			M6Window(const string& inSequence, long inStart, long inLength, const M6Alphabet& inAlphabet);
+			Window(const string& inSequence, long inStart, long inLength, const Alphabet& inAlphabet);
 
 	void	CalcEntropy();
 	bool	ShiftWindow();
@@ -189,10 +189,10 @@ class M6Window
 	long			mLength;
 	long			mBogus;
 	double			mEntropy;
-	const M6Alphabet&mAlphabet;
+	const Alphabet&mAlphabet;
 };
 
-M6Window::M6Window(const string& inSequence, long inStart, long inLength, const M6Alphabet& inAlphabet)
+Window::Window(const string& inSequence, long inStart, long inLength, const Alphabet& inAlphabet)
 	: mSequence(inSequence)
 	, mComposition(inAlphabet.GetSize())
 	, mStart(inStart)
@@ -226,7 +226,7 @@ M6Window::M6Window(const string& inSequence, long inStart, long inLength, const 
 	sort(mState.begin(), mState.begin() + n, greater<long>());
 }
 
-void M6Window::CalcEntropy()
+void Window::CalcEntropy()
 {
 	mEntropy = 0.0;
 
@@ -245,7 +245,7 @@ void M6Window::CalcEntropy()
 	}
 }
 
-void M6Window::DecState(long inClass)
+void Window::DecState(long inClass)
 {
 	for (uint32 ix = 0; ix < mState.size() and mState[ix] != 0; ++ix)
 	{
@@ -257,7 +257,7 @@ void M6Window::DecState(long inClass)
 	}
 }
 
-void M6Window::IncState(long inClass)
+void Window::IncState(long inClass)
 {
 	for (uint32 ix = 0; ix < mState.size(); ++ix)
 	{
@@ -269,7 +269,7 @@ void M6Window::IncState(long inClass)
 	}
 }
 
-bool M6Window::ShiftWindow()
+bool Window::ShiftWindow()
 {
 	if (uint32(mStart + mLength) >= mSequence.length())
 		return false;
@@ -339,7 +339,7 @@ static double lnperm(vector<long>& inState, long inTotal)
 	return ans;
 }
 
-static double lnass(vector<long>& inState, M6Alphabet inAlphabet)
+static double lnass(vector<long>& inState, Alphabet inAlphabet)
 {
     double result = lnfac(inAlphabet.GetSize());
     if (inState.size() == 0 or inState[0] == 0)
@@ -372,7 +372,7 @@ static double lnass(vector<long>& inState, M6Alphabet inAlphabet)
     return result;
 }
 
-static double lnprob(vector<long>& inState, long inTotal, const M6Alphabet& inAlphabet)
+static double lnprob(vector<long>& inState, long inTotal, const Alphabet& inAlphabet)
 {
 	double ans1, ans2 = 0, totseq;
 
@@ -385,7 +385,7 @@ static double lnprob(vector<long>& inState, long inTotal, const M6Alphabet& inAl
 	return ans1 + ans2 - totseq;
 }
 
-void M6Window::Trim(long& ioEndL, long& ioEndR, long inMaxTrim)
+void Window::Trim(long& ioEndL, long& ioEndR, long inMaxTrim)
 {
 	double minprob = 1.0;
 	long lEnd = 0;
@@ -397,7 +397,7 @@ void M6Window::Trim(long& ioEndL, long& ioEndR, long inMaxTrim)
 	
 	for (long len = mLength; len > minLen; --len)
 	{
-		M6Window w(mSequence, mStart, len, mAlphabet);
+		Window w(mSequence, mStart, len, mAlphabet);
 		
 		int i = 0;
 		bool shift = true;
@@ -419,7 +419,7 @@ void M6Window::Trim(long& ioEndL, long& ioEndR, long inMaxTrim)
 	ioEndR -= mLength - rEnd - 1;
 }
 
-static bool GetEntropy(const string& inSequence, const M6Alphabet& inAlphabet,
+static bool GetEntropy(const string& inSequence, const Alphabet& inAlphabet,
 	long inWindow, long inMaxBogus, vector<double>& outEntropy)
 {
 	bool result = false;
@@ -433,7 +433,7 @@ static bool GetEntropy(const string& inSequence, const M6Alphabet& inAlphabet,
 		outEntropy.clear();
 		outEntropy.insert(outEntropy.begin(), inSequence.length(), -1.0);
 		
-		M6Window win(inSequence, 0, inWindow, inAlphabet);
+		Window win(inSequence, 0, inWindow, inAlphabet);
 		win.CalcEntropy();
 		
 		long first = downset;
@@ -461,7 +461,7 @@ static void GetMaskSegments(bool inProtein, const string& inSequence, long inOff
 {
 	double loCut, hiCut;
 	long window, maxbogus, maxtrim;
-	const M6Alphabet* alphabet;
+	const Alphabet* alphabet;
 
 	if (inProtein)
 	{
@@ -510,7 +510,7 @@ static void GetMaskSegments(bool inProtein, const string& inSequence, long inOff
 			long rightend = hii + upset - 1;
 			
 			string s(inSequence.substr(leftend, rightend - leftend + 1));
-			M6Window w(s, 0, rightend - leftend + 1, *alphabet);
+			Window w(s, 0, rightend - leftend + 1, *alphabet);
 			w.Trim(leftend, rightend, maxtrim);
 
 			if (i + upset - 1 < leftend)
