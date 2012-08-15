@@ -677,13 +677,19 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 					e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 					m_residues[x].Add(e->m_seq[y], e->m_distance);
 					
-					if (gappedx or (x + 1 < m_seq.size() and is_gap(m_seq[x + 1]) and not is_gap(m_seq[x])))
+					if (not is_gap(e->m_seq[y]) and is_gap(m_seq[x]))
+						gappedx = true;
+					else if (gappedx)
+					{
 						++m_residues[x].m_ins;
+						gappedx = false;
+					}
 					
 					if (gappedy)
+					{
 						++m_residues[x].m_del;
-					
-					gappedx = gappedy = false;
+						gappedy = false;
+					}
 					
 					--x;
 					--y;
