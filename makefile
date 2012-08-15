@@ -32,7 +32,7 @@ LIBS				= zeep $(BOOST_LIBS) z bz2 rt
 LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
-CC					?= c++
+CC					?= icpc
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
 					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread \
 					  -std=c++0x -DVERSION='"$(VERSION)"'

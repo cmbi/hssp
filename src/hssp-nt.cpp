@@ -633,7 +633,8 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 		e->m_aligned = string(m_seq.length() + xgaps, '.');
 		bool gappedx = false, gappedy = false;
 		
-		while (x >= 0 and y >= 0 and B(x, y) > 0)
+		lengthI = length;	// we know the length of the alignment, use it
+		while (x >= 0 and y >= 0 and lengthI-- > 0)
 		{
 			switch (tb(x, y))
 			{

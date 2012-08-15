@@ -11,6 +11,7 @@
     <path>src</path>
   </userpaths>
   <libpaths>
+    <path>/home/staf/maarten/lib64</path>
 	<path>/usr/lib</path>
     <path>../libzeep</path>
 	<path>../boost/lib</path>
@@ -30,19 +31,14 @@
     </group>
     <group name="Libraries">
       <link>zeep</link>
-      <link>boost_date_time</link>
-      <link>boost_filesystem</link>
-      <link>boost_iostreams</link>
-      <link>boost_program_options</link>
-      <link>boost_thread</link>
-      <link>boost_regex</link>
-      <link>bz2</link>
-      <link>boost_math_c99</link>
-      <link>boost_system</link>
-      <link>boost_timer</link>
-      <link>boost_chrono</link>
-      <link>rt</link>
-      <link>z</link>
+      <link shared="true">boost_date_time</link>
+      <link shared="true">boost_filesystem</link>
+      <link shared="true">boost_iostreams</link>
+      <link shared="true">boost_program_options</link>
+      <link shared="true">boost_thread</link>
+      <link shared="true">boost_regex</link>
+      <link shared="true">boost_math_c99</link>
+      <link shared="true">boost_system</link>
     </group>
   </files>
   <resources resource-dir="rsrc">
@@ -53,7 +49,6 @@
     <target kind="Executable">
       <name>hsspsoap-Debug</name>
       <linkTarget>hsspsoap</linkTarget>
-      <compiler>/home/maarten/intel/composer_xe_2011_sp1.9.293/bin/intel64/icpc</compiler>
       <defines>
         <define>DEBUG</define>
         <define>LINUX</define>
@@ -74,7 +69,6 @@
     <target kind="Executable">
       <name>hsspsoap-Release</name>
       <linkTarget>hsspsoap</linkTarget>
-      <compiler>/home/maarten/intel/composer_xe_2011_sp1.9.293/bin/intel64/icpc</compiler>
       <defines>
         <define>NDEBUG</define>
         <define>LINUX</define>
@@ -87,9 +81,6 @@
         <cflag>-pthread</cflag>
         <cflag>-std=c++0x</cflag>
       </cflags>
-	  <ldflags>
-	    <ldflag>-static</ldflag>
-	  </ldflags>
       <warnings>
         <warning>all</warning>
         <warning>no-multichar</warning>
