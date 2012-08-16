@@ -80,7 +80,7 @@ hsspsoap: hsspsoap.o hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils
 
 hsspconv: hssp-convert-3to1.o utils.o
 	@ echo linking $@
-	@ $(CC) -static -o $@ $^ $(LDOPTS)
+	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
 $(OBJ)/%.o: %.cpp | $(OBJ)

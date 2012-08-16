@@ -585,11 +585,13 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 				break;
 
 			case 1:
+				if (is_gap(m_seq[x]))
+					--lengthI;
 				--x;
 				break;
 
 			case 0:
-				if (m_seq[x] != '.')
+				if (not is_gap(m_seq[x]))
 				{
 					length = lengthI;
 
@@ -660,7 +662,9 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 					break;
 	
 				case 1:
-					if (m_residues[x].m_chain_id != 0)
+					if (is_gap(m_seq[x]))
+						++lengthI;
+					else
 					{
 						if (not gappedy)
 							++e->m_gaps;
@@ -678,7 +682,12 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 					m_residues[x].Add(e->m_seq[y], e->m_distance);
 					
 					if (not is_gap(e->m_seq[y]) and is_gap(m_seq[x]))
+					{
+						if (not gappedx)
+							++e->m_gaps;
 						gappedx = true;
+						++e->m_gapn;
+					}
 					else if (gappedx)
 					{
 						++m_residues[x].m_ins;

@@ -54,6 +54,8 @@ class seq
 				seq(const string& acc);
 				seq(const seq&);
 				~seq();
+
+	void		validate(const seq& qseq);
 				
 	seq&		operator=(const seq&);
 
@@ -426,6 +428,75 @@ void seq::seq_impl::update(const seq_impl& qseq)
 	}
 }
 
+void seq::validate(const seq& qseq)
+{
+	uint32 gaps = 0, gapn = 0, len = 0, ident = 0;
+	
+	if (qseq.length() != length())
+		throw mas_exception("Invalid sequence length");
+	
+	bool started = false;
+	bool xgapped = false;
+	bool ygapped = false;
+	
+	const char* xseq = qseq.m_impl->m_seq;
+	const char* yseq = m_impl->m_seq;
+	
+	uint32 n = m_impl->m_size;
+	while (n > 0 and (is_gap(xseq[n - 1]) or is_gap(yseq[n - 1])))
+		--n;
+	
+	for (uint32 i = 0; i < n; ++i)
+	{
+		bool xgap = is_gap(xseq[i]);
+		bool ygap = is_gap(yseq[i]);
+		
+		if (not started and (xgap or ygap))
+			continue;
+		
+		started = true;
+		
+		if (xgap and ygap)
+			continue;
+		
+		++len;
+		if (xseq[i] == toupper(yseq[i]))
+			++ident;
+
+		if (xgap)
+		{
+			if (not xgapped)
+				++gaps;
+			++gapn;
+			xgapped = true;
+		}
+		else
+			xgapped = false;
+		
+		if (ygap)
+		{
+			if (not ygapped)
+				++gaps;
+			++gapn;
+			ygapped = true;
+		}
+		else
+			ygapped = false;
+	}
+	
+	bool error = false;
+	if (gaps != m_impl->m_gaps)		  { cerr << "gaps != m_gaps" << endl; error = true; }
+	if (gapn != m_impl->m_gapn)		  { cerr << "gapn != m_gapn" << endl; error = true; }
+	if (len != m_impl->m_length)	  { cerr << "len != m_length" << endl; error = true; }
+	
+	float score = boost::lexical_cast<float>((boost::format("%4.2f") % (float(ident) / len)).str());
+	
+	if (score != m_impl->m_identical) { cerr << "score != m_identical (" << score << ", " << m_impl->m_identical << ")" << endl; error = true; }
+
+	if (error)
+		throw mas_exception(boost::format("validation failed for %1%") % m_impl->m_id);
+}
+
 namespace std
 {
 	template<>
@@ -649,6 +720,9 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 	
 	for (uint32 i = queryNr + 1; i < msa.size(); ++i)
 		msa[i].update(msa[queryNr]);
+
+	for (uint32 i = queryNr + 1; i < msa.size(); ++i)
+		msa[i].validate(msa[queryNr]);
 	
 	return result;
 }
