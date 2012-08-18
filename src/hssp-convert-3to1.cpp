@@ -485,9 +485,9 @@ void seq::validate(const seq& qseq)
 	}
 	
 	bool error = false;
-	if (gaps != m_impl->m_gaps)		  { cerr << "gaps != m_gaps" << endl; error = true; }
-	if (gapn != m_impl->m_gapn)		  { cerr << "gapn != m_gapn" << endl; error = true; }
-	if (len != m_impl->m_length)	  { cerr << "len != m_length" << endl; error = true; }
+	if (gaps != m_impl->m_gaps)		  { cerr << "gaps != m_gaps (" << gaps << " - " << m_impl->m_gaps << ')' << endl; error = true; }
+	if (gapn != m_impl->m_gapn)		  { cerr << "gapn != m_gapn (" << gapn << " - " << m_impl->m_gapn << ')' << endl; error = true; }
+	if (len != m_impl->m_length)	  { cerr << "len != m_length (" << len << " - " << m_impl->m_length << ')' << endl; error = true; }
 	
 	float score = boost::lexical_cast<float>((boost::format("%4.2f") % (float(ident) / len)).str());
 	

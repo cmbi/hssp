@@ -530,7 +530,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 				Ix(x, y) = M - (x < dimX - 1 ? gop_a[x] : 0);
 				Iy(x, y) = M - (y < dimY - 1 ? gop_b[y] : 0);
 				
-				if (highS < M)
+				if (highS < M and not is_gap(m_seq[x]))
 				{
 					highS = M;
 					highX = x;
