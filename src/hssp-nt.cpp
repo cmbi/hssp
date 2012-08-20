@@ -1066,33 +1066,43 @@ void ClusterSequences(const vector<sequence>& s, vector<size_t>& ix)
 				
 				const sequence& a = s[i];
 				const sequence& b = s[j];
-
-				if (a == b)
-				{
-					skip[j] = true;
-					ix[j] = i;
-					found = true;
-				}
-				else
+				
+				bool isSame = a == b;
+				if (not isSame)
 				{
 					float d = calculateDistance(a, b);
 					// rescale distance to shortest length:
 					d = 1 - (1 - d) * max(a.length(), b.length()) / min(a.length(), b.length());
-					if (d <= 0.01)
-					{
-						if (b.length() > a.length())
-							swap(i, j);
-
-						skip[j] = true;
-						ix[j] = i;
-						found = true;
-					}
+					isSame = (d <= 0.01);
+				}
+				
+				if (isSame)
+				{
+					skip[j] = true;
+					ix[j] = i;
+					found = true;
 				}
 			}
 		}
 		
 		if (not found)
 			break;
+	}
+	
+	// change ix entries to make sure we use only the longest chains
+	for (uint32 i = 0; i < ix.size(); ++i)
+	{
+		if (ix[i] == i)
+			continue;
+		
+		uint32 m = ix[i];
+		
+		uint32 la = s[m].length();
+		uint32 lb = s[i].length();
+		if (la < lb)
+		{
+			for_each(ix.begin(), ix.end(), [=](size_t& j) { if (j == m) j = i; });
+		}
 	}
 }
 

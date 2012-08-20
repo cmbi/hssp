@@ -491,7 +491,7 @@ void seq::validate(const seq& qseq)
 	
 	float score = boost::lexical_cast<float>((boost::format("%4.2f") % (float(ident) / len)).str());
 	
-	if (score != m_impl->m_identical) { cerr << "score != m_identical (" << score << ", " << m_impl->m_identical << ")" << endl; error = true; }
+	if (abs(score - m_impl->m_identical) > 0.1) { cerr << "score != m_identical (" << score << ", " << m_impl->m_identical << ")" << endl; error = true; }
 
 	if (error)
 		throw mas_exception(boost::format("validation failed for %1%") % m_impl->m_id);
