@@ -37,6 +37,53 @@ int VERBOSE = 0;
 
 // --------------------------------------------------------------------
 
+MProtein* ReadProteinFromFastA(istream& in)
+{
+	string id, seq;
+	
+	getline(in, id);
+	if (id.empty() and in.eof())
+		return false;
+	
+	if (not ba::starts_with(id, ">"))
+		throw mas_exception("Not a valid FastA file: ID line does not start with '>'");
+
+	id.erase(0, 1);
+	
+	string::size_type s = id.find(' ');
+	if (s != string::npos)
+		id.erase(s);
+	
+	if (id.empty())
+		throw mas_exception("Not a valid FastA file: Empty or invalid ID line");
+	
+	streambuf* b = in.rdbuf();
+	
+	while (b->sgetc() != streambuf::traits_type::eof() and
+		b->sgetc() != '>')
+	{
+		string line;
+		getline(in, line);
+		seq += line;
+	}
+	
+	MChain* chain = new MChain('A');
+	vector<MResidue*>& residues = chain->GetResidues();
+	MResidue* last = nullptr;
+	uint32 nr = 1;
+	foreach (char r, seq)
+	{
+		residues.push_back(new MResidue(nr, r, last));
+		++nr;
+		last = residues.back();
+	}
+	
+	MProtein* result = new MProtein(id, chain);
+	return result;
+}
+
+// --------------------------------------------------------------------
+
 int main(int argc, char* argv[])
 {
 #if P_UNIX
@@ -50,6 +97,8 @@ int main(int argc, char* argv[])
 	}
 #endif
 
+	fs::path outfilename;
+
 	try
 	{
 		po::options_description desc("MKHSSP options");
@@ -61,13 +110,13 @@ int main(int argc, char* argv[])
 												 "Databank to use (can be specified multiple times)")
 			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
 //			("use-seqres",	po::value<bool>(),	 "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
-			("min-length",	po::value<uint32>(), "Minimal chain length")
+			("min-length",	po::value<uint32>(), "Minimal chain length (default = 25)")
 			("fragment-cutoff",
 							po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
 			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 30.0)")
 			("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
 			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
-			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 1500)")
+			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 5000)")
 			("fetch-dbrefs",					 "Fetch DBREF records for each UniProt ID")
 			("verbose,v",						 "Verbose mode")
 			;
@@ -160,10 +209,6 @@ int main(int argc, char* argv[])
 		}
 		in.push(infile);
 
-		// read protein and calculate the secondary structure
-		MProtein a(in);
-		a.CalculateSecondaryStructure();
-		
 		// Where to write our HSSP file to:
 		// either to cout or an (optionally compressed) file.
 		ofstream outfile;
@@ -171,28 +216,62 @@ int main(int argc, char* argv[])
 
 		if (vm.count("output") and vm["output"].as<string>() != "stdout")
 		{
-			string output = vm["output"].as<string>();
-			outfile.open(output.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
+			outfilename = fs::path(vm["output"].as<string>());
+			outfile.open(outfilename.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
 			
 			if (not outfile.is_open())
 				throw runtime_error("could not create output file");
 			
-			if (ba::ends_with(output, ".bz2"))
+			if (ba::ends_with(outfilename.string(), ".bz2"))
 				out.push(io::bzip2_compressor());
-			else if (ba::ends_with(output, ".gz"))
+			else if (ba::ends_with(outfilename.string(), ".gz"))
 				out.push(io::gzip_compressor());
 			out.push(outfile);
 		}
 		else
 			out.push(cout);
 
-		// create the HSSP file
-		HSSP::CreateHSSP(a, databanks, maxhits, minlength,
-			gapOpen, gapExtend, threshold, fragmentCutOff, threads, fetchDbRefs, out);
+		// if input file is a FastA file, we process it differently
+		if (ba::ends_with(input, ".fa") or ba::ends_with(input, ".fasta"))
+		{
+			MProtein* p;
+			while ((p = ReadProteinFromFastA(in)) != nullptr)
+			{
+				try
+				{
+					HSSP::CreateHSSP(*p, databanks, maxhits, minlength, gapOpen, gapExtend,
+						threshold, fragmentCutOff, threads, fetchDbRefs, out);
+				}
+				catch (exception& e)
+				{
+					cerr << "Creating HSSP for " << p->GetID() << " failed: " << e.what() << endl;
+				}
+				
+				delete p;
+			}
+		}
+		else
+		{
+			// read protein and calculate the secondary structure
+			MProtein a(in);
+			a.CalculateSecondaryStructure();
+			
+			// create the HSSP file
+			HSSP::CreateHSSP(a, databanks, maxhits, minlength,
+				gapOpen, gapExtend, threshold, fragmentCutOff, threads, fetchDbRefs, out);
+		}
 	}
 	catch (exception& e)
 	{
 		cerr << e.what() << endl;
+		
+		try
+		{
+			if (not outfilename.empty() and fs::exists(outfilename))
+				fs::remove(outfilename);
+		}
+		catch (...) {}
+		
 		exit(1);
 	}
 
