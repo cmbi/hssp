@@ -1104,7 +1104,8 @@ struct Hit
 };
 
 Hit::Hit(const char* inEntry, const sequence& inTarget)
-	: mDefLine(inEntry, strchr(inEntry, '\n')), mTarget(inTarget)
+	: mDefLine(inEntry, const_cast<const char*>(strchr(inEntry, '\n')))
+	, mTarget(inTarget)
 {
 }
 
