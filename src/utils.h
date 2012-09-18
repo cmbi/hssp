@@ -83,11 +83,11 @@ class mas_exception : public std::exception
 
 #if defined(__INTEL_COMPILER_BUILD_DATE) || (defined(__GNUC__) && (__GNUC__ > 4 || ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
 #include <atomic>
-#else
-#error "Now what?"
-#endif
-
 typedef std::atomic<int64>	MCounter;
+#else
+#include <boost/detail/atomic_count.hpp>
+typedef boost::detail::atomic_count        MCounter;
+#endif
 
 #else
 
