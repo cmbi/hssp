@@ -46,7 +46,7 @@ DIST_NAME			= dssp-$(VERSION)
 
 VPATH += src
 
-OBJECTS = $(OBJ_DIR)/mkdssp.o $(OBJ_DIR)/dssp.o $(OBJ_DIR)/primitives-3d.o $(OBJ_DIR)/structure.o $(OBJ_DIR)/utils.o
+OBJECTS = $(OBJ_DIR)/mkdssp.o $(OBJ_DIR)/dssp.o $(OBJ_DIR)/primitives-3d.o $(OBJ_DIR)/structure.o $(OBJ_DIR)/utils.o $(OBJ_DIR)/mas.o
 
 mkdssp: $(OBJECTS)
 	@ echo linking $@
@@ -72,7 +72,7 @@ install: mkdssp
 	install -m 755 mkdssp $(BIN_DIR)/mkdssp
 	install doc/mkdssp.1 $(MAN_DIR)/mkdssp.1
 
-dist: $(OBJECTS)
+dist:
 	@ rm -rf $(DIST_NAME)
 	@ mkdir -p $(DIST_NAME)/src $(DIST_NAME)/doc
 	@ echo "Copying files..."

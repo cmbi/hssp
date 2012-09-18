@@ -8,6 +8,8 @@
 #include "mas.h"
 
 #include <algorithm>
+#include <boost/foreach.hpp>
+#define foreach BOOST_FOREACH
 
 using namespace std;
 
@@ -21,14 +23,16 @@ const uint8 kResidueNrTable[] = {
 sequence encode(const string& s)
 {
 	sequence result(s.length(), 0);
-	transform(s.begin(), s.end(), result.begin(), [](char aa) -> uint8 { return is_gap(aa) ? '-' : ResidueNr(aa); });
+	for (int i = 0; i < s.length(); ++i)
+		result[i] = is_gap(s[i]) ? '-' : ResidueNr(s[i]);
 	return result;
 }
 
 string decode(const sequence& s)
 {
 	string result(s.length(), 0);
-	transform(s.begin(), s.end(), result.begin(), [](uint8 r) -> char { return is_gap(r) ? '.' : kResidues[r]; });
+	for (int i = 0; i < s.length(); ++i)
+		result += s[i] >= 23 ? '.' : kResidues[s[i]];
 	return result;
 }
 
