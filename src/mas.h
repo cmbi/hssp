@@ -24,6 +24,7 @@
 #pragma warning (disable : 4355)
 #endif
 
+#include <boost/version.hpp>
 #include <boost/cstdint.hpp>
 
 typedef int8_t		int8;

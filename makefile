@@ -20,7 +20,7 @@ INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
 					  $(ZEEP_DIR) src/
 MAN_DIR				= $(DEST_DIR)man/man3
 
-BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system 
+BOOST_LIBS			= thread regex filesystem program_options date_time iostreams math_c99 system timer
 BOOST_LIBS			:= $(BOOST_LIBS:%=boost_%$(BOOST_LIB_SUFFIX))
 LIBS				= zeep $(BOOST_LIBS) z bz2 rt
 #ifeq ($(DEBUG),1)
@@ -56,12 +56,12 @@ VPATH += src $(OBJ)
 SOURCES = $(wildcard src/*.cpp)
 OBJECTS = $(SOURCES:src/%.cpp=$(OBJ)/%.o)
 
-all: $(OBJ) | mkdssp mkhssp sto2fa aln2hssp
+all: $(OBJ) | mkdssp mkhssp hsspconv
 
-mas: $(OBJECTS)
-	@ echo linking $@
-	@ $(CC) -o $@ $(OBJECTS) $(LDOPTS)
-	@ echo OK
+#mas: $(OBJECTS)
+#	@ echo linking $@
+#	@ $(CC) -o $@ $(OBJECTS) $(LDOPTS)
+#	@ echo OK
 
 mkdssp: mkdssp.o dssp.o primitives-3d.o structure.o utils.o mas.o
 	@ echo linking $@
@@ -103,8 +103,10 @@ $(OBJECTS:.o=.d):
 clean:
 	rm -rf $(OBJ)/* mas
 
-install: mas
-	sudo install -m 755 mas $(DEST_DIR)bin/mas
+install: all
+	sudo install -m 755 mkdssp $(DEST_DIR)bin/
+	sudo install -m 755 mkhssp $(DEST_DIR)bin/
+	sudo install -m 755 hsspconv $(DEST_DIR)bin/
 
 make.config:
 	@echo "creating empty make.config file"
