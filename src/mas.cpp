@@ -32,7 +32,7 @@ string decode(const sequence& s)
 {
 	string result(s.length(), 0);
 	for (int i = 0; i < s.length(); ++i)
-		result += s[i] >= 23 ? '.' : kResidues[s[i]];
+		result[i] = s[i] >= 23 ? '.' : kResidues[s[i]];
 	return result;
 }
 

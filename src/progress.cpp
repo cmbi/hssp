@@ -20,6 +20,7 @@
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 //#include <boost/timer/timer.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "progress.h"
 

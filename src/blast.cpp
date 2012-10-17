@@ -19,6 +19,7 @@
 #include "blast.h"
 #include "matrix.h"
 #include "utils.h"
+#include "progress.h"
 
 using namespace std;
 namespace ba = boost::algorithm;

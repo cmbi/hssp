@@ -56,7 +56,7 @@ VPATH += src $(OBJ)
 SOURCES = $(wildcard src/*.cpp)
 OBJECTS = $(SOURCES:src/%.cpp=$(OBJ)/%.o)
 
-all: mkdssp mkhssp sto2fa aln2hssp  | $(OBJ)
+all: $(OBJ) | mkdssp mkhssp sto2fa aln2hssp
 
 mas: $(OBJECTS)
 	@ echo linking $@
@@ -65,10 +65,10 @@ mas: $(OBJECTS)
 
 mkdssp: mkdssp.o dssp.o primitives-3d.o structure.o utils.o mas.o
 	@ echo linking $@
-	@ $(CC) -static -o $@ $^ $(LDOPTS)
+	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-mkhssp: mkhssp.o hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o blast.o mas.o matrix.o fetchdbrefs.o
+mkhssp: mkhssp.o hssp-nt.o dssp.o matrix.o primitives-3d.o structure.o utils.o blast.o mas.o matrix.o fetchdbrefs.o progress.o
 	@ echo linking $@
 	@ $(CC) $(CFLAGS) -o $@ $^ $(LDOPTS) 
 	@ echo OK

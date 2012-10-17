@@ -29,6 +29,7 @@
 #include "buffer.h"
 #include "blast.h"
 #include "fetchdbrefs.h"
+#include "progress.h"
 #include "hssp-nt.h"
 
 using namespace std;
