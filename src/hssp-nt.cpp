@@ -611,7 +611,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 				break;
 		}
 	}
-	
+
 	uint32 tix = max(10U, min(length, 80U)) - 10;
 	
 	// Add the hit only if it is within the required parameters.
@@ -627,6 +627,8 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 			foreach (MHitPtr e, m_entries)
 				e->m_aligned.reserve(n);
 		}
+
+		int32 fx = x + 1, fy = y + 1;
 		
 		// update insert/delete counters for the residues
 		x = highX;	e->m_ilas = m_residues[x].m_seq_nr;
@@ -636,8 +638,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 		e->m_aligned = string(m_seq.length() + xgaps, '.');
 		bool gappedx = false, gappedy = false;
 		
-		lengthI = length;	// we know the length of the alignment, use it
-		while (x >= 0 and y >= 0 and lengthI-- > 0)
+		while (x >= fx and y >= fy)
 		{
 			switch (tb(x, y))
 			{
@@ -663,9 +664,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 					break;
 	
 				case 1:
-					if (is_gap(m_seq[x]))
-						++lengthI;
-					else
+					if (not is_gap(m_seq[x]))
 					{
 						if (not gappedy)
 							++e->m_gaps;
@@ -714,8 +713,9 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 		e->m_distance = 1 - float(ident) / length;
 		e->m_score = 1 - e->m_distance;
 
-		e->m_ifir = x + 2;
+		e->m_ifir = m_residues[x + 1].m_seq_nr;
 		e->m_jfir = y + 2;
+
 		e->m_stid = e->m_acc + '/' +
 			boost::lexical_cast<string>(e->m_jfir) + '-' + boost::lexical_cast<string>(e->m_jlas);
 

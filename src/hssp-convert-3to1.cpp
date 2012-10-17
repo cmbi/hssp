@@ -676,7 +676,7 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 			continue;
 		}
 		
-		if (line[0] != '#' and line.length() > ccOffset)
+		if (line[0] != '#')
 		{
 			if (idWidth == 0)
 			{
