@@ -430,7 +430,7 @@ void seq::seq_impl::update(const seq_impl& qseq)
 
 void seq::validate(const seq& qseq)
 {
-	uint32 gaps = 0, gapn = 0, len = 0, ident = 0;
+	uint32 gaps = 0, gapn = 0, len = 0, xlen = 0, ylen = 0, ident = 0;
 	
 	if (qseq.length() != length())
 		throw mas_exception("Invalid sequence length");
@@ -471,7 +471,10 @@ void seq::validate(const seq& qseq)
 			xgapped = true;
 		}
 		else
+		{
+			++xlen;
 			xgapped = false;
+		}
 		
 		if (ygap)
 		{
@@ -481,13 +484,20 @@ void seq::validate(const seq& qseq)
 			ygapped = true;
 		}
 		else
+		{
+			++ylen;
 			ygapped = false;
+		}
 	}
 	
 	bool error = false;
 	if (gaps != m_impl->m_gaps)		  { cerr << "gaps != m_gaps (" << gaps << " - " << m_impl->m_gaps << ')' << endl; error = true; }
 	if (gapn != m_impl->m_gapn)		  { cerr << "gapn != m_gapn (" << gapn << " - " << m_impl->m_gapn << ')' << endl; error = true; }
 	if (len != m_impl->m_length)	  { cerr << "len != m_length (" << len << " - " << m_impl->m_length << ')' << endl; error = true; }
+	if (m_impl->m_jfir + ylen - 1 != m_impl->m_jlas)
+									  { cerr << "jfir != jlas + jlen (" << m_impl->m_jfir << ", " << m_impl->m_jlas << ", " << ylen << ')' << endl; error = true; }
+//	if (m_impl->m_ifir + xlen - 1 != m_impl->m_ilas)
+//									  { cerr << "ifir != ilas + ilen (" << m_impl->m_ifir << ", " << m_impl->m_ilas << ", " << xlen << ')' << endl; error = true; }
 	
 	float score = boost::lexical_cast<float>((boost::format("%4.2f") % (float(ident) / len)).str());
 	

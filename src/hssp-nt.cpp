@@ -638,7 +638,8 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 		e->m_aligned = string(m_seq.length() + xgaps, '.');
 		bool gappedx = false, gappedy = false;
 		
-		while (x >= fx and y >= fy)
+		lengthI = length;
+		while (x >= fx and y >= fy and lengthI-- > 0)
 		{
 			switch (tb(x, y))
 			{
@@ -664,7 +665,9 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 					break;
 	
 				case 1:
-					if (not is_gap(m_seq[x]))
+					if (is_gap(m_seq[x]))
+						++lengthI;
+					else
 					{
 						if (not gappedy)
 							++e->m_gaps;
