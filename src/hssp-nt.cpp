@@ -560,7 +560,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 //#if not NDEBUG
 //
 //bool dmp = false;
-//if (e->m_acc == "D2CRJ5")
+//if (e->m_acc == "Q0IJ18")
 //{
 //	dmp = true;
 //	dump(B, Ix, Iy, tb, gop_a, gop_b, gep_a, gep_b, m_seq, e->m_seq);
@@ -572,7 +572,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 	x = highX;
 	y = highY;
 
-	uint32 ident = 0, similar = 0, length = 0, lengthI = 0, xgaps = 0;
+	uint32 ident = 0, similar = 0, length = 0, lengthI = 0, xgaps = 0, xgapsI = 0;
 
 	// trace back the matrix
 	while (x >= 0 and y >= 0 and B(x, y) > 0)
@@ -582,7 +582,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 		{
 			case -1:
 				--y;
-				++xgaps;
+				++xgapsI;
 				break;
 
 			case 1:
@@ -595,6 +595,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 				if (not is_gap(m_seq[x]))
 				{
 					length = lengthI;
+					xgaps = xgapsI;
 
 					if (e->m_seq[y] == m_seq[x])
 						++ident, ++similar;
