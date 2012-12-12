@@ -29,7 +29,7 @@ boost::asio::io_service io_service;
 tcp::resolver resolver(io_service);
 
 void FetchHTTPDocument(const string& inServer, const string& inURL,
-	string& outHeader, string& outDocument)
+	const string& inDb, const string& inID, string& outHeader, string& outDocument)
 {
 	// This code comes from the http client example code in Boost ASIO
 
@@ -51,15 +51,30 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 	if (error)
 		throw boost::system::system_error(error);
 
+	// Create a soap request in an envelope
+	string soapRequest = (boost::format(
+		"<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
+			"<SOAP-ENV:Body>"
+				"<ns:GetLinked xmlns:ns='http://mrs.cmbi.ru.nl/mrsws/search'>"
+					"<ns:db>%1%</ns:db>"
+					"<ns:id>%2%</ns:id>"
+					"<ns:linkedDatabank>pdb</ns:linkedDatabank>"
+				"</ns:GetLinked>"
+			"</SOAP-ENV:Body>"
+		"</SOAP-ENV:Envelope>") % inDb % inID).str();
+
 	// Form the request. We specify the "Connection: close" header so that the
 	// server will close the socket after transmitting the response. This will
 	// allow us to treat all data up until the EOF as the content.
 	boost::asio::streambuf request;
 	ostream request_stream(&request);
-	request_stream << "GET " << inURL << " HTTP/1.0\r\n";
+	request_stream << "POST " << inURL << " HTTP/1.0\r\n";
 	request_stream << "Host: " << inServer << "\r\n";
 	request_stream << "Accept: */*\r\n";
+	request_stream << "Content-Length: " << soapRequest.length() << "\r\n";
+	request_stream << "Content-Type: text/xml; charset=\"utf-8\"\r\n";
 	request_stream << "Connection: close\r\n\r\n";
+	request_stream << soapRequest;
 
 	// Send the request.
 	boost::asio::write(socket, request);
@@ -112,7 +127,8 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 
 }
 
-void FetchPDBReferences(const string& inBaseURL, vector<string>& outReferences)
+void FetchPDBReferences(const string& inBaseURL, const string& inDb, const string& inID,
+	vector<string>& outReferences)
 {
 	static const boost::regex re("http://([^/]+)(/.*)?");
 
@@ -125,7 +141,7 @@ void FetchPDBReferences(const string& inBaseURL, vector<string>& outReferences)
 			throw mas_exception("Invalid base url for FetchPDBReferences");
 		
 		string httpHeader, httpDocument;
-		FetchHTTPDocument(m[1], inBaseURL, httpHeader, httpDocument);
+		FetchHTTPDocument(m[1], inBaseURL, inDb, inID, httpHeader, httpDocument);
 		
 		xml::document doc(httpDocument);
 		

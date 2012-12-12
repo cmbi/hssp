@@ -837,8 +837,9 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 		if (inFetchDBRefs)
 		{
 			vector<string> pdb;
-			const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search/rest/GetLinked/db/uniprot/linkedDatabank/pdb/id/";
-			FetchPDBReferences(kBaseURL + e->m_id, pdb);
+//			const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search/rest/GetLinked/db/uniprot/linkedDatabank/pdb/id/";
+			const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search";
+			FetchPDBReferences(kBaseURL, "uniprot", e->m_id, pdb);
 			if (not pdb.empty())
 				os << "#=GS " << id << " DR PDB " << ba::join(pdb, ", ") << endl;
 		}
