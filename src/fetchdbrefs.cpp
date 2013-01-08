@@ -71,6 +71,7 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 	request_stream << "POST " << inURL << " HTTP/1.0\r\n";
 	request_stream << "Host: " << inServer << "\r\n";
 	request_stream << "Accept: */*\r\n";
+	request_stream << "User-Agent: mkhssp\r\n";
 	request_stream << "Content-Length: " << soapRequest.length() << "\r\n";
 	request_stream << "Content-Type: text/xml; charset=\"utf-8\"\r\n";
 	request_stream << "Connection: close\r\n\r\n";

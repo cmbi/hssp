@@ -5,7 +5,6 @@
   <syspaths>
     <path>../libzeep</path>
     <path>/usr/include</path>
-	<path>../boost/include</path>
   </syspaths>
   <userpaths>
     <path>src</path>
@@ -14,7 +13,6 @@
     <path>/home/staf/maarten/lib64</path>
 	<path>/usr/lib</path>
     <path>../libzeep</path>
-	<path>../boost/lib</path>
   </libpaths>
   <files>
     <group name="Sources">
@@ -26,6 +24,7 @@
       <file>matrix.cpp</file>
       <file>hssp-nt.cpp</file>
       <file>primitives-3d.cpp</file>
+      <file>progress.cpp</file>
       <file>structure.cpp</file>
       <file>utils.cpp</file>
     </group>
@@ -39,6 +38,7 @@
       <link shared="true">boost_regex</link>
       <link shared="true">boost_math_c99</link>
       <link shared="true">boost_system</link>
+      <link shared="true">boost_timer</link>
     </group>
   </files>
   <resources resource-dir="rsrc">

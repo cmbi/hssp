@@ -731,8 +731,8 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 	for (uint32 i = queryNr + 1; i < msa.size(); ++i)
 		msa[i].update(msa[queryNr]);
 
-	for (uint32 i = queryNr + 1; i < msa.size(); ++i)
-		msa[i].validate(msa[queryNr]);
+//	for (uint32 i = queryNr + 1; i < msa.size(); ++i)
+//		msa[i].validate(msa[queryNr]);
 	
 	return result;
 }
