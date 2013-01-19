@@ -829,11 +829,10 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 	{
 		const string kBaseURL = "http://mrs.cmbi.ru.nl/m6/mrsws/search";
 
-		vector<string> ids;
 		foreach (const MHitPtr e, m_entries)
-			ids.push_back(e->m_id);
+			linked[e->m_id].clear();
 		
-		FetchPDBReferences(kBaseURL, "uniprot", ids, linked);
+		FetchPDBReferences(kBaseURL, "uniprot", linked);
 	}
 
 	foreach (const MHitPtr e, m_entries)
