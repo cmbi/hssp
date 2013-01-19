@@ -824,6 +824,18 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 
 	boost::format fmt("#=GS %s HSSP score=%4.2f/%4.2f aligned=%d-%d/%d-%d length=%d ngaps=%d gaplen=%d seqlen=%d");
 
+	map<string,vector<string>> linked;
+	if (inFetchDBRefs)
+	{
+		const string kBaseURL = "http://mrs.cmbi.ru.nl/m6/mrsws/search";
+
+		vector<string> ids;
+		foreach (const MHitPtr e, m_entries)
+			ids.push_back(e->m_id);
+		
+		FetchPDBReferences(kBaseURL, "uniprot", ids, linked);
+	}
+
 	foreach (const MHitPtr e, m_entries)
 	{
 		string id = e->m_stid + string(tl - e->m_stid.length(), ' ');
@@ -834,14 +846,16 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 				   % e->m_ifir % e->m_ilas % e->m_jfir % e->m_jlas % e->m_length
 				   % e->m_gaps % e->m_gapn % e->m_seq.length() << endl;
 	
-		if (inFetchDBRefs)
+		if (inFetchDBRefs and not linked[e->m_id].empty())
 		{
-			vector<string> pdb;
-//			const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search/rest/GetLinked/db/uniprot/linkedDatabank/pdb/id/";
-			const string kBaseURL = "http://mrs.cmbi.ru.nl/m6/mrsws/search";
-			FetchPDBReferences(kBaseURL, "uniprot", e->m_id, pdb);
-			if (not pdb.empty())
-				os << "#=GS " << id << " DR PDB " << ba::join(pdb, ", ") << endl;
+			os << "#=GS " << id << " DR PDB " << ba::join(linked[e->m_id], ", ") << endl;
+			
+//			vector<string> pdb;
+////			const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search/rest/GetLinked/db/uniprot/linkedDatabank/pdb/id/";
+//			const string kBaseURL = "http://mrs.cmbi.ru.nl/m6/mrsws/search";
+//			FetchPDBReferences(kBaseURL, "uniprot", e->m_id, pdb);
+//			if (not pdb.empty())
+//				os << "#=GS " << id << " DR PDB " << ba::join(pdb, ", ") << endl;
 		}
 	}
 
