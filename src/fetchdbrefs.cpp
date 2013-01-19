@@ -1,5 +1,7 @@
 #include "mas.h"
 
+#include <iostream>
+
 #include <boost/format.hpp>
 #include <boost/regex.hpp>
 #include <boost/asio.hpp>
@@ -59,6 +61,8 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 					"<ns:db>%1%</ns:db>"
 					"<ns:id>%2%</ns:id>"
 					"<ns:linkedDatabank>pdb</ns:linkedDatabank>"
+					"<ns:resultoffset>0</ns:resultoffset>"
+					"<ns:maxresultcount>50</ns:maxresultcount>"
 				"</ns:GetLinked>"
 			"</SOAP-ENV:Body>"
 		"</SOAP-ENV:Envelope>") % inDb % inID).str();
@@ -160,7 +164,7 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 	foreach (string id, inIDs)
 	s <<			 "<ns:id>" << id << "</ns:id>";
 	
-	s <<		"</ns:GetLinked>"
+	s <<		"</ns:GetLinkedEx>"
 			"</SOAP-ENV:Body>"
 		"</SOAP-ENV:Envelope>";
 
@@ -268,8 +272,6 @@ void FetchPDBReferences(const string& inBaseURL, const string& inDb,
 	if (not boost::regex_match(inBaseURL, m, re))
 		throw mas_exception("Invalid base url for FetchPDBReferences");
 	
-	outReferences.clear();
-
 	try
 	{
 		vector<string> ids;
@@ -278,7 +280,7 @@ void FetchPDBReferences(const string& inBaseURL, const string& inDb,
 		
 		string httpHeader, httpDocument;
 		FetchHTTPDocument(m[1], inBaseURL, inDb, ids, httpHeader, httpDocument);
-		
+
 		xml::document doc(httpDocument);
 		
 		foreach (auto r, doc.find("//response"))
@@ -291,7 +293,7 @@ void FetchPDBReferences(const string& inBaseURL, const string& inDb,
 			foreach (auto link, r->find("linked"))
 				links.push_back(link->content());
 			
-			ioReferences.push_back(make_pair(id->content(), links));
+			ioReferences[id->content()] = links;
 		}
 	}
 	catch (...)
