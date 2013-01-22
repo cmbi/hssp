@@ -23,7 +23,7 @@ const uint8 kResidueNrTable[] = {
 sequence encode(const string& s)
 {
 	sequence result(s.length(), 0);
-	for (int i = 0; i < s.length(); ++i)
+	for (unsigned int i = 0; i < s.length(); ++i)
 		result[i] = is_gap(s[i]) ? '-' : ResidueNr(s[i]);
 	return result;
 }
@@ -31,7 +31,7 @@ sequence encode(const string& s)
 string decode(const sequence& s)
 {
 	string result(s.length(), 0);
-	for (int i = 0; i < s.length(); ++i)
+	for (unsigned int i = 0; i < s.length(); ++i)
 		result[i] = s[i] >= 23 ? '.' : kResidues[s[i]];
 	return result;
 }
