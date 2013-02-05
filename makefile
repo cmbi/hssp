@@ -84,6 +84,11 @@ hsspconv: $(OBJ)/hssp-convert-3to1.o $(OBJ)/utils.o
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
+mi: $(OBJ)/mutualinformation.o $(OBJ)/utils.o $(OBJ)/mas.o
+	@ echo linking $@
+	@ $(CC) -o $@ $^ $(LDOPTS)
+	@ echo OK
+
 $(OBJ)/%.o: %.cpp
 	@ if [ ! -d $(OBJ) ]; then mkdir $(OBJ); fi
 	@ echo compiling $@

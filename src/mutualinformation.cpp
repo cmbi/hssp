@@ -212,9 +212,9 @@ const uint32 kBlockSize = 512;
 
 seq::seq_impl::seq_impl(const string& acc)
 	: m_acc(acc)
+	, m_length(0)
 	, m_identical(0)
 	, m_similar(0)
-	, m_length(0)
 	, m_seqlen(0)
 	, m_begin(0)
 	, m_end(0)
@@ -563,7 +563,7 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 {
 	string line, qid;
 
-	uint32 n = 0, offset = residues.size(), result = 0, rix = offset;
+	uint32 offset = residues.size(), result = 0, rix = offset;
 	string::size_type ccOffset = 0, queryNr, idWidth = 0;
 	char chainId;
 	boost::regex r1("Chain . is considered to be the same as (.(?:(?:, .)* and .)?)");
@@ -958,7 +958,7 @@ void CalculateMI(istream& in, ostream& out)
 		else if (h != header)
 			throw mas_exception("Inconsistent HSSP3 file, different header parts");
 
-		out << "Mutual information for chain " << residues.front()->m_ri[6] << endl;
+		out << "Mutual information for chain " << residues.back()->m_ri[6] << endl;
 		
 		CalculateMI(msa, out);
 

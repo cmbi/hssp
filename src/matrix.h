@@ -148,7 +148,7 @@ class matrix : public matrix_base<T>
 							}
 						}
 
-						matrix() : m_m(0), m_n(0), m_data(nullptr) {}
+						matrix() : m_data(nullptr), m_m(0), m_n(0) {}
 
 						matrix(const matrix& m)
 							: m_m(m.m_m)
@@ -203,7 +203,7 @@ class matrix : public matrix_base<T>
 	void				each(Func f)
 						{
 							for (uint32 i = 0; i < m_m * m_n; ++i)
-								m_data[i] /= v;
+								f(m_data[i]);
 						}
 
 	template<typename U>
