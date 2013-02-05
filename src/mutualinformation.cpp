@@ -974,6 +974,8 @@ void CalculateMI(istream& in, ostream& out)
 
 int main(int argc, char* const argv[])
 {
+	print_matrices();
+
 	try
 	{
 		po::options_description desc("MKHSSP options");
