@@ -418,5 +418,3 @@ template<typename T>
 std::vector<T> sum(const matrix_base<T>& m);
 
 #include "matrix.inl"
-
-void print_matrices();

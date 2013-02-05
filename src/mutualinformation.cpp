@@ -865,7 +865,7 @@ void CalculateMI(const mseq& msa, ostream& os)
 	}
 	
 	Pij /= Meff;
-	
+/*	
 	for (uint32 i = 0; i < N; ++i)
 	{
 		for (uint32 alpha = 0; alpha < q; ++alpha)
@@ -879,7 +879,7 @@ void CalculateMI(const mseq& msa, ostream& os)
 			}
 		}
 	}
-	
+*/	
 	symmetric_matrix<double> MI(N);
 	
 	for (uint32 i = 0; i + 1 < N; ++i)
@@ -974,8 +974,6 @@ void CalculateMI(istream& in, ostream& out)
 
 int main(int argc, char* const argv[])
 {
-	print_matrices();
-
 	try
 	{
 		po::options_description desc("MKHSSP options");
