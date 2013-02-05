@@ -448,7 +448,6 @@ void MProfile::AdjustXGapCosts(vector<float>& gop, vector<float>& gep)
 
 const float kResidueSpecificPenalty[22] = {
 	1.13f,		// A
-	1.00f,		// B
 	1.13f,		// C
 	0.96f,		// D
 	1.31f,		// E
@@ -468,6 +467,7 @@ const float kResidueSpecificPenalty[22] = {
 	1.25f,		// V
 	1.23f,		// W
 	1.00f,		// Y
+	1.00f,		// B
 	1.00f,		// Z
 };
 
@@ -1267,7 +1267,8 @@ void MProfile::CalculateConservation(uint32 inThreads)
 
 		static const int8 kResIx[] = {
 			//	V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D
-			   18, 10,  8, 11,  5, 19, 20,  6,  0, 13, 16, 17,  2,  7, 15,  9, 14,  4, 12,  3
+//			   18, 10,  8, 11,  5, 19, 20,  6,  0, 13, 16, 17,  2,  7, 15,  9, 14,  4, 12,  3
+			   17,  9,  7, 10,  4, 18, 19,  5,  0, 12, 15, 16,  1,  6, 14,  8, 13,  3, 11,  2
 		};
 
 		for (uint32 i = 0; i < 20; ++i)
