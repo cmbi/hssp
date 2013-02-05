@@ -48,7 +48,7 @@ extern int VERBOSE;
 typedef std::basic_string<uint8> sequence;
 
 // 22 real letters and 1 dummy (X is the dummy, B and Z are pseudo letters)
-extern const char kResidues[]; // = "ABCDEFGHIKLMNPQRSTVWYZX";
+extern const char kResidues[]; // = "ACDEFGHIKLMNPQRSTVWYBZX";
 extern const uint8 kResidueNrTable[];
 
 inline uint8 ResidueNr(char inAA)

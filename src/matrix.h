@@ -148,6 +148,8 @@ class matrix : public matrix_base<T>
 							}
 						}
 
+						matrix() : m_m(0), m_n(0), m_data(nullptr) {}
+
 						matrix(const matrix& m)
 							: m_m(m.m_m)
 							, m_n(m.m_n)
@@ -158,8 +160,8 @@ class matrix : public matrix_base<T>
 
 	matrix&				operator=(const matrix& m)
 						{
-							value_type t = new value_type[m.m_m * m.m_n];
-							std::copy(m.m_data, m.m_data + (m_m * m_n), t);
+							value_type* t = new value_type[m.m_m * m.m_n];
+							std::copy(m.m_data, m.m_data + (m.m_m * m.m_n), t);
 							
 							delete[] m_data;
 							m_data = t;
@@ -197,6 +199,22 @@ class matrix : public matrix_base<T>
 							return m_data[i * m_n + j];
 						}
 
+	template<typename Func>
+	void				each(Func f)
+						{
+							for (uint32 i = 0; i < m_m * m_n; ++i)
+								m_data[i] /= v;
+						}
+
+	template<typename U>
+	matrix&				operator/=(U v)
+						{
+							for (uint32 i = 0; i < m_m * m_n; ++i)
+								m_data[i] /= v;
+							
+							return *this;
+						}
+
   private:
 	value_type*			m_data;
 	uint32				m_m, m_n;
@@ -210,13 +228,13 @@ class symmetric_matrix : public matrix_base<T>
   public:
 	typedef typename matrix_base<T>::value_type value_type;
 
-						symmetric_matrix(uint32 n)
+						symmetric_matrix(uint32 n, T v = T())
 							: m_owner(true)
 							, m_n(n)
 						{
 							uint32 N = (m_n * (m_n + 1)) / 2;
 							m_data = new value_type[N];
-							std::fill(m_data, m_data + N, T(0));
+							std::fill(m_data, m_data + N, v);
 						}
 
 						symmetric_matrix(const T* data, uint32 n)
@@ -241,6 +259,26 @@ class symmetric_matrix : public matrix_base<T>
 	
 	// erase two rows, add one at the end (for neighbour joining)
 	void				erase_2(uint32 i, uint32 j);
+
+	template<typename Func>
+	void				each(Func f)
+						{
+							uint32 N = (m_n * (m_n + 1)) / 2;
+
+							for (uint32 i = 0; i < N; ++i)
+								f(m_data[i]);
+						}
+
+	template<typename U>
+	symmetric_matrix&	operator/=(U v)
+						{
+							uint32 N = (m_n * (m_n + 1)) / 2;
+
+							for (uint32 i = 0; i < N; ++i)
+								m_data[i] /= v;
+							
+							return *this;
+						}
 
   private:
 	bool				m_owner;
@@ -371,6 +409,15 @@ matrix<T> operator-(const matrix_base<T>& lhs, T rhs)
 	result -= rhs;
 	return result;
 }
+
+template<typename T>
+symmetric_matrix<T> hamming_distance(const matrix_base<T>& lhs, T rhs);
+
+template<typename T>
+std::vector<T> sum(const matrix_base<T>& m);
+
+#include "matrix.inl"
+
 
 //// --------------------------------------------------------------------
 //
