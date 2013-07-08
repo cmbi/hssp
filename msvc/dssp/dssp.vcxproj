@@ -150,6 +150,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dssp.cpp" />
+    <ClCompile Include="..\..\src\iocif.cpp" />
     <ClCompile Include="..\..\src\mas.cpp" />
     <ClCompile Include="..\..\src\mkdssp.cpp" />
     <ClCompile Include="..\..\src\primitives-3d.cpp" />

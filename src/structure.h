@@ -48,20 +48,20 @@ MAtomType MapElement(std::string inElement);
 struct MAtom
 {
 	uint32		mSerial;
-	char		mName[5];
+	std::string	mName;
 	char		mAltLoc;
-	char		mResName[5];
-	char		mChainID;
+	std::string	mResName;
+	std::string	mChainID;
 	int16		mResSeq;
-	char		mICode;
+	std::string	mICode;
 	MAtomType	mType;
 	MPoint		mLoc;
 	double		mOccupancy;
 	double		mTempFactor;
-	char		mElement[3];
+	std::string	mElement;
 	int			mCharge;
 
-	void		SetChainID(char inID)					{ mChainID = inID;}
+	void		SetChainID(const std::string& inChainID){ mChainID = inChainID;}
 	std::string	GetName() const							{ return mName; }
 	void		Translate(const MPoint& inTranslation)	{ mLoc += inTranslation; }
 	void		Rotate(const MQuaternion& inRotation)	{ mLoc.Rotate(inRotation); }
@@ -155,8 +155,8 @@ class MResidue
 						MResidue(uint32 inNumber,
 							MResidue* inPrevious, const std::vector<MAtom>& inAtoms);
 
-	void				SetChainID(char inID);
-	char				GetChainID() const				{ return mChainID; }
+	void				SetChainID(const std::string& inChainID);
+	std::string			GetChainID() const				{ return mChainID; }
 
 	MResidueType		GetType() const					{ return mType; }
 
@@ -220,7 +220,7 @@ class MResidue
 	MBridgeType			TestBridge(MResidue* inResidue) const;
 
 	uint16				GetSeqNumber() const		{ return mSeqNumber; }
-	char				GetInsertionCode() const	{ return mInsertionCode; }
+	std::string			GetInsertionCode() const	{ return mInsertionCode; }
 	
 	void				SetNumber(uint16 inNumber)	{ mNumber = inNumber; }
 	uint16				GetNumber() const			{ return mNumber; }
@@ -256,11 +256,11 @@ class MResidue
 	void				ExtendBox(const MAtom& atom, double inRadius);
 	bool				AtomIntersectsBox(const MAtom& atom, double inRadius) const;
 
-	char				mChainID;
+	std::string			mChainID;
 	MResidue*			mPrev;
 	MResidue*			mNext;
 	int32				mSeqNumber, mNumber;
-	char				mInsertionCode;
+	std::string			mInsertionCode;
 	MResidueType		mType;
 	uint8				mSSBridgeNr;
 	double				mAccessibility;
@@ -285,15 +285,15 @@ class MChain
   public:
 
 						MChain(const MChain& chain);
-						MChain(char inChainID = 0) : mChainID(inChainID) {}
+						MChain(const std::string& inChainID) : mChainID(inChainID) {}
 						~MChain();
 
 	MChain&				operator=(const MChain& chain);
 
-	char				GetChainID() const					{ return mChainID; }
-	void				SetChainID(char inID);
+	std::string			GetChainID() const					{ return mChainID; }
+	void				SetChainID(const std::string& inChainID);
 
-	MResidue*			GetResidueBySeqNumber(uint16 inSeqNumber, char inInsertionCode);
+	MResidue*			GetResidueBySeqNumber(uint16 inSeqNumber, const std::string& inInsertionCode);
 	
 	void				GetSequence(std::string& outSequence) const;
 
@@ -310,7 +310,7 @@ class MChain
 	bool				Empty() const						{ return mResidues.empty(); }
 
   private:
-	char				mChainID;
+	std::string			mChainID;
 	std::vector<MResidue*>
 						mResidues;
 };
@@ -318,14 +318,16 @@ class MChain
 class MProtein
 {
   public:
-						MProtein() {}
+						MProtein();
 						MProtein(const std::string& inID, MChain* inChain);
 						~MProtein();
 
-	const std::string&	GetID() const					{ return mID; }
-						
-						MProtein(std::istream& is, bool inCAlphaOnly = false);
+//						MProtein(std::istream& is, bool inCAlphaOnly = false);
+
+	void				ReadPDB(std::istream& is, bool inCAlphaOnly = false);
+	void				ReadmmCIF(std::istream& is, bool inCAlphaOnly = false);
 	
+	const std::string&	GetID() const					{ return mID; }
 	const std::string&	GetHeader() const				{ return mHeader; }
 	std::string			GetCompound() const;
 	std::string			GetSource() const;
@@ -339,11 +341,11 @@ class MProtein
 							uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges,
 							uint32& outNrOfHBonds, uint32 outNrOfHBondsPerDistance[11]) const;
 	
-	void				GetCAlphaLocations(char inChain, std::vector<MPoint>& outPoints) const;
-	MPoint				GetCAlphaPosition(char inChain, int16 inPDBResSeq) const;
+	void				GetCAlphaLocations(const std::string& inChainID, std::vector<MPoint>& outPoints) const;
+	MPoint				GetCAlphaPosition(const std::string& inChainID, int16 inPDBResSeq) const;
 	
-	void				GetSequence(char inChain, entry& outEntry) const;
-	void				GetSequence(char inChain, sequence& outSequence) const;
+	void				GetSequence(const std::string& inChainID, entry& outEntry) const;
+	void				GetSequence(const std::string& inChainID, sequence& outSequence) const;
 
 	void				Center();
 	void				Translate(const MPoint& inTranslation);
@@ -353,12 +355,12 @@ class MProtein
 	
 	void				GetPoints(std::vector<MPoint>& outPoints) const;
 
-	char				GetFirstChainID() const								{ return mChains.front()->GetChainID(); }
+	std::string			GetFirstChainID() const								{ return mChains.front()->GetChainID(); }
 
-	void				SetChain(char inChainID, const MChain& inChain);
+	void				SetChain(const std::string& inChainID, const MChain& inChain);
 
-	MChain&				GetChain(char inChainID);
-	const MChain&		GetChain(char inChainID) const;
+	MChain&				GetChain(const std::string& inChainID);
+	const MChain&		GetChain(const std::string& inChainID) const;
 	
 	const std::vector<MChain*>&
 						GetChains() const									{ return mChains; }
@@ -366,7 +368,7 @@ class MProtein
 	template<class OutputIterator>
 	void				GetSequences(OutputIterator outSequences) const;
 
-	MResidue*			GetResidue(char inChainID, uint16 inSeqNumber, char inInsertionCode);
+	MResidue*			GetResidue(const std::string& inChainID, uint16 inSeqNumber, const std::string& inInsertionCode);
 
 	// statistics
 	uint32				GetNrOfHBondsInParallelBridges() const				{ return mNrOfHBondsInParallelBridges; }
@@ -393,7 +395,8 @@ class MProtein
 	std::string			mID, mHeader;
 
 	std::vector<std::string>
-						mCompound, mSource, mAuthor, mDbRef;
+						mDbRef;
+	std::string			mCompound, mSource, mAuthor;
 	std::vector<MChain*>mChains;
 	uint32				mResidueCount, mChainBreaks;
 	

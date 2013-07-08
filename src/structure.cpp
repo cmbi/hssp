@@ -23,6 +23,7 @@
 #include "utils.h"
 #include "buffer.h"
 #include "structure.h"
+#include "iocif.h"
 
 using namespace std;
 namespace ba = boost::algorithm;
@@ -58,7 +59,7 @@ class MSurfaceDots
   public:
 	static MSurfaceDots&	Instance();
 	
-	uint32					size() const					{ return mPoints.size(); }
+	size_t					size() const					{ return mPoints.size(); }
 	const MPoint&			operator[](uint32 inIx) const	{ return mPoints[inIx]; }
 	double					weight() const					{ return mWeight; }
 
@@ -269,7 +270,7 @@ void MAtom::WritePDB(ostream& os) const
 	//	61 - 66	Real(6.2) tempFactor Temperature factor.
 	//	77 - 78	LString(2) element Element symbol, right-justified.
 	//	79 - 80	LString(2) charge Charge on the atom.
-	boost::format atom("ATOM  %5.5d %4.4s%c%3.3s %c%4.4d%c   %8.3f%8.3f%8.3f%6.2f%6.2f          %2.2s%2.2s");
+	boost::format atom("ATOM  %5.5d  %3.3s%c%3.3s %1.1s%4.4d%1.1s   %8.3f%8.3f%8.3f%6.2f%6.2f          %2.2s%2.2s");
 
 	string charge;
 	if (mCharge != 0)
@@ -315,7 +316,7 @@ struct MBridge
 	uint32			sheet, ladder;
 	set<MBridge*>	link;
 	deque<uint32>	i, j;
-	char			chainI, chainJ;
+	string			chainI, chainJ;
 	
 	bool			operator<(const MBridge& b) const		{ return chainI < b.chainI or (chainI == b.chainI and i.front() < b.i.front()); }
 };
@@ -340,8 +341,7 @@ bool Linked(const MBridge& a, const MBridge& b)
 
 MResidue::MResidue(uint32 inNumber,
 		MResidue* inPrevious, const vector<MAtom>& inAtoms)
-	: mChainID(0)
-	, mPrev(inPrevious)
+	: mPrev(inPrevious)
 	, mNext(nullptr)
 	, mSeqNumber(inAtoms.front().mResSeq)
 	, mNumber(inNumber)
@@ -367,7 +367,7 @@ MResidue::MResidue(uint32 inNumber,
 	
 	foreach (const MAtom& atom, inAtoms)
 	{
-		if (mChainID == 0)
+		if (mChainID.empty())
 			mChainID = atom.mChainID;
 		
 		if (MapResidue(atom.mResName) != mType)
@@ -378,13 +378,13 @@ MResidue::MResidue(uint32 inNumber,
 		if (atom.mResSeq != mSeqNumber)
 			throw mas_exception(boost::format("inconsistent residue sequence numbers (%1% != %2%)") % atom.mResSeq % mSeqNumber);
 		
-		if (atom.GetName() == " N  ")
+		if (atom.GetName() == "N")
 			mN = atom;
-		else if (atom.GetName() == " CA ")
+		else if (atom.GetName() == "CA")
 			mCA = atom;
-		else if (atom.GetName() == " C  ")
+		else if (atom.GetName() == "C")
 			mC = atom;
-		else if (atom.GetName() == " O  ")
+		else if (atom.GetName() == "O")
 			mO = atom;
 		else
 			mSideChain.push_back(atom);
@@ -431,12 +431,10 @@ MResidue::MResidue(uint32 inNumber,
 }
 
 MResidue::MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious)
-	: mChainID(0)
-	, mPrev(nullptr)
+	: mPrev(nullptr)
 	, mNext(nullptr)
 	, mSeqNumber(inNumber)
 	, mNumber(inNumber)
-	, mInsertionCode(' ')
 	, mType(MapResidue(inTypeCode))
 	, mSSBridgeNr(0)
 	, mAccessibility(0)
@@ -454,9 +452,8 @@ MResidue::MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious)
 	static const MAtom kNullAtom = {};
 	mN = mCA = mC = mO = kNullAtom;
 	
-	mCA.mICode = ' ';
 	mCA.mResSeq = inTypeCode;
-	mCA.mChainID = 'A';
+	mCA.mChainID = "A";
 }
 
 MResidue::MResidue(const MResidue& residue)
@@ -507,16 +504,16 @@ bool MResidue::NoChainBreak(const MResidue* from, const MResidue* to)
 	return result;
 }
 
-void MResidue::SetChainID(char inID)
+void MResidue::SetChainID(const string& inChainID)
 {
-	mChainID = inID;
+	mChainID = inChainID;
 	
-	mC.SetChainID(inID);
-	mCA.SetChainID(inID);
-	mO.SetChainID(inID);
-	mN.SetChainID(inID);
-	mH.SetChainID(inID);
-	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::SetChainID, _1, inID));
+	mC.SetChainID(inChainID);
+	mCA.SetChainID(inChainID);
+	mO.SetChainID(inChainID);
+	mN.SetChainID(inChainID);
+	mH.SetChainID(inChainID);
+	for_each(mSideChain.begin(), mSideChain.end(), boost::bind(&MAtom::SetChainID, _1, inChainID));
 }
 
 bool MResidue::ValidDistance(const MResidue& inNext) const
@@ -870,7 +867,7 @@ void MResidue::GetPoints(vector<MPoint>& outPoints) const
 		outPoints.push_back(a);
 }
 
-void MResidue::WritePDB(std::ostream& os)
+void MResidue::WritePDB(ostream& os)
 {
 	mN.WritePDB(os);
 	mCA.WritePDB(os);
@@ -916,10 +913,10 @@ MChain& MChain::operator=(const MChain& chain)
 	return *this;
 }
 
-void MChain::SetChainID(char inID)
+void MChain::SetChainID(const string& inChainID)
 {
-	mChainID = inID;
-	for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::SetChainID, _1, inID));
+	mChainID = inChainID;
+	for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::SetChainID, _1, inChainID));
 }
 
 void MChain::Translate(const MPoint& inTranslation)
@@ -932,24 +929,24 @@ void MChain::Rotate(const MQuaternion& inRotation)
 	for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::Rotate, _1, inRotation));
 }
 
-void MChain::WritePDB(std::ostream& os)
+void MChain::WritePDB(ostream& os)
 {
 	for_each(mResidues.begin(), mResidues.end(), boost::bind(&MResidue::WritePDB, _1, boost::ref(os)));
 	
-	boost::format ter("TER    %4.4d      %3.3s %c%4.4d%c");
+	boost::format ter("TER    %4.4d      %3.3s %1.1s%4.4d%c");
 	
 	MResidue* last = mResidues.back();
 	
 	os << (ter % (last->GetCAlpha().mSerial + 1) % kResidueInfo[last->GetType()].name % mChainID % last->GetNumber() % ' ') << endl;
 }
 
-MResidue* MChain::GetResidueBySeqNumber(uint16 inSeqNumber, char inInsertionCode)
+MResidue* MChain::GetResidueBySeqNumber(uint16 inSeqNumber, const string& inInsertionCode)
 {
 	vector<MResidue*>::iterator r = find_if(mResidues.begin(), mResidues.end(),
 		boost::bind(&MResidue::GetSeqNumber, _1) == inSeqNumber and
 		boost::bind(&MResidue::GetInsertionCode, _1) == inInsertionCode);
 	if (r == mResidues.end())
-		throw mas_exception(boost::format("Residue %d%c not found") % inSeqNumber % inInsertionCode);
+		throw mas_exception(boost::format("Residue %d%s not found") % inSeqNumber % inInsertionCode);
 	return *r;
 }
 
@@ -963,9 +960,9 @@ void MChain::GetSequence(string& outSequence) const
 
 struct MResidueID
 {
-	char			chain;
+	string			chain;
 	uint16			seqNumber;
-	char			insertionCode;
+	string			insertionCode;
 	
 	bool			operator<(const MResidueID& o) const
 					{
@@ -981,13 +978,46 @@ struct MResidueID
 					}
 };
 
-MProtein::MProtein(istream& is, bool cAlphaOnly)
+MProtein::MProtein()
 	: mResidueCount(0)
 	, mChainBreaks(0)
 	, mIgnoredWaterMolecules(0)
 	, mNrOfHBondsInParallelBridges(0)
 	, mNrOfHBondsInAntiparallelBridges(0)
 {
+	fill(mParallelBridgesPerLadderHistogram, mParallelBridgesPerLadderHistogram + kHistogramSize, 0);
+	fill(mAntiparallelBridgesPerLadderHistogram, mAntiparallelBridgesPerLadderHistogram + kHistogramSize, 0);
+	fill(mLaddersPerSheetHistogram, mLaddersPerSheetHistogram + kHistogramSize, 0);
+}
+
+MProtein::MProtein(const string& inID, MChain* inChain)
+	: mID(inID)
+	, mChainBreaks(0)
+	, mIgnoredWaterMolecules(0)
+	, mNrOfHBondsInParallelBridges(0)
+	, mNrOfHBondsInAntiparallelBridges(0)
+{
+	fill(mParallelBridgesPerLadderHistogram, mParallelBridgesPerLadderHistogram + kHistogramSize, 0);
+	fill(mAntiparallelBridgesPerLadderHistogram, mAntiparallelBridgesPerLadderHistogram + kHistogramSize, 0);
+	fill(mLaddersPerSheetHistogram, mLaddersPerSheetHistogram + kHistogramSize, 0);
+
+	mChains.push_back(inChain);
+}
+
+MProtein::~MProtein()
+{
+	foreach (MChain* chain, mChains)
+		delete chain;
+}
+
+void MProtein::ReadPDB(istream& is, bool cAlphaOnly)
+{
+	mResidueCount = 0;
+	mChainBreaks = 0;
+	mIgnoredWaterMolecules = 0;
+	mNrOfHBondsInParallelBridges = 0;
+	mNrOfHBondsInAntiparallelBridges = 0;
+
 	fill(mParallelBridgesPerLadderHistogram, mParallelBridgesPerLadderHistogram + kHistogramSize, 0);
 	fill(mAntiparallelBridgesPerLadderHistogram, mAntiparallelBridgesPerLadderHistogram + kHistogramSize, 0);
 	fill(mLaddersPerSheetHistogram, mLaddersPerSheetHistogram + kHistogramSize, 0);
@@ -1023,22 +1053,22 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 
 		if (ba::starts_with(line, "COMPND"))
 		{
-			ba::trim(line);
-			mCompound.push_back(line);
+			ba::trim_right(line);
+			mCompound = mCompound + line.substr(10);
 			continue;
 		}
 
 		if (ba::starts_with(line, "SOURCE"))
 		{
-			ba::trim(line);
-			mSource.push_back(line);
+			ba::trim_right(line);
+			mSource = mSource + line.substr(10);
 			continue;
 		}
 		
 		if (ba::starts_with(line, "AUTHOR"))
 		{
-			ba::trim(line);
-			mAuthor.push_back(line);
+			ba::trim_right(line);
+			mAuthor = mAuthor + line.substr(10);
 			continue;
 		}
 		
@@ -1110,17 +1140,17 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			//	7 - 11	Integer serial Atom serial number.
 			atom.mSerial = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(6, 5)));
 			//	13 - 16	Atom name Atom name.
-			line.copy(atom.mName, 4, 12);
+			atom.mName = ba::trim_copy(line.substr(12, 4));
 			//	17		Character altLoc Alternate location indicator.
 			atom.mAltLoc = line[16];
 			//	18 - 20	Residue name resName Residue name.
-			line.copy(atom.mResName, 4, 17);
+			atom.mResName = ba::trim_copy(line.substr(17, 4));
 			//	22		Character chainID Chain identifier.
 			atom.mChainID = line[21];
 			//	23 - 26	Integer resSeq Residue sequence number.
 			atom.mResSeq = boost::lexical_cast<int16>(ba::trim_copy(line.substr(22, 4)));
 			//	27		AChar iCode Code for insertion of residues.
-			atom.mICode = line[26];
+			atom.mICode = line.substr(26, 1);
 
 			//	31 - 38	Real(8.3) x Orthogonal coordinates for X in Angstroms.
 			atom.mLoc.mX = ParseFloat(line.substr(30, 8));
@@ -1134,7 +1164,7 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 			atom.mTempFactor = ParseFloat(line.substr(60, 6));
 			//	77 - 78	LString(2) element Element symbol, right-justified.
 			if (line.length() > 76)
-				line.copy(atom.mElement, 2, 76);
+				atom.mElement = ba::trim_copy(line.substr(76, 3));
 			//	79 - 80	LString(2) charge Charge on the atom.
 			atom.mCharge = 0;
 			
@@ -1230,67 +1260,189 @@ MProtein::MProtein(istream& is, bool cAlphaOnly)
 		throw mas_exception("empty protein, or no valid complete residues");
 }
 
-MProtein::MProtein(const string& inID, MChain* inChain)
-	: mID(inID)
+void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 {
-	mChains.push_back(inChain);
-}
+	mResidueCount = 0;
+	mChainBreaks = 0;
+	mIgnoredWaterMolecules = 0;
+	mNrOfHBondsInParallelBridges = 0;
+	mNrOfHBondsInAntiparallelBridges = 0;
 
-MProtein::~MProtein()
-{
-	foreach (MChain* chain, mChains)
-		delete chain;
+	fill(mParallelBridgesPerLadderHistogram, mParallelBridgesPerLadderHistogram + kHistogramSize, 0);
+	fill(mAntiparallelBridgesPerLadderHistogram, mAntiparallelBridgesPerLadderHistogram + kHistogramSize, 0);
+	fill(mLaddersPerSheetHistogram, mLaddersPerSheetHistogram + kHistogramSize, 0);
+
+	vector<pair<MResidueID,MResidueID> > ssbonds;
+	set<char> terminatedChains;
+
+	// Read the mmCIF data into a mmCIF file class
+	mmCIF::file data(is);
+	
+	mID = data.get("_entry.id");
+	string keywords = data.get("_struct_keywords.text").substr(0, 39);
+	mHeader = (boost::format("HEADER    %s %s%s %s") %
+		keywords % string(39 - keywords.length(), ' ') % data.get("_database_PDB_rev.date_original") % mID).str();
+	mCompound = data.get("_struct.pdbx_descriptor");
+	mSource = data.get("_entity_src_gen.pdbx_gene_src_scientific_name");
+	foreach (auto& author, data["_audit_author"])
+		mAuthor = (mAuthor.empty() ? mAuthor : mAuthor + "; ") + author["name"];
+	
+	// ssbonds
+	
+	foreach (auto& ss, data["_struct_conn"])
+	{
+		if (ss["conn_type_id"] != "disulf")
+			continue;
+		
+		pair<MResidueID,MResidueID> ssbond;
+
+		ssbond.first.chain = ss["ptnr1_label_asym_id"];
+		ssbond.first.seqNumber = boost::lexical_cast<uint16>(ss["ptnr1_label_seq_id"]);
+		ssbond.first.insertionCode = ss["pdbx_ptnr1_PDB_ins_code"];
+		if (ssbond.first.insertionCode == "?")
+			ssbond.first.insertionCode.clear();
+
+		ssbond.second.chain = ss["ptnr2_label_asym_id"];
+		ssbond.second.seqNumber = boost::lexical_cast<uint16>(ss["ptnr2_label_seq_id"]);
+		ssbond.second.insertionCode = ss["pdbx_ptnr2_PDB_ins_code"];
+		if (ssbond.second.insertionCode == "?")
+			ssbond.second.insertionCode.clear();
+		
+		ssbonds.push_back(ssbond);
+	}
+	
+	vector<MAtom> atoms;
+	string lastSeqID;
+	char firstAltLoc = 0;
+	
+	foreach (auto& atom, data["_atom_site"])
+	{
+		// skip over NMR models > 1
+		if (atoi(atom["pdbx_PDB_model_num"].c_str()) > 1)
+			continue;
+		
+		if (not atoms.empty() and atom["label_seq_id"] != lastSeqID)
+		{
+			AddResidue(atoms);
+			atoms.clear();
+			firstAltLoc = 0;
+		}
+		
+		lastSeqID = atom["label_seq_id"];
+		
+		string s;
+		
+		MAtom a;
+		
+		a.mSerial = boost::lexical_cast<uint32>(atom["id"]);
+		a.mName = atom["label_atom_id"];
+		a.mAltLoc = atom["label_alt_id"] == "." ? ' ' : atom["label_alt_id"][0];
+		a.mResName = atom["label_comp_id"];
+		a.mChainID = atom["label_asym_id"];
+		a.mResSeq = boost::lexical_cast<int16>(atom["label_seq_id"]);
+		a.mICode = atom["pdbx_PDB_ins_code"] == "?" ? "" : atom["pdbx_PDB_ins_code"];
+
+		a.mLoc.mX = ParseFloat(atom["Cartn_x"]);
+		a.mLoc.mY = ParseFloat(atom["Cartn_y"]);
+		a.mLoc.mZ = ParseFloat(atom["Cartn_z"]);
+		
+		a.mOccupancy = ParseFloat(atom["occupancy"]);
+		a.mTempFactor = ParseFloat(atom["B_iso_or_equiv"]);
+		a.mElement = atom["type_symbol"];
+		a.mCharge = atom["pdbx_formal_charge"] != "?" ? boost::lexical_cast<int>(atom["pdbx_formal_charge"]) : 0;
+
+		try
+		{
+			a.mType = MapElement(a.mElement);
+		}
+		catch (exception& e)
+		{
+			if (VERBOSE)
+				cerr << e.what() << endl;
+			a.mType = kUnknownAtom;
+		}
+		
+		if (a.mType == kHydrogen)
+			continue;
+
+		if (a.mAltLoc != ' ')
+		{
+			if (firstAltLoc == 0)
+				firstAltLoc = a.mAltLoc;
+			if (a.mAltLoc == firstAltLoc)
+				a.mAltLoc = 'A';
+		}
+
+		if (firstAltLoc != 0 and a.mAltLoc != ' ' and a.mAltLoc != firstAltLoc)
+		{
+			if (VERBOSE)
+				cerr << "skipping alternate atom record " << a.mResName << endl;
+			continue;
+		}
+
+		atoms.push_back(a);
+	}
+
+	if (not atoms.empty())
+		AddResidue(atoms);
+	
+	// map the sulfur bridges
+	uint32 ssbondNr = 1;
+	typedef pair<MResidueID,MResidueID> SSBond;
+	foreach (const SSBond& ssbond, ssbonds)
+	{
+		try
+		{
+			MResidue* first = GetResidue(ssbond.first.chain, ssbond.first.seqNumber, ssbond.first.insertionCode);
+			MResidue* second = GetResidue(ssbond.second.chain, ssbond.second.seqNumber, ssbond.second.insertionCode);
+		
+			if (first == second)
+				throw mas_exception("first and second residue are the same");
+		
+			first->SetSSBridgeNr(ssbondNr);
+			second->SetSSBridgeNr(ssbondNr);
+			
+			mSSBonds.push_back(make_pair(first, second));
+			
+			++ssbondNr;
+		}
+		catch (exception& e)
+		{
+			if (VERBOSE)
+				cerr << "invalid residue referenced in SSBOND record: " << e.what() << endl;
+		}
+	}
+	
+	mChains.erase(
+		remove_if(mChains.begin(), mChains.end(), boost::bind(&MChain::Empty, _1)),
+		mChains.end());
+
+	if (VERBOSE and mIgnoredWaterMolecules)
+		cerr << "Ignored " << mIgnoredWaterMolecules << " water molecules" << endl;
+	
+	if (mChains.empty())
+		throw mas_exception("empty protein, or no valid complete residues");
 }
 
 string MProtein::GetCompound() const
 {
-	string result;
-	if (not mCompound.empty())
-	{
-		result = mCompound.front();
-		if (ba::starts_with(result.substr(10), "MOL_ID: "))
-		{
-			if (mCompound.size() > 1)
-				result = mCompound[1];
-			else
-				result.clear();
-		}
-	}
-	return result;
+	string result("COMPND    ");
+	result += mCompound;
+	return result.substr(0, 80);
 }
 
 string MProtein::GetSource() const
 {
-	string result;
-	if (not mSource.empty())
-	{
-		result = mSource.front();
-		if (ba::starts_with(result.substr(10), "MOL_ID: "))
-		{
-			if (mSource.size() > 1)
-				result = mSource[1];
-			else
-				result.clear();
-		}
-	}
-	return result;
+	string result("SOURCE    ");
+	result += mSource;
+	return result.substr(0, 80);
 }
 
 string MProtein::GetAuthor() const
 {
-	string result;
-	if (not mAuthor.empty())
-	{
-		result = mAuthor.front();
-		if (ba::starts_with(result.substr(10), "MOL_ID: "))
-		{
-			if (mAuthor.size() > 1)
-				result = mAuthor[1];
-			else
-				result.clear();
-		}
-	}
-	return result;
+	string result("AUTHOR    ");
+	result += mAuthor;
+	return result.substr(0, 80);
 }
 
 void MProtein::GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
@@ -1376,13 +1528,13 @@ void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 	bool hasN = false, hasCA = false, hasC = false, hasO = false;
 	foreach (const MAtom& atom, inAtoms)
 	{
-		if (atom.GetName() == " N  ")
+		if (atom.GetName() == "N")
 			hasN = true;
-		if (atom.GetName() == " CA ")
+		if (atom.GetName() == "CA")
 			hasCA = true;
-		if (atom.GetName() == " C  ")
+		if (atom.GetName() == "C")
 			hasC = true;
-		if (atom.GetName() == " O  ")
+		if (atom.GetName() == "O")
 			hasO = true;
 	}
 	
@@ -1410,13 +1562,13 @@ void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 		residues.push_back(r);
 		++mResidueCount;
 	}
-	else if (string(inAtoms.front().mResName) == "HOH ")
+	else if (string(inAtoms.front().mResName) == "HOH")
 		++mIgnoredWaterMolecules;
 	else if (VERBOSE)
 		cerr << "ignoring incomplete residue " << inAtoms.front().mResName << " (" << inAtoms.front().mResSeq << ')' << endl;
 }
 
-const MChain& MProtein::GetChain(char inChainID) const
+const MChain& MProtein::GetChain(const string& inChainID) const
 {
 	for (uint32 i = 0; i < mChains.size(); ++i)
 		if (mChains[i]->GetChainID() == inChainID)
@@ -1426,7 +1578,7 @@ const MChain& MProtein::GetChain(char inChainID) const
 	return *mChains.front();
 }
 
-MChain& MProtein::GetChain(char inChainID)
+MChain& MProtein::GetChain(const string& inChainID)
 {
 	for (uint32 i = 0; i < mChains.size(); ++i)
 		if (mChains[i]->GetChainID() == inChainID)
@@ -1436,7 +1588,7 @@ MChain& MProtein::GetChain(char inChainID)
 	return *mChains.back();
 }
 
-void MProtein::GetPoints(std::vector<MPoint>& outPoints) const
+void MProtein::GetPoints(vector<MPoint>& outPoints) const
 {
 	foreach (const MChain* chain, mChains)
 	{
@@ -1476,7 +1628,7 @@ void MProtein::CalculateSecondaryStructure(bool inPreferPiHelices)
 	t.join();
 }
 
-void MProtein::CalculateHBondEnergies(const std::vector<MResidue*>& inResidues)
+void MProtein::CalculateHBondEnergies(const vector<MResidue*>& inResidues)
 {
 	if (VERBOSE)
 		cerr << "Calculate H-bond energies" << endl;
@@ -1501,7 +1653,7 @@ void MProtein::CalculateHBondEnergies(const std::vector<MResidue*>& inResidues)
 }
 
 // TODO: improve alpha helix calculation by better recognizing pi-helices 
-void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues, bool inPreferPiHelices)
+void MProtein::CalculateAlphaHelices(const vector<MResidue*>& inResidues, bool inPreferPiHelices)
 {
 	if (VERBOSE)
 		cerr << "Calculate alhpa helices" << endl;
@@ -1600,7 +1752,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues, b
 	}
 }
 
-void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
+void MProtein::CalculateBetaSheets(const vector<MResidue*>& inResidues)
 {
 	if (VERBOSE)
 		cerr << "Calculate beta sheets" << endl;
@@ -1838,7 +1990,7 @@ void MProtein::CalculateBetaSheets(const std::vector<MResidue*>& inResidues)
 	}
 }
 
-void MProtein::CalculateAccessibilities(const std::vector<MResidue*>& inResidues)
+void MProtein::CalculateAccessibilities(const vector<MResidue*>& inResidues)
 {
 	if (VERBOSE)
 		cerr << "Calculate accessibilities" << endl;
@@ -1869,7 +2021,7 @@ void MProtein::CalculateAccessibilities(const std::vector<MResidue*>& inResidues
 }
 
 void MProtein::CalculateAccessibility(MResidueQueue& inQueue,
-	const std::vector<MResidue*>& inResidues)
+	const vector<MResidue*>& inResidues)
 {
 	// make sure the MSurfaceDots is constructed once
 	(void)MSurfaceDots::Instance();
@@ -1896,37 +2048,39 @@ void MProtein::Center()
 	Translate(MPoint(-t.mX, -t.mY, -t.mZ));
 }
 
-void MProtein::SetChain(char inChainID, const MChain& inChain)
+void MProtein::SetChain(const string& inChainID, const MChain& inChain)
 {
 	MChain& chain(GetChain(inChainID));
 	chain = inChain;
 	chain.SetChainID(inChainID);
 }
 
-MResidue* MProtein::GetResidue(char inChainID, uint16 inSeqNumber, char inInsertionCode)
+MResidue* MProtein::GetResidue(const string& inChainID, uint16 inSeqNumber, const string& inInsertionCode)
 {
 	MChain& chain = GetChain(inChainID);
 	if (chain.GetResidues().empty())
-		throw mas_exception(boost::format("Invalid chain id '%c'") % inChainID);
+		throw mas_exception(boost::format("Invalid chain id '%s'") % inChainID);
 	return chain.GetResidueBySeqNumber(inSeqNumber, inInsertionCode);
 }
 
-void MProtein::GetCAlphaLocations(char inChain, vector<MPoint>& outPoints) const
+void MProtein::GetCAlphaLocations(const string& inChainID, vector<MPoint>& outPoints) const
 {
-	if (inChain == 0)
-		inChain = mChains.front()->GetChainID();
+	string chainID = inChainID;
+	if (chainID.empty())
+		chainID = mChains.front()->GetChainID();
 	
-	foreach (const MResidue* r, GetChain(inChain).GetResidues())
+	foreach (const MResidue* r, GetChain(chainID).GetResidues())
 		outPoints.push_back(r->GetCAlpha());
 }
 
-MPoint MProtein::GetCAlphaPosition(char inChain, int16 inPDBResSeq) const
+MPoint MProtein::GetCAlphaPosition(const string& inChainID, int16 inPDBResSeq) const
 {
-	if (inChain == 0)
-		inChain = mChains.front()->GetChainID();
+	string chainID = inChainID;
+	if (chainID.empty())
+		chainID = mChains.front()->GetChainID();
 	
 	MPoint result;
-	foreach (const MResidue* r, GetChain(inChain).GetResidues())
+	foreach (const MResidue* r, GetChain(chainID).GetResidues())
 	{
 		if (r->GetSeqNumber() != inPDBResSeq)
 			continue;
@@ -1937,13 +2091,14 @@ MPoint MProtein::GetCAlphaPosition(char inChain, int16 inPDBResSeq) const
 	return result;
 }
 
-void MProtein::GetSequence(char inChain, entry& outEntry) const
+void MProtein::GetSequence(const string& inChainID, entry& outEntry) const
 {
-	if (inChain == 0)
-		inChain = mChains.front()->GetChainID();
+	string chainID = inChainID;
+	if (chainID.empty())
+		chainID = mChains.front()->GetChainID();
 	
 	string seq;
-	foreach (const MResidue* r, GetChain(inChain).GetResidues())
+	foreach (const MResidue* r, GetChain(chainID).GetResidues())
 	{
 		seq += kResidueInfo[r->GetType()].code;
 		outEntry.m_positions.push_back(r->GetSeqNumber());
@@ -1953,13 +2108,14 @@ void MProtein::GetSequence(char inChain, entry& outEntry) const
 	outEntry.m_seq = encode(seq);
 }
 
-void MProtein::GetSequence(char inChain, sequence& outSequence) const
+void MProtein::GetSequence(const string& inChainID, sequence& outSequence) const
 {
-	if (inChain == 0)
-		inChain = mChains.front()->GetChainID();
+	string chainID = inChainID;
+	if (chainID.empty())
+		chainID = mChains.front()->GetChainID();
 	
 	string seq;
-	foreach (const MResidue* r, GetChain(inChain).GetResidues())
+	foreach (const MResidue* r, GetChain(chainID).GetResidues())
 		seq += kResidueInfo[r->GetType()].code;
 	
 	outSequence = encode(seq);

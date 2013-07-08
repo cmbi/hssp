@@ -798,11 +798,17 @@ Alignment::~Alignment()
 	delete[] m_data;
 }
 
+inline uint32 mapkey(uint32 i, uint32 alpha, uint32 q)
+{
+	return (q - 1) * (i - 1) + alpha;
+}
+
 void CalculateMI(const mseq& msa, ostream& os)
 {
 	Alignment align(msa);
 	
-	const double theta = 0.2f;
+	const double theta = 0.2;
+	const double pseudocount_weight = 0.5;
 	
 	uint32 M = align.M();
 	uint32 N = align.N();
@@ -922,6 +928,109 @@ void CalculateMI(const mseq& msa, ostream& os)
 	}
 
 	os << "//" << endl;
+	
+	// direct information
+	
+	// use pseudo count weight
+	
+	Pij *= 1 - pseudocount_weight;
+	Pij += pseudocount_weight / (q * q);
+	
+	Pi *= 1 - pseudocount_weight;
+	Pi += pseudocount_weight / q;
+	
+	for (uint32 i = 0; i < N; ++i)
+	{
+		for (uint32 alpha = 0; alpha < q; ++alpha)
+		{
+			for (uint32 beta = 0; beta < q; ++beta)
+			{
+				Pij(i, i)(alpha, beta) =
+					Pij(i, i)(alpha, beta) - (pseudocount_weight / (q * q)) + 
+						(alpha == beta ? pseudocount_weight / q : 0);
+			}
+		}
+	}
+	
+	// calculate inverse Covariance matrix
+	
+	symmetric_matrix<double> C(N);
+	for (uint32 i = 0; i + 1 < N; ++i)
+	{
+		for (uint32 j = i + 1; j < N; ++j)
+		{
+			for (uint32 alpha = 0; alpha < q; ++alpha)
+			{
+				for (uint32 beta = 0; beta < q; ++beta)
+				{
+					C(mapkey(i, alpha, q), mapkey(j, beta, q)) =
+						Pij(i, j)(alpha, beta) - Pi(i, alpha) * Pi(j, beta);
+				}
+			}
+		}
+	}
+	
+	C = invert(C);
+	
+	symmetric_matrix<double> DI(N);
+	
+	for (uint32 i = 0; i + 1 < N; ++i)
+	{
+		for (uint32 j = i + 1; j < N; ++j)
+		{
+			// direct information from mean-field
+			
+			matrix<double> W_mf(q, q, 1.0);
+			
+			for (uint32 ki = 0; ki < q - 1; ++ki)
+			{
+				for (uint32 kj = 0; kj < q - 1; ++kj)
+				{
+					W_mf(ki, kj) = exp(-C(mapkey(i, ki, q), mapkey(j, kj, q)));
+				}
+			}
+			
+			// calculate mu
+			
+			double mu1 = 1.0 / q, mu2 = 1.0 / q;
+			double epsilon = 1e-4;
+			double diff = 1.0;
+			
+			
+			
+			for (uint32 alpha = 0; alpha < q; ++alpha)
+			{
+				for (uint32 beta = 0; beta < q; ++beta)
+				{
+					if (Pij(i, j)(alpha, beta) > 0)
+						m += Pij(i, j)(alpha, beta) * log(Pij(i, j)(alpha, beta) / (Pi(i, alpha) * Pi(j, beta)));
+				}
+			}
+			
+			MI(i, j) = m;
+		}
+	}
+	
+	
+	
+//	os << "  ";
+//	for (uint32 i = 0; i < N; ++i)
+//		os << kResidues[align(0, i)] << "     ";
+//	os << endl;
+//
+//	for (uint32 i = 0; i < N; ++i)
+//	{
+//		os << kResidues[align(0, i)];
+//		
+//		for (uint32 j = 0; j < N; ++j)
+//			os << boost::format(" %5.3f") % MI(i, j);
+//		
+//		os << endl;
+//	}
+//
+//	os << "//" << endl;
+	
+	
 }
 
 // --------------------------------------------------------------------

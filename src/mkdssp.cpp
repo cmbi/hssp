@@ -25,6 +25,7 @@
 
 #include "dssp.h"
 #include "structure.h"
+#include "iocif.h"
 
 using namespace std;
 namespace po = boost::program_options;
@@ -100,15 +101,26 @@ int main(int argc, char* argv[])
 		
 #if defined USE_COMPRESSION
 		if (ba::ends_with(input, ".bz2"))
+		{
 			in.push(io::bzip2_decompressor());
+			input.erase(input.length() - 4);
+		}
 		else if (ba::ends_with(input, ".gz"))
+		{
 			in.push(io::gzip_decompressor());
+			input.erase(input.length() - 3);
+		}
 #endif
 		
 		in.push(infile);
 	
 		// OK, we've got the file, now create a protein
-		MProtein a(in);
+		MProtein a;
+
+		if (ba::ends_with(input, ".cif"))
+			a.ReadmmCIF(in);
+		else
+			a.ReadPDB(in);
 		
 		// then calculate the secondary structure
 		a.CalculateSecondaryStructure();

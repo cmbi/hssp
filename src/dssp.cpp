@@ -33,7 +33,7 @@ string ResidueToDSSPLine(const MResidue& residue)
 
  */
 	boost::format kDSSPResidueLine(
-	"%5.5d%5.5d%c%c %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
+	"%5.5d%5.5d%1.1s%1.1s %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f");
 	
 	const MAtom& ca = residue.GetCAlpha();
 	
