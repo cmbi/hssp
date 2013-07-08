@@ -30,14 +30,14 @@
     </group>
     <group name="Libraries">
       <link>zeep</link>
-      <link shared="true">boost_date_time</link>
-      <link shared="true">boost_filesystem</link>
-      <link shared="true">boost_iostreams</link>
-      <link shared="true">boost_program_options</link>
-      <link shared="true">boost_thread</link>
-      <link shared="true">boost_regex</link>
-      <link shared="true">boost_math_c99</link>
-      <link shared="true">boost_system</link>
+      <link>boost_date_time</link>
+      <link>boost_filesystem</link>
+      <link>boost_iostreams</link>
+      <link>boost_program_options</link>
+      <link>boost_thread</link>
+      <link>boost_regex</link>
+      <link>boost_math_c99</link>
+      <link>boost_system</link>
       <link shared="true">boost_timer</link>
     </group>
   </files>

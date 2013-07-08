@@ -1,3 +1,6 @@
+2.2.0
+- Added support for reading mmCIF files.
+
 2.1.0
 - Changed the assignment of helices. A pi-helix now takes precedence over
   an alhpa helix. This is based the article: Cooley, R.B. et al.,

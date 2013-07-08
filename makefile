@@ -12,7 +12,7 @@ firstTarget: all
 
 include make.config
 
-VERSION				= 2.1.0
+VERSION				= 2.2.0
 
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR) $(ZEEP_DIR) $(DEST_DIR)lib $(HOME)/projects/mrs/lib
@@ -64,7 +64,7 @@ all: $(OBJ) | mkdssp mkhssp hsspconv
 #	@ $(CC) -o $@ $(OBJECTS) $(LDOPTS)
 #	@ echo OK
 
-mkdssp: $(OBJ)/mkdssp.o $(OBJ)/dssp.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o $(OBJ)/mas.o
+mkdssp: $(OBJ)/mkdssp.o $(OBJ)/dssp.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o $(OBJ)/mas.o $(OBJ)/iocif.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
@@ -76,7 +76,7 @@ mkhssp: $(OBJ)/mkhssp.o $(OBJ)/hssp-nt.o $(OBJ)/dssp.o $(OBJ)/matrix.o $(OBJ)/pr
 
 hsspsoap: $(OBJ)/hsspsoap.o $(OBJ)/hssp-nt.o $(OBJ)/dssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o $(OBJ)/blast.o $(OBJ)/mas.o $(OBJ)/matrix.o $(OBJ)/fetchdbrefs.o
 	@ echo linking $@
-	@ $(CC) -static -o $@ $^ $(LDOPTS)
+	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
 hsspconv: $(OBJ)/hssp-convert-3to1.o $(OBJ)/utils.o
