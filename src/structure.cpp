@@ -1353,7 +1353,7 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 		a.mName = atom["auth_atom_id"];
 		a.mAltLoc = atom["label_alt_id"] == "." ? ' ' : atom["label_alt_id"][0];
 		a.mResName = atom["auth_comp_id"];
-		a.mChainID = atom["auth_asym_id"];
+		a.mChainID = atom["label_asym_id"];
 		a.mResSeq = boost::lexical_cast<int16>(atom["auth_seq_id"]);
 		a.mICode = atom["pdbx_PDB_ins_code"] == "?" ? "" : atom["pdbx_PDB_ins_code"];
 
