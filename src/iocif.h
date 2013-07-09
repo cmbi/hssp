@@ -96,6 +96,8 @@ struct record
 		return m_name < rhs.m_name;
 	}
 	
+	std::string		get_joined(const char* inDelimiter) const;
+	
 	const char*		m_start;
 	const char*		m_end;
 	bool			m_loop;
@@ -111,6 +113,7 @@ class file
 	record operator[](const char* inName) const;
 	
 	std::string get(const char* inName) const;
+	std::string get_joined(const char* inName, const char* inDelimiter) const;
 
   private:
 	std::vector<char>	m_buffer;

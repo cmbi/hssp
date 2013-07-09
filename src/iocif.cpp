@@ -29,14 +29,18 @@ const char* skip_value(const char* p, const char* end);
 
 string row::operator[](const char* inName) const
 {
+	string result;
+	
 	foreach (const field& f, m_fields)
 	{
 		if (strncmp(inName, f.m_name, f.m_name_end - f.m_name) == 0)
-			return f.value();
+		{
+			result = f.value();
+			break;
+		}
 	}
 	
-	throw mas_exception(boost::format("Field %s not found") % inName);
-	return "";
+	return result;
 }
 
 row record::front() const
@@ -141,6 +145,16 @@ void record::advance(row& row) const
 		row.m_fields.clear();
 		row.m_field = -1;
 	}
+}
+
+string record::get_joined(const char* inName, const char* inDelimiter) const
+{
+	string result;
+	
+	foreach (iterator i = begin(); i != end(); ++i)
+		result = (result.empty() ? result : result + inDelimiter) + i->operator[](inName);
+	
+	return result;
 }
 
 file::file(istream& is)
@@ -302,6 +316,22 @@ string file::get(const char* inName) const
 	
 	record r = operator[](string(inName, p).c_str());
 	return r.front()[string(p + 1).c_str()];
+}
+
+string file::get_joined(const char* inName, const char* inDelimiter) const
+{
+	const char* p = strchr(inName, '.');
+	assert(p != nullptr);
+	if (p == nullptr)
+		throw logic_error("incorrect name");
+	
+	string result;
+	
+	vector<record>::const_iterator i = lower_bound(m_records.begin(), m_records.end(), test);
+	if (i != m_records.end() and i->m_name == inName)
+		result = i->get_joined(p + 1, inDelimiter);
+	
+	return result;
 }
 
 // skip to first character after the next NL character

@@ -1276,16 +1276,38 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 	set<char> terminatedChains;
 
 	// Read the mmCIF data into a mmCIF file class
+	// Using http://mmcif.rcsb.org/dictionaries/pdb-correspondence/pdb2mmcif-2010.html
+	// as a reference.
+	
 	mmCIF::file data(is);
 	
+	// ID
 	mID = data.get("_entry.id");
+	
+	// HEADER
 	string keywords = data.get("_struct_keywords.text").substr(0, 39);
 	mHeader = (boost::format("HEADER    %s %s%s %s") %
 		keywords % string(39 - keywords.length(), ' ') % data.get("_database_PDB_rev.date_original") % mID).str();
-	mCompound = data.get("_struct.pdbx_descriptor");
-	mSource = data.get("_entity_src_gen.pdbx_gene_src_scientific_name");
-	foreach (auto& author, data["_audit_author"])
-		mAuthor = (mAuthor.empty() ? mAuthor : mAuthor + "; ") + author["name"];
+		
+	// COMPND
+	foreach (auto& desc, data["_entity"])
+	{
+		if (desc["type"] == "polymer")
+			mCompound = (mCompound.empty() ? mCompound : mCompound + "; ") + desc["pdbx_description"];
+	}
+	
+	if (mCompound.empty())
+		mCompound = data.get_joined("_struct.pdbx_descriptor", "; ");
+
+	// SOURCE
+	mSource = data.get_joined("_entity_src_nat.pdbx_organism_scientific", "; ");
+	if (mSource.empty())
+		mSource = data.get_joined("_entity_src_gen.pdbx_gene_src_scientific_name", "; ");
+	if (mSource.empty())
+		mSource = data.get_joined("_pdbx_entity_src_syn.organism_scientific", "; ");
+	
+	// AUTHOR
+	mAuthor = data.get_joined("_audit_author.name", "; ");
 	
 	// ssbonds
 	
