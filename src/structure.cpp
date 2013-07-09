@@ -1337,6 +1337,9 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 	string lastSeqID;
 	char firstAltLoc = 0;
 	
+	// remap label_seq_id to auth_seq_id
+	map<string, map<int,int>> seq_id_map;
+	
 	foreach (auto& atom, data["_atom_site"])
 	{
 		// skip over NMR models > 1
@@ -1363,6 +1366,9 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 		a.mChainID = atom["auth_asym_id"];
 		a.mResSeq = boost::lexical_cast<int16>(atom["auth_seq_id"]);
 		a.mICode = atom["pdbx_PDB_ins_code"] == "?" ? "" : atom["pdbx_PDB_ins_code"];
+
+		// map seq_id
+		seq_id_map[a.mChainID][boost::lexical_cast<int16>(atom["label_seq_id"])] = a.mResSeq;
 
 		a.mLoc.mX = ParseFloat(atom["Cartn_x"]);
 		a.mLoc.mY = ParseFloat(atom["Cartn_y"]);
@@ -1415,8 +1421,10 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 	{
 		try
 		{
-			MResidue* first = GetResidue(ssbond.first.chain, ssbond.first.seqNumber, ssbond.first.insertionCode);
-			MResidue* second = GetResidue(ssbond.second.chain, ssbond.second.seqNumber, ssbond.second.insertionCode);
+			MResidue* first = GetResidue(ssbond.first.chain, 
+				seq_id_map[ssbond.first.chain][ssbond.first.seqNumber], ssbond.first.insertionCode);
+			MResidue* second = GetResidue(ssbond.second.chain,
+				seq_id_map[ssbond.second.chain][ssbond.second.seqNumber], ssbond.second.insertionCode);
 		
 			if (first == second)
 				throw mas_exception("first and second residue are the same");
