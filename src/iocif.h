@@ -96,7 +96,7 @@ struct record
 		return m_name < rhs.m_name;
 	}
 	
-	std::string		get_joined(const char* inDelimiter) const;
+	std::string		get_joined(const char* inFieldName, const char* inDelimiter) const;
 	
 	const char*		m_start;
 	const char*		m_end;

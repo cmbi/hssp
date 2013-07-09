@@ -151,8 +151,8 @@ string record::get_joined(const char* inName, const char* inDelimiter) const
 {
 	string result;
 	
-	foreach (iterator i = begin(); i != end(); ++i)
-		result = (result.empty() ? result : result + inDelimiter) + i->operator[](inName);
+	for (iterator i = begin(); i != end(); ++i)
+		result = (result.empty() ? result : result + inDelimiter) + i->operator[](inName);
 	
 	return result;
 }
@@ -179,7 +179,6 @@ file::file(istream& is)
 	p = skip_line(p, m_end);
 	
 	record rec = { p };
-	uint32 valueCount = 0;
 	bool loop = false;
 	
 	while (p < m_end)
@@ -283,6 +282,7 @@ file::file(istream& is)
 		}
 		
 		p = skip_value(p, m_end);
+		p = skip_white(p, m_end);
 		
 		// check for a new data_ block
 		if (p != m_end and strncmp(p, "data_", 5) == 0)
@@ -297,14 +297,14 @@ file::file(istream& is)
 
 record file::operator[](const char* inName) const
 {
-	record test;
-	test.m_name = inName;
+	record result = {};
+	result.m_name = inName;
 	
-	vector<record>::const_iterator i = lower_bound(m_records.begin(), m_records.end(), test);
-	if (i == m_records.end() or i->m_name != inName)
-		throw mas_exception(boost::format("Field %s not found") % inName);
+	vector<record>::const_iterator i = lower_bound(m_records.begin(), m_records.end(), result);
+	if (i != m_records.end() and i->m_name == inName)
+		result = *i;
 	
-	return *i;
+	return result;
 }
 
 string file::get(const char* inName) const
@@ -325,10 +325,13 @@ string file::get_joined(const char* inName, const char* inDelimiter) const
 	if (p == nullptr)
 		throw logic_error("incorrect name");
 	
+	record test;
+	test.m_name.assign(inName, p);
+	
 	string result;
 	
 	vector<record>::const_iterator i = lower_bound(m_records.begin(), m_records.end(), test);
-	if (i != m_records.end() and i->m_name == inName)
+	if (i != m_records.end() and i->m_name == test.m_name)
 		result = i->get_joined(p + 1, inDelimiter);
 	
 	return result;
@@ -374,19 +377,19 @@ const char* skip_value(const char* p, const char* end)
 {
 	for (;;)
 	{
-		if (*p == '\n' and *(p + 1) == ';')
-		{
-			do p = skip_line(p + 1, end); while (p < end and *p != ';');
-			++p;
-			break;
-		}
-		
 		if (isspace(*p))
 		{
 			++p;
 			continue;
 		}
 
+		if (*p == ';' and *(p - 1) == '\n')
+		{
+			do p = skip_line(p, end); while (p < end and *p != ';');
+			++p;
+			break;
+		}
+		
 		if (*p == '\'')
 		{
 			do ++p; while (p != end and *p != '\'');
@@ -403,7 +406,7 @@ const char* skip_value(const char* p, const char* end)
 		
 		if (*p == '#')
 		{
-			p = skip_line(p + 1, end);
+			p = skip_line(p, end);
 			continue;
 		}
 		
