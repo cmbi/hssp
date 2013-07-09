@@ -1368,7 +1368,11 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 		a.mICode = atom["pdbx_PDB_ins_code"] == "?" ? "" : atom["pdbx_PDB_ins_code"];
 
 		// map seq_id
-		seq_id_map[a.mChainID][boost::lexical_cast<int16>(atom["label_seq_id"])] = a.mResSeq;
+		string label_seq_id = atom["label_seq_id"];
+		if (label_seq_id == "?" or label_seq_id == ".")
+			seq_id_map[a.mChainID][a.mResSeq] = a.mResSeq;
+		else
+			seq_id_map[a.mChainID][boost::lexical_cast<int16>(label_seq_id)] = a.mResSeq;
 
 		a.mLoc.mX = ParseFloat(atom["Cartn_x"]);
 		a.mLoc.mY = ParseFloat(atom["Cartn_y"]);
