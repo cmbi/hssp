@@ -1290,7 +1290,7 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 		keywords % string(39 - keywords.length(), ' ') % data.get("_database_PDB_rev.date_original") % mID).str();
 		
 	// COMPND
-	foreach (auto& desc, data["_entity"])
+	foreach (const mmCIF::row& desc, data["_entity"])
 	{
 		if (desc["type"] == "polymer")
 			mCompound = (mCompound.empty() ? mCompound : mCompound + "; ") + desc["pdbx_description"];
@@ -1311,7 +1311,7 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 	
 	// ssbonds
 	
-	foreach (auto& ss, data["_struct_conn"])
+	foreach (const mmCIF::row& ss, data["_struct_conn"])
 	{
 		if (ss["conn_type_id"] != "disulf")
 			continue;
@@ -1339,7 +1339,7 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 	// remap label_seq_id to auth_seq_id
 	map<string, map<int,int>> seq_id_map;
 	
-	foreach (auto& atom, data["_atom_site"])
+	foreach (const mmCIF::row& atom, data["_atom_site"])
 	{
 		// skip over NMR models > 1
 		if (atoi(atom["pdbx_PDB_model_num"].c_str()) > 1)
