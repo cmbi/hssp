@@ -1334,7 +1334,6 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 	}
 	
 	vector<MAtom> atoms;
-	string lastSeqID;
 	char firstAltLoc = 0;
 	
 	// remap label_seq_id to auth_seq_id
@@ -1346,16 +1345,7 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 		if (atoi(atom["pdbx_PDB_model_num"].c_str()) > 1)
 			continue;
 		
-		if (not atoms.empty() and atom["label_seq_id"] != lastSeqID)
-		{
-			AddResidue(atoms);
-			atoms.clear();
-			firstAltLoc = 0;
-		}
-		
-		lastSeqID = atom["label_seq_id"];
-		
-		string s;
+		string label_seq_id = atom["label_seq_id"];
 		
 		MAtom a;
 		
@@ -1368,7 +1358,6 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 		a.mICode = atom["pdbx_PDB_ins_code"] == "?" ? "" : atom["pdbx_PDB_ins_code"];
 
 		// map seq_id
-		string label_seq_id = atom["label_seq_id"];
 		if (label_seq_id == "?" or label_seq_id == ".")
 			seq_id_map[a.mChainID][a.mResSeq] = a.mResSeq;
 		else
@@ -1396,6 +1385,16 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 		
 		if (a.mType == kHydrogen)
 			continue;
+
+		if (not atoms.empty() and
+			(a.mChainID != atoms.back().mChainID or 
+			 (a.mResSeq != atoms.back().mResSeq or
+			  (a.mResSeq == atoms.back().mResSeq and a.mICode != atoms.back().mICode))))
+		{
+			AddResidue(atoms);
+			atoms.clear();
+			firstAltLoc = 0;
+		}
 
 		if (a.mAltLoc != ' ')
 		{
