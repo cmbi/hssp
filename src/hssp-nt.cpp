@@ -158,7 +158,7 @@ float calculateDistance(const sequence& a, const sequence& b)
 struct MResInfo
 {
 	uint8			m_letter;
-	uint8			m_chain_id;
+	string			m_chain_id;
 	uint32			m_seq_nr;
 	uint32			m_pdb_nr;
 	MSecondaryStructure
@@ -775,7 +775,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 	   << "#=GF CC SeqNo   PDBNo AA STRUCTURE BP1 BP2  ACC  NOCC VAR" << endl;
 	foreach (auto& ri, m_residues)
 	{
-		if (ri.m_chain_id == 0)
+		if (ri.m_chain_id.empty())
 			continue;
 
 		if (ri.m_seq_nr != nextNr)
@@ -794,14 +794,14 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 	nextNr = m_residues.front().m_seq_nr;
 	foreach (auto& ri, m_residues)
 	{
-		if (ri.m_chain_id == 0)
+		if (ri.m_chain_id.empty())
 			continue;
 
 		if (ri.m_seq_nr != nextNr)
 			os << boost::format("#=GF PR %5.5d           0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
 				% nextNr << endl;
 
-		os << boost::format("#=GF PR %5.5d %5.5d %c") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
+		os << boost::format("#=GF PR %5.5d %5.5d %1.1s") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
 
 		for (uint32 i = 0; i < 20; ++i)
 			os << boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
@@ -1372,7 +1372,7 @@ void CreateHSSP(const string& inProtein, const vector<fs::path>& inDatabanks,
 	float inThreshold, float inFragmentCutOff, uint32 inThreads, bool inFetchDBRefs,
 	ostream& inOs)
 {
-	MChain* chain = new MChain('A');
+	MChain* chain = new MChain("A");
 	vector<MResidue*>& residues = chain->GetResidues();
 	MResidue* last = nullptr;
 	uint32 nr = 1;
