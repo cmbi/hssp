@@ -1318,14 +1318,14 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 	for (size_t i = 0; i < ix.size(); ++i)
 	{
 		if (ix[i] != i)
-			aka[ix[i]].push_back(string(1, chains[i]->GetChainID()));
+			aka[ix[i]].push_back(chains[i]->GetChainID());
 	}
 
 	sort(ix.begin(), ix.end());
 	ix.erase(unique(ix.begin(), ix.end()), ix.end());
 
 	foreach (size_t i, ix)
-		used.push_back(string(1, chains[i]->GetChainID()));
+		used.push_back(chains[i]->GetChainID());
 
 	bool empty = true;
 

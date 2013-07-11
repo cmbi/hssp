@@ -67,7 +67,7 @@ MProtein* ReadProteinFromFastA(istream& in)
 		seq += line;
 	}
 	
-	MChain* chain = new MChain('A');
+	MChain* chain = new MChain("A");
 	vector<MResidue*>& residues = chain->GetResidues();
 	MResidue* last = nullptr;
 	uint32 nr = 1;
@@ -253,7 +253,13 @@ int main(int argc, char* argv[])
 		else
 		{
 			// read protein and calculate the secondary structure
-			MProtein a(in);
+			MProtein a;
+
+			if (ba::ends_with(input, ".cif"))
+				a.ReadmmCIF(in);
+			else
+				a.ReadPDB(in);
+
 			a.CalculateSecondaryStructure();
 			
 			// create the HSSP file

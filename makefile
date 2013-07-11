@@ -69,7 +69,8 @@ mkdssp: $(OBJ)/mkdssp.o $(OBJ)/dssp.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o 
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
 
-mkhssp: $(OBJ)/mkhssp.o $(OBJ)/hssp-nt.o $(OBJ)/dssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o $(OBJ)/blast.o $(OBJ)/mas.o $(OBJ)/matrix.o $(OBJ)/fetchdbrefs.o $(OBJ)/progress.o
+mkhssp: $(OBJ)/mkhssp.o $(OBJ)/hssp-nt.o $(OBJ)/dssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o \
+		$(OBJ)/blast.o $(OBJ)/mas.o $(OBJ)/matrix.o $(OBJ)/fetchdbrefs.o $(OBJ)/progress.o $(OBJ)/iocif.o
 	@ echo linking $@
 	@ $(CC) $(CFLAGS) -o $@ $^ $(LDOPTS) 
 	@ echo OK
