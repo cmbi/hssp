@@ -1561,13 +1561,13 @@ void MProtein::AddResidue(const vector<MAtom>& inAtoms)
 	bool hasN = false, hasCA = false, hasC = false, hasO = false;
 	foreach (const MAtom& atom, inAtoms)
 	{
-		if (atom.GetName() == "N")
+		if (not hasN and atom.GetName() == "N")
 			hasN = true;
-		if (atom.GetName() == "CA")
+		if (not hasCA and atom.GetName() == "CA")
 			hasCA = true;
-		if (atom.GetName() == "C")
+		if (not hasC and atom.GetName() == "C")
 			hasC = true;
-		if (atom.GetName() == "O")
+		if (not hasO and atom.GetName() == "O")
 			hasO = true;
 	}
 	
