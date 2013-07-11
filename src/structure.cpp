@@ -1337,7 +1337,7 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 	char firstAltLoc = 0;
 	
 	// remap label_seq_id to auth_seq_id
-	map<string, map<int,int>> seq_id_map;
+	map<string, map<int,int> > seq_id_map;
 	
 	foreach (const mmCIF::row& atom, data["_atom_site"])
 	{
