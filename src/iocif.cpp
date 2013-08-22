@@ -10,12 +10,14 @@
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
+#include <boost/algorithm/string.hpp>
 
 #include "iocif.h"
 #include "utils.h"
 
 using namespace std;
 namespace io = boost::iostreams;
+namespace ba = boost::algorithm;
 
 //	Our CIF implementation consists of flyweight classes.
 
@@ -152,7 +154,11 @@ string record::get_joined(const char* inName, const char* inDelimiter) const
 	string result;
 	
 	for (iterator i = begin(); i != end(); ++i)
-		result = (result.empty() ? result : result + inDelimiter) + i->operator[](inName);
+	{
+		string s = i->operator[](inName);
+		ba::trim(s);
+		result = (result.empty() ? result : result + inDelimiter) + s;
+	}
 	
 	return result;
 }

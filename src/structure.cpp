@@ -1293,7 +1293,11 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 	foreach (const mmCIF::row& desc, data["_entity"])
 	{
 		if (desc["type"] == "polymer")
-			mCompound = (mCompound.empty() ? mCompound : mCompound + "; ") + desc["pdbx_description"];
+		{
+			string s = desc["pdbx_description"];
+			ba::trim(s);
+			mCompound = (mCompound.empty() ? mCompound : mCompound + "; ") + s;
+		}
 	}
 	
 	if (mCompound.empty())
@@ -1308,7 +1312,7 @@ void MProtein::ReadmmCIF(istream& is, bool cAlphaOnly)
 	
 	// AUTHOR
 	mAuthor = data.get_joined("_audit_author.name", "; ");
-	
+
 	// ssbonds
 	
 	foreach (const mmCIF::row& ss, data["_struct_conn"])
