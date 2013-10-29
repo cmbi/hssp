@@ -29,7 +29,7 @@
 #include "zeep/config.hpp"
 #include "zeep/server.hpp"
 
-#include "mrsrc.h"
+//#include "mrsrc.h"
 
 #include "blast.h"
 #include "structure.h"
@@ -45,6 +45,12 @@ namespace ba = boost::algorithm;
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
+
+// embedded resources
+extern char _binary_rsrc_index_html_start[];
+extern char _binary_rsrc_index_html_size[];
+extern char _binary_rsrc_error_html_start[];
+extern char _binary_rsrc_error_html_size[];
 
 // globals
 int VERBOSE;
@@ -213,9 +219,9 @@ void hssp_server::handle_request(
 	{
 		if (req.method == "GET" and (uri.empty() or ba::starts_with(uri, "index.htm")))
 		{
-			mrsrc::rsrc rsrc("index.html");
-			
-			rep.set_content(string(rsrc.data(), rsrc.size()), "text/html");
+			//mrsrc::rsrc rsrc("index.html");
+			//rep.set_content(string(rsrc.data(), rsrc.size()), "text/html");
+			rep.set_content(string(_binary_rsrc_index_html_start, _binary_rsrc_index_html_size), "text/html");
 			
 			handled = true;
 		}
@@ -271,8 +277,10 @@ void hssp_server::handle_request(
 	}
 	catch (exception& e)
 	{
-		mrsrc::rsrc rsrc("error.html");
-		string error(rsrc.data(), rsrc.size());
+		//mrsrc::rsrc rsrc("error.html");
+		//string error(rsrc.data(), rsrc.size());
+
+		string error(_binary_rsrc_error_html_start, _binary_rsrc_error_html_size);
 		
 		ba::replace_first(error, "#ERRSTR", e.what());
 		
@@ -290,7 +298,8 @@ void hssp_server::GetDSSPForPDBFile(
 {
 	// create a protein
 	io::filtering_istream in(boost::make_iterator_range(pdbfile));
-	MProtein a(in);
+	MProtein a;
+	a.ReadPDB(in);
 	
 	// then calculate the secondary structure
 	a.CalculateSecondaryStructure();
@@ -308,7 +317,8 @@ void hssp_server::GetHSSPForPDBFile(
 	in.push(boost::make_iterator_range(pdbfile));
 	
 	// OK, we've got the file, now create a protein
-	MProtein a(in);
+	MProtein a;
+	a.ReadPDB(in);
 	
 	// then calculate the secondary structure
 	a.CalculateSecondaryStructure();

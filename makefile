@@ -13,7 +13,6 @@ firstTarget: all
 include make.config
 
 VERSION				= 2.2.1
-
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR) $(ZEEP_DIR) $(DEST_DIR)lib $(HOME)/projects/mrs/lib
 INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
@@ -32,7 +31,7 @@ LIBS				= zeep $(BOOST_LIBS) z bz2 rt
 LDOPTS				= $(LIB_DIR:%=-L%)
 LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 
-CC					?= icpc
+CC				= g++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
 					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread \
 					  -std=c++0x -DVERSION='"$(VERSION)"'
@@ -57,7 +56,8 @@ VPATH += src $(OBJ)
 SOURCES = $(wildcard src/*.cpp)
 OBJECTS = $(SOURCES:src/%.cpp=$(OBJ)/%.o)
 
-all: $(OBJ) | mkdssp mkhssp hsspconv
+#all: $(OBJ) | mkdssp mkhssp hsspconv
+all: hsspsoap
 
 #mas: $(OBJECTS)
 #	@ echo linking $@
@@ -75,7 +75,7 @@ mkhssp: $(OBJ)/mkhssp.o $(OBJ)/hssp-nt.o $(OBJ)/dssp.o $(OBJ)/matrix.o $(OBJ)/pr
 	@ $(CC) $(CFLAGS) -o $@ $^ $(LDOPTS) 
 	@ echo OK
 
-hsspsoap: $(OBJ)/hsspsoap.o $(OBJ)/hssp-nt.o $(OBJ)/dssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o $(OBJ)/blast.o $(OBJ)/mas.o $(OBJ)/matrix.o $(OBJ)/fetchdbrefs.o
+hsspsoap: $(OBJ)/hsspsoap.o $(OBJ)/hssp-nt.o $(OBJ)/dssp.o $(OBJ)/matrix.o $(OBJ)/primitives-3d.o $(OBJ)/structure.o $(OBJ)/utils.o $(OBJ)/blast.o $(OBJ)/mas.o $(OBJ)/matrix.o $(OBJ)/fetchdbrefs.o $(OBJ)/progress.o $(OBJ)/iocif.o $(OBJ)/index.o $(OBJ)/error.o
 	@ echo linking $@
 	@ $(CC) -o $@ $^ $(LDOPTS)
 	@ echo OK
@@ -97,6 +97,12 @@ $(OBJ)/%.o: %.cpp
 
 $(OBJ):
 	mkdir -p $@
+
+$(OBJ)/index.o: rsrc/index.html
+	ld -r -b binary -o obj/index.o rsrc/index.html
+
+$(OBJ)/error.o: rsrc/error.html
+	ld -r -b binary -o obj/error.o rsrc/error.html
 
 $(OBJ)/matrix.o: mtrx/matrices.h
 

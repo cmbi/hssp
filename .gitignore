@@ -1,0 +1,7 @@
+*.h.gch
+obj/
+make.config
+mtrx/matrices.h
+mkdssp
+mkhssp
+hsspsoap
