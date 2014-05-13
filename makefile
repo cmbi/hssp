@@ -99,10 +99,10 @@ $(OBJ):
 	mkdir -p $@
 
 $(OBJ)/index.o: rsrc/index.html
-	ld -r -b binary -o obj/index.o rsrc/index.html
+	ld -r -b binary -o $(OBJ)/index.o rsrc/index.html
 
 $(OBJ)/error.o: rsrc/error.html
-	ld -r -b binary -o obj/error.o rsrc/error.html
+	ld -r -b binary -o $(OBJ)/error.o rsrc/error.html
 
 $(OBJ)/matrix.o: mtrx/matrices.h
 
