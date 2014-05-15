@@ -12,7 +12,6 @@ firstTarget: all
 
 include make.config
 
-VERSION				= 2.2.1
 DEST_DIR			?= /usr/local/
 LIB_DIR				= $(BOOST_LIB_DIR) $(ZEEP_DIR) $(DEST_DIR)lib $(HOME)/projects/mrs/lib
 INC_DIR				= $(BOOST_INC_DIR) $(HOME)/projects/mrs/lib/Sources \
@@ -34,7 +33,7 @@ LDOPTS				+= $(LIBS:%=-l%) -gdwarf-2 -pthread
 CC				= g++
 CFLAGS				= $(INC_DIR:%=-I%) -I$(ZEEP_DIR) -I$(MRS_LIB_DIR)/Sources \
 					  -iquote ./ -gdwarf-2 -Wall -Wno-multichar -pthread \
-					  -std=c++0x -DVERSION='"$(VERSION)"'
+					  -std=c++0x
 
 ifneq ($(DEBUG),1)
 OPT					= -O3 -DNDEBUG # -march=native

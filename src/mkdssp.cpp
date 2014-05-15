@@ -6,6 +6,7 @@
 // A DSSP reimplementation
 
 #include "mas.h"
+#include "version.h"
 
 #if defined(_MSC_VER)
 #include <conio.h>
@@ -38,7 +39,7 @@ int main(int argc, char* argv[])
 {
 	try
 	{
-		po::options_description desc("mkdssp " VERSION " options");
+		po::options_description desc("mkdssp " XSSP_VERSION " options");
 		desc.add_options()
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input file")
@@ -56,9 +57,9 @@ int main(int argc, char* argv[])
 		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 		po::notify(vm);
 
-		if (vm.count("version"))
+		if (vm.count("version")>0)
 		{
-			cout << "mkdssp version " VERSION << endl;
+			cout << "mkdssp version " XSSP_VERSION << endl;
 			exit(0);
 		}
 

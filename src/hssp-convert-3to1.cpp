@@ -5,6 +5,8 @@
 
 #include "mas.h"
 
+#include "version.h"
+
 #include <cmath>
 #include <iostream>
 
@@ -1003,6 +1005,7 @@ int main(int argc, char* const argv[])
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
 			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
+			("version",	"Show version number")
 			;
 	
 		po::positional_options_description p;
@@ -1020,6 +1023,12 @@ int main(int argc, char* const argv[])
 		//}
 
 		po::notify(vm);
+
+		if(vm.count("version")>0)
+		{
+			cout << "hssp converter version "<<XSSP_VERSION << endl;
+			exit(0);
+		}
 
 		if (vm.count("help"))
 		{

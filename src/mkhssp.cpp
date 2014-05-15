@@ -4,6 +4,7 @@
 //          http://www.boost.org/LICENSE_1_0.txt)
 
 #include "mas.h"
+#include "version.h"
 
 #if defined(_MSC_VER)
 #include <conio.h>
@@ -119,6 +120,7 @@ int main(int argc, char* argv[])
 			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 5000)")
 			("fetch-dbrefs",					 "Fetch DBREF records for each UniProt ID")
 			("verbose,v",						 "Verbose mode")
+			("version",						"Show version number")
 			;
 	
 		po::positional_options_description p;
@@ -136,6 +138,12 @@ int main(int argc, char* argv[])
 		}
 
 		po::notify(vm);
+
+		if (vm.count("version")>0)
+		{
+			cout << "mkhssp version " << XSSP_VERSION << endl;
+			exit(0);
+		}
 
 		if (vm.count("help") or not vm.count("input") or vm.count("databank") == 0)
 		{

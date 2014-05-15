@@ -5,6 +5,8 @@
 
 #include "mas.h"
 
+#include "version.h"
+
 #include <pwd.h>
 #include <signal.h>
 #include <sys/resource.h>
@@ -453,6 +455,7 @@ int main(int argc, char* argv[])
 												"Databank(s) to use (default = /data/fasta/uniprot_sprot.fasta and /data/fasta/uniprot_trembl.fasta)")
 		("no-daemon,D",							"do not fork a daemon")
 		("verbose,v",							"Verbose mode")
+		("version",						"Show version number")
 		;
 	
 	string
@@ -469,13 +472,19 @@ int main(int argc, char* argv[])
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	po::notify(vm);
-	
+
+	if (vm.count("version") > 0)
+	{
+		cout << "hsspsoap version " << XSSP_VERSION << endl;
+		exit(0);
+	}
+
 	if (vm.count("help") or vm.count("databank") == 0)
 	{
 		cout << desc << endl;
 		exit(1);
 	}
-	
+
 	if (vm.count("address"))
 		address = vm["address"].as<string>();
 
