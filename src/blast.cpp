@@ -169,7 +169,8 @@ const Alphabet
 class Window
 {
   public:
-      Window(const string& inSequence, long inStart, long inLength, const Alphabet& inAlphabet);
+      Window(const string& inSequence, long inStart, long inLength,
+             const Alphabet& inAlphabet);
 
   void  CalcEntropy();
   bool  ShiftWindow();
@@ -193,7 +194,8 @@ class Window
   const Alphabet&mAlphabet;
 };
 
-Window::Window(const string& inSequence, long inStart, long inLength, const Alphabet& inAlphabet)
+Window::Window(const string& inSequence, long inStart, long inLength,
+               const Alphabet& inAlphabet)
   : mSequence(inSequence)
   , mComposition(inAlphabet.GetSize())
   , mStart(inStart)
@@ -373,7 +375,8 @@ static double lnass(vector<long>& inState, Alphabet inAlphabet)
     return result;
 }
 
-static double lnprob(vector<long>& inState, long inTotal, const Alphabet& inAlphabet)
+static double lnprob(vector<long>& inState, long inTotal,
+                     const Alphabet& inAlphabet)
 {
   double ans1, ans2 = 0, totseq;
 
@@ -421,7 +424,8 @@ void Window::Trim(long& ioEndL, long& ioEndR, long inMaxTrim)
 }
 
 static bool GetEntropy(const string& inSequence, const Alphabet& inAlphabet,
-  long inWindow, long inMaxBogus, vector<double>& outEntropy)
+                       long inWindow, long inMaxBogus,
+                       vector<double>& outEntropy)
 {
   bool result = false;
 
@@ -457,8 +461,9 @@ static bool GetEntropy(const string& inSequence, const Alphabet& inAlphabet,
   return result;
 }
 
-static void GetMaskSegments(bool inProtein, const string& inSequence, long inOffset,
-  vector<pair<long,long> >& outSegments)
+static void GetMaskSegments(bool inProtein, const string& inSequence,
+                            long inOffset,
+                            vector<pair<long,long> >& outSegments)
 {
   double loCut, hiCut;
   long window, maxbogus, maxtrim;
@@ -632,7 +637,9 @@ int32 BlastComputeLengthAdjustment(
 
     int32 i;                     /* iteration index */
     const int32 maxits = 20;     /* maximum allowed iterations */
-    double m = query_length, n = static_cast<double>(db_length), N = db_num_seqs;
+    double m = query_length;
+    double n = static_cast<double>(db_length);
+    double N = db_num_seqs;
 
     double ell;            /* A float value of the length adjustment */
     double ss;             /* effective size of the search space */
@@ -706,11 +713,15 @@ int32 BlastComputeLengthAdjustment(
     return converged ? 0 : 1;
 }
 
-int32 BlastComputeLengthAdjustment(const Matrix& inMatrix, int32 query_length, int64 db_length, int32 db_num_seqs)
+int32 BlastComputeLengthAdjustment(const Matrix& inMatrix, int32 query_length,
+                                   int64 db_length, int32 db_num_seqs)
 {
   int32 lengthAdjustment;
-  (void)BlastComputeLengthAdjustment(inMatrix.GappedKappa(), inMatrix.GappedAlpha() / inMatrix.GappedLambda(),
-    inMatrix.GappedBeta(), query_length, db_length, db_num_seqs, lengthAdjustment);
+  (void)BlastComputeLengthAdjustment(
+      inMatrix.GappedKappa(),
+      inMatrix.GappedAlpha() / inMatrix.GappedLambda(),
+      inMatrix.GappedBeta(),
+      query_length, db_length, db_num_seqs, lengthAdjustment);
   return lengthAdjustment;
 }
 
@@ -743,8 +754,10 @@ struct Word
   class PermutationIterator
   {
     public:
-            PermutationIterator(Word inWord, const Matrix& inMatrix, int32 inThreshold)
-              : mWord(inWord), mIndex(0), mMatrix(inMatrix), mThreshold(inThreshold) {}
+      PermutationIterator(Word inWord, const Matrix& inMatrix,
+                          int32 inThreshold)
+        : mWord(inWord), mIndex(0), mMatrix(inMatrix), mThreshold(inThreshold)
+      {}
 
     bool      Next(uint32& outIndex);
 
@@ -758,12 +771,18 @@ struct Word
   uint8      aa[WORDSIZE + 1];
 };
 
-template<> const uint32 Word<2>::kMaxWordIndex = 0x0003FF;
-template<> const uint32 Word<2>::kMaxIndex = kAACount * kAACount;
-template<> const uint32 Word<3>::kMaxWordIndex = 0x007FFF;
-template<> const uint32 Word<3>::kMaxIndex = kAACount * kAACount * kAACount;
-template<> const uint32 Word<4>::kMaxWordIndex = 0x0FFFFF;
-template<> const uint32 Word<4>::kMaxIndex = kAACount * kAACount * kAACount * kAACount;
+template<>
+const uint32 Word<2>::kMaxWordIndex = 0x0003FF;
+template<>
+const uint32 Word<2>::kMaxIndex = kAACount * kAACount;
+template<>
+const uint32 Word<3>::kMaxWordIndex = 0x007FFF;
+template<>
+const uint32 Word<3>::kMaxIndex = kAACount * kAACount * kAACount;
+template<>
+const uint32 Word<4>::kMaxWordIndex = 0x0FFFFF;
+template<>
+const uint32 Word<4>::kMaxIndex = kAACount * kAACount * kAACount * kAACount;
 
 template<int WORDSIZE>
 bool Word<WORDSIZE>::PermutationIterator::Next(uint32& outIndex)
@@ -819,8 +838,9 @@ class WordHitIterator
     vector<Entry>    mLookup;
     vector<uint16>    mOffsets;
   };
-              WordHitIterator(const WordHitIteratorStaticData& inStaticData)
-                : mLookup(inStaticData.mLookup), mOffsets(inStaticData.mOffsets) {}
+
+  WordHitIterator(const WordHitIteratorStaticData& inStaticData)
+    : mLookup(inStaticData.mLookup), mOffsets(inStaticData.mOffsets) {}
 
   static void        Init(const sequence& inQuery, const Matrix& inMatrix,
                 uint32 inThreshhold, WordHitIteratorStaticData& outStaticData);
@@ -847,7 +867,9 @@ template<> const uint32 WordHitIterator<4>::kMask = 0x07FFF;
 
 template<int WORDSIZE>
 void WordHitIterator<WORDSIZE>::Init(const sequence& inQuery,
-  const Matrix& inMatrix, uint32 inThreshhold, WordHitIteratorStaticData& outStaticData)
+                                     const Matrix& inMatrix,
+                                     uint32 inThreshhold,
+                                     WordHitIteratorStaticData& outStaticData)
 {
   uint64 N = IWord::kMaxWordIndex;
   size_t M = 0;
@@ -876,7 +898,8 @@ void WordHitIterator<WORDSIZE>::Init(const sequence& inQuery,
   for (uint32 i = 0; i < N; ++i)
   {
     outStaticData.mLookup[i].mCount = static_cast<uint16>(test[i].size());
-    outStaticData.mLookup[i].mDataOffset = static_cast<uint16>(data - &outStaticData.mOffsets[0]);
+    outStaticData.mLookup[i].mDataOffset = static_cast<uint16>(
+        data - &outStaticData.mOffsets[0]);
 
     for (uint32 j = 0; j < outStaticData.mLookup[i].mCount; ++j)
       *data++ = test[i][j];
@@ -905,7 +928,8 @@ void WordHitIterator<WORDSIZE>::Reset(const sequence& inTarget)
 }
 
 template<int WORDSIZE>
-bool WordHitIterator<WORDSIZE>::Next(uint16& outQueryOffset, uint16& outTargetOffset)
+bool WordHitIterator<WORDSIZE>::Next(uint16& outQueryOffset,
+                                     uint16& outTargetOffset)
 {
   bool result = false;
 
@@ -972,15 +996,22 @@ struct DiagonalStartTable
 
 struct DPData
 {
-        DPData(size_t inDimX, size_t inDimY) : mDimX(inDimX), mDimY(inDimY)
-        {
-          mDPDataLength = (inDimX + 1) * (inDimY + 1);
-          mDPData = new int16[mDPDataLength];
-        }
-        ~DPData()                      { delete[] mDPData; }
+  DPData(size_t inDimX, size_t inDimY) : mDimX(inDimX), mDimY(inDimY)
+  {
+    mDPDataLength = (inDimX + 1) * (inDimY + 1);
+    mDPData = new int16[mDPDataLength];
+  }
+  ~DPData() { delete[] mDPData; }
 
-  int16    operator()(uint32 inI, uint32 inJ) const      { return mDPData[inI * mDimY + inJ]; }
-  int16&    operator()(uint32 inI, uint32 inJ)          { return mDPData[inI * mDimY + inJ]; }
+  int16    operator()(uint32 inI, uint32 inJ) const
+  {
+    return mDPData[inI * mDimY + inJ];
+  }
+
+  int16&    operator()(uint32 inI, uint32 inJ)
+  {
+    return mDPData[inI * mDimY + inJ];
+  }
 
   int16*    mDPData;
   size_t    mDPDataLength;
@@ -990,46 +1021,51 @@ struct DPData
 
 struct DiscardTraceBack
 {
-  int16    operator()(int16 inB, int16 inIx, int16 inIy, uint32 /*inI*/, uint32 /*inJ*/) const
-          { return max(max(inB, inIx), inIy); }
-  void    Set(uint32 inI, uint32 inJ, int16 inD) {}
+  int16 operator()(int16 inB, int16 inIx, int16 inIy, uint32 /*inI*/,
+                   uint32 /*inJ*/) const
+  {
+    return max(max(inB, inIx), inIy);
+  }
+
+  void Set(uint32 inI, uint32 inJ, int16 inD) {}
 };
 
 struct RecordTraceBack
 {
-        RecordTraceBack(DPData& inTraceBack) : mTraceBack(inTraceBack) { }
+  RecordTraceBack(DPData& inTraceBack) : mTraceBack(inTraceBack) {}
 
-  int16    operator()(int16 inB, int16 inIx, int16 inIy, uint32 inI, uint32 inJ)
-        {
-          int16 result;
+  int16 operator()(int16 inB, int16 inIx, int16 inIy, uint32 inI, uint32 inJ)
+  {
+    int16 result;
 
-          if (inB >= inIx and inB >= inIy)
-          {
-            result = inB;
-            mTraceBack(inI, inJ) = 0;
-          }
-          else if (inIx >= inB and inIx >= inIy)
-          {
-            result = inIx;
-            mTraceBack(inI, inJ) = 1;
-          }
-          else
-          {
-            result = inIy;
-            mTraceBack(inI, inJ) = -1;
-          }
+    if (inB >= inIx and inB >= inIy)
+    {
+      result = inB;
+      mTraceBack(inI, inJ) = 0;
+    }
+    else if (inIx >= inB and inIx >= inIy)
+    {
+      result = inIx;
+      mTraceBack(inI, inJ) = 1;
+    }
+    else
+    {
+      result = inIy;
+      mTraceBack(inI, inJ) = -1;
+    }
 
-          return result;
-        }
+    return result;
+  }
 
-  void    Set(uint32 inI, uint32 inJ, int16 inD)      { mTraceBack(inI, inJ) = inD; }
+  void Set(uint32 inI, uint32 inJ, int16 inD) { mTraceBack(inI, inJ) = inD; }
 
   DPData&  mTraceBack;
 };
 
 // --------------------------------------------------------------------
 
-inline void ReadEntry(const char*& inFasta, const char* inEnd, sequence& outTarget)
+inline void ReadEntry(const char*& inFasta, const char* inEnd,
+                      sequence& outTarget)
 {
   assert(inFasta == inEnd or *inFasta == '>');
 
@@ -1071,17 +1107,20 @@ struct Hsp
   double    mExpect;
   bool    mGapped;
 
-  bool    operator>(const Hsp& inHsp) const        { return mScore > inHsp.mScore; }
-  void    CalculateExpect(int64 inSearchSpace, double inLambda, double inLogKappa);
-  bool    Overlaps(const Hsp& inOther) const
-        {
-          return
-            mQueryEnd >= inOther.mQueryStart and mQueryStart <= inOther.mQueryEnd and
-            mTargetEnd >= inOther.mTargetStart and mTargetStart <= inOther.mTargetEnd;
-        }
+  bool operator>(const Hsp& inHsp) const { return mScore > inHsp.mScore; }
+  void CalculateExpect(int64 inSearchSpace, double inLambda,
+                          double inLogKappa);
+  bool Overlaps(const Hsp& inOther) const
+  {
+    return mQueryEnd >= inOther.mQueryStart and
+           mQueryStart <= inOther.mQueryEnd and
+           mTargetEnd >= inOther.mTargetStart and
+           mTargetStart <= inOther.mTargetEnd;
+  }
 };
 
-void Hsp::CalculateExpect(int64 inSearchSpace, double inLambda, double inLogKappa)
+void Hsp::CalculateExpect(int64 inSearchSpace, double inLambda,
+                          double inLogKappa)
 {
   mBitScore = floor((inLambda * mScore - inLogKappa) / kLn2);
   mExpect = inSearchSpace / pow(2., mBitScore);
@@ -1097,7 +1136,8 @@ struct Hit
           Hit(const char* inEntry, const sequence& inTarget);
 
   void      AddHsp(const Hsp& inHsp);
-  void      Cleanup(int64 inSearchSpace, double inLambda, double inLogKappa, double inExpect);
+  void      Cleanup(int64 inSearchSpace, double inLambda, double inLogKappa,
+                    double inExpect);
 
   string      mDefLine;
   sequence    mTarget;
@@ -1129,7 +1169,8 @@ void Hit::AddHsp(const Hsp& inHsp)
     mHsps.push_back(inHsp);
 }
 
-void Hit::Cleanup(int64 inSearchSpace, double inLambda, double inLogKappa, double inExpect)
+void Hit::Cleanup(int64 inSearchSpace, double inLambda, double inLogKappa,
+                  double inExpect)
 {
   sort(mHsps.begin(), mHsps.end(), greater<Hsp>());
 
@@ -1166,25 +1207,29 @@ template<int WORDSIZE>
 class BlastQuery
 {
   public:
-          BlastQuery(const string& inQuery, bool inFilter, double inExpect,
-            const string& inMatrix, bool inGapped, int32 inGapOpen, int32 inGapExtend,
-            uint32 inReportLimit);
-          ~BlastQuery();
+    BlastQuery(const string& inQuery, bool inFilter, double inExpect,
+               const string& inMatrix, bool inGapped, int32 inGapOpen,
+               int32 inGapExtend, uint32 inReportLimit);
+    ~BlastQuery();
 
-  void      Search(const vector<fs::path>& inDatabanks, MProgress& inProgress, uint32 inNrOfThreads);
+  void      Search(const vector<fs::path>& inDatabanks, MProgress& inProgress,
+                   uint32 inNrOfThreads);
   //void      Report(Result& outResult);
   void      WriteAsFasta(ostream& inStream);
 
   private:
 
-  void      SearchPart(const char* inFasta, size_t inLength, MProgress& inProgress,
-            uint32& outDbCount, int64& outDbLength, vector<HitPtr>& outHits) const;
+  void      SearchPart(const char* inFasta, size_t inLength,
+                       MProgress& inProgress, uint32& outDbCount,
+                       int64& outDbLength, vector<HitPtr>& outHits) const;
 
-  int32      Extend(int32& ioQueryStart, const sequence& inTarget, int32& ioTargetStart, int32& ioDistance) const;
+  int32      Extend(int32& ioQueryStart, const sequence& inTarget,
+                    int32& ioTargetStart, int32& ioDistance) const;
   template<class Iterator1, class Iterator2, class TraceBack>
   int32      AlignGapped(Iterator1 inQueryBegin, Iterator1 inQueryEnd,
-            Iterator2 inTargetBegin, Iterator2 inTargetEnd,
-            TraceBack& inTraceBack, int32 inDropOff, uint32& outBestX, uint32& outBestY) const;
+                         Iterator2 inTargetBegin, Iterator2 inTargetEnd,
+                         TraceBack& inTraceBack, int32 inDropOff,
+                         uint32& outBestX, uint32& outBestY) const;
 
   int32      AlignGappedFirst(const sequence& inTarget, Hsp& ioHsp) const;
   int32      AlignGappedSecond(const sequence& inTarget, Hsp& ioHsp) const;
@@ -1211,8 +1256,10 @@ class BlastQuery
 };
 
 template<int WORDSIZE>
-BlastQuery<WORDSIZE>::BlastQuery(const string& inQuery, bool inFilter, double inExpect,
-    const string& inMatrix, bool inGapped, int32 inGapOpen, int32 inGapExtend, uint32 inReportLimit)
+BlastQuery<WORDSIZE>::BlastQuery(const string& inQuery, bool inFilter,
+                                 double inExpect, const string& inMatrix,
+                                 bool inGapped, int32 inGapOpen,
+                                 int32 inGapExtend, uint32 inReportLimit)
   : mUnfiltered(inQuery), mMatrix(inMatrix, inGapOpen, inGapExtend)
   , mExpect(inExpect), mGapped(inGapped), mReportLimit(inReportLimit)
   , mDbCount(0), mDbLength(0), mSearchSpace(0)
@@ -1220,7 +1267,8 @@ BlastQuery<WORDSIZE>::BlastQuery(const string& inQuery, bool inFilter, double in
   if (mQuery.length() >= kMaxSequenceLength)
     throw mas_exception("Query length exceeds maximum");
 
-  mUnfiltered.erase(remove_if(mUnfiltered.begin(), mUnfiltered.end(), [](char aa) -> bool {
+  mUnfiltered.erase(remove_if(mUnfiltered.begin(),
+                              mUnfiltered.end(), [](char aa) -> bool {
     return ResidueNr(aa) >= kResCount;
   }), mUnfiltered.end());
 
@@ -1228,17 +1276,23 @@ BlastQuery<WORDSIZE>::BlastQuery(const string& inQuery, bool inFilter, double in
   if (inFilter)
     query = filter::SEG(query);
 
-  transform(query.begin(), query.end(), back_inserter(mQuery), [](char aa) -> uint8 {
+  transform(query.begin(), query.end(),
+            back_inserter(mQuery), [](char aa) -> uint8 {
     return ResidueNr(aa);
   });
 
-  mXu =    static_cast<int32>(ceil((kLn2 * kUngappedDropOff) / mMatrix.UngappedLambda()));
-  mXg =    static_cast<int32>((kLn2 * kGappedDropOff) / mMatrix.GappedLambda());
-  mXgFinal =  static_cast<int32>((kLn2 * kGappedDropOffFinal) / mMatrix.GappedLambda());
-  mS1 =    static_cast<int32>((kLn2 * kGapTrigger + log(mMatrix.UngappedKappa())) / mMatrix.UngappedLambda());
+  mXu = static_cast<int32>(
+      ceil((kLn2 * kUngappedDropOff) / mMatrix.UngappedLambda()));
+  mXg = static_cast<int32>(
+      (kLn2 * kGappedDropOff) / mMatrix.GappedLambda());
+  mXgFinal = static_cast<int32>(
+      (kLn2 * kGappedDropOffFinal) / mMatrix.GappedLambda());
+  mS1 = static_cast<int32>(
+      (kLn2 * kGapTrigger + log(mMatrix.UngappedKappa())) / mMatrix.UngappedLambda());
 
   // we're not using S2
-  mS2 =    static_cast<int32>((kLn2 * kGapTrigger + log(mMatrix.GappedKappa())) / mMatrix.GappedLambda());;  // yeah, that sucks... perhaps
+  mS2 = static_cast<int32>(
+      (kLn2 * kGapTrigger + log(mMatrix.GappedKappa())) / mMatrix.GappedLambda());
 
   IWordHitIterator::Init(mQuery, mMatrix, kThreshold, mWordHitData);
 }
@@ -1249,7 +1303,8 @@ BlastQuery<WORDSIZE>::~BlastQuery()
 }
 
 template<int WORDSIZE>
-void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress& inProgress, uint32 inNrOfThreads)
+void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks,
+                                  MProgress& inProgress, uint32 inNrOfThreads)
 {
   foreach (const fs::path& p, inDatabanks)
   {
@@ -1298,7 +1353,8 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
     }
   }
 
-  int32 lengthAdjustment = ncbi::BlastComputeLengthAdjustment(mMatrix, static_cast<uint32>(mQuery.length()), mDbLength, mDbCount);
+  int32 lengthAdjustment = ncbi::BlastComputeLengthAdjustment(
+      mMatrix, static_cast<uint32>(mQuery.length()), mDbLength, mDbCount);
 
   int64 effectiveQueryLength = mQuery.length() - lengthAdjustment;
   int64 effectiveDbLength = mDbLength - mDbCount * lengthAdjustment;
@@ -1313,7 +1369,8 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
     for (uint32 i = 0; i < inNrOfThreads; ++i)
     {
       t.create_thread([this, &ix]() {
-        double lambda = mMatrix.GappedLambda(), logK = log(mMatrix.GappedKappa());
+        double lambda = mMatrix.GappedLambda();
+        double logK = log(mMatrix.GappedKappa());
 
         for (;;)
         {
@@ -1334,96 +1391,20 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks, MProgress
   }
 
   mHits.erase(
-    remove_if(mHits.begin(), mHits.end(), [](const HitPtr hit) -> bool { return hit->mHsps.empty(); }),
+    remove_if(mHits.begin(), mHits.end(),
+              [](const HitPtr hit) -> bool { return hit->mHsps.empty(); }),
     mHits.end());
 
   sort(mHits.begin(), mHits.end(), [](const HitPtr a, const HitPtr b) -> bool {
     return a->mHsps.front().mScore > b->mHsps.front().mScore or
-      (a->mHsps.front().mScore == b->mHsps.front().mScore and a->mDefLine < b->mDefLine);
+           (a->mHsps.front().mScore == b->mHsps.front().mScore and
+            a->mDefLine < b->mDefLine);
   });
 
   if (mHits.size() > mReportLimit and mReportLimit > 0)
     mHits.erase(mHits.begin() + mReportLimit, mHits.end());
 }
 
-//template<int WORDSIZE>
-//void BlastQuery<WORDSIZE>::Report(Result& outResult)
-//{
-//  outResult.mDbCount = mDbCount;
-//  outResult.mDbLength = mDbLength;
-//  outResult.mEffectiveSpace = mSearchSpace;
-//  outResult.mKappa = mMatrix.GappedKappa();
-//  outResult.mLambda = mMatrix.GappedLambda();
-//  outResult.mEntropy = mMatrix.GappedEntropy();
-//
-//  foreach (HitPtr hit, mHits)
-//  {
-//    Hit h;
-//    h.mHitNr = static_cast<uint32>(outResult.mHits.size() + 1);
-//    boost::smatch m;
-//    h.mDefLine = hit->mDefLine;
-////    h.mLength = static_cast<uint32>(hit->mTarget.length());
-//    h.mSequence.reserve(hit->mTarget.length());
-//    transform(hit->mTarget.begin(), hit->mTarget.end(),
-//      back_inserter(h.mSequence), [](uint8 r) -> char { return kResidues[r]; });
-//
-//    if (not boost::regex_match(h.mDefLine, m, kFastARE, boost::match_not_dot_newline))
-//      throw mas_exception(boost::format("Invalid defline: %s") % h.mDefLine);
-//
-//    if (m[1] == "sp")
-//    {
-//      h.mAccession = m[3];
-//      h.mID = m[4];
-//    }
-//    else if (m[2] != "")
-//      h.mID = m[2];
-//    else
-//      h.mID = m[1];
-//
-//    h.mDefLine = m[7];
-//
-//    foreach (Hsp& hsp, hit->mHsps)
-//    {
-//      Hsp p = { static_cast<uint32>(h.mHsps.size() + 1), hsp.mQueryStart + 1, hsp.mQueryEnd,
-//        hsp.mTargetStart + 1, hsp.mTargetEnd, hsp.mScore, hsp.mBitScore, hsp.mExpect };
-//
-//      p.mQueryAlignment.reserve(hsp.mAlignedQuery.length());
-//      p.mTargetAlignment.reserve(hsp.mAlignedTarget.length());
-//
-//      string::const_iterator qu = mUnfiltered.begin() + hsp.mQueryStart;
-//      for (sequence::const_iterator qf = hsp.mAlignedQuery.begin(), t = hsp.mAlignedTarget.begin();
-//        qf != hsp.mAlignedQuery.end(); ++qf, ++t, ++qu)
-//      {
-//        p.mQueryAlignment += *qf == '-' ? '-' : kResidues[*qf];
-//        p.mTargetAlignment += *t == '-' ? '-' : kResidues[*t];
-//
-//        if (*t == '-' or *qf == '-')
-//        {
-//          if (*qf == '-')
-//            --qu;
-//          p.mGaps += 1;
-//          p.mMidLine += ' ';
-//        }
-//        else if (*qu == kResidues[*t])
-//        {
-//          p.mMidLine += *qu;
-//          ++p.mIdentity;
-//          ++p.mPositive;
-//        }
-//        else if (mMatrix(ResidueNr(*qu), *t) > 0)
-//        {
-//          ++p.mPositive;
-//          p.mMidLine += '+';
-//        }
-//        else
-//          p.mMidLine += ' ';
-//      }
-//
-//      h.mHsps.push_back(p);
-//    }
-//    outResult.mHits.push_back(h);
-//  }
-//}
 
 template<int WORDSIZE>
 void BlastQuery<WORDSIZE>::WriteAsFasta(ostream& inStream)
@@ -1444,7 +1425,8 @@ void BlastQuery<WORDSIZE>::WriteAsFasta(ostream& inStream)
 }
 
 template<int WORDSIZE>
-void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength, MProgress& inProgress,
+void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength,
+                                      MProgress& inProgress,
   uint32& outDbCount, int64& outDbLength, vector<HitPtr>& outHits) const
 {
   const char* end = inFasta + inLength;
@@ -1501,7 +1483,8 @@ void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength, MPro
 
         ++extensions;
 
-        int32 score = Extend(queryStart, target, targetStart, alignmentDistance);
+        int32 score = Extend(queryStart, target, targetStart,
+                             alignmentDistance);
 
         if (score >= mS1)
         {
@@ -1523,8 +1506,10 @@ void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength, MPro
           else
           {
             hsp.mScore = score;
-            hsp.mAlignedQuery = mQuery.substr(hsp.mQueryStart, hsp.mQueryEnd - hsp.mQueryStart);
-            hsp.mAlignedTarget = hit->mTarget.substr(hsp.mTargetStart, hsp.mTargetEnd - hsp.mTargetStart);
+            hsp.mAlignedQuery = mQuery.substr(
+                hsp.mQueryStart, hsp.mQueryEnd - hsp.mQueryStart);
+            hsp.mAlignedTarget = hit->mTarget.substr(
+                hsp.mTargetStart, hsp.mTargetEnd - hsp.mTargetStart);
           }
 
           hit->AddHsp(hsp);
@@ -1540,7 +1525,10 @@ void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength, MPro
 }
 
 template<int WORDSIZE>
-int32 BlastQuery<WORDSIZE>::Extend(int32& ioQueryStart, const sequence& inTarget, int32& ioTargetStart, int32& ioDistance) const
+int32 BlastQuery<WORDSIZE>::Extend(int32& ioQueryStart,
+                                   const sequence& inTarget,
+                                   int32& ioTargetStart,
+                                   int32& ioDistance) const
 {
   // use iterators
   sequence::const_iterator ai = mQuery.begin() + ioQueryStart;
@@ -1553,9 +1541,10 @@ int32 BlastQuery<WORDSIZE>::Extend(int32& ioQueryStart, const sequence& inTarget
   // record start and stop positions for optimal score
   sequence::const_iterator qe = ai;
 
-  for (int32 test = score, n = static_cast<int32>(min(mQuery.end() - ai, inTarget.end() - bi));
-     test >= score - mXu and n > 0;
-     --n, ++ai, ++bi)
+  for (int32 test = score,
+       n = static_cast<int32>(min(mQuery.end() - ai, inTarget.end() - bi));
+       test >= score - mXu and n > 0;
+       --n, ++ai, ++bi)
   {
     test += mMatrix(*ai, *bi);
 
@@ -1594,8 +1583,9 @@ int32 BlastQuery<WORDSIZE>::Extend(int32& ioQueryStart, const sequence& inTarget
 template<int WORDSIZE>
 template<class Iterator1, class Iterator2, class TraceBack>
 int32 BlastQuery<WORDSIZE>::AlignGapped(
-  Iterator1 inQueryBegin, Iterator1 inQueryEnd, Iterator2 inTargetBegin, Iterator2 inTargetEnd,
-  TraceBack& inTraceBack, int32 inDropOff, uint32& outBestX, uint32& outBestY) const
+    Iterator1 inQueryBegin, Iterator1 inQueryEnd, Iterator2 inTargetBegin,
+    Iterator2 inTargetEnd, TraceBack& inTraceBack, int32 inDropOff,
+    uint32& outBestX, uint32& outBestY) const
 {
   const Matrix& s = mMatrix;  // for readability
   TraceBack& tb_max = inTraceBack;
@@ -1742,7 +1732,8 @@ int32 BlastQuery<WORDSIZE>::AlignGapped(
 }
 
 template<int WORDSIZE>
-int32 BlastQuery<WORDSIZE>::AlignGappedFirst(const sequence& inTarget, Hsp& ioHsp) const
+int32 BlastQuery<WORDSIZE>::AlignGappedFirst(const sequence& inTarget,
+                                             Hsp& ioHsp) const
 {
   int32 score;
 
@@ -1768,7 +1759,8 @@ int32 BlastQuery<WORDSIZE>::AlignGappedFirst(const sequence& inTarget, Hsp& ioHs
 }
 
 template<int WORDSIZE>
-int32 BlastQuery<WORDSIZE>::AlignGappedSecond(const sequence& inTarget, Hsp& ioHsp) const
+int32 BlastQuery<WORDSIZE>::AlignGappedSecond(const sequence& inTarget,
+                                              Hsp& ioHsp) const
 {
   uint32 x, y;
   int32 score = 0;
@@ -1906,104 +1898,13 @@ void BlastQuery<WORDSIZE>::AddHit(HitPtr inHit, vector<HitPtr>& inHitList) const
   }
 }
 
-// --------------------------------------------------------------------
-//
-//Result* Search(const vector<fs::path>& inDatabanks,
-//  const string& inQuery, const string& inProgram,
-//  const string& inMatrix, uint32 inWordSize, double inExpect,
-//  bool inFilter, bool inGapped, int32 inGapOpen, int32 inGapExtend,
-//  uint32 inReportLimit, uint32 inThreads)
-//{
-//  if (inProgram != "blastp")
-//    throw mas_exception(boost::format("Unsupported program %s") % inProgram);
-//
-//  if (inGapped)
-//  {
-//    if (inGapOpen == -1) inGapOpen = 11;
-//    if (inGapExtend == -1) inGapExtend = 1;
-//  }
-//
-//  if (inWordSize == 0) inWordSize = 3;
-//
-//  string query(inQuery), queryID("query"), queryDef;
-//
-//  if (ba::starts_with(inQuery, ">"))
-//  {
-//    boost::smatch m;
-//    if (regex_search(inQuery, m, kFastARE, boost::match_not_dot_newline))
-//    {
-//      queryID = m[4];
-//      if (queryID.empty())
-//        queryID = m[2];
-//      queryDef = m[7];
-//      query = m.suffix();
-//    }
-//    else
-//    {
-//      queryID = inQuery.substr(1, inQuery.find('\n') - 1);
-//      query = inQuery.substr(queryID.length() + 2, string::npos);
-//
-//      string::size_type s = queryID.find(' ');
-//      if (s != string::npos)
-//      {
-//        queryDef = queryID.substr(s + 1);
-//        queryID.erase(s, string::npos);
-//      }
-//    }
-//  }
-//
-//  unique_ptr<Result> result(new Result);
-//
-//  result->mProgram = inProgram;
-//  foreach (const fs::path& db, inDatabanks)
-//    result->mDb += db.filename().string();
-//  result->mExpect = inExpect;
-//  result->mQueryID = queryID;
-//  result->mQueryDef = queryDef;
-//  result->mQueryLength = static_cast<uint32>(query.length());
-//  result->mMatrix = inMatrix;
-//  result->mGapOpen = inGapOpen;
-//  result->mGapExtend = inGapExtend;
-//  result->mFilter = inFilter;
-//
-//  switch (inWordSize)
-//  {
-//    case 2:
-//    {
-//      BlastQuery<2> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen, inGapExtend, inReportLimit);
-//      q.Search(inDatabanks, inThreads);
-//      q.Report(*result);
-//      break;
-//    }
-//
-//    case 3:
-//    {
-//      BlastQuery<3> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen, inGapExtend, inReportLimit);
-//      q.Search(inDatabanks, inThreads);
-//      q.Report(*result);
-//      break;
-//    }
-//
-//    case 4:
-//    {
-//      BlastQuery<4> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen, inGapExtend, inReportLimit);
-//      q.Search(inDatabanks, inThreads);
-//      q.Report(*result);
-//      break;
-//    }
-//
-//    default:
-//      throw mas_exception(boost::format("Unsupported word size %d") % inWordSize);
-//  }
-//
-//  return result.release();
-//}
 
-void SearchAndWriteResultsAsFastA(ostream& inOutFile, const vector<fs::path>& inDatabanks,
-  const string& inQuery, const string& inProgram,
-  const string& inMatrix, uint32 inWordSize, double inExpect,
-  bool inFilter, bool inGapped, int32 inGapOpen, int32 inGapExtend,
-  uint32 inReportLimit, uint32 inThreads)
+void SearchAndWriteResultsAsFastA(
+    ostream& inOutFile, const vector<fs::path>& inDatabanks,
+    const string& inQuery, const string& inProgram,
+    const string& inMatrix, uint32 inWordSize, double inExpect,
+    bool inFilter, bool inGapped, int32 inGapOpen, int32 inGapExtend,
+    uint32 inReportLimit, uint32 inThreads)
 {
   if (inProgram != "blastp")
     throw mas_exception(boost::format("Unsupported program %s") % inProgram);
@@ -2052,7 +1953,8 @@ void SearchAndWriteResultsAsFastA(ostream& inOutFile, const vector<fs::path>& in
   {
     case 2:
     {
-      BlastQuery<2> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen, inGapExtend, inReportLimit);
+      BlastQuery<2> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen,
+                      inGapExtend, inReportLimit);
       q.Search(inDatabanks, progress, inThreads);
       q.WriteAsFasta(inOutFile);
       break;
@@ -2060,7 +1962,8 @@ void SearchAndWriteResultsAsFastA(ostream& inOutFile, const vector<fs::path>& in
 
     case 3:
     {
-      BlastQuery<3> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen, inGapExtend, inReportLimit);
+      BlastQuery<3> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen,
+                      inGapExtend, inReportLimit);
       q.Search(inDatabanks, progress, inThreads);
       q.WriteAsFasta(inOutFile);
       break;
@@ -2068,204 +1971,15 @@ void SearchAndWriteResultsAsFastA(ostream& inOutFile, const vector<fs::path>& in
 
     case 4:
     {
-      BlastQuery<4> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen, inGapExtend, inReportLimit);
+      BlastQuery<4> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen,
+                      inGapExtend, inReportLimit);
       q.Search(inDatabanks, progress, inThreads);
       q.WriteAsFasta(inOutFile);
       break;
     }
 
     default:
-      throw mas_exception(boost::format("Unsupported word size %d") % inWordSize);
+      throw mas_exception(
+          boost::format("Unsupported word size %d") % inWordSize);
   }
 }
-
-//void Blast(const string& seq, const vector<fs::path>& db, uint32 inReportLimit, vector<BlastHit>& outHits)
-//{
-//  int32 gapOpen = 11, gapExtend = 1, wordSize = 3;
-//
-//  BlastQuery<3> q(seq, true, 10.f, "BLOSUM62", true, 11, 1, inReportLimit);
-//  q.Search(db, boost::thread::hardware_concurrency());
-//  q.Report(outHits);
-//}
-
-//// --------------------------------------------------------------------
-//
-//void operator&(xml::writer& w, const Blast::Hsp& inHsp)
-//{
-//  w.start_element("Hsp");
-//  w.element("Hsp_num", boost::lexical_cast<string>(inHsp.mHspNr));
-//  w.element("Hsp_bit-score", boost::lexical_cast<string>(inHsp.mBitScore));
-//  w.element("Hsp_score", boost::lexical_cast<string>(inHsp.mScore));
-//  w.element("Hsp_evalue", boost::lexical_cast<string>(inHsp.mExpect));
-//  w.element("Hsp_query-from", boost::lexical_cast<string>(inHsp.mQueryStart));
-//  w.element("Hsp_query-to", boost::lexical_cast<string>(inHsp.mQueryEnd));
-//  w.element("Hsp_hit-from", boost::lexical_cast<string>(inHsp.mTargetStart));
-//  w.element("Hsp_hit-to", boost::lexical_cast<string>(inHsp.mTargetEnd));
-//  w.element("Hsp_identity", boost::lexical_cast<string>(inHsp.mIdentity));
-//  w.element("Hsp_positive", boost::lexical_cast<string>(inHsp.mPositive));
-//  w.element("Hsp_align-len", boost::lexical_cast<string>(inHsp.mQueryAlignment.length()));
-//  w.element("Hsp_qseq", inHsp.mQueryAlignment);
-//  w.element("Hsp_hseq", inHsp.mTargetAlignment);
-//  w.element("Hsp_midline", inHsp.mMidLine);
-//  w.end_element();
-//}
-//
-//void operator&(xml::writer& w, const Blast::Hit& inHit)
-//{
-//  w.start_element("Hit");
-//  w.element("Hit_num", boost::lexical_cast<string>(inHit.mHitNr));
-//  w.element("Hit_id", inHit.mID);
-//  if (not inHit.mDefLine.empty())
-//    w.element("Hit_def", inHit.mDefLine);
-//  if (not inHit.mAccession.empty())
-//    w.element("Hit_accession", inHit.mAccession);
-//  w.element("Hit_len", boost::lexical_cast<string>(inHit.mSequence.length()));
-//  w.start_element("Hit_hsps");
-//  for_each(inHit.mHsps.begin(), inHit.mHsps.end(), [&](const Blast::Hsp& hsp) {
-//    w & hsp;
-//  });
-//  w.end_element();
-//  w.end_element();
-//}
-//
-//ostream& operator<<(ostream& os, const Blast::Result& inResult)
-//{
-//  xml::writer w(os, true);
-//  w.doctype("BlastOutput", "-//NCBI//NCBI BlastOutput/EN", "http://www.ncbi.nlm.nih.gov/dtd/NCBI_BlastOutput.dtd");
-//  w.start_element("BlastOutput");
-//  w.element("BlastOutput_program", inResult.mProgram);
-//  w.element("BlastOutput_db", inResult.mDb);
-//  w.element("BlastOutput_query-ID", inResult.mQueryID);
-//  w.element("BlastOutput_query-def", inResult.mQueryDef);
-//  w.element("BlastOutput_query-len", boost::lexical_cast<string>(inResult.mQueryLength));
-//
-//  w.start_element("BlastOutput_param");
-//  w.start_element("Parameters");
-//  w.element("Parameters_matrix", inResult.mMatrix);
-//  w.element("Parameters_expect", boost::lexical_cast<string>(inResult.mExpect));
-//  w.element("Parameters_gap-open", boost::lexical_cast<string>(inResult.mGapOpen));
-//  w.element("Parameters_gap-extend", boost::lexical_cast<string>(inResult.mGapExtend));
-//  w.element("Parameters_filter", inResult.mFilter ? "T" : "F");
-//  w.end_element();
-//  w.end_element();
-//
-//  w.start_element("BlastOutput_iterations");
-//  w.start_element("Iteration");
-//  w.element("Iteration_iter-num", "1");
-//  w.element("Iteration_query-ID", inResult.mQueryID);
-//  if (not inResult.mQueryDef.empty())
-//    w.element("Iteration_query-def", inResult.mQueryDef);
-//  w.element("Iteration_query-len", boost::lexical_cast<string>(inResult.mQueryLength));
-//  w.start_element("Iteration_hits");
-//  for_each(inResult.mHits.begin(), inResult.mHits.end(), [&](const Blast::Hit& hit) {
-//    w & hit;
-//  });
-//  w.end_element();  // Iteration_hits
-//  w.start_element("Iteration_stat");
-//  w.start_element("Statistics");
-//  w.element("Statistics_db-num", boost::lexical_cast<string>(inResult.mDbCount));
-//  w.element("Statistics_db-len", boost::lexical_cast<string>(inResult.mDbLength));
-//  w.element("Statistics_eff-space", boost::lexical_cast<string>(inResult.mEffectiveSpace));
-//  w.element("Statistics_kappa", boost::lexical_cast<string>(inResult.mKappa));
-//  w.element("Statistics_lambda", boost::lexical_cast<string>(inResult.mLambda));
-//  w.element("Statistics_entropy", boost::lexical_cast<string>(inResult.mEntropy));
-//  w.end_element();  // Statistics
-//  w.end_element();  // Iteration_stat
-//  w.end_element();  // Iteration
-//  w.end_element();  // BlastOutput_iterations
-//  w.end_element();  // BlastOutput
-//  return os;
-//}
-//
-// --------------------------------------------------------------------
-//
-//int main(int argc, char* const argv[])
-//{
-//  try
-//  {
-//    string matrix("BLOSU2"), program = "blastp", query;
-//    int32 gapOpen = -1, gapExtend = -1, wordSize = 0,
-//      threads = boost::thread::hardware_concurrency(), reportLimit = 250;
-//    bool filter = true, gapped = true;
-//    double expect = 10;
-//
-//    po::options_description desc("m6-blast");
-//    desc.add_options()
-//      ("query,i",      po::value<string>(),  "File containing query in FastA format")
-//      ("program,p",    po::value<string>(),  "Blast program (only supported program is blastp for now...)")
-//      ("databank,d",    po::value<string>(),  "Databank in FastA format")
-//      ("output,o",    po::value<string>(),  "Output file, default is stdout")
-//      ("report-limit,b",  po::value<string>(),  "Number of results to report")
-//      ("matrix,M",    po::value<string>(),  "Matrix (default is BLOSU2)")
-//      ("word-size,W",    po::value<int32>(),    "Word size (0 invokes default)")
-//      ("gap-open,G",    po::value<int32>(),    "Cost to open a gap (-1 invokes default)")
-//      ("gap-extend,E",  po::value<int32>(),    "Cost to extend a gap (-1 invokes default)")
-//      ("no-filter",                "Do not mask low complexity regions in the query sequence")
-//      ("ungapped",                "Do not search for gapped alignments, only ungapped")
-//      ("expect,e",    po::value<double>(),  "Expectation value, default is 10.0")
-//      ("threads,a",    po::value<int32>(),    "Nr of threads")
-//      ("help,h",                  "Display help message")
-//      ;
-//
-//    po::variables_map vm;
-////    po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
-//    po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
-//    po::notify(vm);
-//
-//    if (vm.count("help") or vm.count("databank") == 0 or vm.count("query") == 0)
-//    {
-//      cout << desc << "\n";
-//      exit(1);
-//    }
-//
-//    fs::path queryFile(vm["query"].as<string>());
-//    if (not fs::exists(queryFile))
-//      throw Exception("Query file does not exist");
-//    fs::ifstream queryData(queryFile);
-//    if (not queryData.is_open())
-//      throw Exception("Could not open query file");
-//
-//    for (;;)
-//    {
-//      string line;
-//      getline(queryData, line);
-//      if (line.empty() and queryData.eof())
-//        break;
-//      query += line + '\n';
-//    }
-//
-//    fs::path databank(vm["databank"].as<string>());
-//    if (not fs::exists(databank))
-//      throw Exception("Databank does not exist");
-//
-//    if (vm.count("program"))    program = vm["program"].as<string>();
-//    if (vm.count("matrix"))      matrix = vm["matrix"].as<string>();
-//    if (vm.count("report-limit"))  reportLimit = vm["report-limit"].as<int32>();
-//    if (vm.count("word-size"))    wordSize = vm["word-size"].as<int32>();
-//    if (vm.count("gap-open"))    gapOpen = vm["gap-open"].as<int32>();
-//    if (vm.count("gap-extend"))    gapOpen = vm["gap-extend"].as<int32>();
-//    if (vm.count("no-filter"))    filter = false;
-//    if (vm.count("ungapped"))    gapped = false;
-//    if (vm.count("expect"))      expect = vm["expect"].as<double>();
-//    if (vm.count("threads"))    threads = vm["threads"].as<int32>();
-//
-//    Blast::Result* r = Blast::Search(databank, query, program, matrix,
-//      wordSize, expect, filter, gapped, gapOpen, gapExtend, reportLimit, threads);
-//
-//    if (vm.count("output") and vm["output"].as<string>() != "stdout")
-//    {
-//      fs::ofstream out(vm["output"].as<string>());
-//      out << *r;
-//    }
-//    else
-//      cout << *r << endl;
-//
-//    delete r;
-//  }
-//  catch (exception& e)
-//  {
-//    cerr << e.what() << endl;
-//  }
-//
-//  return 0;
-//}

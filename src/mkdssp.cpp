@@ -41,20 +41,25 @@ int main(int argc, char* argv[])
   {
     po::options_description desc("mkdssp " XSSP_VERSION " options");
     desc.add_options()
-      ("help,h",               "Display help message")
-      ("input,i",   po::value<string>(), "Input file")
-      ("output,o",  po::value<string>(), "Output file, use 'stdout' to output to screen")
-      ("verbose,v",            "Verbose output")
-      ("version",              "Print version")
-      ("debug,d",   po::value<int>(),  "Debug level (for even more verbose output)")
-      ;
+      ("help,h", "Display help message")
+      ("input,i", po::value<string>(), "Input file")
+      ("output,o",
+       po::value<string>(),
+       "Output file, use 'stdout' to output to screen")
+      ("verbose,v", "Verbose output")
+      ("version", "Print version")
+      ("debug,d",
+       po::value<int>(),
+       "Debug level (for even more verbose output)");
 
     po::positional_options_description p;
     p.add("input", 1);
     p.add("output", 2);
 
     po::variables_map vm;
-    po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+    po::store(
+        po::command_line_parser(argc, argv).options(desc).positional(p).run(),
+        vm);
     po::notify(vm);
 
     if (vm.count("version")>0)
@@ -69,15 +74,18 @@ int main(int argc, char* argv[])
          << endl
          << "Examples: " << endl
          << endl
-         << "To calculate the secondary structure for the file 1crn.pdb and" << endl
+         << "To calculate the secondary structure for the file 1crn.pdb and"
+         << endl
          << "write the result to a file called 1crn.dssp, you type:" << endl
          << endl
          << "  " << argv[0] << " -i 1crn.pdb -o 1crn.dssp" << endl
          << endl;
 #if defined(_MSC_VER)
       cerr << endl
-         << "MKDSSP is a command line application, use the 'Command prompt' application" << endl
-         << "to start " << argv[0] << " You can find the 'Command prompt' in the Start menu:" << endl
+         << "MKDSSP is a command line application, use the 'Command prompt' "
+         << "application" << endl
+         << "to start " << argv[0] << " You can find the 'Command prompt' in "
+         << "the Start menu:" << endl
          << endl
          << "Start => Accessories => Command prompt" << endl
          << endl
@@ -132,7 +140,8 @@ int main(int argc, char* argv[])
     {
       string output = vm["output"].as<string>();
 
-      ofstream outfile(output.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
+      ofstream outfile(output.c_str(),
+                       ios_base::out|ios_base::trunc|ios_base::binary);
       if (not outfile.is_open())
         throw runtime_error("could not create output file");
 

@@ -97,10 +97,14 @@ class seq
   void    update(const seq& qseq);
   static void  update_all(buffer<seq*>& b, const seq& qseq);
 
-  bool    operator<(const seq& o) const    { return m_impl->m_identical > o.m_impl->m_identical or
-                            (m_impl->m_identical == o.m_impl->m_identical and length() > o.length()); }
+  bool    operator<(const seq& o) const
+  {
+    return m_impl->m_identical > o.m_impl->m_identical or
+           (m_impl->m_identical == o.m_impl->m_identical and
+            length() > o.length());
+  }
 
-  uint32    length() const            { return m_impl->m_end - m_impl->m_begin; }
+  uint32    length() const { return m_impl->m_end - m_impl->m_begin; }
 
   char&    operator[](uint32 offset)
         {
@@ -117,9 +121,10 @@ class seq
   template<class T>
   class basic_iterator : public std::iterator<bidirectional_iterator_tag,T>
   {
-    public:
-    typedef typename std::iterator<std::bidirectional_iterator_tag, T>  base_type;
-    typedef  typename base_type::reference                reference;
+  public:
+    typedef typename std::iterator<std::bidirectional_iterator_tag,
+                                   T> base_type;
+    typedef typename base_type::reference                reference;
     typedef typename base_type::pointer                  pointer;
 
             basic_iterator(T* s) : m_seq(s) {}
@@ -135,15 +140,23 @@ class seq
     reference    operator->()        { return *m_seq; }
 
     basic_iterator&  operator++()        { ++m_seq; return *this; }
-    basic_iterator  operator++(int)        { basic_iterator iter(*this); operator++(); return iter; }
+    basic_iterator  operator++(int)
+    {
+      basic_iterator iter(*this);
+      operator++();
+      return iter;
+    }
 
     basic_iterator&  operator--()        { --m_seq; return *this; }
-    basic_iterator  operator--(int)        { basic_iterator iter(*this); operator--(); return iter; }
+    basic_iterator  operator--(int)
+    {
+      basic_iterator iter(*this);
+      operator--();
+      return iter;
+    }
 
-    bool      operator==(const basic_iterator& o) const
-                          { return m_seq == o.m_seq; }
-    bool      operator!=(const basic_iterator& o) const
-                          { return m_seq != o.m_seq; }
+    bool operator==(const basic_iterator& o) const { return m_seq == o.m_seq; }
+    bool operator!=(const basic_iterator& o) const { return m_seq != o.m_seq; }
 
     template<class U>
     friend basic_iterator<U> operator-(basic_iterator<U>, int);
@@ -155,11 +168,18 @@ class seq
   typedef basic_iterator<char>    iterator;
   typedef basic_iterator<const char>  const_iterator;
 
-  iterator    begin()              { return iterator(m_impl->m_seq); }
-  iterator    end()              { return iterator(m_impl->m_seq + m_impl->m_size); }
+  iterator    begin() { return iterator(m_impl->m_seq); }
+  iterator    end() { return iterator(m_impl->m_seq + m_impl->m_size); }
 
-  const_iterator  begin() const          { return const_iterator(m_impl->m_seq); }
-  const_iterator  end() const            { return const_iterator(m_impl->m_seq + m_impl->m_size); }
+  const_iterator begin() const
+  {
+    return const_iterator(m_impl->m_seq);
+  }
+
+  const_iterator end() const
+  {
+    return const_iterator(m_impl->m_seq + m_impl->m_size);
+  }
 
   private:
 
@@ -302,7 +322,8 @@ void seq::desc(const string& desc)
 
 void seq::hssp(const string& hssp)
 {
-  // HSSP score=0.98/1.00 aligned=1-46/1-46 length=46 ngaps=0 gaplen=0 seqlen=46
+  // HSSP score=0.98/1.00 aligned=1-46/1-46 length=46 ngaps=0 gaplen=0
+  // seqlen=46
 
   static const boost::regex
     re1("score=(\\d\\.\\d+)/(\\d\\.\\d+)"),
@@ -505,20 +526,54 @@ void seq::validate(const seq& qseq)
   }
 
   bool error = false;
-  if (gaps != m_impl->m_gaps)      { cerr << "gaps != m_gaps (" << gaps << " - " << m_impl->m_gaps << ')' << endl; error = true; }
-  if (gapn != m_impl->m_gapn)      { cerr << "gapn != m_gapn (" << gapn << " - " << m_impl->m_gapn << ')' << endl; error = true; }
-  if (len != m_impl->m_length)    { cerr << "len != m_length (" << len << " - " << m_impl->m_length << ')' << endl; error = true; }
+  if (gaps != m_impl->m_gaps)
+  {
+    cerr << "gaps != m_gaps (" << gaps << " - " << m_impl->m_gaps << ')'
+         << endl;
+    error = true;
+  }
+
+  if (gapn != m_impl->m_gapn)\
+  {
+    cerr << "gapn != m_gapn (" << gapn << " - " << m_impl->m_gapn << ')'
+         << endl;
+    error = true;
+  }
+
+  if (len != m_impl->m_length)
+  {
+    cerr << "len != m_length (" << len << " - " << m_impl->m_length << ')'
+         << endl;
+    error = true;
+  }
+
   if (m_impl->m_jfir + ylen - 1 != m_impl->m_jlas)
-                    { cerr << "jfir != jlas + jlen (" << m_impl->m_jfir << ", " << m_impl->m_jlas << ", " << ylen << ')' << endl; error = true; }
-//  if (m_impl->m_ifir + xlen - 1 != m_impl->m_ilas)
-//                    { cerr << "ifir != ilas + ilen (" << m_impl->m_ifir << ", " << m_impl->m_ilas << ", " << xlen << ')' << endl; error = true; }
+  {
+    cerr << "jfir != jlas + jlen (" << m_impl->m_jfir << ", "
+         << m_impl->m_jlas << ", " << ylen << ')' << endl;
+    error = true;
+  }
 
-  float score = boost::lexical_cast<float>((boost::format("%4.2f") % (float(ident) / len)).str());
+  // if (m_impl->m_ifir + xlen - 1 != m_impl->m_ilas)
+  // {
+  //   cerr << "ifir != ilas + ilen (" << m_impl->m_ifir << ", "
+  //        << m_impl->m_ilas << ", " << xlen << ')' << endl;
+  //   error = true;
+  // }
 
-  if (abs(score - m_impl->m_identical) > 0.1) { cerr << "score != m_identical (" << score << ", " << m_impl->m_identical << ")" << endl; error = true; }
+  float score = boost::lexical_cast<float>(
+      (boost::format("%4.2f") % (float(ident) / len)).str());
+
+  if (abs(score - m_impl->m_identical) > 0.1)
+  {
+    cerr << "score != m_identical (" << score << ", "
+         << m_impl->m_identical << ")" << endl;
+    error = true;
+  }
 
   if (error)
-    throw mas_exception(boost::format("validation failed for %1%") % m_impl->m_id);
+    throw mas_exception(
+        boost::format("validation failed for %1%") % m_impl->m_id);
 }
 
 namespace std
@@ -570,7 +625,8 @@ typedef vector<hit_ptr>  hit_list;
 
 // --------------------------------------------------------------------
 
-uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_list& hits, res_list& residues, uint32& nchain)
+uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa,
+                     hit_list& hits, res_list& residues, uint32& nchain)
 {
   string line;
   string qid;
@@ -661,7 +717,9 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
 
     if (ba::starts_with(line, "#=GF PR "))
     {
-      uint32 nr = boost::lexical_cast<uint32>(ba::trim_copy(line.substr(8, 5))) - 1 + offset;
+      uint32 nr = boost::lexical_cast<uint32>(
+          ba::trim_copy(line.substr(8, 5))) - 1 + offset;
+
       if (nr >= residues.size())
         throw mas_exception("invalid input file");
 
@@ -672,7 +730,8 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
     if (ba::starts_with(line, "#=GS "))
     {
       line.erase(0, 5);
-      if (msa.size() == queryNr + 1 and ba::starts_with(line, qid))  // first GS line, fetch the width
+      // first GS line, fetch the width
+      if (msa.size() == queryNr + 1 and ba::starts_with(line, qid))
       {
         ccOffset = 6 + line.find(" CC ");
       }
@@ -684,7 +743,8 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
         if (index.find(id) == index.end())
         {
           index[id] = msa.size();
-          hits.push_back(hit_ptr(new Hit(msa.size(), queryNr, chainId, offset)));
+          hits.push_back(
+              hit_ptr(new Hit(msa.size(), queryNr, chainId, offset)));
           msa.push_back(seq(id));
         }
 
@@ -730,7 +790,8 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_lis
             if (rix < residues.size() and residues[rix]->m_ri[8] == '!')
               ++rix;
 
-            if (r != residues[rix]->m_ri[8] and not (r == 'C' or islower(residues[rix]->m_ri[8])))
+            if (r != residues[rix]->m_ri[8] and
+                not (r == 'C' or islower(residues[rix]->m_ri[8])))
               throw mas_exception("Invalid hssp3 file");
 
             residues[rix]->m_pos = pos;
@@ -970,7 +1031,8 @@ void ConvertHsspFile(istream& in, ostream& out)
     string h;
     swap(header, h);
 
-    uint32 chainLength = ReadHSSP2File(in, id, header, msa, hits, residues, nchain);
+    uint32 chainLength = ReadHSSP2File(in, id, header, msa, hits, residues,
+                                       nchain);
 //    if (not h.empty() and h != header)
 //      throw mas_exception("Inconsistent HSSP3 file, different header parts");
 
@@ -990,7 +1052,8 @@ void ConvertHsspFile(istream& in, ostream& out)
 
       return sa.identity() > sb.identity() or
         (sa.identity() == sb.identity() and (
-          (sa.id() < sb.id() or (sa.id() == sb.id() and sa.ifir() < sb.ifir()))));
+          (sa.id() < sb.id() or (sa.id() == sb.id()
+                                 and sa.ifir() < sb.ifir()))));
     }
   );
 
@@ -1004,7 +1067,8 @@ void ConvertHsspFile(istream& in, ostream& out)
   foreach (hit_ptr h, hits)
     h->m_nr = nr++;
 
-  CreateHSSPOutput(id, header, 0.05f, seqlength, nchain, kchain, ba::join(usedChains, ", "), msa,
+  CreateHSSPOutput(id, header, 0.05f, seqlength, nchain, kchain,
+                   ba::join(usedChains, ", "), msa,
     hits, residues, out);
 }
 
@@ -1016,18 +1080,20 @@ int main(int argc, char* const argv[])
   {
     po::options_description desc("MKHSSP options");
     desc.add_options()
-      ("help,h",               "Display help message")
-      ("input,i",    po::value<string>(), "Input PDB file (or PDB ID)")
-      ("output,o",  po::value<string>(), "Output file, use 'stdout' to output to screen")
-      ("version",  "Show version number")
-      ;
+      ("help,h", "Display help message")
+      ("input,i", po::value<string>(), "Input PDB file (or PDB ID)")
+      ("output,o",
+       po::value<string>(),
+       "Output file, use 'stdout' to output to screen")
+      ("version", "Show version number");
 
     po::positional_options_description p;
     p.add("input", 1);
     p.add("output", 2);
 
     po::variables_map vm;
-    po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+    po::store(po::command_line_parser(
+          argc, argv).options(desc).positional(p).run(), vm);
 
     //fs::path home = get_home();
     //if (fs::exists(home / ".mkhssprc"))
@@ -1061,7 +1127,8 @@ int main(int argc, char* const argv[])
       ifs.open(input, ios::binary);
 
       if (not ifs.is_open())
-        throw mas_exception(boost::format("Could not open input file '%s'") % input);
+        throw mas_exception(
+            boost::format("Could not open input file '%s'") % input);
 
       if (input.extension() == ".bz2")
         in.push(io::bzip2_decompressor());
@@ -1078,7 +1145,8 @@ int main(int argc, char* const argv[])
 
       fs::ofstream ofs(output, ios::binary);
       if (not ofs.is_open())
-        throw mas_exception(boost::format("Could not open output file '%s'") % output);
+        throw mas_exception(
+            boost::format("Could not open output file '%s'") % output);
 
       io::filtering_stream<io::output> out;
 

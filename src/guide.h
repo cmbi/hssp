@@ -21,12 +21,12 @@
 class GuideTreeParser
 {
   public:
-            GuideTreeParser(std::istream& data, std::map<std::string,leaf_node*>& m)
-              : m_data(data)
-              , m_map(m)
-            {
-              getNextToken();
-            }
+    GuideTreeParser(std::istream& data, std::map<std::string,leaf_node*>& m)
+      : m_data(data)
+      , m_map(m)
+    {
+      getNextToken();
+    }
 
   base_node*      parse();
 

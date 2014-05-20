@@ -61,7 +61,9 @@ void GuideTreeParser::getNextToken()
             else if (isalnum(ch) or ch == '_')
               state = st_ID;
             else
-              throw mas_exception(boost::format("unexpected character '%1%' in guide tree") % ch);
+              throw mas_exception(
+                  boost::format(
+                    "unexpected character '%1%' in guide tree") % ch);
             break;
         }
         break;
@@ -105,7 +107,9 @@ void GuideTreeParser::match(GuideTreeToken token)
   if (token == m_lookahead)
     getNextToken();
   else
-    throw mas_exception(boost::format("invalid guide tree, expected %1% but found %2% ('%3%')") %
+    throw mas_exception(
+        boost::format(
+          "invalid guide tree, expected %1% but found %2% ('%3%')") %
       int(token) % int(m_lookahead) % m_token);
 }
 
@@ -120,7 +124,8 @@ tr1::tuple<base_node*,float> GuideTreeParser::parseNode()
   {
     n = m_map[m_token];
     if (n == NULL)
-      throw mas_exception(boost::format("guide tree contains unknown id %1%") % m_token);
+      throw mas_exception(
+          boost::format("guide tree contains unknown id %1%") % m_token);
     match(gtt_ID);
   }
 

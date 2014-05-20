@@ -20,7 +20,8 @@ typedef boost::math::quaternion<double> MQuaternion;
 extern const double kPI;
 
 // --------------------------------------------------------------------
-// The basic point type, can be used to store vectors in 3d space as well of course
+// The basic point type, can be used to store vectors in 3d space as well of
+// course
 
 struct MPoint
 {
@@ -59,8 +60,10 @@ double Distance(const MPoint& a, const MPoint& b);
 double DistanceSquared(const MPoint& a, const MPoint& b);
 double DotProduct(const MPoint& p1, const MPoint& p2);
 MPoint CrossProduct(const MPoint& p1, const MPoint& p2);
-double DihedralAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3, const MPoint& p4);
-double CosinusAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3, const MPoint& p4);
+double DihedralAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3,
+                     const MPoint& p4);
+double CosinusAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3,
+                    const MPoint& p4);
 
 // --------------------------------------------------------------------
 // We use quaternions to do rotations in 3d space
@@ -70,7 +73,8 @@ MQuaternion Normalize(MQuaternion q);
 std::tr1::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q);
 MPoint Centroid(std::vector<MPoint>& points);
 MPoint CenterPoints(std::vector<MPoint>& points);
-MQuaternion AlignPoints(const std::vector<MPoint>& a, const std::vector<MPoint>& b);
+MQuaternion AlignPoints(const std::vector<MPoint>& a,
+                        const std::vector<MPoint>& b);
 double RMSd(const std::vector<MPoint>& a, const std::vector<MPoint>& b);
 
 // --------------------------------------------------------------------

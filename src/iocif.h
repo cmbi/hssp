@@ -23,9 +23,13 @@ struct field
 
     if (m_data[0] == '\'' and m_data_end > m_data and m_data_end[-1] == '\'')
       result = std::string(m_data + 1, m_data_end - 1);
-    else if (m_data[0] == '"' and m_data_end > m_data and m_data_end[-1] == '"')
+    else if (m_data[0] == '"' and
+             m_data_end > m_data and
+             m_data_end[-1] == '"')
       result = std::string(m_data + 1, m_data_end - 1);
-    else if (m_data[0] == ';' and m_data_end > m_data and m_data_end[-1] == ';')
+    else if (m_data[0] == ';' and
+             m_data_end > m_data and
+             m_data_end[-1] == ';')
       result = std::string(m_data + 1, m_data_end - 1);
     else
       result = std::string(m_data, m_data_end);
@@ -60,28 +64,58 @@ struct record
     return m_name;
   }
 
-  struct const_iterator : public std::iterator<std::forward_iterator_tag, const row>
+  struct const_iterator : public std::iterator<std::forward_iterator_tag,
+                                               const row>
   {
     typedef std::iterator<std::forward_iterator_tag, const row>  base_type;
-    typedef base_type::reference                reference;
-    typedef base_type::pointer                  pointer;
+    typedef base_type::reference reference;
+    typedef base_type::pointer pointer;
 
-            const_iterator(const record& rec, const row& row) : m_rec(rec), m_row(row) {}
-            const_iterator(const const_iterator& iter) : m_rec(iter.m_rec), m_row(iter.m_row) {}
-    const_iterator&  operator=(const const_iterator& iter)      { m_row = iter.m_row; return *this; }
+    const_iterator(const record& rec, const row& row)
+      : m_rec(rec),
+        m_row(row)
+    {}
 
-    reference    operator*() const                { return m_row; }
-    pointer      operator->() const                { return &m_row; }
+    const_iterator(const const_iterator& iter)
+      : m_rec(iter.m_rec),
+        m_row(iter.m_row)
+    {}
 
-    const_iterator&  operator++()                  { m_rec.advance(m_row); return *this; }
-    const_iterator  operator++(int)                  { const_iterator iter(*this); operator++(); return iter; }
+    const_iterator& operator=(const const_iterator& iter)
+    {
+      m_row = iter.m_row;
+      return *this;
+    }
 
-    bool      operator==(const const_iterator& iter) const  { return m_row == iter.m_row; }
-    bool      operator!=(const const_iterator& iter) const  { return not operator==(iter); }
+    reference operator*() const { return m_row; }
+    pointer operator->() const { return &m_row; }
+
+    const_iterator& operator++()
+    {
+      m_rec.advance(m_row);
+      return *this;
+    }
+
+    const_iterator operator++(int)
+    {
+      const_iterator iter(*this);
+      operator++();
+      return iter;
+    }
+
+    bool operator==(const const_iterator& iter) const
+    {
+      return m_row == iter.m_row;
+    }
+
+    bool operator!=(const const_iterator& iter) const
+    {
+      return not operator==(iter);
+    }
 
     private:
-    const record&  m_rec;
-    row        m_row;
+      const record& m_rec;
+      row m_row;
   };
 
   typedef const_iterator iterator;
@@ -99,13 +133,14 @@ struct record
     return m_name < rhs.m_name;
   }
 
-  std::string    get_joined(const char* inFieldName, const char* inDelimiter) const;
+  std::string get_joined(const char* inFieldName,
+                         const char* inDelimiter) const;
 
-  const char*    m_start;
-  const char*    m_end;
-  bool      m_loop;
-  uint32      m_field_count;
-  std::string    m_name;
+  const char* m_start;
+  const char* m_end;
+  bool m_loop;
+  uint32 m_field_count;
+  std::string m_name;
 };
 
 class file

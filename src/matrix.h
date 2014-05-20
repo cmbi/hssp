@@ -23,8 +23,8 @@
 
 // PAM250 is used by hssp-nt in aligning the sequences
 
-extern const int8 kMBlosum45[], kMBlosum50[], kMBlosum62[], kMBlosum80[], kMBlosum90[],
-  kMPam250[], kMPam30[], kMPam70[];
+extern const int8 kMBlosum45[], kMBlosum50[], kMBlosum62[], kMBlosum80[],
+                  kMBlosum90[], kMPam250[], kMPam30[], kMPam70[];
 extern const float kMPam250ScalingFactor, kMPam250MisMatchAverage;
 
 struct MMtrxStats
@@ -77,7 +77,11 @@ class matrix_base
   virtual uint32    dim_m() const = 0;
   virtual uint32    dim_n() const = 0;
 
-  virtual value_type&  operator()(uint32 i, uint32 j) { throw std::runtime_error("unimplemented method"); }
+  virtual value_type&  operator()(uint32 i, uint32 j)
+  {
+    throw std::runtime_error("unimplemented method");
+  }
+
   virtual value_type  operator()(uint32 i, uint32 j) const = 0;
 
   matrix_base&    operator*=(const value_type& rhs);
@@ -367,13 +371,16 @@ class identity_matrix : public matrix_base<T>
 template<typename T>
 matrix<T> operator*(const matrix_base<T>& lhs, const matrix_base<T>& rhs)
 {
-  matrix<T> result(std::min(lhs.dim_m(), rhs.dim_m()), std::min(lhs.dim_n(), rhs.dim_n()));
+  matrix<T> result(std::min(lhs.dim_m(), rhs.dim_m()), std::min(lhs.dim_n(),
+                   rhs.dim_n()));
 
   for (uint32 i = 0; i < result.dim_m(); ++i)
   {
     for (uint32 j = 0; j < result.dim_n(); ++j)
     {
-      for (uint32 li = 0, rj = 0; li < lhs.dim_m() and rj < rhs.dim_n(); ++li, ++rj)
+      for (uint32 li = 0, rj = 0;
+           li < lhs.dim_m() and rj < rhs.dim_n();
+           ++li, ++rj)
         result(i, j) += lhs(li, j) * rhs(i, rj);
     }
   }
@@ -393,7 +400,8 @@ matrix<T> operator*(const matrix_base<T>& lhs, T rhs)
 template<typename T>
 matrix<T> operator-(const matrix_base<T>& lhs, const matrix_base<T>& rhs)
 {
-  matrix<T> result(std::min(lhs.dim_m(), rhs.dim_m()), std::min(lhs.dim_n(), rhs.dim_n()));
+  matrix<T> result(std::min(lhs.dim_m(), rhs.dim_m()), std::min(lhs.dim_n(),
+                   rhs.dim_n()));
 
   for (uint32 i = 0; i < result.dim_m(); ++i)
   {

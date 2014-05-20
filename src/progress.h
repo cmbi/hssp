@@ -7,7 +7,9 @@
 
 #if defined(__linux__)
 
-#if defined(__INTEL_COMPILER_BUILD_DATE) || (defined(__GNUC__) && (__GNUC__ > 4 || ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
+#if defined(__INTEL_COMPILER_BUILD_DATE) || \
+    (defined(__GNUC__) && (__GNUC__ > 4 || \
+                           ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
 #include <atomic>
 typedef std::atomic<int64>  MCounter;
 #else
@@ -26,7 +28,6 @@ struct MCounter
   int64  operator++(int);
   int64  operator+=(int64 inValue);
   int64  operator=(int64 inValue);
-//  bool  operator==(const MCounter& rhs) const   { return m_value == rhs.m_value; }
 
   int64  m_value;
 };

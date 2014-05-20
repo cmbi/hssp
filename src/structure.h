@@ -19,7 +19,8 @@ typedef buffer<MResidue*,100>  MResidueQueue;
 
 const uint32 kHistogramSize = 30;
 
-// a limited set of known atoms. This is an obvious candidate for improvement of DSSP.
+// a limited set of known atoms. This is an obvious candidate for improvement
+// of DSSP.
 enum MAtomType
 {
   kUnknownAtom,
@@ -177,7 +178,10 @@ class MResidue
 
   void        SetSecondaryStructure(MSecondaryStructure inSS)
                             { mSecondaryStructure = inSS; }
-  MSecondaryStructure  GetSecondaryStructure() const  { return mSecondaryStructure; }
+  MSecondaryStructure  GetSecondaryStructure() const
+  {
+    return mSecondaryStructure;
+  }
 
   const MResidue*    Next() const          { return mNext; }
   const MResidue*    Prev() const          { return mPrev; }
@@ -230,7 +234,7 @@ class MResidue
 
   void        WritePDB(std::ostream& os);
 
-  static double    CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor);
+  static double CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor);
 
   std::vector<MAtom>&  GetSideChain()        { return mSideChain; }
   const std::vector<MAtom>&
@@ -293,7 +297,8 @@ class MChain
   std::string      GetChainID() const          { return mChainID; }
   void        SetChainID(const std::string& inChainID);
 
-  MResidue*      GetResidueBySeqNumber(uint16 inSeqNumber, const std::string& inInsertionCode);
+  MResidue*      GetResidueBySeqNumber(uint16 inSeqNumber,
+                                       const std::string& inInsertionCode);
 
   void        GetSequence(std::string& outSequence) const;
 
@@ -332,20 +337,23 @@ class MProtein
   std::string      GetCompound() const;
   std::string      GetSource() const;
   std::string      GetAuthor() const;
-  const std::vector<std::string>&
-            GetDbRef() const        { return mDbRef; }
+  const std::vector<std::string>& GetDbRef() const { return mDbRef; }
 
-  void        CalculateSecondaryStructure(bool inPreferPiHelices = true);
+  void CalculateSecondaryStructure(bool inPreferPiHelices = true);
 
-  void        GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
-              uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges,
-              uint32& outNrOfHBonds, uint32 outNrOfHBondsPerDistance[11]) const;
+  void GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
+       uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges,
+       uint32& outNrOfHBonds, uint32 outNrOfHBondsPerDistance[11]) const;
 
-  void        GetCAlphaLocations(const std::string& inChainID, std::vector<MPoint>& outPoints) const;
-  MPoint        GetCAlphaPosition(const std::string& inChainID, int16 inPDBResSeq) const;
+  void GetCAlphaLocations(const std::string& inChainID,
+                                 std::vector<MPoint>& outPoints) const;
+  MPoint        GetCAlphaPosition(const std::string& inChainID,
+                                  int16 inPDBResSeq) const;
 
-  void        GetSequence(const std::string& inChainID, entry& outEntry) const;
-  void        GetSequence(const std::string& inChainID, sequence& outSequence) const;
+  void        GetSequence(const std::string& inChainID,
+                          entry& outEntry) const;
+  void        GetSequence(const std::string& inChainID,
+                          sequence& outSequence) const;
 
   void        Center();
   void        Translate(const MPoint& inTranslation);
@@ -355,38 +363,49 @@ class MProtein
 
   void        GetPoints(std::vector<MPoint>& outPoints) const;
 
-  std::string      GetFirstChainID() const                { return mChains.front()->GetChainID(); }
+  std::string GetFirstChainID() const
+  {
+    return mChains.front()->GetChainID();
+  }
 
   void        SetChain(const std::string& inChainID, const MChain& inChain);
 
   MChain&        GetChain(const std::string& inChainID);
   const MChain&    GetChain(const std::string& inChainID) const;
 
-  const std::vector<MChain*>&
-            GetChains() const                  { return mChains; }
+  const std::vector<MChain*>& GetChains() const { return mChains; }
 
   template<class OutputIterator>
   void        GetSequences(OutputIterator outSequences) const;
 
-  MResidue*      GetResidue(const std::string& inChainID, uint16 inSeqNumber, const std::string& inInsertionCode);
+  MResidue* GetResidue(const std::string& inChainID, uint16 inSeqNumber,
+                       const std::string& inInsertionCode);
 
   // statistics
-  uint32        GetNrOfHBondsInParallelBridges() const        { return mNrOfHBondsInParallelBridges; }
-  uint32        GetNrOfHBondsInAntiparallelBridges() const      { return mNrOfHBondsInAntiparallelBridges; }
+  uint32 GetNrOfHBondsInParallelBridges() const
+  {
+    return mNrOfHBondsInParallelBridges;
+  }
 
-  void        GetResiduesPerAlphaHelixHistogram(uint32 outHistogram[30]) const;
-  void        GetParallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
-  void        GetAntiparallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
-  void        GetLaddersPerSheetHistogram(uint32 outHistogram[30]) const;
+  uint32 GetNrOfHBondsInAntiparallelBridges() const
+  {
+    return mNrOfHBondsInAntiparallelBridges;
+  }
+
+  void GetResiduesPerAlphaHelixHistogram(uint32 outHistogram[30]) const;
+  void GetParallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
+  void GetAntiparallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
+  void GetLaddersPerSheetHistogram(uint32 outHistogram[30]) const;
 
   private:
 
-  void        AddResidue(const std::vector<MAtom>& inAtoms);
+  void AddResidue(const std::vector<MAtom>& inAtoms);
 
-  void        CalculateHBondEnergies(const std::vector<MResidue*>& inResidues);
-  void        CalculateAlphaHelices(const std::vector<MResidue*>& inResidues, bool inPreferPiHelices);
-  void        CalculateBetaSheets(const std::vector<MResidue*>& inResidues);
-  void        CalculateAccessibilities(const std::vector<MResidue*>& inResidues);
+  void CalculateHBondEnergies(const std::vector<MResidue*>& inResidues);
+  void CalculateAlphaHelices(const std::vector<MResidue*>& inResidues,
+                             bool inPreferPiHelices);
+  void CalculateBetaSheets(const std::vector<MResidue*>& inResidues);
+  void CalculateAccessibilities(const std::vector<MResidue*>& inResidues);
 
   // a thread entry point
   void        CalculateAccessibility(MResidueQueue& inQueue,
@@ -394,30 +413,29 @@ class MProtein
 
   std::string      mID, mHeader;
 
-  std::vector<std::string>
-            mDbRef;
+  std::vector<std::string> mDbRef;
   std::string      mCompound, mSource, mAuthor;
-  std::vector<MChain*>mChains;
+  std::vector<MChain*> mChains;
   uint32        mResidueCount, mChainBreaks;
 
-  std::vector<std::pair<MResidue*,MResidue*> >
-            mSSBonds;
+  std::vector<std::pair<MResidue*,MResidue*> > mSSBonds;
   uint32        mIgnoredWaterMolecules;
 
   // statistics
-  uint32        mNrOfHBondsInParallelBridges, mNrOfHBondsInAntiparallelBridges;
-  uint32        mParallelBridgesPerLadderHistogram[kHistogramSize];
-  uint32        mAntiparallelBridgesPerLadderHistogram[kHistogramSize];
-  uint32        mLaddersPerSheetHistogram[kHistogramSize];
+  uint32 mNrOfHBondsInParallelBridges, mNrOfHBondsInAntiparallelBridges;
+  uint32 mParallelBridgesPerLadderHistogram[kHistogramSize];
+  uint32 mAntiparallelBridgesPerLadderHistogram[kHistogramSize];
+  uint32 mLaddersPerSheetHistogram[kHistogramSize];
 };
 
 // inlines
 
-// GetSequences can be used to quickly get all sequences in a vector<string> e.g.
+// GetSequences can be used to quickly get all sequences in a vector<string>
 template<class OutputIterator>
 void MProtein::GetSequences(OutputIterator outSequences) const
 {
-  for (std::vector<MChain*>::const_iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+  std::vector<MChain*>::const_iterator chain;
+  for (chain = mChains.begin(); chain != mChains.end(); ++chain)
   {
     std::string seq;
     (*chain)->GetSequence(seq);

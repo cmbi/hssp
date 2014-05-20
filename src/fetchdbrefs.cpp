@@ -31,7 +31,8 @@ boost::asio::io_service io_service;
 tcp::resolver resolver(io_service);
 
 void FetchHTTPDocument(const string& inServer, const string& inURL,
-  const string& inDb, const string& inID, string& outHeader, string& outDocument)
+                       const string& inDb, const string& inID,
+                       string& outHeader, string& outDocument)
 {
   // This code comes from the http client example code in Boost ASIO
 
@@ -102,7 +103,8 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
     throw mas_exception("Invalid response");
 
   if (status_code != 200)
-    throw mas_exception(boost::format("Response returned with status code %d") % status_code);
+    throw mas_exception(
+        boost::format("Response returned with status code %d") % status_code);
 
   // Read the response headers, which are terminated by a blank line.
   boost::asio::read_until(socket, response, "\r\n\r\n");
@@ -123,7 +125,8 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 
   // Read until EOF, writing data to output as we go.
 //  boost::system::error_code error;
-  while (boost::asio::read(socket, response, boost::asio::transfer_at_least(1), error))
+  while (boost::asio::read(socket, response, boost::asio::transfer_at_least(1),
+         error))
     osd << &response;
 
   if (error != boost::asio::error::eof)
@@ -131,7 +134,8 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 }
 
 void FetchHTTPDocument(const string& inServer, const string& inURL,
-  const string& inDb, const vector<string>& inIDs, string& outHeader, string& outDocument)
+                       const string& inDb, const vector<string>& inIDs,
+                       string& outHeader, string& outDocument)
 {
   // This code comes from the http client example code in Boost ASIO
 
@@ -205,7 +209,8 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
     throw mas_exception("Invalid response");
 
   if (status_code != 200)
-    throw mas_exception(boost::format("Response returned with status code %d") % status_code);
+    throw mas_exception(
+        boost::format("Response returned with status code %d") % status_code);
 
   // Read the response headers, which are terminated by a blank line.
   boost::asio::read_until(socket, response, "\r\n\r\n");
@@ -226,7 +231,8 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 
   // Read until EOF, writing data to output as we go.
 //  boost::system::error_code error;
-  while (boost::asio::read(socket, response, boost::asio::transfer_at_least(1), error))
+  while (boost::asio::read(socket, response, boost::asio::transfer_at_least(1),
+                           error))
     osd << &response;
 
   if (error != boost::asio::error::eof)
@@ -235,8 +241,8 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 
 }
 
-void FetchPDBReferences(const string& inBaseURL, const string& inDb, const string& inID,
-  vector<string>& outReferences)
+void FetchPDBReferences(const string& inBaseURL, const string& inDb,
+                        const string& inID, vector<string>& outReferences)
 {
   static const boost::regex re("http://([^/]+)(/.*)?");
 
