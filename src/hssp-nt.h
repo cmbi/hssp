@@ -1,3 +1,6 @@
+#ifndef XSSP_HSSPNT_H
+#define XSSP_HSSPNT_H
+
 #pragma once
 
 #include <vector>
@@ -24,3 +27,5 @@ void CreateHSSP(const std::string& inProtein,
 	bool inFetchDBRefs, std::ostream& inOutStream);
 
 }
+
+#endif

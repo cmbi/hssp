@@ -176,9 +176,18 @@ class seq
 		const_iterator
 					end() const						{ return const_iterator(m_seq + m_size); }
 
-		string		m_id, m_acc, m_desc, m_pdb;
-		uint32		m_ifir, m_ilas, m_jfir, m_jlas, m_length, m_seqlen;
-		float		m_identical, m_similar;
+    string m_id;
+    string m_acc;
+    string m_desc;
+    string m_pdb;
+    uint32 m_ifir;
+    uint32 m_ilas;
+    uint32 m_jfir;
+    uint32 m_jlas;
+    uint32 m_length;
+    uint32 m_seqlen;
+    float m_similar;
+    float m_identical;
 		uint32		m_begin, m_end;
 		uint32		m_gaps, m_gapn;
 		list<insertion>
@@ -186,7 +195,8 @@ class seq
 		char*		m_data;
 		char*		m_seq;
 		uint32		m_refcount;
-		uint32		m_size, m_space;
+		uint32		m_size;
+    uint32 m_space;
 	};
 
 	seq_impl*	m_impl;
@@ -375,7 +385,8 @@ void seq::seq_impl::update(const seq_impl& qseq)
 	if (jpos == 0)
 		jpos = 1;
 
-	bool sgapped = false, qgapped = false;
+	//bool sgapped = false;
+  bool qgapped = false;
 
 	const_iterator qi = qseq.begin();
 	iterator si = begin();
@@ -390,9 +401,10 @@ void seq::seq_impl::update(const seq_impl& qseq)
 		if (qgap and sgap)
 			continue;
 
-		if (sgap)
-			sgapped = true;
-		else if (qgap)
+		//if (sgap)
+			//sgapped = true;
+		//else if (qgap)
+    if (qgap)
 		{
 			if (not qgapped)
 			{
@@ -419,7 +431,7 @@ void seq::seq_impl::update(const seq_impl& qseq)
 				m_insertions.push_back(ins);
 			}
 			
-			sgapped = false;
+			//sgapped = false;
 			qgapped = false;
 
 			++ipos;
@@ -558,11 +570,14 @@ typedef vector<hit_ptr>	hit_list;
 
 uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa, hit_list& hits, res_list& residues, uint32& nchain)
 {
-	string line, qid;
+	string line;
+  string qid;
 
-	uint32 n = 0, offset = residues.size(), result = 0, rix = offset;
-	string::size_type ccOffset = 0, queryNr, idWidth = 0;
-	char chainId;
+  uint32 offset = residues.size();
+  uint32 result = 0;
+  uint32 rix = offset;
+	string::size_type ccOffset = 0, queryNr=0, idWidth = 0;
+	char chainId = 0;
 	boost::regex r1("Chain . is considered to be the same as (.(?:(?:, .)* and .)?)");
 	map<string,uint32> index;
 	
@@ -949,7 +964,6 @@ void ConvertHsspFile(istream& in, ostream& out)
 
 		if (not residues.empty())
 			residues.push_back(res_ptr(new ResidueInfo("      ! !              0   0    0    0    0")));
-		uint32 first = residues.size();
 
 		string h;
 		swap(header, h);

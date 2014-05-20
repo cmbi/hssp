@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
 {
 	try
 	{
-		po::options_description desc("mkdssp " VERSION " options");
+		po::options_description desc("mkdssp options");
 		desc.add_options()
 			("help,h",							 "Display help message")
 			("input,i",		po::value<string>(), "Input file")
@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
 
 		if (vm.count("version"))
 		{
-			cout << "mkdssp version " VERSION << endl;
+			cout << "mkdssp version " << endl;
 			exit(0);
 		}
 

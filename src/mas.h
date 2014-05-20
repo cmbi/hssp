@@ -3,6 +3,9 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at    
 //             http://www.boost.org/LICENSE_1_0.txt)      
 
+#ifndef XSSP_MAS_H
+#define XSSP_MAS_H
+
 #pragma once
 
 #include <string>
@@ -69,3 +72,5 @@ inline bool is_gap(char aa)
 
 sequence encode(const std::string& s);
 std::string decode(const sequence& s);
+
+#endif

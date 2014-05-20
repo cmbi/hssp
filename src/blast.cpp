@@ -428,7 +428,7 @@ static bool GetEntropy(const string& inSequence, const Alphabet& inAlphabet,
 	long downset = (inWindow + 1) / 2 - 1;
 	long upset = inWindow - downset;
 	
-	if (inWindow <= inSequence.length())
+	if (inWindow <= static_cast<long>(inSequence.length()))
 	{
 		result = true;
 		outEntropy.clear();

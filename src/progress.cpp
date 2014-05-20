@@ -151,7 +151,7 @@ void MProgressImpl::PrintDone()
 {
 	string msg = mAction + " done in " + mTimer.format(0, "%ts cpu / %ws wall");
 
-	int width = get_terminal_width();
+	uint width = get_terminal_width();
 
 	if (msg.length() < width)
 		msg += string(width - msg.length(), ' ');

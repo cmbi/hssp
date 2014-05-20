@@ -5,6 +5,9 @@
 //
 // buffer is a thread safe queue
 
+#ifndef XSSP_BUFFER_H
+#define XSSP_BUFFER_H
+
 #pragma once
 
 #include <deque>
@@ -58,3 +61,5 @@ T buffer<T,N>::get()
 	
 	return result;
 }
+
+#endif

@@ -3,6 +3,9 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at    
 //             http://www.boost.org/LICENSE_1_0.txt)      
 
+#ifndef XSSP_UTILS_H
+#define XSSP_UTILS_H
+
 #pragma once
 
 #ifndef NDEBUG
@@ -100,3 +103,5 @@ struct stats
 
 void WriteToFD(int inFD, const std::string& inText);
 boost::filesystem::path get_home();
+
+#endif

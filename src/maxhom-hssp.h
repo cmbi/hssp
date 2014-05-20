@@ -8,6 +8,9 @@
 //	Copyright, M.L. Hekkelman, UMC St. Radboud, Nijmegen
 //
 
+#ifndef XSSP_MAXHOM_H
+#define XSSP_MAXHOM_H
+
 #pragma once
 
 #include <iostream>
@@ -33,3 +36,5 @@ void GetHSSPForHitsAndDSSP(
 	std::ostream&				outHSSP);
 
 }
+
+#endif

@@ -1,3 +1,6 @@
+#ifndef XSSP_IOCIF_H
+#define XSSP_IOCIF_H
+
 #pragma once
 
 #include <iostream>
@@ -123,3 +126,5 @@ class file
 };
 	
 }
+
+#endif
