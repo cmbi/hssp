@@ -1,7 +1,7 @@
 // Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
 //   Distributed under the Boost Software License, Version 1.0.
-//       (See accompanying file LICENSE_1_0.txt or copy at    
-//             http://www.boost.org/LICENSE_1_0.txt)      
+//       (See accompanying file LICENSE_1_0.txt or copy at
+//             http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
 
@@ -15,31 +15,31 @@ class MProtein;
 
 // forward declaration of buffer
 template<typename T, uint32 N> class buffer;
-typedef buffer<MResidue*,100>	MResidueQueue;
+typedef buffer<MResidue*,100>  MResidueQueue;
 
 const uint32 kHistogramSize = 30;
 
 // a limited set of known atoms. This is an obvious candidate for improvement of DSSP.
 enum MAtomType
 {
-	kUnknownAtom,
-	kHydrogen,
-	// ...
-	kCarbon,
-	kNitrogen,
-	kOxygen,
-	kFluorine,
-	// ...
-	kPhosphorus,
-	kSulfur,
-	kChlorine,
-	kMagnesium,
-	kPotassium,
-	kCalcium,
-	kZinc,
-	kSelenium,
-	
-	kAtomTypeCount
+  kUnknownAtom,
+  kHydrogen,
+  // ...
+  kCarbon,
+  kNitrogen,
+  kOxygen,
+  kFluorine,
+  // ...
+  kPhosphorus,
+  kSulfur,
+  kChlorine,
+  kMagnesium,
+  kPotassium,
+  kCalcium,
+  kZinc,
+  kSelenium,
+
+  kAtomTypeCount
 };
 
 MAtomType MapElement(std::string inElement);
@@ -47,64 +47,64 @@ MAtomType MapElement(std::string inElement);
 // for now, MAtom contains exactly what the ATOM line contains in a PDB file
 struct MAtom
 {
-	uint32		mSerial;
-	std::string	mName;
-	char		mAltLoc;
-	std::string	mResName;
-	std::string	mChainID;
-	int16		mResSeq;
-	std::string	mICode;
-	MAtomType	mType;
-	MPoint		mLoc;
-	double		mOccupancy;
-	double		mTempFactor;
-	std::string	mElement;
-	int			mCharge;
+  uint32    mSerial;
+  std::string  mName;
+  char    mAltLoc;
+  std::string  mResName;
+  std::string  mChainID;
+  int16    mResSeq;
+  std::string  mICode;
+  MAtomType  mType;
+  MPoint    mLoc;
+  double    mOccupancy;
+  double    mTempFactor;
+  std::string  mElement;
+  int      mCharge;
 
-	void		SetChainID(const std::string& inChainID){ mChainID = inChainID;}
-	std::string	GetName() const							{ return mName; }
-	void		Translate(const MPoint& inTranslation)	{ mLoc += inTranslation; }
-	void		Rotate(const MQuaternion& inRotation)	{ mLoc.Rotate(inRotation); }
-	void		WritePDB(std::ostream& os) const;
+  void    SetChainID(const std::string& inChainID){ mChainID = inChainID;}
+  std::string  GetName() const              { return mName; }
+  void    Translate(const MPoint& inTranslation)  { mLoc += inTranslation; }
+  void    Rotate(const MQuaternion& inRotation)  { mLoc.Rotate(inRotation); }
+  void    WritePDB(std::ostream& os) const;
 
-				operator const MPoint&() const			{ return mLoc; }
-				operator MPoint&()						{ return mLoc; }
+        operator const MPoint&() const      { return mLoc; }
+        operator MPoint&()            { return mLoc; }
 };
 
 enum MResidueType
 {
-	kUnknownResidue,
-	
-	//
-	kAlanine,				// A	ala
-	kArginine,				// R	arg
-	kAsparagine,			// N	asn
-	kAsparticAcid,			// D	asp
-	kCysteine,				// C	cys
-	kGlutamicAcid,			// E	glu
-	kGlutamine,				// Q	gln
-	kGlycine,				// G	gly
-	kHistidine,				// H	his
-	kIsoleucine,			// I	ile
-	kLeucine,				// L	leu
-	kLysine,				// K	lys
-	kMethionine,			// M	met
-	kPhenylalanine,			// F	phe
-	kProline,				// P	pro
-	kSerine,				// S	ser
-	kThreonine,				// T	thr
-	kTryptophan,			// W	trp
-	kTyrosine,				// Y	tyr
-	kValine,				// V	val
-	
-	kResidueTypeCount
+  kUnknownResidue,
+
+  //
+  kAlanine,        // A  ala
+  kArginine,        // R  arg
+  kAsparagine,      // N  asn
+  kAsparticAcid,      // D  asp
+  kCysteine,        // C  cys
+  kGlutamicAcid,      // E  glu
+  kGlutamine,        // Q  gln
+  kGlycine,        // G  gly
+  kHistidine,        // H  his
+  kIsoleucine,      // I  ile
+  kLeucine,        // L  leu
+  kLysine,        // K  lys
+  kMethionine,      // M  met
+  kPhenylalanine,      // F  phe
+  kProline,        // P  pro
+  kSerine,        // S  ser
+  kThreonine,        // T  thr
+  kTryptophan,      // W  trp
+  kTyrosine,        // Y  tyr
+  kValine,        // V  val
+
+  kResidueTypeCount
 };
 
 struct MResidueInfo
 {
-	MResidueType		type;
-	char				code;
-	char				name[4];
+  MResidueType    type;
+  char        code;
+  char        name[4];
 };
 
 // a residue number to info mapping
@@ -114,301 +114,301 @@ MResidueType MapResidue(std::string inName);
 
 struct HBond
 {
-	MResidue*		residue;
-	double			energy;
+  MResidue*    residue;
+  double      energy;
 };
 
 enum MBridgeType
 {
-	btNoBridge, btParallel, btAntiParallel
+  btNoBridge, btParallel, btAntiParallel
 };
 
 struct MBridgeParner
 {
-	MResidue*		residue;
-	uint32			ladder;
-	bool			parallel;
+  MResidue*    residue;
+  uint32      ladder;
+  bool      parallel;
 };
 
 enum MHelixFlag
 {
-	helixNone, helixStart, helixEnd, helixStartAndEnd, helixMiddle
+  helixNone, helixStart, helixEnd, helixStartAndEnd, helixMiddle
 };
 
 enum MSecondaryStructure
 {
-	loop,		//' '
-	alphahelix,	// H
-	betabridge, // B
-	strand,		// E
-	helix_3,	// G
-	helix_5,	// I
-	turn,		// T
-	bend		// S
+  loop,    //' '
+  alphahelix,  // H
+  betabridge, // B
+  strand,    // E
+  helix_3,  // G
+  helix_5,  // I
+  turn,    // T
+  bend    // S
 };
 
 class MResidue
 {
   public:
-						MResidue(const MResidue& residue);
-						MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious);
-						MResidue(uint32 inNumber,
-							MResidue* inPrevious, const std::vector<MAtom>& inAtoms);
+            MResidue(const MResidue& residue);
+            MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious);
+            MResidue(uint32 inNumber,
+              MResidue* inPrevious, const std::vector<MAtom>& inAtoms);
 
-	void				SetChainID(const std::string& inChainID);
-	std::string			GetChainID() const				{ return mChainID; }
+  void        SetChainID(const std::string& inChainID);
+  std::string      GetChainID() const        { return mChainID; }
 
-	MResidueType		GetType() const					{ return mType; }
+  MResidueType    GetType() const          { return mType; }
 
-	const MAtom&		GetCAlpha() const				{ return mCA; }
-	const MAtom&		GetC() const					{ return mC; }
-	const MAtom&		GetN() const					{ return mN; }
-	const MAtom&		GetO() const					{ return mO; }
-	const MAtom&		GetH() const					{ return mH; }
+  const MAtom&    GetCAlpha() const        { return mCA; }
+  const MAtom&    GetC() const          { return mC; }
+  const MAtom&    GetN() const          { return mN; }
+  const MAtom&    GetO() const          { return mO; }
+  const MAtom&    GetH() const          { return mH; }
 
-	double				Phi() const;
-	double				Psi() const;
-	std::tr1::tuple<double,char>
-						Alpha() const;
-	double				Kappa() const;
-	double				TCO() const;
-	
-	double				Accessibility() const			{ return mAccessibility; }
-	
-	void				SetSecondaryStructure(MSecondaryStructure inSS)
-														{ mSecondaryStructure = inSS; }
-	MSecondaryStructure	GetSecondaryStructure() const	{ return mSecondaryStructure; }
-	
-	const MResidue*		Next() const					{ return mNext; }
-	const MResidue*		Prev() const					{ return mPrev; }
+  double        Phi() const;
+  double        Psi() const;
+  std::tr1::tuple<double,char>
+            Alpha() const;
+  double        Kappa() const;
+  double        TCO() const;
 
-	void				SetPrev(MResidue* inResidue);
-	
-	void				SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder,
-							bool inParallel);
-	MBridgeParner		GetBetaPartner(uint32 n) const;
-						
-	void				SetSheet(uint32 inSheet)	{ mSheet = inSheet; }
-	uint32				GetSheet() const			{ return mSheet; }
-	
-	bool				IsBend() const				{ return mBend; }
-	void				SetBend(bool inBend)		{ mBend = inBend; }
-	
-	MHelixFlag			GetHelixFlag(uint32 inHelixStride) const;
-	bool				IsHelixStart(uint32 inHelixStride) const;
-	void				SetHelixFlag(uint32 inHelixStride, MHelixFlag inHelixFlag);
+  double        Accessibility() const      { return mAccessibility; }
 
-	void				SetSSBridgeNr(uint8 inBridgeNr);
-	uint8				GetSSBridgeNr() const;
+  void        SetSecondaryStructure(MSecondaryStructure inSS)
+                            { mSecondaryStructure = inSS; }
+  MSecondaryStructure  GetSecondaryStructure() const  { return mSecondaryStructure; }
 
-	void				AddAtom(MAtom& inAtom);
-	
-	HBond*				Donor()						{ return mHBondDonor; }
-	HBond*				Acceptor()					{ return mHBondAcceptor; }
+  const MResidue*    Next() const          { return mNext; }
+  const MResidue*    Prev() const          { return mPrev; }
 
-	const HBond*		Donor() const				{ return mHBondDonor; }
-	const HBond*		Acceptor() const			{ return mHBondAcceptor; }
+  void        SetPrev(MResidue* inResidue);
 
-	bool				ValidDistance(const MResidue& inNext) const;
+  void        SetBetaPartner(uint32 n, MResidue* inResidue, uint32 inLadder,
+              bool inParallel);
+  MBridgeParner    GetBetaPartner(uint32 n) const;
 
-	static bool			TestBond(const MResidue* a, const MResidue* b)
-						{
-							return a->TestBond(b);
-						}
+  void        SetSheet(uint32 inSheet)  { mSheet = inSheet; }
+  uint32        GetSheet() const      { return mSheet; }
 
-	// bridge functions
-	MBridgeType			TestBridge(MResidue* inResidue) const;
+  bool        IsBend() const        { return mBend; }
+  void        SetBend(bool inBend)    { mBend = inBend; }
 
-	uint16				GetSeqNumber() const		{ return mSeqNumber; }
-	std::string			GetInsertionCode() const	{ return mInsertionCode; }
-	
-	void				SetNumber(uint16 inNumber)	{ mNumber = inNumber; }
-	uint16				GetNumber() const			{ return mNumber; }
+  MHelixFlag      GetHelixFlag(uint32 inHelixStride) const;
+  bool        IsHelixStart(uint32 inHelixStride) const;
+  void        SetHelixFlag(uint32 inHelixStride, MHelixFlag inHelixFlag);
 
-	void				Translate(const MPoint& inTranslation);
-	void				Rotate(const MQuaternion& inRotation);
+  void        SetSSBridgeNr(uint8 inBridgeNr);
+  uint8        GetSSBridgeNr() const;
 
-	void				WritePDB(std::ostream& os);
+  void        AddAtom(MAtom& inAtom);
 
-	static double		CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor);
+  HBond*        Donor()            { return mHBondDonor; }
+  HBond*        Acceptor()          { return mHBondAcceptor; }
 
-	std::vector<MAtom>&	GetSideChain()				{ return mSideChain; }
-	const std::vector<MAtom>&
-						GetSideChain() const		{ return mSideChain; }
+  const HBond*    Donor() const        { return mHBondDonor; }
+  const HBond*    Acceptor() const      { return mHBondAcceptor; }
 
-	void				GetPoints(std::vector<MPoint>& outPoints) const;
+  bool        ValidDistance(const MResidue& inNext) const;
 
-	void				CalculateSurface(const std::vector<MResidue*>& inResidues);
+  static bool      TestBond(const MResidue* a, const MResidue* b)
+            {
+              return a->TestBond(b);
+            }
 
-	void				GetCenterAndRadius(MPoint& outCenter, double& outRadius) const
-													{ outCenter = mCenter; outRadius = mRadius; }
+  // bridge functions
+  MBridgeType      TestBridge(MResidue* inResidue) const;
 
-	static bool			NoChainBreak(const MResidue* from, const MResidue* to);
+  uint16        GetSeqNumber() const    { return mSeqNumber; }
+  std::string      GetInsertionCode() const  { return mInsertionCode; }
+
+  void        SetNumber(uint16 inNumber)  { mNumber = inNumber; }
+  uint16        GetNumber() const      { return mNumber; }
+
+  void        Translate(const MPoint& inTranslation);
+  void        Rotate(const MQuaternion& inRotation);
+
+  void        WritePDB(std::ostream& os);
+
+  static double    CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor);
+
+  std::vector<MAtom>&  GetSideChain()        { return mSideChain; }
+  const std::vector<MAtom>&
+            GetSideChain() const    { return mSideChain; }
+
+  void        GetPoints(std::vector<MPoint>& outPoints) const;
+
+  void        CalculateSurface(const std::vector<MResidue*>& inResidues);
+
+  void        GetCenterAndRadius(MPoint& outCenter, double& outRadius) const
+                          { outCenter = mCenter; outRadius = mRadius; }
+
+  static bool      NoChainBreak(const MResidue* from, const MResidue* to);
 
   protected:
 
-	double				CalculateSurface(
-							const MAtom& inAtom, double inRadius,
-							const std::vector<MResidue*>& inResidues);
+  double        CalculateSurface(
+              const MAtom& inAtom, double inRadius,
+              const std::vector<MResidue*>& inResidues);
 
-	bool				TestBond(const MResidue* other) const;
+  bool        TestBond(const MResidue* other) const;
 
-	void				ExtendBox(const MAtom& atom, double inRadius);
-	bool				AtomIntersectsBox(const MAtom& atom, double inRadius) const;
+  void        ExtendBox(const MAtom& atom, double inRadius);
+  bool        AtomIntersectsBox(const MAtom& atom, double inRadius) const;
 
-	std::string			mChainID;
-	MResidue*			mPrev;
-	MResidue*			mNext;
-	int32				mSeqNumber, mNumber;
-	std::string			mInsertionCode;
-	MResidueType		mType;
-	uint8				mSSBridgeNr;
-	double				mAccessibility;
-	MSecondaryStructure	mSecondaryStructure;
-	MAtom				mC, mN, mCA, mO, mH;
-	HBond				mHBondDonor[2], mHBondAcceptor[2];
-	std::vector<MAtom>	mSideChain;
-	MBridgeParner		mBetaPartner[2];
-	uint32				mSheet;
-	MHelixFlag			mHelixFlags[3];	//
-	bool				mBend;
-	MPoint				mBox[2];		// The 3D box containing all atoms
-	MPoint				mCenter;		// and the 3d Sphere containing all atoms
-	double				mRadius;
+  std::string      mChainID;
+  MResidue*      mPrev;
+  MResidue*      mNext;
+  int32        mSeqNumber, mNumber;
+  std::string      mInsertionCode;
+  MResidueType    mType;
+  uint8        mSSBridgeNr;
+  double        mAccessibility;
+  MSecondaryStructure  mSecondaryStructure;
+  MAtom        mC, mN, mCA, mO, mH;
+  HBond        mHBondDonor[2], mHBondAcceptor[2];
+  std::vector<MAtom>  mSideChain;
+  MBridgeParner    mBetaPartner[2];
+  uint32        mSheet;
+  MHelixFlag      mHelixFlags[3];  //
+  bool        mBend;
+  MPoint        mBox[2];    // The 3D box containing all atoms
+  MPoint        mCenter;    // and the 3d Sphere containing all atoms
+  double        mRadius;
 
   private:
-	MResidue&			operator=(const MResidue& residue);
+  MResidue&      operator=(const MResidue& residue);
 };
 
 class MChain
 {
   public:
 
-						MChain(const MChain& chain);
-						MChain(const std::string& inChainID) : mChainID(inChainID) {}
-						~MChain();
+            MChain(const MChain& chain);
+            MChain(const std::string& inChainID) : mChainID(inChainID) {}
+            ~MChain();
 
-	MChain&				operator=(const MChain& chain);
+  MChain&        operator=(const MChain& chain);
 
-	std::string			GetChainID() const					{ return mChainID; }
-	void				SetChainID(const std::string& inChainID);
+  std::string      GetChainID() const          { return mChainID; }
+  void        SetChainID(const std::string& inChainID);
 
-	MResidue*			GetResidueBySeqNumber(uint16 inSeqNumber, const std::string& inInsertionCode);
-	
-	void				GetSequence(std::string& outSequence) const;
+  MResidue*      GetResidueBySeqNumber(uint16 inSeqNumber, const std::string& inInsertionCode);
 
-	void				Translate(const MPoint& inTranslation);
-	void				Rotate(const MQuaternion& inRotation);
+  void        GetSequence(std::string& outSequence) const;
 
-	void				WritePDB(std::ostream& os);
-	
-	std::vector<MResidue*>&
-						GetResidues()						{ return mResidues; }
-	const std::vector<MResidue*>&
-						GetResidues() const					{ return mResidues; }
+  void        Translate(const MPoint& inTranslation);
+  void        Rotate(const MQuaternion& inRotation);
 
-	bool				Empty() const						{ return mResidues.empty(); }
+  void        WritePDB(std::ostream& os);
+
+  std::vector<MResidue*>&
+            GetResidues()            { return mResidues; }
+  const std::vector<MResidue*>&
+            GetResidues() const          { return mResidues; }
+
+  bool        Empty() const            { return mResidues.empty(); }
 
   private:
-	std::string			mChainID;
-	std::vector<MResidue*>
-						mResidues;
+  std::string      mChainID;
+  std::vector<MResidue*>
+            mResidues;
 };
 
 class MProtein
 {
   public:
-						MProtein();
-						MProtein(const std::string& inID, MChain* inChain);
-						~MProtein();
+            MProtein();
+            MProtein(const std::string& inID, MChain* inChain);
+            ~MProtein();
 
-//						MProtein(std::istream& is, bool inCAlphaOnly = false);
+//            MProtein(std::istream& is, bool inCAlphaOnly = false);
 
-	void				ReadPDB(std::istream& is, bool inCAlphaOnly = false);
-	void				ReadmmCIF(std::istream& is, bool inCAlphaOnly = false);
-	
-	const std::string&	GetID() const					{ return mID; }
-	const std::string&	GetHeader() const				{ return mHeader; }
-	std::string			GetCompound() const;
-	std::string			GetSource() const;
-	std::string			GetAuthor() const;
-	const std::vector<std::string>&
-						GetDbRef() const				{ return mDbRef; }
+  void        ReadPDB(std::istream& is, bool inCAlphaOnly = false);
+  void        ReadmmCIF(std::istream& is, bool inCAlphaOnly = false);
 
-	void				CalculateSecondaryStructure(bool inPreferPiHelices = true);
-	
-	void				GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
-							uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges,
-							uint32& outNrOfHBonds, uint32 outNrOfHBondsPerDistance[11]) const;
-	
-	void				GetCAlphaLocations(const std::string& inChainID, std::vector<MPoint>& outPoints) const;
-	MPoint				GetCAlphaPosition(const std::string& inChainID, int16 inPDBResSeq) const;
-	
-	void				GetSequence(const std::string& inChainID, entry& outEntry) const;
-	void				GetSequence(const std::string& inChainID, sequence& outSequence) const;
+  const std::string&  GetID() const          { return mID; }
+  const std::string&  GetHeader() const        { return mHeader; }
+  std::string      GetCompound() const;
+  std::string      GetSource() const;
+  std::string      GetAuthor() const;
+  const std::vector<std::string>&
+            GetDbRef() const        { return mDbRef; }
 
-	void				Center();
-	void				Translate(const MPoint& inTranslation);
-	void				Rotate(const MQuaternion& inRotation);
+  void        CalculateSecondaryStructure(bool inPreferPiHelices = true);
 
-	void				WritePDB(std::ostream& os);
-	
-	void				GetPoints(std::vector<MPoint>& outPoints) const;
+  void        GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
+              uint32& outNrOfSSBridges, uint32& outNrOfIntraChainSSBridges,
+              uint32& outNrOfHBonds, uint32 outNrOfHBondsPerDistance[11]) const;
 
-	std::string			GetFirstChainID() const								{ return mChains.front()->GetChainID(); }
+  void        GetCAlphaLocations(const std::string& inChainID, std::vector<MPoint>& outPoints) const;
+  MPoint        GetCAlphaPosition(const std::string& inChainID, int16 inPDBResSeq) const;
 
-	void				SetChain(const std::string& inChainID, const MChain& inChain);
+  void        GetSequence(const std::string& inChainID, entry& outEntry) const;
+  void        GetSequence(const std::string& inChainID, sequence& outSequence) const;
 
-	MChain&				GetChain(const std::string& inChainID);
-	const MChain&		GetChain(const std::string& inChainID) const;
-	
-	const std::vector<MChain*>&
-						GetChains() const									{ return mChains; }
+  void        Center();
+  void        Translate(const MPoint& inTranslation);
+  void        Rotate(const MQuaternion& inRotation);
 
-	template<class OutputIterator>
-	void				GetSequences(OutputIterator outSequences) const;
+  void        WritePDB(std::ostream& os);
 
-	MResidue*			GetResidue(const std::string& inChainID, uint16 inSeqNumber, const std::string& inInsertionCode);
+  void        GetPoints(std::vector<MPoint>& outPoints) const;
 
-	// statistics
-	uint32				GetNrOfHBondsInParallelBridges() const				{ return mNrOfHBondsInParallelBridges; }
-	uint32				GetNrOfHBondsInAntiparallelBridges() const			{ return mNrOfHBondsInAntiparallelBridges; }
+  std::string      GetFirstChainID() const                { return mChains.front()->GetChainID(); }
 
-	void				GetResiduesPerAlphaHelixHistogram(uint32 outHistogram[30]) const;
-	void				GetParallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
-	void				GetAntiparallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
-	void				GetLaddersPerSheetHistogram(uint32 outHistogram[30]) const;
-	
+  void        SetChain(const std::string& inChainID, const MChain& inChain);
+
+  MChain&        GetChain(const std::string& inChainID);
+  const MChain&    GetChain(const std::string& inChainID) const;
+
+  const std::vector<MChain*>&
+            GetChains() const                  { return mChains; }
+
+  template<class OutputIterator>
+  void        GetSequences(OutputIterator outSequences) const;
+
+  MResidue*      GetResidue(const std::string& inChainID, uint16 inSeqNumber, const std::string& inInsertionCode);
+
+  // statistics
+  uint32        GetNrOfHBondsInParallelBridges() const        { return mNrOfHBondsInParallelBridges; }
+  uint32        GetNrOfHBondsInAntiparallelBridges() const      { return mNrOfHBondsInAntiparallelBridges; }
+
+  void        GetResiduesPerAlphaHelixHistogram(uint32 outHistogram[30]) const;
+  void        GetParallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
+  void        GetAntiparallelBridgesPerLadderHistogram(uint32 outHistogram[30]) const;
+  void        GetLaddersPerSheetHistogram(uint32 outHistogram[30]) const;
+
   private:
 
-	void				AddResidue(const std::vector<MAtom>& inAtoms);
+  void        AddResidue(const std::vector<MAtom>& inAtoms);
 
-	void				CalculateHBondEnergies(const std::vector<MResidue*>& inResidues);
-	void				CalculateAlphaHelices(const std::vector<MResidue*>& inResidues, bool inPreferPiHelices);
-	void				CalculateBetaSheets(const std::vector<MResidue*>& inResidues);
-	void				CalculateAccessibilities(const std::vector<MResidue*>& inResidues);
+  void        CalculateHBondEnergies(const std::vector<MResidue*>& inResidues);
+  void        CalculateAlphaHelices(const std::vector<MResidue*>& inResidues, bool inPreferPiHelices);
+  void        CalculateBetaSheets(const std::vector<MResidue*>& inResidues);
+  void        CalculateAccessibilities(const std::vector<MResidue*>& inResidues);
 
-	// a thread entry point
-	void				CalculateAccessibility(MResidueQueue& inQueue,
-							const std::vector<MResidue*>& inResidues);
+  // a thread entry point
+  void        CalculateAccessibility(MResidueQueue& inQueue,
+              const std::vector<MResidue*>& inResidues);
 
-	std::string			mID, mHeader;
+  std::string      mID, mHeader;
 
-	std::vector<std::string>
-						mDbRef;
-	std::string			mCompound, mSource, mAuthor;
-	std::vector<MChain*>mChains;
-	uint32				mResidueCount, mChainBreaks;
-	
-	std::vector<std::pair<MResidue*,MResidue*> >
-						mSSBonds;
-	uint32				mIgnoredWaterMolecules;
-	
-	// statistics
-	uint32				mNrOfHBondsInParallelBridges, mNrOfHBondsInAntiparallelBridges;
-	uint32				mParallelBridgesPerLadderHistogram[kHistogramSize];
-	uint32				mAntiparallelBridgesPerLadderHistogram[kHistogramSize];
-	uint32				mLaddersPerSheetHistogram[kHistogramSize];
+  std::vector<std::string>
+            mDbRef;
+  std::string      mCompound, mSource, mAuthor;
+  std::vector<MChain*>mChains;
+  uint32        mResidueCount, mChainBreaks;
+
+  std::vector<std::pair<MResidue*,MResidue*> >
+            mSSBonds;
+  uint32        mIgnoredWaterMolecules;
+
+  // statistics
+  uint32        mNrOfHBondsInParallelBridges, mNrOfHBondsInAntiparallelBridges;
+  uint32        mParallelBridgesPerLadderHistogram[kHistogramSize];
+  uint32        mAntiparallelBridgesPerLadderHistogram[kHistogramSize];
+  uint32        mLaddersPerSheetHistogram[kHistogramSize];
 };
 
 // inlines
@@ -417,11 +417,11 @@ class MProtein
 template<class OutputIterator>
 void MProtein::GetSequences(OutputIterator outSequences) const
 {
-	for (std::vector<MChain*>::const_iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
-	{
-		std::string seq;
-		(*chain)->GetSequence(seq);
-		*outSequences++ = seq;
-	}
+  for (std::vector<MChain*>::const_iterator chain = mChains.begin(); chain != mChains.end(); ++chain)
+  {
+    std::string seq;
+    (*chain)->GetSequence(seq);
+    *outSequences++ = seq;
+  }
 }
 

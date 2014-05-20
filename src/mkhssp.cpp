@@ -40,47 +40,47 @@ int VERBOSE = 0;
 
 MProtein* ReadProteinFromFastA(istream& in)
 {
-	string id, seq;
-	
-	getline(in, id);
-	if (id.empty() and in.eof())
-		throw mas_exception("Not a valid id");
-	
-	if (not ba::starts_with(id, ">"))
-		throw mas_exception("Not a valid FastA file: ID line does not start with '>'");
+  string id, seq;
 
-	id.erase(0, 1);
-	
-	string::size_type s = id.find(' ');
-	if (s != string::npos)
-		id.erase(s);
-	
-	if (id.empty())
-		throw mas_exception("Not a valid FastA file: Empty or invalid ID line");
-	
-	streambuf* b = in.rdbuf();
-	
-	while (b->sgetc() != streambuf::traits_type::eof() and
-		b->sgetc() != '>')
-	{
-		string line;
-		getline(in, line);
-		seq += line;
-	}
-	
-	MChain* chain = new MChain("A");
-	vector<MResidue*>& residues = chain->GetResidues();
-	MResidue* last = nullptr;
-	uint32 nr = 1;
-	foreach (char r, seq)
-	{
-		residues.push_back(new MResidue(nr, r, last));
-		++nr;
-		last = residues.back();
-	}
-	
-	MProtein* result = new MProtein(id, chain);
-	return result;
+  getline(in, id);
+  if (id.empty() and in.eof())
+    throw mas_exception("Not a valid id");
+
+  if (not ba::starts_with(id, ">"))
+    throw mas_exception("Not a valid FastA file: ID line does not start with '>'");
+
+  id.erase(0, 1);
+
+  string::size_type s = id.find(' ');
+  if (s != string::npos)
+    id.erase(s);
+
+  if (id.empty())
+    throw mas_exception("Not a valid FastA file: Empty or invalid ID line");
+
+  streambuf* b = in.rdbuf();
+
+  while (b->sgetc() != streambuf::traits_type::eof() and
+    b->sgetc() != '>')
+  {
+    string line;
+    getline(in, line);
+    seq += line;
+  }
+
+  MChain* chain = new MChain("A");
+  vector<MResidue*>& residues = chain->GetResidues();
+  MResidue* last = nullptr;
+  uint32 nr = 1;
+  foreach (char r, seq)
+  {
+    residues.push_back(new MResidue(nr, r, last));
+    ++nr;
+    last = residues.back();
+  }
+
+  MProtein* result = new MProtein(id, chain);
+  return result;
 }
 
 // --------------------------------------------------------------------
@@ -88,213 +88,213 @@ MProtein* ReadProteinFromFastA(istream& in)
 int main(int argc, char* argv[])
 {
 #if P_UNIX
-	// enable the dumping of cores to enable postmortem debugging
-	rlimit l;
-	if (getrlimit(RLIMIT_CORE, &l) == 0)
-	{
-		l.rlim_cur = l.rlim_max;
-		if (l.rlim_cur == 0 or setrlimit(RLIMIT_CORE, &l) < 0)
-			cerr << "Failed to set rlimit" << endl;
-	}
+  // enable the dumping of cores to enable postmortem debugging
+  rlimit l;
+  if (getrlimit(RLIMIT_CORE, &l) == 0)
+  {
+    l.rlim_cur = l.rlim_max;
+    if (l.rlim_cur == 0 or setrlimit(RLIMIT_CORE, &l) < 0)
+      cerr << "Failed to set rlimit" << endl;
+  }
 #endif
 
-	fs::path outfilename;
+  fs::path outfilename;
 
-	try
-	{
-		po::options_description desc("MKHSSP options");
-		desc.add_options()
-			("help,h",							 "Display help message")
-			("input,i",		po::value<string>(), "Input PDB file (or PDB ID)")
-			("output,o",	po::value<string>(), "Output file, use 'stdout' to output to screen")
-			("databank,d",	po::value<vector<string>>(),
-												 "Databank to use (can be specified multiple times)")
-			("threads,a",	po::value<uint32>(), "Number of threads (default is maximum)")
-//			("use-seqres",	po::value<bool>(),	 "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
-			("min-length",	po::value<uint32>(), "Minimal chain length (default = 25)")
-			("fragment-cutoff",
-							po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
-			("gap-open,O",	po::value<float>(),  "Gap opening penalty (default is 30.0)")
-			("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
-			("threshold",	po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
-			("max-hits,m",	po::value<uint32>(), "Maximum number of hits to include (default = 5000)")
-			("fetch-dbrefs",					 "Fetch DBREF records for each UniProt ID")
-			("verbose,v",						 "Verbose mode")
-			("version",						"Show version number")
-			;
-	
-		po::positional_options_description p;
-		p.add("input", 1);
-		p.add("output", 2);
-	
-		po::variables_map vm;
-		po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+  try
+  {
+    po::options_description desc("MKHSSP options");
+    desc.add_options()
+      ("help,h",               "Display help message")
+      ("input,i",    po::value<string>(), "Input PDB file (or PDB ID)")
+      ("output,o",  po::value<string>(), "Output file, use 'stdout' to output to screen")
+      ("databank,d",  po::value<vector<string>>(),
+                         "Databank to use (can be specified multiple times)")
+      ("threads,a",  po::value<uint32>(), "Number of threads (default is maximum)")
+//      ("use-seqres",  po::value<bool>(),   "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
+      ("min-length",  po::value<uint32>(), "Minimal chain length (default = 25)")
+      ("fragment-cutoff",
+              po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
+      ("gap-open,O",  po::value<float>(),  "Gap opening penalty (default is 30.0)")
+      ("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
+      ("threshold",  po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
+      ("max-hits,m",  po::value<uint32>(), "Maximum number of hits to include (default = 5000)")
+      ("fetch-dbrefs",           "Fetch DBREF records for each UniProt ID")
+      ("verbose,v",             "Verbose mode")
+      ("version",            "Show version number")
+      ;
 
-		fs::path home = get_home();
-		if (fs::exists(home / ".mkhssprc"))
-		{
-			fs::ifstream rc(home / ".mkhssprc");
-			po::store(po::parse_config_file(rc, desc), vm);
-		}
+    po::positional_options_description p;
+    p.add("input", 1);
+    p.add("output", 2);
 
-		po::notify(vm);
+    po::variables_map vm;
+    po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 
-		if (vm.count("version")>0)
-		{
-			cout << "mkhssp version " << XSSP_VERSION << endl;
-			exit(0);
-		}
+    fs::path home = get_home();
+    if (fs::exists(home / ".mkhssprc"))
+    {
+      fs::ifstream rc(home / ".mkhssprc");
+      po::store(po::parse_config_file(rc, desc), vm);
+    }
 
-		if (vm.count("help") or not vm.count("input") or vm.count("databank") == 0)
-		{
-			cerr << desc << endl;
-			exit(1);
-		}
-		
-		VERBOSE = vm.count("verbose");
+    po::notify(vm);
 
-		vector<fs::path> databanks;
-		vector<string> dbs = vm["databank"].as<vector<string>>(); 
-		foreach (string db, dbs)
-		{
-			databanks.push_back(db);
-			if (not fs::exists(databanks.back()))
-				throw mas_exception(boost::format("Databank %s does not exist") % db);
-		}
-		
-//		bool useSeqRes = true;
-//		if (vm.count("use-seqres"))
-//			useSeqRes = vm["use-seqres"].as<bool>();
-		
-		uint32 minlength = 25;
-		if (vm.count("min-length"))
-			minlength= vm["min-length"].as<uint32>();
+    if (vm.count("version")>0)
+    {
+      cout << "mkhssp version " << XSSP_VERSION << endl;
+      exit(0);
+    }
 
-		uint32 maxhits = 5000;
-		if (vm.count("max-hits"))
-			maxhits= vm["max-hits"].as<uint32>();
+    if (vm.count("help") or not vm.count("input") or vm.count("databank") == 0)
+    {
+      cerr << desc << endl;
+      exit(1);
+    }
 
-		float gapOpen = 30;
-		if (vm.count("gap-open"))
-			gapOpen = vm["gap-open"].as<float>();
+    VERBOSE = vm.count("verbose");
 
-		float gapExtend = 2;
-		if (vm.count("gap-extend"))
-			gapExtend = vm["gap-extend"].as<float>();
+    vector<fs::path> databanks;
+    vector<string> dbs = vm["databank"].as<vector<string>>();
+    foreach (string db, dbs)
+    {
+      databanks.push_back(db);
+      if (not fs::exists(databanks.back()))
+        throw mas_exception(boost::format("Databank %s does not exist") % db);
+    }
 
-		float threshold = HSSP::kThreshold;
-		if (vm.count("threshold"))
-			threshold = vm["threshold"].as<float>();
+//    bool useSeqRes = true;
+//    if (vm.count("use-seqres"))
+//      useSeqRes = vm["use-seqres"].as<bool>();
 
-		float fragmentCutOff = HSSP::kFragmentCutOff;
-		if (vm.count("fragment-cutoff"))
-			fragmentCutOff = vm["fragment-cutoff"].as<float>();
+    uint32 minlength = 25;
+    if (vm.count("min-length"))
+      minlength= vm["min-length"].as<uint32>();
 
-		bool fetchDbRefs = vm.count("fetch-dbrefs") > 0;
+    uint32 maxhits = 5000;
+    if (vm.count("max-hits"))
+      maxhits= vm["max-hits"].as<uint32>();
 
-		uint32 threads = boost::thread::hardware_concurrency();
-		if (vm.count("threads"))
-			threads = vm["threads"].as<uint32>();
-		if (threads < 1)
-			threads = 1;
-			
-		// what input to use
-		string input = vm["input"].as<string>();
-		io::filtering_stream<io::input> in;
-		ifstream infile(input.c_str(), ios_base::in | ios_base::binary);
-		if (not infile.is_open())
-			throw runtime_error("Error opening input file");
+    float gapOpen = 30;
+    if (vm.count("gap-open"))
+      gapOpen = vm["gap-open"].as<float>();
 
-		if (ba::ends_with(input, ".bz2"))
-		{
-			in.push(io::bzip2_decompressor());
-			input.erase(input.length() - 4, string::npos);
-		}
-		else if (ba::ends_with(input, ".gz"))
-		{
-			in.push(io::gzip_decompressor());
-			input.erase(input.length() - 3, string::npos);
-		}
-		in.push(infile);
+    float gapExtend = 2;
+    if (vm.count("gap-extend"))
+      gapExtend = vm["gap-extend"].as<float>();
 
-		// Where to write our HSSP file to:
-		// either to cout or an (optionally compressed) file.
-		ofstream outfile;
-		io::filtering_stream<io::output> out;
+    float threshold = HSSP::kThreshold;
+    if (vm.count("threshold"))
+      threshold = vm["threshold"].as<float>();
 
-		if (vm.count("output") and vm["output"].as<string>() != "stdout")
-		{
-			outfilename = fs::path(vm["output"].as<string>());
-			outfile.open(outfilename.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
-			
-			if (not outfile.is_open())
-				throw runtime_error("could not create output file");
-			
-			if (ba::ends_with(outfilename.string(), ".bz2"))
-				out.push(io::bzip2_compressor());
-			else if (ba::ends_with(outfilename.string(), ".gz"))
-				out.push(io::gzip_compressor());
-			out.push(outfile);
-		}
-		else
-			out.push(cout);
+    float fragmentCutOff = HSSP::kFragmentCutOff;
+    if (vm.count("fragment-cutoff"))
+      fragmentCutOff = vm["fragment-cutoff"].as<float>();
 
-		// if input file is a FastA file, we process it differently
-		if (ba::ends_with(input, ".fa") or ba::ends_with(input, ".fasta"))
-		{
-			MProtein* p;
-			while ((p = ReadProteinFromFastA(in)) != nullptr)
-			{
-				try
-				{
-					HSSP::CreateHSSP(*p, databanks, maxhits, minlength, gapOpen, gapExtend,
-						threshold, fragmentCutOff, threads, fetchDbRefs, out);
-				}
-				catch (exception& e)
-				{
-					cerr << "Creating HSSP for " << p->GetID() << " failed: " << e.what() << endl;
-				}
-				
-				delete p;
-			}
-		}
-		else
-		{
-			// read protein and calculate the secondary structure
-			MProtein a;
+    bool fetchDbRefs = vm.count("fetch-dbrefs") > 0;
 
-			if (ba::ends_with(input, ".cif"))
-				a.ReadmmCIF(in);
-			else
-				a.ReadPDB(in);
+    uint32 threads = boost::thread::hardware_concurrency();
+    if (vm.count("threads"))
+      threads = vm["threads"].as<uint32>();
+    if (threads < 1)
+      threads = 1;
 
-			a.CalculateSecondaryStructure();
-			
-			// create the HSSP file
-			HSSP::CreateHSSP(a, databanks, maxhits, minlength,
-				gapOpen, gapExtend, threshold, fragmentCutOff, threads, fetchDbRefs, out);
-		}
-	}
-	catch (exception& e)
-	{
-		cerr << e.what() << endl;
-		
-		try
-		{
-			if (not outfilename.empty() and fs::exists(outfilename))
-				fs::remove(outfilename);
-		}
-		catch (...) {}
-		
-		exit(1);
-	}
+    // what input to use
+    string input = vm["input"].as<string>();
+    io::filtering_stream<io::input> in;
+    ifstream infile(input.c_str(), ios_base::in | ios_base::binary);
+    if (not infile.is_open())
+      throw runtime_error("Error opening input file");
+
+    if (ba::ends_with(input, ".bz2"))
+    {
+      in.push(io::bzip2_decompressor());
+      input.erase(input.length() - 4, string::npos);
+    }
+    else if (ba::ends_with(input, ".gz"))
+    {
+      in.push(io::gzip_decompressor());
+      input.erase(input.length() - 3, string::npos);
+    }
+    in.push(infile);
+
+    // Where to write our HSSP file to:
+    // either to cout or an (optionally compressed) file.
+    ofstream outfile;
+    io::filtering_stream<io::output> out;
+
+    if (vm.count("output") and vm["output"].as<string>() != "stdout")
+    {
+      outfilename = fs::path(vm["output"].as<string>());
+      outfile.open(outfilename.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
+
+      if (not outfile.is_open())
+        throw runtime_error("could not create output file");
+
+      if (ba::ends_with(outfilename.string(), ".bz2"))
+        out.push(io::bzip2_compressor());
+      else if (ba::ends_with(outfilename.string(), ".gz"))
+        out.push(io::gzip_compressor());
+      out.push(outfile);
+    }
+    else
+      out.push(cout);
+
+    // if input file is a FastA file, we process it differently
+    if (ba::ends_with(input, ".fa") or ba::ends_with(input, ".fasta"))
+    {
+      MProtein* p;
+      while ((p = ReadProteinFromFastA(in)) != nullptr)
+      {
+        try
+        {
+          HSSP::CreateHSSP(*p, databanks, maxhits, minlength, gapOpen, gapExtend,
+            threshold, fragmentCutOff, threads, fetchDbRefs, out);
+        }
+        catch (exception& e)
+        {
+          cerr << "Creating HSSP for " << p->GetID() << " failed: " << e.what() << endl;
+        }
+
+        delete p;
+      }
+    }
+    else
+    {
+      // read protein and calculate the secondary structure
+      MProtein a;
+
+      if (ba::ends_with(input, ".cif"))
+        a.ReadmmCIF(in);
+      else
+        a.ReadPDB(in);
+
+      a.CalculateSecondaryStructure();
+
+      // create the HSSP file
+      HSSP::CreateHSSP(a, databanks, maxhits, minlength,
+        gapOpen, gapExtend, threshold, fragmentCutOff, threads, fetchDbRefs, out);
+    }
+  }
+  catch (exception& e)
+  {
+    cerr << e.what() << endl;
+
+    try
+    {
+      if (not outfilename.empty() and fs::exists(outfilename))
+        fs::remove(outfilename);
+    }
+    catch (...) {}
+
+    exit(1);
+  }
 
 //#if defined(_MSC_VER) && ! NDEBUG
-//	cerr << "Press any key to quit application ";
-//	char ch = _getch();
-//	cerr << endl;
+//  cerr << "Press any key to quit application ";
+//  char ch = _getch();
+//  cerr << endl;
 //#endif
-	
-	return 0;
+
+  return 0;
 }
 
