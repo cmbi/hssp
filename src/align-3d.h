@@ -5,6 +5,9 @@
 // 
 // align-3d
 
+#ifndef XSSP_ALIGN3D_H
+#define XSSP_ALIGN3D_H
+
 #pragma once
 
 class substitution_matrix_family;
@@ -15,3 +18,5 @@ void align_structures(
 	uint32 iterations,
 	substitution_matrix_family& mat, float gop, float gep, float magic,
 	std::vector<entry*>& outAlignment);
+
+#endif

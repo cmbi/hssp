@@ -407,7 +407,7 @@ void MProfile::AdjustXGapCosts(vector<float>& gop, vector<float>& gep)
 	assert(gop.size() == m_seq.length());
 	assert(gop.size() == m_residues.size());
 	
-	for (int32 ix = 0; ix < m_residues.size(); ++ix)
+	for (size_t ix = 0; ix < m_residues.size(); ++ix)
 	{
 		MResInfo& e = m_residues[ix];
 
@@ -432,9 +432,9 @@ void MProfile::AdjustXGapCosts(vector<float>& gop, vector<float>& gep)
 			gep[ix] = float(e.m_dist[22]) / (m_entries.size() + 1);
 		
 		// if there is a gap within 8 residues, increase gap penalty
-		for (int32 d = 0; d < 8; ++d)
+		for (size_t d = 0; d < 8; ++d)
 		{
-			if (ix + d >= int32(m_residues.size()) or
+			if (ix + d >= m_residues.size() or
 				m_residues[ix + d].m_dist[22] > 0 or
 				ix - d < 0 or
 				m_residues[ix - d].m_dist[22] > 0)
@@ -770,7 +770,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 	
 	// ## per residue information
 	
-	int32 nextNr = m_residues.front().m_seq_nr;
+	uint32 nextNr = m_residues.front().m_seq_nr;
 	os << "#=GF CC ## RESIDUE INFORMATION" << endl
 	   << "#=GF CC SeqNo   PDBNo AA STRUCTURE BP1 BP2  ACC  NOCC VAR" << endl;
 	foreach (auto& ri, m_residues)
@@ -1203,7 +1203,7 @@ void MProfile::CalculateConservation(uint32 inThreads)
 			// accumulate our data
 			boost::mutex::scoped_lock l(sumLock);
 			
-			for (int i = 0; i < sumvar.size(); ++i)
+			for (size_t i = 0; i < sumvar.size(); ++i)
 			{
 				sumvar[i] += csumvar[i];
 				sumdist[i] += csumdist[i];

@@ -5,6 +5,9 @@
 // 
 // i/o code for mas
 
+#ifndef XSSP_IOSEQ_H
+#define XSSP_IOSEQ_H
+
 #pragma once
 
 #include <boost/filesystem/path.hpp>
@@ -25,3 +28,5 @@ void readFamilyIdsFile(std::istream& is, const boost::filesystem::path& dir,
 
 void report(const std::vector<entry*>& alignment,
 	std::ostream& os, const std::string& format);
+
+#endif

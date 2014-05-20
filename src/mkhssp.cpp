@@ -43,7 +43,7 @@ MProtein* ReadProteinFromFastA(istream& in)
 	
 	getline(in, id);
 	if (id.empty() and in.eof())
-		return false;
+		throw mas_exception("Not a valid id");
 	
 	if (not ba::starts_with(id, ">"))
 		throw mas_exception("Not a valid FastA file: ID line does not start with '>'");

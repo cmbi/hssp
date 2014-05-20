@@ -5,6 +5,9 @@
 // 
 // some data types and routines for working with 3d data
 
+#ifndef XSSP_PRIMITIVES3D_H
+#define XSSP_PRIMITIVES3D_H
+
 #pragma once
 
 #include <vector>
@@ -206,3 +209,5 @@ inline double Distance(const MPoint& a, const MPoint& b)
 		(a.mY - b.mY) * (a.mY - b.mY) +
 		(a.mZ - b.mZ) * (a.mZ - b.mZ));
 }
+
+#endif

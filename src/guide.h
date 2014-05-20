@@ -5,6 +5,9 @@
 // 
 // mas guide tree support routines and class
 
+#ifndef XSSP_GUIDE_H
+#define XSSP_GUIDE_H
+
 #pragma once
 
 #include <iostream>
@@ -56,3 +59,5 @@ class GuideTreeParser
 };
 
 void useGuideTree(const std::string& guide, std::vector<base_node*>& tree);
+
+#endif

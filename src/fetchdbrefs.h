@@ -1,3 +1,6 @@
+#ifndef XSSP_FETCHDBREFS_H
+#define XSSP_FETCHDBREFS_H
+
 #pragma once
 
 #include <vector>
@@ -10,3 +13,5 @@ void FetchPDBReferences(const std::string& inBaseURL,
 void FetchPDBReferences(const std::string& inBaseURL,
 	const std::string& inDb,
 	std::map<std::string,std::vector<std::string>>& ioReferences);
+
+#endif

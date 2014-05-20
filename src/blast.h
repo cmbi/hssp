@@ -6,6 +6,9 @@
 //	Simplified Blast algorithm implementation. Works on
 //	FastA formatted files containing proteins.
 
+#ifndef XSSP_BLAST_H
+#define XSSP_BLAST_H
+
 #pragma once
 
 #include <vector>
@@ -32,3 +35,5 @@ void SearchAndWriteResultsAsFastA(std::ostream& inOutFile,
 	const std::string& inMatrix, uint32 inWordSize, double inExpect,
 	bool inFilter, bool inGapped, int32 inGapOpen, int32 inGapExtend,
 	uint32 inReportLimit, uint32 inThreads);
+
+#endif

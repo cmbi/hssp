@@ -3,6 +3,9 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at    
 //             http://www.boost.org/LICENSE_1_0.txt)      
 
+#ifndef XSSP_ALIGN2D_H
+#define XSSP_ALIGN2D_H
+
 #pragma once
 
 #include <string>
@@ -147,3 +150,5 @@ void align(
 
 void print_matrix(std::ostream& os,
 	const matrix<int8>& tb, const sequence& sx, const sequence& sy);
+
+#endif
