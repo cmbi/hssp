@@ -266,7 +266,7 @@ void hssp_server::handle_request(const zeep::http::request& req,
       }
     }
   }
-  catch (std::exception& e)
+  catch (const std::exception& e)
   {
     //mrsrc::rsrc rsrc("error.html");
     //std::string error(rsrc.data(), rsrc.size());

@@ -1153,7 +1153,7 @@ int main(int argc, char* const argv[])
       CalculateMI(in, out);
     }
   }
-  catch (exception& e)
+  catch (const exception& e)
   {
     cerr << e.what() << endl;
     exit(1);

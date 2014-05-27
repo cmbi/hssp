@@ -1158,7 +1158,7 @@ int main(int argc, char* const argv[])
       ConvertHsspFile(in, out);
     }
   }
-  catch (std::exception& e)
+  catch (const std::exception& e)
   {
     std::cerr << e.what() << std::endl;
     exit(1);

@@ -1226,7 +1226,7 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       {
         atom.mType = MapElement(line.substr(76, 2));
       }
-      catch (std::exception& e)
+      catch (const std::exception& e)
       {
         if (VERBOSE)
           std::cerr << e.what() << std::endl;
@@ -1290,7 +1290,7 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
 
       ++ssbondNr;
     }
-    catch (std::exception& e)
+    catch (const std::exception& e)
     {
       if (VERBOSE)
         std::cerr << "invalid residue referenced in SSBOND record: "
@@ -1436,7 +1436,7 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
     {
       a.mType = MapElement(a.mElement);
     }
-    catch (std::exception& e)
+    catch (const std::exception& e)
     {
       if (VERBOSE)
         std::cerr << e.what() << std::endl;
@@ -1505,7 +1505,7 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
 
       ++ssbondNr;
     }
-    catch (std::exception& e)
+    catch (const std::exception& e)
     {
       if (VERBOSE)
         std::cerr << "invalid residue referenced in SSBOND record: "

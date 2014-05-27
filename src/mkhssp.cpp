@@ -248,7 +248,7 @@ int main(int argc, char* argv[])
           HSSP::CreateHSSP(*p, databanks, maxhits, minlength, gapOpen, gapExtend,
             threshold, fragmentCutOff, threads, fetchDbRefs, out);
         }
-        catch (std::exception& e)
+        catch (const std::exception& e)
         {
           std::cerr << "Creating HSSP for " << p->GetID() << " failed: " << e.what() << std::endl;
         }
@@ -273,7 +273,7 @@ int main(int argc, char* argv[])
         gapOpen, gapExtend, threshold, fragmentCutOff, threads, fetchDbRefs, out);
     }
   }
-  catch (std::exception& e)
+  catch (const std::exception& e)
   {
     std::cerr << e.what() << std::endl;
 
