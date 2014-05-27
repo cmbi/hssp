@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include "mas.h"
+
 #include <iostream>
+#include <vector>
 
 //  Our CIF implementation consists of flyweight classes.
 

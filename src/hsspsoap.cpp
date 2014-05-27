@@ -3,40 +3,38 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at
 //             http://www.boost.org/LICENSE_1_0.txt)
 
+#include "blast.h"
+#include "dssp.h"
+#include "hssp-nt.h"
 #include "mas.h"
-
+#include "structure.h"
+#include "utils.h"
 #include "version.h"
+
+#include <boost/algorithm/string.hpp>
+#include <boost/filesystem/convenience.hpp>
+#include <boost/filesystem/fstream.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <boost/foreach.hpp>
+#include <boost/format.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/device/back_inserter.hpp>
+#include <boost/iostreams/filter/newline.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/program_options.hpp>
+#include <boost/regex.hpp>
+#include "zeep/config.hpp"
+#include "zeep/server.hpp"
 
 #include <pwd.h>
 #include <signal.h>
 #include <sys/resource.h>
 
-#include <boost/algorithm/string.hpp>
-#include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/convenience.hpp>
-#include <boost/filesystem/fstream.hpp>
-#include <boost/format.hpp>
-#include <boost/iostreams/filtering_streambuf.hpp>
-#include <boost/iostreams/filter/zlib.hpp>
-#include <boost/iostreams/device/back_inserter.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filter/newline.hpp>
-#include <boost/iostreams/copy.hpp>
-#include <boost/program_options.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/regex.hpp>
-#include <boost/foreach.hpp>
+
 #define foreach BOOST_FOREACH
-
-#include "zeep/config.hpp"
-#include "zeep/server.hpp"
-
-#include "blast.h"
-#include "structure.h"
-#include "dssp.h"
-#include "hssp-nt.h"
-#include "utils.h"
-
 #define HSSPSOAP_PID_FILE "/var/run/hsspsoap.pid"
 #define HSSPSOAP_LOG_FILE "/var/log/hsspsoap.log"
 

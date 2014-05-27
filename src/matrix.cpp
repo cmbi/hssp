@@ -7,17 +7,18 @@
 
 #include "matrix.h"
 
+#include "../mtrx/matrices.h"
+#include "utils.h"
+
+#include <boost/bind.hpp>
+#include <boost/foreach.hpp>
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/stream.hpp>
+
 #include <sstream>
 #include <iostream>
 
-#include <boost/iostreams/device/array.hpp>
-#include <boost/iostreams/stream.hpp>
-#include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
-#include <boost/bind.hpp>
-
-#include "utils.h"
-#include "../mtrx/matrices.h"
 
 namespace io = boost::iostreams;
 

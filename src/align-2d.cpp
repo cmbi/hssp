@@ -5,7 +5,22 @@
 //
 // simple attempt to write a multiple sequence alignment application
 
-#include "mas.h"
+#include "align-2d.h"
+
+#include "align-3d.h"
+#include "buffer.h"
+#include "guide.h"
+#include "ioseq.h"
+#include "matrix.h"
+#include "structure.h"
+#include "utils.h"
+
+#include <boost/algorithm/string.hpp>
+#include <boost/bind.hpp>
+#include <boost/foreach.hpp>
+#include <boost/format.hpp>
+#include <boost/thread.hpp>
+#include <boost/tr1/tuple.hpp>
 
 #include <iostream>
 #include <iomanip>
@@ -14,26 +29,11 @@
 #include <cmath>
 #include <numeric>
 
-#include <boost/format.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-#include <boost/tr1/tuple.hpp>
-#include <boost/bind.hpp>
-#include <boost/algorithm/string.hpp>
-#include <boost/thread.hpp>
-
-#include "align-2d.h"
-#include "ioseq.h"
-#include "matrix.h"
-#include "buffer.h"
-#include "utils.h"
-#include "guide.h"
-#include "structure.h"
-#include "align-3d.h"
-
 using namespace std;
 using namespace tr1;
 namespace ba = boost::algorithm;
+
+#define foreach BOOST_FOREACH
 
 // --------------------------------------------------------------------
 

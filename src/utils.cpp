@@ -3,22 +3,20 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at
 //             http://www.boost.org/LICENSE_1_0.txt)
 
-#include "mas.h"
-
-#include <iostream>
-#include <cstdio>
-
-#include <boost/bind.hpp>
-#include <boost/thread.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-//#include <boost/timer/timer.hpp>
+#include "utils.h"
 
 #include "align-2d.h"
-#include "utils.h"
+
+#include <boost/bind.hpp>
+#include <boost/foreach.hpp>
+#include <boost/thread.hpp>
+
+#include <cstdio>
+#include <iostream>
 
 namespace fs = boost::filesystem;
 
+#define foreach BOOST_FOREACH
 // --------------------------------------------------------------------
 
 arg_vector::operator char* const*()

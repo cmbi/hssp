@@ -8,15 +8,17 @@
 
 #pragma once
 
+#include "mas.h"
+
+#include <boost/filesystem.hpp>
+#include <boost/format.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/thread.hpp>
+
 #ifndef NDEBUG
 #include <iostream>
 #endif
-
 #include <time.h>
-#include <boost/thread.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/format.hpp>
-#include <boost/filesystem.hpp>
 
 // --------------------------------------------------------------------
 

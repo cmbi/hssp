@@ -5,22 +5,23 @@
 
 #include "mas.h"
 
+#include "dssp.h"
+#include "structure.h"
+
+#include <boost/bind.hpp>
+#include <boost/date_time/date_clock_device.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/foreach.hpp>
+#include <boost/format.hpp>
+
 #if defined(_MSC_VER)
 #include <conio.h>
 #include <ctype.h>
 #endif
-
 #include <iostream>
 
-#include <boost/format.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-#include <boost/bind.hpp>
-#include <boost/date_time/gregorian/gregorian.hpp>
-#include <boost/date_time/date_clock_device.hpp>
 
-#include "dssp.h"
-#include "structure.h"
+#define foreach BOOST_FOREACH
 
 
 std::string ResidueToDSSPLine(const MResidue& residue)

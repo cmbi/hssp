@@ -1,19 +1,17 @@
-#include "mas.h"
+#include "iocif.h"
 
-#include <cassert>
+#include "utils.h"
 
-#include <iostream>
-#include <string>
-#include <vector>
-
+#include <boost/algorithm/string.hpp>
+#include <boost/foreach.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-#include <boost/algorithm/string.hpp>
 
-#include "iocif.h"
-#include "utils.h"
+#include <cassert>
+#include <iostream>
+#include <string>
+
+#define foreach BOOST_FOREACH
 
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;

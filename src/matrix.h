@@ -12,12 +12,12 @@
 
 #include "mas.h"
 
-#include <vector>
-#include <string>
-#include <istream>
-#include <cassert>
-#include <stdexcept>
 #include <algorithm>
+#include <cassert>
+#include <istream>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 // Some predefined matrices
 

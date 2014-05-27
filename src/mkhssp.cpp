@@ -3,36 +3,35 @@
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
+#include "hssp-nt.h"
 #include "mas.h"
+#include "structure.h"
+#include "utils.h"
 #include "version.h"
+
+#include <boost/algorithm/string.hpp>
+#include <boost/filesystem/fstream.hpp>
+#include <boost/foreach.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/device/back_inserter.hpp>
+#include <boost/iostreams/filter/bzip2.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/program_options.hpp>
+#include <boost/program_options/config.hpp>
 
 #if defined(_MSC_VER)
 #include <conio.h>
 #endif
-
-#include <boost/algorithm/string.hpp>
-#include <boost/filesystem/fstream.hpp>
-#include <boost/program_options.hpp>
-#include <boost/program_options/config.hpp>
-#include <boost/iostreams/filtering_streambuf.hpp>
-#include <boost/iostreams/filter/zlib.hpp>
-#include <boost/iostreams/device/back_inserter.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/copy.hpp>
-#include <boost/iostreams/filter/bzip2.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-
-#include "utils.h"
-#include "structure.h"
-#include "hssp-nt.h"
 
 namespace ba = boost::algorithm;
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
+#define foreach BOOST_FOREACH
 int VERBOSE = 0;
 
 // --------------------------------------------------------------------

@@ -11,8 +11,9 @@
 #pragma once
 
 #include <boost/filesystem/path.hpp>
-#include <vector>
+
 #include <string>
+#include <vector>
 
 struct entry;
 

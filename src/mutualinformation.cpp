@@ -3,32 +3,29 @@
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
+#include "buffer.h"
 #include "mas.h"
-
-#include <cmath>
-#include <iostream>
-#include <numeric>
+#include "matrix.h"
+#include "utils.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
-#include <boost/iostreams/filtering_streambuf.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/foreach.hpp>
+#include <boost/format.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-#include <boost/regex.hpp>
-#include <boost/ptr_container/ptr_vector.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/program_options.hpp>
 #include <boost/program_options/config.hpp>
-#include <boost/format.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
+#include <boost/regex.hpp>
 
-// our includes
-#include "buffer.h"
-#include "utils.h"
-#include "matrix.h"
+#include <cmath>
+#include <iostream>
+#include <numeric>
 
 #if P_WIN
 #pragma warning (disable: 4267)
@@ -40,6 +37,7 @@ namespace io = boost::iostreams;
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
+#define foreach BOOST_FOREACH
 int VERBOSE = 0;
 
 // --------------------------------------------------------------------

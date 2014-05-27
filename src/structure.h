@@ -5,8 +5,9 @@
 
 #pragma once
 
-#include "primitives-3d.h"
 #include "align-2d.h"
+#include "mas.h"
+#include "primitives-3d.h"
 
 struct MAtom;
 class MResidue;

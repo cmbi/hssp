@@ -3,28 +3,28 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at
 //             http://www.boost.org/LICENSE_1_0.txt)
 
-#include "mas.h"
-
-#include <limits>
-#include <numeric>
-
-#include <boost/regex.hpp>
-#include <boost/algorithm/string.hpp>
-#include <boost/format.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-#include <boost/iostreams/device/mapped_file.hpp>
-#include <boost/detail/atomic_count.hpp>
-
 #include "blast.h"
+
 #include "matrix.h"
 #include "utils.h"
 #include "progress.h"
+
+#include <boost/algorithm/string.hpp>
+#include <boost/detail/atomic_count.hpp>
+#include <boost/foreach.hpp>
+#include <boost/format.hpp>
+#include <boost/iostreams/device/mapped_file.hpp>
+#include <boost/regex.hpp>
+
+#include <limits>
+#include <numeric>
 
 namespace ba = boost::algorithm;
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 
+
+#define foreach BOOST_FOREACH
 // --------------------------------------------------------------------
 
 boost::regex

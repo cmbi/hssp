@@ -1,36 +1,36 @@
-#include "mas.h"
+#include "hssp-nt.h"
 
-#include <iostream>
-#include <set>
-#include <cmath>
-#include <algorithm>
+#include "blast.h"
+#include "buffer.h"
+#include "dssp.h"
+#include "fetchdbrefs.h"
+#include "matrix.h"
+#include "progress.h"
+#include "structure.h"
+#include "utils.h"
 
-#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/range/adaptor/sliced.hpp>
-#include <boost/filesystem/operations.hpp>
+#include <boost/date_time/date_clock_device.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
-#include <boost/format.hpp>
+#include <boost/filesystem/operations.hpp>
 #include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-#include <boost/date_time/gregorian/gregorian.hpp>
-#include <boost/date_time/date_clock_device.hpp>
+#include <boost/format.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/device/back_inserter.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/range/adaptor/sliced.hpp>
 #include <boost/regex.hpp>
 #include <boost/tr1/cmath.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/device/back_inserter.hpp>
-#include <boost/iostreams/copy.hpp>
 
-#include "utils.h"
-#include "structure.h"
-#include "dssp.h"
-#include "matrix.h"
-#include "buffer.h"
-#include "blast.h"
-#include "fetchdbrefs.h"
-#include "progress.h"
-#include "hssp-nt.h"
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <set>
+
+#define foreach BOOST_FOREACH
 
 namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;

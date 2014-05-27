@@ -5,28 +5,27 @@
 //
 // A DSSP reimplementation
 
+#include "dssp.h"
+#include "iocif.h"
 #include "mas.h"
+#include "structure.h"
 #include "version.h"
 
-#if defined(_MSC_VER)
-#include <conio.h>
-#include <ctype.h>
-#endif
-
-#include <fstream>
-
 #include <boost/program_options.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
 #if defined USE_COMPRESSION
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #endif
 #include <boost/algorithm/string.hpp>
 
-#include "dssp.h"
-#include "structure.h"
-#include "iocif.h"
+#if defined(_MSC_VER)
+#include <conio.h>
+#include <ctype.h>
+#endif
+#include <fstream>
+
 
 namespace po = boost::program_options;
 namespace io = boost::iostreams;

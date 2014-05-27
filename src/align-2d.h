@@ -8,9 +8,11 @@
 
 #pragma once
 
+#include "mas.h"
+
+#include <algorithm>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 typedef std::basic_string<uint8> sec_structure;
 

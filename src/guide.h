@@ -10,11 +10,13 @@
 
 #pragma once
 
-#include <iostream>
-#include <map>
+#include "align-2d.h"
+
 #include <boost/tr1/tuple.hpp>
 
-#include "align-2d.h"
+#include <iostream>
+#include <map>
+
 
 // --------------------------------------------------------------------
 

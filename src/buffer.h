@@ -10,9 +10,12 @@
 
 #pragma once
 
-#include <deque>
+#include "mas.h"
+
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition.hpp>
+
+#include <deque>
 
 template<class T, uint32 N = 100>
 class buffer

@@ -5,16 +5,17 @@
 //
 // 3d routines
 
-#include "mas.h"
+#include "primitives-3d.h"
 
-#include <valarray>
-#include <cmath>
+#include "mas.h"
+#include "matrix.h"
 
 #include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
 
-#include "primitives-3d.h"
-#include "matrix.h"
+#include <cmath>
+#include <valarray>
+
+#define foreach BOOST_FOREACH
 
 const double kPI = 4 * std::atan(1.0);
 

@@ -1,23 +1,23 @@
+#include "fetchdbrefs.h"
+
 #include "mas.h"
+#include "utils.h"
 
-#include <iostream>
-
-#include <boost/format.hpp>
-#include <boost/regex.hpp>
 #include <boost/asio.hpp>
+#include <boost/foreach.hpp>
+#include <boost/format.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-
+#include <boost/regex.hpp>
 #include <zeep/xml/document.hpp>
 
-#include "fetchdbrefs.h"
-#include "utils.h"
+#include <iostream>
 
 #if defined(_MSC_VER)
 #pragma comment ( lib, "libzeep" )
 #endif
+
+#define foreach BOOST_FOREACH
 
 using boost::asio::ip::tcp;
 using namespace zeep;

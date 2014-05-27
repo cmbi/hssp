@@ -10,10 +10,10 @@
 
 #pragma once
 
-#include <vector>
-
-#include <boost/tr1/tuple.hpp>
 #include <boost/math/quaternion.hpp>
+#include <boost/tr1/tuple.hpp>
+
+#include <vector>
 
 typedef boost::math::quaternion<double> MQuaternion;
 

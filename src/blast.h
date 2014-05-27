@@ -11,9 +11,11 @@
 
 #pragma once
 
-#include <vector>
+#include "mas.h"
 
 #include <boost/filesystem/path.hpp>
+
+#include <vector>
 
 //struct BlastHit
 //{

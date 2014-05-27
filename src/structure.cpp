@@ -5,29 +5,28 @@
 //
 // structure related stuff
 
-#include "mas.h"
+#include "structure.h"
+
+#include "align-2d.h"
+#include "buffer.h"
+#include "iocif.h"
+#include "utils.h"
+
+#include <boost/algorithm/string.hpp>
+#include <boost/bind.hpp>
+#include <boost/foreach.hpp>
+#include <boost/format.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/math/special_functions/round.hpp>
 
 #include <set>
 #include <numeric>
 #include <functional>
 
-#include <boost/bind.hpp>
-#include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-#include <boost/algorithm/string.hpp>
-#include <boost/math/special_functions/round.hpp>
-
-#include "align-2d.h"
-#include "utils.h"
-#include "buffer.h"
-#include "structure.h"
-#include "iocif.h"
-
 namespace ba = boost::algorithm;
 namespace bm = boost::math;
 
+#define foreach BOOST_FOREACH
 // --------------------------------------------------------------------
 
 const double

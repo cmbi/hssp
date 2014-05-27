@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include <vector>
+#include <map>
 #include <string>
+#include <vector>
 
 void FetchPDBReferences(const std::string& inBaseURL,
   const std::string& inDb, const std::string& inID,

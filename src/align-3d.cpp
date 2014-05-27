@@ -5,36 +5,35 @@
 //
 // 3d dingen
 
-#include "mas.h"
+#include "align-3d.h"
 
-#include <iostream>
-#include <iomanip>
-#include <string>
-#include <limits>
-#include <cmath>
-#include <numeric>
-#include <vector>
-#include <map>
-#include <valarray>
-
-#include <sys/times.h>
-#include <sys/resource.h>
-
-#include "structure.h"
-#include "matrix.h"
 #include "ioseq.h"
+#include "mas.h"
+#include "matrix.h"
+#include "structure.h"
 #include "utils.h"
 
-#include <boost/program_options.hpp>
-#include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/bind.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
-#include <boost/tr1/tuple.hpp>
+#include <boost/format.hpp>
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <boost/bind.hpp>
-#include <boost/algorithm/string.hpp>
+#include <boost/program_options.hpp>
+#include <boost/tr1/tuple.hpp>
+
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <map>
+#include <numeric>
+#include <string>
+#include <sys/resource.h>
+#include <sys/times.h>
+#include <valarray>
+#include <vector>
 
 using namespace std;
 using namespace tr1;
@@ -45,6 +44,7 @@ namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 namespace bm = boost::math;
 
+#define foreach BOOST_FOREACH
 // --------------------------------------------------------------------
 
 double CalculateRMSD(const MProtein& a, const MProtein& b, char chainA, char chainB)

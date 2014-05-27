@@ -7,8 +7,10 @@
 
 #include "mas.h"
 
-#include <algorithm>
 #include <boost/foreach.hpp>
+
+#include <algorithm>
+
 #define foreach BOOST_FOREACH
 
 // 22 real letters and 1 dummy

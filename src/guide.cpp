@@ -5,17 +5,18 @@
 //
 // guide.cpp - support for DND files / guide trees
 
+#include "guide.h"
+
 #include "mas.h"
+#include "utils.h"
+
+#include <boost/filesystem/fstream.hpp>
+#include <boost/foreach.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include <iostream>
 
-#include <boost/lexical_cast.hpp>
-#include <boost/filesystem/fstream.hpp>
-#include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
-
-#include "utils.h"
-#include "guide.h"
 
 using namespace std;
 using namespace tr1;

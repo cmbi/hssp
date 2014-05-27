@@ -5,30 +5,30 @@
 //
 // i/o code for mas alignments and sequences
 
+#include "ioseq.h"
+
 #include "mas.h"
+#include "structure.h"
+#include "utils.h"
 
-#include <iostream>
-
+#include <boost/algorithm/string.hpp>
+#include <boost/date_time/local_time/local_time.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
+#include <boost/format.hpp>
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <boost/format.hpp>
-#include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/regex.hpp>
-#include <boost/date_time/local_time/local_time.hpp>
 
-#include "structure.h"
-#include "ioseq.h"
-#include "utils.h"
+#include <iostream>
 
 using namespace std;
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
+#define foreach BOOST_FOREACH
 // --------------------------------------------------------------------
 
 void readFasta(istream& is, vector<entry>& seq)

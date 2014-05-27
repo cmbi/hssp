@@ -3,26 +3,27 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at
 //             http://www.boost.org/LICENSE_1_0.txt)
 
+#include "maxhom-hssp.h"
+
 #include "MRS.h"
+#include "blast.h"
+#include "dssp.h"
+#include "mas.h"
+#include "structure.h"
+#include "utils.h"
 
-#include <wait.h>
-
-#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/foreach.hpp>
-#define foreach BOOST_FOREACH
+#include <boost/lexical_cast.hpp>
 
-#include "mas.h"
-#include "blast.h"
-#include "dssp.h"
-#include "structure.h"
-#include "maxhom-hssp.h"
-#include "utils.h"
+#include <wait.h>
 
 using namespace std;
 namespace ba = boost::algorithm;
+
+#define foreach BOOST_FOREACH
 
 namespace maxhom
 {
