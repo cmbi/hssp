@@ -32,7 +32,6 @@
 #include "progress.h"
 #include "hssp-nt.h"
 
-using namespace std;
 namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
@@ -85,7 +84,7 @@ float calculateDistance(const sequence& a, const sequence& b)
     id(x - 1, y - 1) = highId;
 
   int32 startX = x, startY = y;
-  float high = -numeric_limits<float>::max();
+  float high = -std::numeric_limits<float>::max();
   uint16 highIdSub = 0;
 
   sequence::const_iterator ia = a.begin();
@@ -136,16 +135,16 @@ float calculateDistance(const sequence& a, const sequence& b)
       }
 
       // (3)
-      Ix(x, y) = max(M - kDistanceGapOpen, Ix1 - kDistanceGapExtend);
+      Ix(x, y) = std::max(M - kDistanceGapOpen, Ix1 - kDistanceGapExtend);
 
       // (4)
-      Iy(x, y) = max(M - kDistanceGapOpen, Iy1 - kDistanceGapExtend);
+      Iy(x, y) = std::max(M - kDistanceGapOpen, Iy1 - kDistanceGapExtend);
     }
   }
 
   highId += highIdSub;
 
-  float result = 1.0f - float(highId) / max(dimX, dimY);
+  float result = 1.0f - float(highId) / std::max(dimX, dimY);
 
   assert(result >= 0.0f);
   assert(result <= 1.0f);
@@ -157,29 +156,29 @@ float calculateDistance(const sequence& a, const sequence& b)
 
 struct MResInfo
 {
-  uint8      m_letter;
-  string      m_chain_id;
-  uint32      m_seq_nr;
-  uint32      m_pdb_nr;
-  MSecondaryStructure
-          m_ss;
-  string      m_dssp;
-  float      m_consweight;
-  uint32      m_nocc;
-  uint32      m_dist[23];
-  float      m_dist_weight[23];
-  float      m_sum_dist_weight;
-  uint32      m_ins, m_del;
-  float      m_score[23];
-  float      m_freq[20];
-  float      m_entropy;
+  uint8 m_letter;
+  std::string m_chain_id;
+  uint32 m_seq_nr;
+  uint32 m_pdb_nr;
+  MSecondaryStructure m_ss;
+  std::string m_dssp;
+  float m_consweight;
+  uint32 m_nocc;
+  uint32 m_dist[23];
+  float m_dist_weight[23];
+  float m_sum_dist_weight;
+  uint32 m_ins, m_del;
+  float m_score[23];
+  float m_freq[20];
+  float m_entropy;
 
-  void      Add(uint8 r, float inDistance);
-  static MResInfo  NewGap(size_t inDel, float inSumDistance, uint8 inResidue, float inDistance);
-  void      AddGap(float inDistance);
+  void Add(uint8 r, float inDistance);
+  static MResInfo NewGap(size_t inDel, float inSumDistance, uint8 inResidue,
+                         float inDistance);
+  void AddGap(float inDistance);
 };
 
-typedef vector<MResInfo> MResInfoList;
+typedef std::vector<MResInfo> MResInfoList;
 
 void MResInfo::Add(uint8 r, float inDistance)
 {
@@ -209,7 +208,8 @@ void MResInfo::AddGap(float inDistance)
   Add(22, inDistance);
 }
 
-MResInfo MResInfo::NewGap(size_t inDel, float inSumDistance, uint8 inResidue, float inDistance)
+MResInfo MResInfo::NewGap(size_t inDel, float inSumDistance, uint8 inResidue,
+                          float inDistance)
 {
   MResInfo r = {};
 
@@ -223,52 +223,55 @@ MResInfo MResInfo::NewGap(size_t inDel, float inSumDistance, uint8 inResidue, fl
 // --------------------------------------------------------------------
 
 struct MHit;
-typedef shared_ptr<MHit> MHitPtr;
+typedef std::shared_ptr<MHit> MHitPtr;
 
 struct MHit
 {
   MHit(const MHit& e);
 
-  MHit(const string& id, const string& def, const sequence& seq)
+  MHit(const std::string& id, const std::string& def, const sequence& seq)
     : m_id(id), m_def(def), m_seq(seq), m_distance(0)
     , m_identical(0), m_similar(0), m_length(0), m_gaps(0), m_gapn(0) {}
 
   struct insertion
   {
-    uint32      m_ipos, m_jpos;
-    string      m_seq;
+    uint32 m_ipos;
+    uint32 m_jpos;
+    std::string m_seq;
   };
 
-  static MHitPtr    Create(const string& id, const string& def, const string& seq);
+  static MHitPtr Create(const std::string& id, const std::string& def,
+                        const std::string& seq);
 
-  void        CalculateDistance(const sequence& chain);
+  void CalculateDistance(const sequence& chain);
 
-  string        m_id, m_acc, m_def, m_stid;
-  sequence      m_seq;
-  string        m_aligned;
-  float        m_distance, m_score;
-  int32        m_ifir, m_ilas, m_jfir, m_jlas;
-  uint32        m_identical, m_similar, m_length;
-  uint32        m_gaps, m_gapn;
-  vector<insertion>  m_insertions;
+  std::string m_id, m_acc, m_def, m_stid;
+  sequence m_seq;
+  std::string m_aligned;
+  float m_distance, m_score;
+  int32 m_ifir, m_ilas, m_jfir, m_jlas;
+  uint32 m_identical, m_similar, m_length;
+  uint32 m_gaps, m_gapn;
+  std::vector<insertion> m_insertions;
 };
 
-ostream& operator<<(ostream& os, const MHit& hit)
+std::ostream& operator<<(std::ostream& os, const MHit& hit)
 {
-  string seq = hit.m_aligned;
+  std::string seq = hit.m_aligned;
   foreach (char& r, seq)
     if (r == ' ' or r == '.') r = '-';
 
-  for (string::size_type i = 72; i < seq.length(); i += 73)
+  for (std::string::size_type i = 72; i < seq.length(); i += 73)
     seq.insert(seq.begin() + i, '\n');
 
-  os << '>' << hit.m_id /*<< ' ' << hit.m_def*/ << endl
-     << seq << endl;
+  os << '>' << hit.m_id /*<< ' ' << hit.m_def*/ << std::endl
+     << seq << std::endl;
 
   return os;
 }
 
-MHitPtr MHit::Create(const string& id, const string& def, const string& seq)
+MHitPtr MHit::Create(const std::string& id, const std::string& def,
+                     const std::string& seq)
 {
   MHitPtr result(new MHit(id, def, encode(seq)));
 
@@ -276,7 +279,8 @@ MHitPtr MHit::Create(const string& id, const string& def, const string& seq)
     kM6FastARE("^(\\w+)((?:\\|([^| ]*))(?:\\|([^| ]+))?(?:\\|([^| ]+))?(?:\\|([^| ]+))?)");
 
   boost::smatch m;
-  if (boost::regex_match(result->m_id, m, kM6FastARE, boost::match_not_dot_newline))
+  if (boost::regex_match(result->m_id, m, kM6FastARE,
+                         boost::match_not_dot_newline))
   {
     if (m[1] == "sp" or m[1] == "tr")
     {
@@ -303,53 +307,64 @@ void MHit::CalculateDistance(const sequence& chain)
 
 struct MProfile
 {
-          MProfile(const MChain& inChain, const sequence& inSequence,
-            float inThreshold, float inFragmentCutOff);
-          ~MProfile();
+  MProfile(const MChain& inChain, const sequence& inSequence,
+           float inThreshold, float inFragmentCutOff);
+  ~MProfile();
 
-  void      Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxHits, uint32 inThreads);
-  void      Align(MHitPtr e, float inGapOpen, float inGapExtend);
+  void Process(std::istream& inHits, float inGapOpen, float inGapExtend,
+               uint32 inMaxHits, uint32 inThreads);
+  void Align(MHitPtr e, float inGapOpen, float inGapExtend);
 
-  void      AdjustXGapCosts(vector<float>& gop, vector<float>& gep);
-  void      AdjustYGapCosts(const sequence& s, vector<float>& gop, vector<float>& gep);
-
-  void      dump(const matrix<float>& B, const matrix<float>& Ix, const matrix<float>& Iy,
-            const matrix<int8>& tb, const vector<float>& gopX, const vector<float>& gopY,
-            const vector<float>& gepX, const vector<float>& gepY,
+  void AdjustXGapCosts(std::vector<float>& gop, std::vector<float>& gep);
+  void AdjustYGapCosts(const sequence& s, std::vector<float>& gop,
+                       std::vector<float>& gep);
+  void dump(const matrix<float>& B, const matrix<float>& Ix,
+            const matrix<float>& Iy, const matrix<int8>& tb,
+            const std::vector<float>& gopX, const std::vector<float>& gopY,
+            const std::vector<float>& gepX, const std::vector<float>& gepY,
             const sequence& sx, const sequence& sy);
 
-  void      PrintStockholm(ostream& os, const string& inChainID, bool inFetchDBRefs) const;
-  void      PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs,
-            const vector<string>& inUsed, const vector<string>& inAKA) const;
+  void PrintStockholm(std::ostream& os, const std::string& inChainID,
+                      bool inFetchDBRefs) const;
+  void PrintStockholm(std::ostream& os, const MProtein& inProtein,
+                      bool inFetchDBRefs,
+                      const std::vector<std::string>& inUsed,
+                      const std::vector<std::string>& inAKA) const;
 
-  void      CalculateConservation(uint32 inThreads);
+  void CalculateConservation(uint32 inThreads);
 
   const MChain&  m_chain;
-  sequence    m_seq;
-  MResInfoList  m_residues;
-  vector<MHitPtr>  m_entries;
-  float      m_threshold, m_frag_cutoff;
-  float      m_sum_dist_weight;
-  bool      m_shuffled;
+  sequence m_seq;
+  MResInfoList m_residues;
+  std::vector<MHitPtr> m_entries;
+  float m_threshold;
+  float m_frag_cutoff;
+  float m_sum_dist_weight;
+  bool m_shuffled;
 };
 
-MProfile::MProfile(const MChain& inChain, const sequence& inSequence, float inThreshold, float inFragmentCutOff)
-  : m_chain(inChain), m_seq(inSequence)
-  , m_threshold(inThreshold), m_frag_cutoff(inFragmentCutOff), m_sum_dist_weight(0)
-  , m_shuffled(false)
+MProfile::MProfile(const MChain& inChain, const sequence& inSequence,
+                   float inThreshold, float inFragmentCutOff)
+  : m_chain(inChain),
+    m_seq(inSequence),
+    m_threshold(inThreshold),
+    m_frag_cutoff(inFragmentCutOff),
+    m_sum_dist_weight(0),
+    m_shuffled(false)
 {
-  const vector<MResidue*>& residues = m_chain.GetResidues();
-  vector<MResidue*>::const_iterator ri = residues.begin();
+  const std::vector<MResidue*>& residues = m_chain.GetResidues();
+  std::vector<MResidue*>::const_iterator ri = residues.begin();
 
   uint32 seq_nr = 1;
   for (uint32 i = 0; i < inSequence.length(); ++i)
   {
     assert(ri != residues.end());
 
-    if (ri != residues.begin() and (*ri)->GetNumber() > (*(ri - 1))->GetNumber() + 1)
+    if (ri != residues.begin() and
+        (*ri)->GetNumber() > (*(ri - 1))->GetNumber() + 1)
       ++seq_nr;
 
-    string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
+    std::string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
     MResInfo res = { inSequence[i], m_chain.GetChainID(), seq_nr,
       (*ri)->GetSeqNumber(), (*ri)->GetSecondaryStructure(), dssp };
     res.Add(res.m_letter, 0);
@@ -364,12 +379,16 @@ MProfile::~MProfile()
 {
 }
 
-void MProfile::dump(const matrix<float>& B, const matrix<float>& Ix, const matrix<float>& Iy,
-  const matrix<int8>& tb, const vector<float>& gopX, const vector<float>& gopY,
-  const vector<float>& gepX, const vector<float>& gepY, const sequence& sx, const sequence& sy)
+void MProfile::dump(const matrix<float>& B, const matrix<float>& Ix,
+                    const matrix<float>& Iy, const matrix<int8>& tb,
+                    const std::vector<float>& gopX,
+                    const std::vector<float>& gopY,
+                    const std::vector<float>& gepX,
+                    const std::vector<float>& gepY,
+                    const sequence& sx, const sequence& sy)
 {
-  ofstream os("alignment.log");
-  os.imbue(locale(""));
+  std::ofstream os("alignment.log");
+  os.imbue(std::locale(""));
 
   assert(sx.length() == m_residues.size());
   assert(sx.length() == gopX.size());
@@ -378,14 +397,14 @@ void MProfile::dump(const matrix<float>& B, const matrix<float>& Ix, const matri
 
   for (uint32 x = 0; x < sx.length(); ++x)
     os << '\t' << (is_gap(sx[x]) ? '.' : kResidues[sx[x]]) << '\t' << gopX[x];
-  os << endl;
+  os << std::endl;
 
   for (uint32 y = 0; y < sy.length(); ++y)
   {
     os << kResidues[sy[y]];
     for (uint32 x = 0; x < m_residues.size(); ++x)
       os << '\t' << B(x, y) << '\t' << Iy(x, y);
-    os << endl
+    os << std::endl
        << gopY[y];
 
     for (uint32 x = 0; x < m_residues.size(); ++x)
@@ -398,11 +417,12 @@ void MProfile::dump(const matrix<float>& B, const matrix<float>& Ix, const matri
         case  2:  os << '\t' << Ix(x, y) << '\t' << "."; break;
       }
     }
-    os << endl;
+    os << std::endl;
   }
 }
 
-void MProfile::AdjustXGapCosts(vector<float>& gop, vector<float>& gep)
+void MProfile::AdjustXGapCosts(std::vector<float>& gop,
+                               std::vector<float>& gep)
 {
   assert(gop.size() == m_seq.length());
   assert(gop.size() == m_residues.size());
@@ -425,10 +445,12 @@ void MProfile::AdjustXGapCosts(vector<float>& gop, vector<float>& gep)
     }
 
     // if there is a gap in the alignments, lower gap penalties
-    if (e.m_ins > 0)    // gap open penalty is zero when another gap was already created here
+    // gap open penalty is zero when another gap was already created here
+    if (e.m_ins > 0)
       gop[ix] = 0;
 
-    if (e.m_dist[22] > 0)  // lower gap extension penalty for existing gaps here
+    // lower gap extension penalty for existing gaps here
+    if (e.m_dist[22] > 0)
       gep[ix] = float(e.m_dist[22]) / (m_entries.size() + 1);
 
     // if there is a gap within 8 residues, increase gap penalty
@@ -471,7 +493,8 @@ const float kResidueSpecificPenalty[22] = {
   1.00f,    // Z
 };
 
-void MProfile::AdjustYGapCosts(const sequence& s, vector<float>& gop, vector<float>& gep)
+void MProfile::AdjustYGapCosts(const sequence& s, std::vector<float>& gop,
+                               std::vector<float>& gep)
 {
   for (uint32 y = 0; y < s.length(); ++y)
   {
@@ -490,9 +513,10 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
   matrix<float> Iy(dimX, dimY);
   matrix<int8> tb(dimX, dimY);
 
-  float minLength = static_cast<float>(dimX), maxLength = static_cast<float>(dimY);
+  float minLength = static_cast<float>(dimX);
+  float maxLength = static_cast<float>(dimY);
   if (minLength > maxLength)
-    swap(minLength, maxLength);
+    std::swap(minLength, maxLength);
 
   float logmin = 1.0f / log10(minLength);
   float logdiff = 1.0f + 0.5f * log10(minLength / maxLength);
@@ -503,10 +527,12 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 
   // position specific gap penalties
   // initial gap extend penalty is adjusted for difference in sequence lengths
-  vector<float> gop_a(dimX, gop), gep_a(dimX, gep * (1 + log10(float(dimX) / dimY)));
+  std::vector<float> gop_a(dimX, gop);
+  std::vector<float> gep_a(dimX, gep * (1 + log10(float(dimX) / dimY)));
   AdjustXGapCosts(gop_a, gep_a);
 
-  vector<float> gop_b(dimY, gop), gep_b(dimY, gep * (1 + log10(float(dimY) / dimX)));
+  std::vector<float> gop_b(dimY, gop);
+  std::vector<float> gep_b(dimY, gep * (1 + log10(float(dimY) / dimX)));
   AdjustYGapCosts(e->m_seq, gop_b, gep_b);
 
   int32 highX = 0, highY = 0;
@@ -544,14 +570,14 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
         B(x, y) = Ix1;
 
         Ix(x, y) = Ix1 - gep_a[x];
-        Iy(x, y) = max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
+        Iy(x, y) = std::max(M - (y < dimY - 1 ? gop_b[y] : 0), Iy1 - gep_b[y]);
       }
       else
       {
         tb(x, y) = -1;
         B(x, y) = Iy1;
 
-        Ix(x, y) = max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
+        Ix(x, y) = std::max(M - (x < dimX - 1 ? gop_a[x] : 0), Ix1 - gep_a[x]);
         Iy(x, y) = Iy1 - gep_b[y];
       }
     }
@@ -572,7 +598,12 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
   x = highX;
   y = highY;
 
-  uint32 ident = 0, similar = 0, length = 0, lengthI = 0, xgaps = 0, xgapsI = 0;
+  uint32 ident = 0;
+  uint32 similar = 0;
+  uint32 length = 0;
+  uint32 lengthI = 0;
+  uint32 xgaps = 0;
+  uint32 xgapsI = 0;
 
   // trace back the matrix
   while (x >= 0 and y >= 0 and B(x, y) > 0)
@@ -613,17 +644,21 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
     }
   }
 
-  uint32 tix = max(10U, min(length, 80U)) - 10;
+  uint32 tix = std::max(10U, std::min(length, 80U)) - 10;
 
   // Add the hit only if it is within the required parameters.
-  if (length >= m_seq.length() * m_frag_cutoff and        // accept only alignment long enough (suppress fragments)
-    ident >= length * (kHomologyThreshold[tix] + m_threshold))  // and those that score high enough
+  //
+  // accept only alignment long enough (suppress fragments)
+  // and those that score high enough
+  if (length >= m_seq.length() * m_frag_cutoff and
+    ident >= length * (kHomologyThreshold[tix] + m_threshold))
   {
     // reserve space, if needed
     if (xgaps > 0)
     {
       const uint32 kBlockSize = 1024;
-      uint32 n = static_cast<uint32>((((m_residues.size() + xgaps) / kBlockSize) + 1) * kBlockSize);
+      uint32 n = static_cast<uint32>(
+          (((m_residues.size() + xgaps) / kBlockSize) + 1) * kBlockSize);
       m_seq.reserve(n);
       foreach (MHitPtr e, m_entries)
         e->m_aligned.reserve(n);
@@ -636,7 +671,7 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
     y = highY;  e->m_jlas = y + 1;
 
     // trace back to fill aligned sequence and to create gaps in MSA
-    e->m_aligned = string(m_seq.length() + xgaps, '.');
+    e->m_aligned = std::string(m_seq.length() + xgaps, '.');
     bool gappedx = false, gappedy = false;
 
     lengthI = length;
@@ -648,7 +683,8 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
           e->m_aligned[x + xgaps] = kResidues[e->m_seq[y]];
 
           m_residues.insert(m_residues.begin() + x + 1,
-            MResInfo::NewGap(m_entries.size() + 1, m_sum_dist_weight, e->m_seq[y], e->m_distance));
+            MResInfo::NewGap(m_entries.size() + 1,
+                             m_sum_dist_weight, e->m_seq[y], e->m_distance));
 
           m_seq.insert(m_seq.begin() + x + 1, '.');
 
@@ -721,7 +757,8 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
     e->m_jfir = y + 2;
 
     e->m_stid = e->m_acc + '/' +
-      boost::lexical_cast<string>(e->m_jfir) + '-' + boost::lexical_cast<string>(e->m_jlas);
+      boost::lexical_cast<std::string>(e->m_jfir) + '-' +
+      boost::lexical_cast<std::string>(e->m_jlas);
 
     m_entries.push_back(e);
 
@@ -730,12 +767,12 @@ void MProfile::Align(MHitPtr e, float inGapOpen, float inGapExtend)
 //#if not defined(NDEBUG)
 //    if (dmp)
 //    {
-//      string s = decode(m_seq);
-//      for (string::size_type i = 72; i < s.length(); i += 73)
+//      std::string s = decode(m_seq);
+//      for (std::string::size_type i = 72; i < s.length(); i += 73)
 //        s.insert(s.begin() + i, '\n');
 //
-//      cout << '>' << "PDB" << endl
-//         << s << endl;
+//      cout << '>' << "PDB" << std::endl
+//         << s << std::endl;
 //
 //      foreach (MHitPtr e, m_entries)
 //        cout << *e;
@@ -760,36 +797,39 @@ char map_value_to_char(double v)
   return map_value_to_char(static_cast<uint32>(v));
 }
 
-void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetchDBRefs) const
+void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
+                              bool inFetchDBRefs) const
 {
-  os << "#=GF ID " << inChainID << endl
-     << "#=GF SQ " << m_entries.size() << endl;
+  os << "#=GF ID " << inChainID << std::endl
+     << "#=GF SQ " << m_entries.size() << std::endl;
 
   if (m_shuffled)
-    os << "#=GF CC Since the number of hits exceeded the max-hits parameter, a random set was chosen" << endl;
+    os << "#=GF CC Since the number of hits exceeded the max-hits parameter,"
+       << " a random set was chosen" << std::endl;
 
   // ## per residue information
 
   uint32 nextNr = m_residues.front().m_seq_nr;
-  os << "#=GF CC ## RESIDUE INFORMATION" << endl
-     << "#=GF CC SeqNo   PDBNo AA STRUCTURE BP1 BP2  ACC  NOCC VAR" << endl;
+  os << "#=GF CC ## RESIDUE INFORMATION" << std::endl
+     << "#=GF CC SeqNo   PDBNo AA STRUCTURE BP1 BP2  ACC  NOCC VAR"
+     << std::endl;
   foreach (auto& ri, m_residues)
   {
     if (ri.m_chain_id.empty())
       continue;
 
     if (ri.m_seq_nr != nextNr)
-      os << boost::format("#=GF RI %5.5d       ! !              0   0    0     0   0") % nextNr << endl;
+      os << boost::format("#=GF RI %5.5d       ! !              0   0    0     0   0") % nextNr << std::endl;
 
     uint32 ivar = uint32(100 * (1 - ri.m_consweight));
-    os << boost::format("#=GF RI %5.5d %s%5.5d%4.4d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << endl;
+    os << boost::format("#=GF RI %5.5d %s%5.5d%4.4d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << std::endl;
 
     nextNr = ri.m_seq_nr + 1;
   }
 
   // ## SEQUENCE PROFILE AND ENTROPY
-  os << "#=GF CC ## SEQUENCE PROFILE AND ENTROPY" << endl
-     << "#=GF CC   SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
+  os << "#=GF CC ## SEQUENCE PROFILE AND ENTROPY" << std::endl
+     << "#=GF CC   SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << std::endl;
 
   nextNr = m_residues.front().m_seq_nr;
   foreach (auto& ri, m_residues)
@@ -799,7 +839,7 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 
     if (ri.m_seq_nr != nextNr)
       os << boost::format("#=GF PR %5.5d           0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
-        % nextNr << endl;
+        % nextNr << std::endl;
 
     os << boost::format("#=GF PR %5.5d %5.5d %1.1s") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
 
@@ -807,27 +847,27 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
       os << boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
 
     uint32 relent = uint32(100 * ri.m_entropy / log(20.0));
-    os << "  " << boost::format("%4.4d %4.4d %4.4d  %6.3f   %4.4d %5.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight << endl;
+    os << "  " << boost::format("%4.4d %4.4d %4.4d  %6.3f   %4.4d %5.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight << std::endl;
 
     nextNr = ri.m_seq_nr + 1;
   }
 
-  // find the longest ID string length
-  string::size_type tl = inChainID.length();
+  // find the longest ID std::string length
+  std::string::size_type tl = inChainID.length();
   foreach (const MHitPtr e, m_entries)
   {
     if (tl < e->m_stid.length())
       tl = e->m_stid.length();
   }
 
-  os << "#=GS " << inChainID << string(tl - inChainID.length(), ' ') << " CC The query chain" << endl;
+  os << "#=GS " << inChainID << std::string(tl - inChainID.length(), ' ') << " CC The query chain" << std::endl;
 
   boost::format fmt("#=GS %s HSSP score=%4.2f/%4.2f aligned=%d-%d/%d-%d length=%d ngaps=%d gaplen=%d seqlen=%d");
 
-  map<string,vector<string>> linked;
+  std::map<std::string,std::vector<std::string>> linked;
   if (inFetchDBRefs)
   {
-    const string kBaseURL = "http://mrs.cmbi.ru.nl/m6/mrsws/search";
+    const std::string kBaseURL = "http://mrs.cmbi.ru.nl/m6/mrsws/search";
 
     foreach (const MHitPtr e, m_entries)
       linked[e->m_id].clear();
@@ -837,56 +877,51 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
 
   foreach (const MHitPtr e, m_entries)
   {
-    string id = e->m_stid + string(tl - e->m_stid.length(), ' ');
+    std::string id = e->m_stid + std::string(tl - e->m_stid.length(), ' ');
 
-    os << "#=GS " << id << " ID " << e->m_id << endl
-       << "#=GS " << id << " DE " << e->m_def << endl
+    os << "#=GS " << id << " ID " << e->m_id << std::endl
+       << "#=GS " << id << " DE " << e->m_def << std::endl
        << fmt % id % e->m_score % (float(e->m_similar) / e->m_length)
            % e->m_ifir % e->m_ilas % e->m_jfir % e->m_jlas % e->m_length
-           % e->m_gaps % e->m_gapn % e->m_seq.length() << endl;
+           % e->m_gaps % e->m_gapn % e->m_seq.length() << std::endl;
 
     if (inFetchDBRefs and not linked[e->m_id].empty())
     {
-      os << "#=GS " << id << " DR PDB " << ba::join(linked[e->m_id], ", ") << endl;
-
-//      vector<string> pdb;
-////      const string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search/rest/GetLinked/db/uniprot/linkedDatabank/pdb/id/";
-//      const string kBaseURL = "http://mrs.cmbi.ru.nl/m6/mrsws/search";
-//      FetchPDBReferences(kBaseURL, "uniprot", e->m_id, pdb);
-//      if (not pdb.empty())
-//        os << "#=GS " << id << " DR PDB " << ba::join(pdb, ", ") << endl;
+      os << "#=GS " << id << " DR PDB " << ba::join(linked[e->m_id], ", ")
+         << std::endl;
     }
   }
 
   if (tl < 17)
     tl = 17;
 
-  string::size_type o = 0;
+  std::string::size_type o = 0;
   while (o < m_seq.length())
   {
-    string::size_type n = 72;
+    std::string::size_type n = 72;
     if (o + n > m_seq.length())
       n = m_seq.length() - o;
 
-    os << endl
-       << inChainID << string(tl - inChainID.length() + 1, ' ') << decode(m_seq.substr(o, n)) << endl;
+    os << std::endl
+       << inChainID << std::string(tl - inChainID.length() + 1, ' ')
+       << decode(m_seq.substr(o, n)) << std::endl;
 
-    string ss(n, '.'), ins(n, ' '), del(n, ' '), ent(n, '-'), var(n, '-');
-    for (string::size_type i = o; i < o + n; ++i)
+    std::string ss(n, '.'), ins(n, ' '), del(n, ' '), ent(n, '-'), var(n, '-');
+    for (std::string::size_type i = o; i < o + n; ++i)
     {
       if (m_residues[i].m_seq_nr == 0)
         continue;
 
       switch (m_residues[i].m_ss)
       {
-        case alphahelix:  ss[i - o] = 'H'; break;
-        case betabridge:  ss[i - o] = 'B'; break;
-        case strand:    ss[i - o] = 'E'; break;
+        case alphahelix: ss[i - o] = 'H'; break;
+        case betabridge: ss[i - o] = 'B'; break;
+        case strand:     ss[i - o] = 'E'; break;
         case helix_3:    ss[i - o] = 'G'; break;
         case helix_5:    ss[i - o] = 'I'; break;
-        case turn:      ss[i - o] = 'T'; break;
-        case bend:      ss[i - o] = 'S'; break;
-        case loop:      ss[i - o] = 'C'; break;
+        case turn:       ss[i - o] = 'T'; break;
+        case bend:       ss[i - o] = 'S'; break;
+        case loop:       ss[i - o] = 'C'; break;
       }
 
       ent[i - o] = map_value_to_char(10 * m_residues[i].m_entropy / log(20.0));
@@ -894,57 +929,63 @@ void MProfile::PrintStockholm(ostream& os, const string& inChainID, bool inFetch
     }
 
     foreach (const MHitPtr e, m_entries)
-      os << e->m_stid << string(tl - e->m_stid.length() + 1, ' ') << e->m_aligned.substr(o, n) << endl;
+      os << e->m_stid << std::string(tl - e->m_stid.length() + 1, ' ')
+         << e->m_aligned.substr(o, n) << std::endl;
 
-    os << "#=GC SS          " << string(tl - 17 + 1, ' ') << ss << endl
-       << "#=GC Entropy     " << string(tl - 17 + 1, ' ') << ent << endl
-       << "#=GC Variability " << string(tl - 17 + 1, ' ') << var << endl;
+    os << "#=GC SS          " << std::string(tl - 17 + 1, ' ') << ss
+       << std::endl
+       << "#=GC Entropy     " << std::string(tl - 17 + 1, ' ') << ent
+       << std::endl
+       << "#=GC Variability " << std::string(tl - 17 + 1, ' ') << var
+       << std::endl;
 
     o += n;
   }
 
-  os << "//" << endl;
+  os << "//" << std::endl;
 }
 
-void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFetchDBRefs,
-  const vector<string>& inUsed, const vector<string>& inAKA) const
+void MProfile::PrintStockholm(std::ostream& os, const MProtein& inProtein,
+                              bool inFetchDBRefs,
+                              const std::vector<std::string>& inUsed,
+                              const std::vector<std::string>& inAKA) const
 {
   using namespace boost::gregorian;
   date today = day_clock::local_day();
 
   // write out the profile in Stockholm 1.0 format
 
-  os << "# STOCKHOLM 1.0" << endl
-     << "#=GF CC DATE   " << to_iso_extended_string(today) << endl;
+  os << "# STOCKHOLM 1.0" << std::endl
+     << "#=GF CC DATE   " << to_iso_extended_string(today) << std::endl;
 
-  string s = inProtein.GetID();
+  std::string s = inProtein.GetID();
   if (not s.empty())
-    os << "#=GF CC PDBID  " << s << endl;
+    os << "#=GF CC PDBID  " << s << std::endl;
 
   s = inProtein.GetHeader();
   if (not s.empty())
-    os << "#=GF CC HEADER " << s.substr(10) << endl;
+    os << "#=GF CC HEADER " << s.substr(10) << std::endl;
 
   s = inProtein.GetCompound();
   if (not s.empty())
-    os << "#=GF CC COMPND " << s.substr(10) << endl;
+    os << "#=GF CC COMPND " << s.substr(10) << std::endl;
 
   s = inProtein.GetSource();
   if (not s.empty())
-    os << "#=GF CC SOURCE " << s.substr(10) << endl;
+    os << "#=GF CC SOURCE " << s.substr(10) << std::endl;
 
   s = inProtein.GetAuthor();
   if (not s.empty())
-    os << "#=GF CC AUTHOR " << s.substr(10) << endl;
+    os << "#=GF CC AUTHOR " << s.substr(10) << std::endl;
 
   foreach (auto dbref, inProtein.GetDbRef())
-    os << "#=GF CC " << dbref << endl;
+    os << "#=GF CC " << dbref << std::endl;
 
-  string queryID = inProtein.GetID();
+  std::string queryID = inProtein.GetID();
   if (inProtein.GetChains().size() > 1)
   {
-    auto fmt = [](const vector<string>& a) -> string {
-      string result;
+    auto fmt = [](const std::vector<std::string>& a) -> std::string {
+      std::string result;
       if (a.size() == 1)
         result += a.front();
       else if (not a.empty())
@@ -956,9 +997,12 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
       return result;
     };
 
-    os << "#=GF CC PDB file contains " << inProtein.GetChains().size() << " chains. Used chain" << ( inUsed.size() > 1 ? "s are " : " is " ) << fmt(inUsed) << endl;
+    os << "#=GF CC PDB file contains " << inProtein.GetChains().size()
+       << " chains. Used chain" << ( inUsed.size() > 1 ? "s are " : " is " )
+       << fmt(inUsed) << std::endl;
     if (not inAKA.empty())
-      os << "#=GF CC Chain " << m_chain.GetChainID() << " is considered to be the same as " << fmt(inAKA) << endl;
+      os << "#=GF CC Chain " << m_chain.GetChainID()
+         << " is considered to be the same as " << fmt(inAKA) << std::endl;
     queryID = inProtein.GetID() + '/' + m_chain.GetChainID();
   }
 
@@ -967,14 +1011,15 @@ void MProfile::PrintStockholm(ostream& os, const MProtein& inProtein, bool inFet
 
 // --------------------------------------------------------------------
 
-void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint32 inMaxHits, uint32 inThreads)
+void MProfile::Process(std::istream& inHits, float inGapOpen,
+                       float inGapExtend, uint32 inMaxHits, uint32 inThreads)
 {
-  vector<MHitPtr> hits;
+  std::vector<MHitPtr> hits;
 
-  string id, def, seq;
+  std::string id, def, seq;
   for (;;)
   {
-    string line;
+    std::string line;
     getline(inHits, line);
     if (line.empty() and inHits.eof())
       break;
@@ -988,8 +1033,8 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
       def.clear();
       seq.clear();
 
-      string::size_type s = line.find(' ');
-      if (s != string::npos)
+      std::string::size_type s = line.find(' ');
+      if (s != std::string::npos)
       {
         id = line.substr(1, s - 1);
         def = line.substr(s + 1);
@@ -1029,7 +1074,8 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
   if (hits.size() > inMaxHits * 10 and inMaxHits > 0)
   {
     if (VERBOSE)
-      cerr << "dropping " << (hits.size() - 10 * inMaxHits) << " hits" << endl;
+      std::cerr << "dropping " << (hits.size() - 10 * inMaxHits) << " hits"
+                << std::endl;
 
     random_shuffle(hits.begin(), hits.end());
     hits.erase(hits.begin() + inMaxHits * 10, hits.end());
@@ -1058,7 +1104,8 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
   }
 
   // sort by score
-  sort(m_entries.begin(), m_entries.end(), [](const MHitPtr a, const MHitPtr b) -> bool {
+  sort(m_entries.begin(), m_entries.end(),
+       [](const MHitPtr a, const MHitPtr b) -> bool {
     return a->m_score > b->m_score;
   });
 
@@ -1069,9 +1116,9 @@ void MProfile::Process(istream& inHits, float inGapOpen, float inGapExtend, uint
 
 // Find the minimal set of overlapping sequences
 // In case of strong similarity (distance <= 0.01) we take the longest chain.
-void ClusterSequences(const vector<sequence>& s, vector<size_t>& ix)
+void ClusterSequences(const std::vector<sequence>& s, std::vector<size_t>& ix)
 {
-  vector<bool> skip(s.size(), false);
+  std::vector<bool> skip(s.size(), false);
 
   for (;;)
   {
@@ -1091,7 +1138,7 @@ void ClusterSequences(const vector<sequence>& s, vector<size_t>& ix)
         {
           float d = calculateDistance(a, b);
           // rescale distance to shortest length:
-          d = 1 - (1 - d) * max(a.length(), b.length()) / min(a.length(), b.length());
+          d = 1 - (1 - d) * std::max(a.length(), b.length()) / std::min(a.length(), b.length());
           isSame = (d <= 0.01);
         }
 
@@ -1129,13 +1176,15 @@ void ClusterSequences(const vector<sequence>& s, vector<size_t>& ix)
 // Calculate the variability of a residue, based on dayhoff similarity
 // and weights
 
-pair<const char*,uint32> kSentinel((const char*)nullptr, 0);
+std::pair<const char*,uint32> kSentinel((const char*)nullptr, 0);
 
-void CalculateConservation(buffer<pair<const char*,uint32>>& b,
-  const vector<MHitPtr>& inHits, vector<float>& sumvar, vector<float>& sumdist)
+void CalculateConservation(buffer<std::pair<const char*,uint32>>& b,
+                           const std::vector<MHitPtr>& inHits,
+                           std::vector<float>& sumvar,
+                           std::vector<float>& sumdist)
 {
   size_t length = sumvar.size();
-  vector<float> simval(length);
+  std::vector<float> simval(length);
 
   for (;;)
   {
@@ -1151,7 +1200,7 @@ void CalculateConservation(buffer<pair<const char*,uint32>>& b,
       uint32 len = 0, agr = 0;
       for (uint32 k = 0; k < length; ++k)
       {
-        simval[k] = numeric_limits<float>::min();
+        simval[k] = std::numeric_limits<float>::min();
 
         if (is_gap(si[k]) or is_gap(sj[k]))
           continue;
@@ -1173,7 +1222,7 @@ void CalculateConservation(buffer<pair<const char*,uint32>>& b,
       float distance = 1 - (float(agr) / float(len));
       for (uint32 k = 0; k < length; ++k)
       {
-        if (simval[k] != numeric_limits<float>::min())
+        if (simval[k] != std::numeric_limits<float>::min())
         {
           sumvar[k] += distance * simval[k];
           sumdist[k] += distance * 1.5f;
@@ -1187,16 +1236,16 @@ void CalculateConservation(buffer<pair<const char*,uint32>>& b,
 
 void MProfile::CalculateConservation(uint32 inThreads)
 {
-  vector<float> sumvar(m_seq.length(), 0), sumdist(m_seq.length(), 0);
+  std::vector<float> sumvar(m_seq.length(), 0), sumdist(m_seq.length(), 0);
 
   // Calculate conservation weights in multiple threads to gain speed.
-  buffer<pair<const char*,uint32>> b;
+  buffer<std::pair<const char*,uint32>> b;
   boost::thread_group threads;
   boost::mutex sumLock;
 
   for (uint32 t = 0; t < inThreads; ++t)
     threads.create_thread([&]() {
-      vector<float> csumvar(sumvar.size(), 0), csumdist(sumdist.size(), 0);
+      std::vector<float> csumvar(sumvar.size(), 0), csumdist(sumdist.size(), 0);
 
       HSSP::CalculateConservation(b, m_entries, csumvar, csumdist);
 
@@ -1240,14 +1289,14 @@ void MProfile::CalculateConservation(uint32 inThreads)
     }
   }
 
-  string s(decode(m_seq));
-  b.put(make_pair(s.c_str(), 0));
+  std::string s(decode(m_seq));
+  b.put(std::make_pair(s.c_str(), 0));
 
   p.Consumed(m_entries.size());
 
   for (uint32 i = 0; i + 1 < m_entries.size(); ++i)
   {
-    b.put(make_pair(m_entries[i]->m_aligned.c_str(), i + 1));
+    b.put(std::make_pair(m_entries[i]->m_aligned.c_str(), i + 1));
     p.Consumed(m_entries.size() - i);
   }
 
@@ -1259,7 +1308,7 @@ void MProfile::CalculateConservation(uint32 inThreads)
     MResInfo& ri = m_residues[i];
 
     if (sumdist[i] > 0)
-      ri.m_consweight = min(1.0f, sumvar[i] / sumdist[i]);
+      ri.m_consweight = std::min(1.0f, sumvar[i] / sumdist[i]);
     else
       ri.m_consweight = 1;
 
@@ -1282,21 +1331,23 @@ void MProfile::CalculateConservation(uint32 inThreads)
 
 // --------------------------------------------------------------------
 
-void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
-  uint32 inMaxHits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
-  float inThreshold, float inFragmentCutOff, uint32 inThreads, bool inFetchDBRefs,
-  ostream& inOs)
+void CreateHSSP(const MProtein& inProtein,
+                const std::vector<fs::path>& inDatabanks,
+                uint32 inMaxHits, uint32 inMinSeqLength, float inGapOpen,
+                float inGapExtend, float inThreshold, float inFragmentCutOff,
+                uint32 inThreads, bool inFetchDBRefs, std::ostream& inOs)
 {
-  // construct a set of unique sequences, containing only the largest ones in case of overlap
-  vector<sequence> seqset;
-  vector<size_t> ix;
-  vector<const MChain*> chains;
-  vector<vector<string>> aka;
-  vector<string> used;
+  // construct a set of unique sequences, containing only the largest ones in
+  // case of overlap
+  std::vector<sequence> seqset;
+  std::vector<size_t> ix;
+  std::vector<const MChain*> chains;
+  std::vector<std::vector<std::string>> aka;
+  std::vector<std::string> used;
 
   foreach (const MChain* chain, inProtein.GetChains())
   {
-    string seq;
+    std::string seq;
     chain->GetSequence(seq);
 
     if (seq.length() < inMinSeqLength)
@@ -1305,7 +1356,7 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
     chains.push_back(chain);
     seqset.push_back(encode(seq));
     ix.push_back(ix.size());
-    aka.push_back(vector<string>());
+    aka.push_back(std::vector<std::string>());
   }
 
   if (seqset.empty())
@@ -1334,14 +1385,14 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
     const MChain& chain(*chains[i]);
 
     // do a blast search for inMaxHits * 4 hits.
-    vector<char> blastHits;
+    std::vector<char> blastHits;
 
     io::filtering_ostream out(io::back_inserter(blastHits));
 
     //ifstream f("1F88-A-hits.fa");
     //io::copy(f, out);
 
-    string seq = decode(seqset[i]);
+    std::string seq = decode(seqset[i]);
     SearchAndWriteResultsAsFastA(out, inDatabanks, seq,
       "blastp", "BLOSUM62", 3, 10, true, true, -1, -1, 0, inThreads);
     out.flush();
@@ -1367,13 +1418,15 @@ void CreateHSSP(const MProtein& inProtein, const vector<fs::path>& inDatabanks,
 
 // --------------------------------------------------------------------
 
-void CreateHSSP(const string& inProtein, const vector<fs::path>& inDatabanks,
-  uint32 inMaxHits, uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
-  float inThreshold, float inFragmentCutOff, uint32 inThreads, bool inFetchDBRefs,
-  ostream& inOs)
+void CreateHSSP(const std::string& inProtein,
+                const std::vector<fs::path>& inDatabanks,
+                uint32 inMaxHits,
+                uint32 inMinSeqLength, float inGapOpen, float inGapExtend,
+                float inThreshold, float inFragmentCutOff, uint32 inThreads,
+                bool inFetchDBRefs, std::ostream& inOs)
 {
   MChain* chain = new MChain("A");
-  vector<MResidue*>& residues = chain->GetResidues();
+  std::vector<MResidue*>& residues = chain->GetResidues();
   MResidue* last = nullptr;
   uint32 nr = 1;
   foreach (char r, inProtein)
@@ -1384,8 +1437,9 @@ void CreateHSSP(const string& inProtein, const vector<fs::path>& inDatabanks,
   }
 
   MProtein protein("INPUT", chain);
-  CreateHSSP(protein, inDatabanks, inMaxHits, inMinSeqLength, inGapOpen, inGapExtend,
-    inThreshold, inFragmentCutOff, inThreads, inFetchDBRefs, inOs);
+  CreateHSSP(protein, inDatabanks, inMaxHits, inMinSeqLength, inGapOpen,
+             inGapExtend, inThreshold, inFragmentCutOff, inThreads,
+             inFetchDBRefs, inOs);
 }
 
 }

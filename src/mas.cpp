@@ -11,8 +11,6 @@
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
 
-using namespace std;
-
 // 22 real letters and 1 dummy
 const char kResidues[] = "ACDEFGHIKLMNPQRSTVWYBZX";
 const uint8 kResidueNrTable[] = {
@@ -21,7 +19,7 @@ const uint8 kResidueNrTable[] = {
   0, 20,  1,  2,  3,  4,  5,  6,  7, 23,  8,  9, 10, 11, 23, 12, 13, 14, 15, 16, 22, 17, 18, 22, 19, 21
 };
 
-sequence encode(const string& s)
+sequence encode(const std::string& s)
 {
   sequence result(s.length(), 0);
   for (unsigned int i = 0; i < s.length(); ++i)
@@ -29,9 +27,9 @@ sequence encode(const string& s)
   return result;
 }
 
-string decode(const sequence& s)
+std::string decode(const sequence& s)
 {
-  string result(s.length(), 0);
+  std::string result(s.length(), 0);
   for (unsigned int i = 0; i < s.length(); ++i)
     result[i] = s[i] >= 23 ? '.' : kResidues[s[i]];
   return result;
@@ -68,7 +66,6 @@ string decode(const sequence& s)
 //#include "structure.h"
 //#include "align-3d.h"
 
-using namespace std;
 //using namespace tr1;
 //namespace fs = boost::filesystem;
 //namespace po = boost::program_options;

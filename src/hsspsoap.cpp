@@ -31,18 +31,15 @@
 #include "zeep/config.hpp"
 #include "zeep/server.hpp"
 
-//#include "mrsrc.h"
-
 #include "blast.h"
 #include "structure.h"
 #include "dssp.h"
 #include "hssp-nt.h"
 #include "utils.h"
 
-#define HSSPSOAP_PID_FILE  "/var/run/hsspsoap.pid"
-#define HSSPSOAP_LOG_FILE  "/var/log/hsspsoap.log"
+#define HSSPSOAP_PID_FILE "/var/run/hsspsoap.pid"
+#define HSSPSOAP_LOG_FILE "/var/log/hsspsoap.log"
 
-using namespace std;
 namespace ba = boost::algorithm;
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
@@ -58,31 +55,29 @@ extern char _binary_rsrc_error_html_size[];
 int VERBOSE;
 uint32 gNrOfThreads;
 
-void GetDSSPForSequence(
-  const string&    inSequence,
-  string&        outDSSP)
+void GetDSSPForSequence(const std::string& inSequence, std::string& outDSSP)
 {
   io::filtering_ostream out(io::back_inserter(outDSSP));
 
-  out << "==== Secondary Structure Definition by the program DSSP, updated CMBI version by ElmK / April 1,2000 ==== DATE=28-MAY-2010     ." << endl
-    << "REFERENCE" << endl
-    << "HEADER                                                        9UNK" << endl
-    << "COMPND" << endl
-    << "SOURCE" << endl
-    << "AUTHOR" << endl
-    << boost::format("%5.5d  1  0  0  0") % inSequence.length() << endl
-    << "  #" << endl;
+  out << "==== Secondary Structure Definition by the program DSSP, updated CMBI version by ElmK / April 1,2000 ==== DATE=28-MAY-2010     ." << std::endl
+    << "REFERENCE" << std::endl
+    << "HEADER                                                        9UNK" << std::endl
+    << "COMPND" << std::endl
+    << "SOURCE" << std::endl
+    << "AUTHOR" << std::endl
+    << boost::format("%5.5d  1  0  0  0") % inSequence.length() << std::endl
+    << "  #" << std::endl;
 
   // And now fill in the rest
   int n = 1;
-  for (string::const_iterator aa = inSequence.begin(); aa != inSequence.end(); ++aa, ++n)
-    out << boost::format("%5.d%5.d A %c") % n % n % char(toupper(*aa)) << endl;
+  std::string::const_iterator aa;
+  for (aa = inSequence.begin(); aa != inSequence.end(); ++aa, ++n)
+    out << boost::format("%5.d%5.d A %c") % n % n % char(toupper(*aa))
+        << std::endl;
 }
 
-void GetPDBFileFromPayload(
-  const string&  payload,
-  string&      pdb,
-  fs::path&    file)
+void GetPDBFileFromPayload(const std::string& payload, std::string& pdb,
+                           fs::path& file)
 {
   // make streams
   io::filtering_istream in;
@@ -90,16 +85,16 @@ void GetPDBFileFromPayload(
   in.push(boost::make_iterator_range(payload));
 
   // get the boundary
-  string boundary;
+  std::string boundary;
   getline(in, boundary);
 
   // parse fields until we've got the data 'pdb'
-  string name;
+  std::string name;
 
   for (;;)
   {
     // we just read a boundary, what follows are header fields
-    string line;
+    std::string line;
     getline(in, line);
 
     // sanity check
@@ -129,7 +124,7 @@ void GetPDBFileFromPayload(
 
     // the data, read until we hit the next boundary
 
-    string data;
+    std::string data;
     io::filtering_ostream out(io::back_inserter(pdb));
 
     for (;;)
@@ -143,7 +138,7 @@ void GetPDBFileFromPayload(
         break;
 
       if (name == "pdb" or name == "pdbfile")
-        out << line << endl;
+        out << line << std::endl;
     }
 
     // check to see if we're done
@@ -161,55 +156,51 @@ void GetPDBFileFromPayload(
 class hssp_server : public zeep::server
 {
   public:
-          hssp_server(const vector<fs::path>& inDatabank);
+    hssp_server(const std::vector<fs::path>& inDatabank);
 
-  virtual void  handle_request(const zeep::http::request& req,
-            zeep::http::reply& rep);
+  virtual void handle_request(const zeep::http::request& req,
+                              zeep::http::reply& rep);
 
-  virtual void  GetDSSPForPDBFile(const string& pdbfile, string& dssp);
-  virtual void  GetHSSPForPDBFile(const string&  pdbfile, string& hssp);
-  virtual void  GetHSSPForSequence(const string& sequence, string& hssp);
+  virtual void GetDSSPForPDBFile(const std::string& pdbfile,
+                                 std::string& dssp);
+  virtual void GetHSSPForPDBFile(const std::string& pdbfile,
+                                 std::string& hssp);
+  virtual void GetHSSPForSequence(const std::string& sequence,
+                                  std::string& hssp);
 
-  vector<fs::path>
+  std::vector<fs::path>
           mDatabank;
 };
 
-hssp_server::hssp_server(const vector<fs::path>& inDatabank)
-  : zeep::server("http://www.cmbi.ru.nl/hsspsoap", "hsspsoap")
-  , mDatabank(inDatabank)
+hssp_server::hssp_server(const std::vector<fs::path>& inDatabank)
+  : zeep::server("http://www.cmbi.ru.nl/hsspsoap", "hsspsoap"),
+    mDatabank(inDatabank)
 {
-  const char* kGetDSSPForPDBFileParameterNames[] = {
-    "pdbfile", "dssp"
-  };
+  const char* kGetDSSPForPDBFileParameterNames[] = {"pdbfile", "dssp"};
+  register_action("GetDSSPForPDBFile", this, &hssp_server::GetDSSPForPDBFile,
+                  kGetDSSPForPDBFileParameterNames);
 
-  register_action("GetDSSPForPDBFile", this, &hssp_server::GetDSSPForPDBFile, kGetDSSPForPDBFileParameterNames);
+  const char* kGetHSSPForPDBFileParameterNames[] = {"pdbfile", "hssp"};
+  register_action("GetHSSPForPDBFile", this, &hssp_server::GetHSSPForPDBFile,
+                  kGetHSSPForPDBFileParameterNames);
 
-  const char* kGetHSSPForPDBFileParameterNames[] = {
-    "pdbfile", "hssp"
-  };
-
-  register_action("GetHSSPForPDBFile", this, &hssp_server::GetHSSPForPDBFile, kGetHSSPForPDBFileParameterNames);
-
-  const char* kGetHSSPForSequenceParameterNames[] = {
-    "sequence", "hssp"
-  };
-
-  register_action("GetHSSPForSequence", this, &hssp_server::GetHSSPForSequence, kGetHSSPForSequenceParameterNames);
+  const char* kGetHSSPForSequenceParameterNames[] = {"sequence", "hssp"};
+  register_action("GetHSSPForSequence", this, &hssp_server::GetHSSPForSequence,
+                  kGetHSSPForSequenceParameterNames);
 }
 
-void hssp_server::handle_request(
-  const zeep::http::request&  req,
-  zeep::http::reply&      rep)
+void hssp_server::handle_request(const zeep::http::request& req,
+                                 zeep::http::reply& rep)
 {
   bool handled = false;
 
-  string uri = req.uri;
+  std::string uri = req.uri;
 
   // strip off the http part including hostname and such
   if (ba::starts_with(uri, "http://"))
   {
-    string::size_type s = uri.find_first_of('/', 7);
-    if (s != string::npos)
+    std::string::size_type s = uri.find_first_of('/', 7);
+    if (s != std::string::npos)
       uri.erase(0, s);
   }
 
@@ -219,19 +210,19 @@ void hssp_server::handle_request(
 
   try
   {
-    if (req.method == "GET" and (uri.empty() or ba::starts_with(uri, "index.htm")))
+    if (req.method == "GET" and
+        (uri.empty() or ba::starts_with(uri, "index.htm")))
     {
-      //mrsrc::rsrc rsrc("index.html");
-      //rep.set_content(string(rsrc.data(), rsrc.size()), "text/html");
-      rep.set_content(string(_binary_rsrc_index_html_start, _binary_rsrc_index_html_size), "text/html");
-
+      rep.set_content(std::string(_binary_rsrc_index_html_start,
+                                  _binary_rsrc_index_html_size), "text/html");
       handled = true;
     }
     else if (req.method == "POST")
     {
-      if (ba::starts_with(uri, "PDB2DSSP") or ba::starts_with(uri, "PDB2HSSP") )
+      if (ba::starts_with(uri, "PDB2DSSP") or
+          ba::starts_with(uri, "PDB2HSSP") )
       {
-        string pdb;
+        std::string pdb;
         fs::path file;
 
         GetPDBFileFromPayload(req.payload, pdb, file);
@@ -239,7 +230,7 @@ void hssp_server::handle_request(
         if (file.empty() and pdb.length() > 66)
           file = pdb.substr(62, 4) + ".pdb";
 
-        string result;
+        std::string result;
         if (ba::starts_with(uri, "PDB2DSSP"))
         {
           GetDSSPForPDBFile(pdb, result);
@@ -259,14 +250,14 @@ void hssp_server::handle_request(
       }
       else if (ba::starts_with(uri, "SEQ2HSSP") )
       {
-        string::size_type p = req.payload.find("seq=");
-        if (p == string::npos)
+        std::string::size_type p = req.payload.find("seq=");
+        if (p == std::string::npos)
           throw mas_exception("Missing sequence parameters");
 
-        string seq = req.payload.substr(p + 4);
+        std::string seq = req.payload.substr(p + 4);
         seq = zeep::http::decode_url(seq);
 
-        string result;
+        std::string result;
         GetHSSPForSequence(seq, result);
 
         rep.set_content(result, "text/plain");
@@ -277,12 +268,12 @@ void hssp_server::handle_request(
       }
     }
   }
-  catch (exception& e)
+  catch (std::exception& e)
   {
     //mrsrc::rsrc rsrc("error.html");
-    //string error(rsrc.data(), rsrc.size());
+    //std::string error(rsrc.data(), rsrc.size());
 
-    string error(_binary_rsrc_error_html_start, _binary_rsrc_error_html_size);
+    std::string error(_binary_rsrc_error_html_start, _binary_rsrc_error_html_size);
 
     ba::replace_first(error, "#ERRSTR", e.what());
 
@@ -294,9 +285,8 @@ void hssp_server::handle_request(
     zeep::server::handle_request(req, rep);
 }
 
-void hssp_server::GetDSSPForPDBFile(
-  const string&        pdbfile,
-  string&            dssp)
+void hssp_server::GetDSSPForPDBFile(const std::string& pdbfile,
+                                    std::string& dssp)
 {
   // create a protein
   io::filtering_istream in(boost::make_iterator_range(pdbfile));
@@ -310,9 +300,8 @@ void hssp_server::GetDSSPForPDBFile(
   WriteDSSP(a, out);
 }
 
-void hssp_server::GetHSSPForPDBFile(
-  const string&        pdbfile,
-  string&            hssp)
+void hssp_server::GetHSSPForPDBFile(const std::string& pdbfile,
+                                    std::string& hssp)
 {
   io::filtering_istream in;
   in.push(io::newline_filter(io::newline::posix));
@@ -332,14 +321,12 @@ void hssp_server::GetHSSPForPDBFile(
     gNrOfThreads, false, out);
 }
 
-void hssp_server::GetHSSPForSequence(
-  const string&        sequence,
-  string&            hssp)
+void hssp_server::GetHSSPForSequence(const std::string& sequence,
+                                     std::string& hssp)
 {
   io::filtering_ostream out(io::back_inserter(hssp));
-  HSSP::CreateHSSP(sequence, mDatabank, 5000, 25, 30, 2,
-    HSSP::kThreshold, HSSP::kFragmentCutOff,
-    gNrOfThreads, false, out);
+  HSSP::CreateHSSP(sequence, mDatabank, 5000, 25, 30, 2, HSSP::kThreshold,
+                   HSSP::kFragmentCutOff, gNrOfThreads, false, out);
 }
 
 // --------------------------------------------------------------------
@@ -347,14 +334,13 @@ void hssp_server::GetHSSPForSequence(
 //  Daemonize
 //
 
-void Daemonize(
-  const string&    inUser)
+void Daemonize(const std::string& inUser)
 {
   int pid = fork();
 
   if (pid == -1)
   {
-    cerr << "Fork failed" << endl;
+    std::cerr << "Fork failed" << std::endl;
     exit(1);
   }
 
@@ -363,7 +349,8 @@ void Daemonize(
 
   if (setsid() < 0)
   {
-    cerr << "Failed to create process group: " << strerror(errno) << endl;
+    std::cerr << "Failed to create process group: " << strerror(errno)
+              << std::endl;
     exit(1);
   }
 
@@ -374,19 +361,19 @@ void Daemonize(
   pid = fork();
 
   if (pid == -1)
-    cerr << "Fork failed" << endl;
+    std::cerr << "Fork failed" << std::endl;
 
   if (pid != 0)
     _exit(0);
 
   // write our pid to the pid file
-  ofstream pidFile(HSSPSOAP_PID_FILE);
-  pidFile << getpid() << endl;
+  std::ofstream pidFile(HSSPSOAP_PID_FILE);
+  pidFile << getpid() << std::endl;
   pidFile.close();
 
   if (chdir("/") != 0)
   {
-    cerr << "Cannot chdir to /: " << strerror(errno) << endl;
+    std::cerr << "Cannot chdir to /: " << strerror(errno) << std::endl;
     exit(1);
   }
 
@@ -395,7 +382,8 @@ void Daemonize(
     struct passwd* pw = getpwnam(inUser.c_str());
     if (pw == NULL or setuid(pw->pw_uid) < 0)
     {
-      cerr << "Failed to set uid to " << inUser << ": " << strerror(errno) << endl;
+      std::cerr << "Failed to set uid to " << inUser << ": "
+                << strerror(errno) << std::endl;
       exit(1);
     }
   }
@@ -416,7 +404,7 @@ void OpenLogFile()
   int fd = open(HSSPSOAP_LOG_FILE, O_CREAT|O_APPEND|O_RDWR, 0644);
   if (fd < 0)
   {
-    cerr << "Opening log file " HSSPSOAP_LOG_FILE " failed" << endl;
+    std::cerr << "Opening log file " HSSPSOAP_LOG_FILE " failed" << std::endl;
     exit(1);
   }
 
@@ -439,35 +427,32 @@ int main(int argc, char* argv[])
   {
     l.rlim_cur = l.rlim_max;
     if (l.rlim_cur == 0 or setrlimit(RLIMIT_CORE, &l) < 0)
-      cerr << "Failed to set rlimit" << endl;
+      std::cerr << "Failed to set rlimit" << std::endl;
   }
 #endif
 
   po::options_description desc("Options");
   desc.add_options()
-    ("help,h",                "Display help message")
-    ("address,a",  po::value<string>(),  "address to bind to")
-    ("port,p",    po::value<uint16>(),  "port to bind to")
-    ("location,l",  po::value<string>(),  "location advertised in wsdl")
-    ("user,u",    po::value<string>(),  "user to run as")
-    ("threads,a",  po::value<uint32>(),  "number of threads to use")
-    ("databank",  po::value<vector<string>>(),
-                        "Databank(s) to use (default = /data/fasta/uniprot_sprot.fasta and /data/fasta/uniprot_trembl.fasta)")
-    ("no-daemon,D",              "do not fork a daemon")
-    ("verbose,v",              "Verbose mode")
-    ("version",            "Show version number")
+    ("help,h", "Display help message")
+    ("address,a", po::value<std::string>(),  "address to bind to")
+    ("port,p", po::value<uint16>(),  "port to bind to")
+    ("location,l", po::value<std::string>(),  "location advertised in wsdl")
+    ("user,u", po::value<std::string>(),  "user to run as")
+    ("threads,a", po::value<uint32>(),  "number of threads to use")
+    ("databank", po::value<std::vector<std::string>>(),
+     "Databank(s) to use (default = /data/fasta/uniprot_sprot.fasta and /data/fasta/uniprot_trembl.fasta)")
+    ("no-daemon,D", "do not fork a daemon")
+    ("verbose,v", "Verbose mode")
+    ("version", "Show version number")
     ;
 
-  string
-    location = "http://www.cmbi.ru.nl/hsspsoap/wsdl",
-    address = "0.0.0.0",
-    user = "nobody";
+  std::string location = "http://www.cmbi.ru.nl/hsspsoap/wsdl";
+  std::string address = "0.0.0.0";
+  std::string user = "nobody";
 
-  uint16
-    port = 10334;
+  uint16 port = 10334;
 
-  bool
-    daemon = true;
+  bool daemon = true;
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -475,27 +460,27 @@ int main(int argc, char* argv[])
 
   if (vm.count("version") > 0)
   {
-    cout << "hsspsoap version " << XSSP_VERSION << endl;
+    std::cout << "hsspsoap version " << XSSP_VERSION << std::endl;
     exit(0);
   }
 
   if (vm.count("help") or vm.count("databank") == 0)
   {
-    cout << desc << endl;
+    std::cout << desc << std::endl;
     exit(1);
   }
 
   if (vm.count("address"))
-    address = vm["address"].as<string>();
+    address = vm["address"].as<std::string>();
 
   if (vm.count("location"))
-    location = vm["location"].as<string>();
+    location = vm["location"].as<std::string>();
 
   if (vm.count("port"))
     port = vm["port"].as<uint16>();
 
   if (vm.count("user"))
-    user = vm["user"].as<string>();
+    user = vm["user"].as<std::string>();
 
   gNrOfThreads = boost::thread::hardware_concurrency();
   if (vm.count("threads"))
@@ -506,9 +491,9 @@ int main(int argc, char* argv[])
   if (vm.count("verbose"))
     VERBOSE = 1;
 
-  vector<fs::path> databanks;
-  vector<string> dbs = vm["databank"].as<vector<string>>();
-  foreach (string db, dbs)
+  std::vector<fs::path> databanks;
+  std::vector<std::string> dbs = vm["databank"].as<std::vector<std::string>>();
+  foreach (std::string db, dbs)
   {
     databanks.push_back(db);
     if (not fs::exists(databanks.back()))

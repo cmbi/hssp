@@ -19,7 +19,6 @@
 #pragma comment ( lib, "libzeep" )
 #endif
 
-using namespace std;
 using boost::asio::ip::tcp;
 using namespace zeep;
 namespace io = boost::iostreams;
@@ -30,9 +29,9 @@ namespace
 boost::asio::io_service io_service;
 tcp::resolver resolver(io_service);
 
-void FetchHTTPDocument(const string& inServer, const string& inURL,
-                       const string& inDb, const string& inID,
-                       string& outHeader, string& outDocument)
+void FetchHTTPDocument(const std::string& inServer, const std::string& inURL,
+                       const std::string& inDb, const std::string& inID,
+                       std::string& outHeader, std::string& outDocument)
 {
   // This code comes from the http client example code in Boost ASIO
 
@@ -55,7 +54,7 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
     throw boost::system::system_error(error);
 
   // Create a soap request in an envelope
-  string soapRequest = (boost::format(
+  std::string soapRequest = (boost::format(
     "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
       "<SOAP-ENV:Body>"
         "<ns:GetLinked xmlns:ns='http://mrs.cmbi.ru.nl/mrsws/search'>"
@@ -72,7 +71,7 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
   // server will close the socket after transmitting the response. This will
   // allow us to treat all data up until the EOF as the content.
   boost::asio::streambuf request;
-  ostream request_stream(&request);
+  std::ostream request_stream(&request);
   request_stream << "POST " << inURL << " HTTP/1.0\r\n";
   request_stream << "Host: " << inServer << "\r\n";
   request_stream << "Accept: */*\r\n";
@@ -92,12 +91,12 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
   boost::asio::read_until(socket, response, "\r\n");
 
   // Check that response is OK.
-  istream response_stream(&response);
-  string http_version;
+  std::istream response_stream(&response);
+  std::string http_version;
   response_stream >> http_version;
   unsigned int status_code;
   response_stream >> status_code;
-  string status_message;
+  std::string status_message;
   getline(response_stream, status_message);
   if (response_stream == false or http_version.substr(0, 5) != "HTTP/")
     throw mas_exception("Invalid response");
@@ -110,7 +109,7 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
   boost::asio::read_until(socket, response, "\r\n\r\n");
 
   // Process the response headers.
-  string line;
+  std::string line;
 
   io::filtering_ostream osh(io::back_inserter(outHeader));
 
@@ -133,9 +132,10 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
     throw boost::system::system_error(error);
 }
 
-void FetchHTTPDocument(const string& inServer, const string& inURL,
-                       const string& inDb, const vector<string>& inIDs,
-                       string& outHeader, string& outDocument)
+void FetchHTTPDocument(const std::string& inServer, const std::string& inURL,
+                       const std::string& inDb,
+                       const std::vector<std::string>& inIDs,
+                       std::string& outHeader, std::string& outDocument)
 {
   // This code comes from the http client example code in Boost ASIO
 
@@ -146,7 +146,7 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 
   // Try each endpoint until we successfully establish a connection.
   tcp::socket socket(io_service);
-//  boost::asio::connect(socket, endpoint_iterator);
+  //  boost::asio::connect(socket, endpoint_iterator);
 
   boost::system::error_code error = boost::asio::error::host_not_found;
     while (error && endpoint_iterator != end)
@@ -157,7 +157,7 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
   if (error)
     throw boost::system::system_error(error);
 
-  stringstream s;
+  std::stringstream s;
   s <<
     "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
       "<SOAP-ENV:Body>"
@@ -165,20 +165,20 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
           "<ns:db>" << inDb << "</ns:db>"
           "<ns:linkedDatabank>pdb</ns:linkedDatabank>";
 
-  foreach (string id, inIDs)
+  foreach (std::string id, inIDs)
   s <<       "<ns:id>" << id << "</ns:id>";
 
   s <<    "</ns:GetLinkedEx>"
       "</SOAP-ENV:Body>"
     "</SOAP-ENV:Envelope>";
 
-  string soapRequest = s.str();
+  std::string soapRequest = s.str();
 
   // Form the request. We specify the "Connection: close" header so that the
   // server will close the socket after transmitting the response. This will
   // allow us to treat all data up until the EOF as the content.
   boost::asio::streambuf request;
-  ostream request_stream(&request);
+  std::ostream request_stream(&request);
   request_stream << "POST " << inURL << " HTTP/1.0\r\n";
   request_stream << "Host: " << inServer << "\r\n";
   request_stream << "Accept: */*\r\n";
@@ -198,12 +198,12 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
   boost::asio::read_until(socket, response, "\r\n");
 
   // Check that response is OK.
-  istream response_stream(&response);
-  string http_version;
+  std::istream response_stream(&response);
+  std::string http_version;
   response_stream >> http_version;
   unsigned int status_code;
   response_stream >> status_code;
-  string status_message;
+  std::string status_message;
   getline(response_stream, status_message);
   if (response_stream == false or http_version.substr(0, 5) != "HTTP/")
     throw mas_exception("Invalid response");
@@ -216,7 +216,7 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
   boost::asio::read_until(socket, response, "\r\n\r\n");
 
   // Process the response headers.
-  string line;
+  std::string line;
 
   io::filtering_ostream osh(io::back_inserter(outHeader));
 
@@ -241,8 +241,9 @@ void FetchHTTPDocument(const string& inServer, const string& inURL,
 
 }
 
-void FetchPDBReferences(const string& inBaseURL, const string& inDb,
-                        const string& inID, vector<string>& outReferences)
+void FetchPDBReferences(const std::string& inBaseURL, const std::string& inDb,
+                        const std::string& inID,
+                        std::vector<std::string>& outReferences)
 {
   static const boost::regex re("http://([^/]+)(/.*)?");
 
@@ -254,7 +255,7 @@ void FetchPDBReferences(const string& inBaseURL, const string& inDb,
 
   try
   {
-    string httpHeader, httpDocument;
+    std::string httpHeader, httpDocument;
     FetchHTTPDocument(m[1], inBaseURL, inDb, inID, httpHeader, httpDocument);
 
     xml::document doc(httpDocument);
@@ -269,8 +270,8 @@ void FetchPDBReferences(const string& inBaseURL, const string& inDb,
   }
 }
 
-void FetchPDBReferences(const string& inBaseURL, const string& inDb,
-  map<string,vector<string>>& ioReferences)
+void FetchPDBReferences(const std::string& inBaseURL, const std::string& inDb,
+  std::map<std::string,std::vector<std::string>>& ioReferences)
 {
   static const boost::regex re("http://([^/]+)(/.*)?");
 
@@ -280,11 +281,11 @@ void FetchPDBReferences(const string& inBaseURL, const string& inDb,
 
   try
   {
-    vector<string> ids;
+    std::vector<std::string> ids;
     foreach (auto r, ioReferences)
       ids.push_back(r.first);
 
-    string httpHeader, httpDocument;
+    std::string httpHeader, httpDocument;
     FetchHTTPDocument(m[1], inBaseURL, inDb, ids, httpHeader, httpDocument);
 
     xml::document doc(httpDocument);
@@ -295,7 +296,7 @@ void FetchPDBReferences(const string& inBaseURL, const string& inDb,
       if (not id)
         continue;
 
-      vector<string> links;
+      std::vector<std::string> links;
       foreach (auto link, r->find("linked"))
         links.push_back(link->content());
 

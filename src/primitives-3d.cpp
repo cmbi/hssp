@@ -16,16 +16,13 @@
 #include "primitives-3d.h"
 #include "matrix.h"
 
-using namespace std;
-
-const double
-  kPI = 4 * std::atan(1.0);
+const double kPI = 4 * std::atan(1.0);
 
 // --------------------------------------------------------------------
 
 MQuaternion Normalize(MQuaternion q)
 {
-  valarray<double> t(4);
+  std::valarray<double> t(4);
 
   t[0] = q.R_component_1();
   t[1] = q.R_component_2();
@@ -88,13 +85,13 @@ MPoint operator/(const MPoint& pt, double f)
   return result;
 }
 
-ostream& operator<<(ostream& os, const MPoint& pt)
+std::ostream& operator<<(std::ostream& os, const MPoint& pt)
 {
   os << '(' << pt.mX << ',' << pt.mY << ',' << pt.mZ << ')';
   return os;
 }
 
-ostream& operator<<(ostream& os, const vector<MPoint>& pts)
+std::ostream& operator<<(std::ostream& os, const std::vector<MPoint>& pts)
 {
   uint32 n = pts.size();
   os << '[' << n << ']';
@@ -113,10 +110,10 @@ ostream& operator<<(ostream& os, const vector<MPoint>& pts)
 
 double DihedralAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3, const MPoint& p4)
 {
-  MPoint v12 = p1 - p2;  // vector from p2 to p1
-  MPoint v43 = p4 - p3;  // vector from p3 to p4
+  MPoint v12 = p1 - p2;  // std::vector from p2 to p1
+  MPoint v43 = p4 - p3;  // std::vector from p3 to p4
 
-  MPoint z = p2 - p3;    // vector from p3 to p2
+  MPoint z = p2 - p3;    // std::vector from p3 to p2
 
   MPoint p = CrossProduct(z, v12);
   MPoint x = CrossProduct(z, v43);
@@ -153,7 +150,7 @@ double CosinusAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3, const 
 
 // --------------------------------------------------------------------
 
-tr1::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q)
+std::tr1::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q)
 {
   if (q.R_component_1() > 1)
     q = Normalize(q);
@@ -169,10 +166,10 @@ tr1::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q)
 
   MPoint axis(q.R_component_2() / s, q.R_component_3() / s, q.R_component_4() / s);
 
-  return tr1::make_tuple(angle, axis);
+  return std::tr1::make_tuple(angle, axis);
 }
 
-MPoint CenterPoints(vector<MPoint>& points)
+MPoint CenterPoints(std::vector<MPoint>& points)
 {
   MPoint t;
 
@@ -197,7 +194,7 @@ MPoint CenterPoints(vector<MPoint>& points)
   return t;
 }
 
-MPoint Centroid(vector<MPoint>& points)
+MPoint Centroid(std::vector<MPoint>& points)
 {
   MPoint result;
 
@@ -209,12 +206,12 @@ MPoint Centroid(vector<MPoint>& points)
   return result;
 }
 
-double RMSd(const vector<MPoint>& a, const vector<MPoint>& b)
+double RMSd(const std::vector<MPoint>& a, const std::vector<MPoint>& b)
 {
   double sum = 0;
   for (uint32 i = 0; i < a.size(); ++i)
   {
-    valarray<double> d(3);
+    std::valarray<double> d(3);
 
     d[0] = b[i].mX - a[i].mX;
     d[1] = b[i].mY - a[i].mY;
@@ -235,29 +232,29 @@ double RMSd(const vector<MPoint>& a, const vector<MPoint>& b)
 //   x^4 + ax^2 + bx + c = 0
 //
 // (since I'm too lazy to find out a better way, I've implemented the
-//  routine using complex values to avoid nan's as a result of taking
+//  routine using std::complex values to avoid nan's as a result of taking
 //  sqrt of a negative number)
 double LargestDepressedQuarticSolution(double a, double b, double c)
 {
-  complex<double> P = - (a * a) / 12 - c;
-  complex<double> Q = - (a * a * a) / 108 + (a * c) / 3 - (b * b) / 8;
-  complex<double> R = - Q / 2.0 + sqrt((Q * Q) / 4.0 + (P * P * P) / 27.0);
+  std::complex<double> P = - (a * a) / 12 - c;
+  std::complex<double> Q = - (a * a * a) / 108 + (a * c) / 3 - (b * b) / 8;
+  std::complex<double> R = - Q / 2.0 + sqrt((Q * Q) / 4.0 + (P * P * P) / 27.0);
 
-  complex<double> U = pow(R, 1 / 3.0);
+  std::complex<double> U = pow(R, 1 / 3.0);
 
-  complex<double> y;
+  std::complex<double> y;
   if (U == 0.0)
     y = -5.0 * a / 6.0 + U - pow(Q, 1.0 / 3.0);
   else
     y = -5.0 * a / 6.0 + U - P / (3.0 * U);
 
-  complex<double> W = sqrt(a + 2.0 * y);
+  std::complex<double> W = sqrt(a + 2.0 * y);
 
   // And to get the final result:
   // result = (±W + sqrt(-(3 * alpha + 2 * y ± 2 * beta / W))) / 2;
   // We want the largest result, so:
 
-  valarray<double> t(4);
+  std::valarray<double> t(4);
 
   t[0] = (( W + sqrt(-(3.0 * a + 2.0 * y + 2.0 * b / W))) / 2.0).real();
   t[1] = (( W + sqrt(-(3.0 * a + 2.0 * y - 2.0 * b / W))) / 2.0).real();
@@ -267,7 +264,7 @@ double LargestDepressedQuarticSolution(double a, double b, double c)
   return t.max();
 }
 
-MQuaternion AlignPoints(const vector<MPoint>& pa, const vector<MPoint>& pb)
+MQuaternion AlignPoints(const std::vector<MPoint>& pa, const std::vector<MPoint>& pb)
 {
   // First calculate M, a 3x3 matrix containing the sums of products of the coordinates of A and B
   matrix<double> M(3, 3, 0);

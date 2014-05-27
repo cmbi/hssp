@@ -15,7 +15,6 @@
 #include "iocif.h"
 #include "utils.h"
 
-using namespace std;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
@@ -26,12 +25,13 @@ namespace mmCIF
 
 // skip routines to quickly position character pointer p at a next interesting location
 const char* skip_line(const char* p, const char* end);
-const char* skip_white(const char* p, const char* end);  // skip over white-space and comments
+// skip over white-space and comments
+const char* skip_white(const char* p, const char* end);
 const char* skip_value(const char* p, const char* end);
 
-string row::operator[](const char* inName) const
+std::string row::operator[](const char* inName) const
 {
-  string result;
+  std::string result;
 
   foreach (const field& f, m_fields)
   {
@@ -149,13 +149,14 @@ void record::advance(row& row) const
   }
 }
 
-string record::get_joined(const char* inName, const char* inDelimiter) const
+std::string record::get_joined(const char* inName,
+                               const char* inDelimiter) const
 {
-  string result;
+  std::string result;
 
   for (iterator i = begin(); i != end(); ++i)
   {
-    string s = i->operator[](inName);
+    std::string s = i->operator[](inName);
     ba::trim(s);
     result = (result.empty() ? result : result + inDelimiter) + s;
   }
@@ -163,17 +164,17 @@ string record::get_joined(const char* inName, const char* inDelimiter) const
   return result;
 }
 
-file::file(istream& is)
+file::file(std::istream& is)
 {
   // first extract data into a buffer
-  m_buffer.reserve(10 * 1024 * 1024);  // reserve 10 MB, should be sufficient for most
+  m_buffer.reserve(10 * 1024 * 1024); // reserve 10 MB, should be sufficient
 
   io::copy(is, io::back_inserter(m_buffer));
 
   m_data = &m_buffer[0];
   m_end = m_data + m_buffer.size();
 
-  m_buffer.push_back(0);        // end with a null character, makes coding a bit easier
+  m_buffer.push_back(0); // end with a null character, makes coding easier
 
   // CIF files are simple to parse
 
@@ -245,7 +246,7 @@ file::file(istream& is)
           rec.m_end = nullptr;
           rec.m_loop = loop;
           rec.m_field_count = 1;
-          rec.m_name = string(s, p);
+          rec.m_name = std::string(s, p);
 
           m_records.push_back(rec);
         }
@@ -263,13 +264,14 @@ file::file(istream& is)
           m_records.back().m_end = s;
 
         // a record without a field (is that possible in mmCIF?)
-        cerr << "record without field: " << string(s, p) << endl;
+        std::cerr << "record without field: " << std::string(s, p)
+                  << std::endl;
 
         rec.m_start = s;
         rec.m_end = nullptr;
         rec.m_loop = loop;
         rec.m_field_count = 0;
-        rec.m_name = string(s, p);
+        rec.m_name = std::string(s, p);
 
         m_records.push_back(rec);
       }
@@ -306,37 +308,39 @@ record file::operator[](const char* inName) const
   record result = {};
   result.m_name = inName;
 
-  vector<record>::const_iterator i = lower_bound(m_records.begin(), m_records.end(), result);
+  std::vector<record>::const_iterator i = lower_bound(m_records.begin(),
+                                                      m_records.end(), result);
   if (i != m_records.end() and i->m_name == inName)
     result = *i;
 
   return result;
 }
 
-string file::get(const char* inName) const
+std::string file::get(const char* inName) const
 {
   const char* p = strchr(inName, '.');
   assert(p != nullptr);
   if (p == nullptr)
-    throw logic_error("incorrect name");
+    throw std::logic_error("incorrect name");
 
-  record r = operator[](string(inName, p).c_str());
-  return r.front()[string(p + 1).c_str()];
+  record r = operator[](std::string(inName, p).c_str());
+  return r.front()[std::string(p + 1).c_str()];
 }
 
-string file::get_joined(const char* inName, const char* inDelimiter) const
+std::string file::get_joined(const char* inName, const char* inDelimiter) const
 {
   const char* p = strchr(inName, '.');
   assert(p != nullptr);
   if (p == nullptr)
-    throw logic_error("incorrect name");
+    throw std::logic_error("incorrect name");
 
   record test;
   test.m_name.assign(inName, p);
 
-  string result;
+  std::string result;
 
-  vector<record>::const_iterator i = lower_bound(m_records.begin(), m_records.end(), test);
+  std::vector<record>::const_iterator i = lower_bound(m_records.begin(),
+                                                      m_records.end(), test);
   if (i != m_records.end() and i->m_name == test.m_name)
     result = i->get_joined(p + 1, inDelimiter);
 
@@ -433,16 +437,16 @@ const char* skip_value(const char* p, const char* end)
 //
 //
 //
-//  cout << "id: " << cif["_entry"].front()["id"].value() << endl;
+//  cout << "id: " << cif["_entry"].front()["id"].value() << std::endl;
 //
 //  foreach (const row& row, cif["_atom_type"])
 //  {
-//    cout << row["symbol"].value() << endl;
+//    cout << row["symbol"].value() << std::endl;
 //  }
 //
 //  foreach (const row& row, cif["_atom_site"])
 //  {
-//    cout << "ATOM  " << row["Cartn_x"].value() << ' ' << row["Cartn_y"].value() << ' ' << row["Cartn_z"].value() << endl;
+//    cout << "ATOM  " << row["Cartn_x"].value() << ' ' << row["Cartn_y"].value() << ' ' << row["Cartn_z"].value() << std::endl;
 //  }
 //}
 //

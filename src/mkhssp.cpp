@@ -28,7 +28,6 @@
 #include "structure.h"
 #include "hssp-nt.h"
 
-using namespace std;
 namespace ba = boost::algorithm;
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
@@ -38,9 +37,9 @@ int VERBOSE = 0;
 
 // --------------------------------------------------------------------
 
-MProtein* ReadProteinFromFastA(istream& in)
+MProtein* ReadProteinFromFastA(std::istream& in)
 {
-  string id, seq;
+  std::string id, seq;
 
   getline(in, id);
   if (id.empty() and in.eof())
@@ -51,25 +50,25 @@ MProtein* ReadProteinFromFastA(istream& in)
 
   id.erase(0, 1);
 
-  string::size_type s = id.find(' ');
-  if (s != string::npos)
+  std::string::size_type s = id.find(' ');
+  if (s != std::string::npos)
     id.erase(s);
 
   if (id.empty())
     throw mas_exception("Not a valid FastA file: Empty or invalid ID line");
 
-  streambuf* b = in.rdbuf();
+  std::streambuf* b = in.rdbuf();
 
-  while (b->sgetc() != streambuf::traits_type::eof() and
+  while (b->sgetc() != std::streambuf::traits_type::eof() and
     b->sgetc() != '>')
   {
-    string line;
+    std::string line;
     getline(in, line);
     seq += line;
   }
 
   MChain* chain = new MChain("A");
-  vector<MResidue*>& residues = chain->GetResidues();
+  std::vector<MResidue*>& residues = chain->GetResidues();
   MResidue* last = nullptr;
   uint32 nr = 1;
   foreach (char r, seq)
@@ -94,7 +93,7 @@ int main(int argc, char* argv[])
   {
     l.rlim_cur = l.rlim_max;
     if (l.rlim_cur == 0 or setrlimit(RLIMIT_CORE, &l) < 0)
-      cerr << "Failed to set rlimit" << endl;
+      std::cerr << "Failed to set rlimit" << std::endl;
   }
 #endif
 
@@ -105,9 +104,9 @@ int main(int argc, char* argv[])
     po::options_description desc("MKHSSP options");
     desc.add_options()
       ("help,h",               "Display help message")
-      ("input,i",    po::value<string>(), "Input PDB file (or PDB ID)")
-      ("output,o",  po::value<string>(), "Output file, use 'stdout' to output to screen")
-      ("databank,d",  po::value<vector<string>>(),
+      ("input,i",    po::value<std::string>(), "Input PDB file (or PDB ID)")
+      ("output,o",  po::value<std::string>(), "Output file, use 'stdout' to output to screen")
+      ("databank,d",  po::value<std::vector<std::string>>(),
                          "Databank to use (can be specified multiple times)")
       ("threads,a",  po::value<uint32>(), "Number of threads (default is maximum)")
 //      ("use-seqres",  po::value<bool>(),   "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
@@ -141,21 +140,21 @@ int main(int argc, char* argv[])
 
     if (vm.count("version")>0)
     {
-      cout << "mkhssp version " << XSSP_VERSION << endl;
+      std::cout << "mkhssp version " << XSSP_VERSION << std::endl;
       exit(0);
     }
 
     if (vm.count("help") or not vm.count("input") or vm.count("databank") == 0)
     {
-      cerr << desc << endl;
+      std::cerr << desc << std::endl;
       exit(1);
     }
 
     VERBOSE = vm.count("verbose");
 
-    vector<fs::path> databanks;
-    vector<string> dbs = vm["databank"].as<vector<string>>();
-    foreach (string db, dbs)
+    std::vector<fs::path> databanks;
+    std::vector<std::string> dbs = vm["databank"].as<std::vector<std::string>>();
+    foreach (std::string db, dbs)
     {
       databanks.push_back(db);
       if (not fs::exists(databanks.back()))
@@ -199,36 +198,36 @@ int main(int argc, char* argv[])
       threads = 1;
 
     // what input to use
-    string input = vm["input"].as<string>();
+    std::string input = vm["input"].as<std::string>();
     io::filtering_stream<io::input> in;
-    ifstream infile(input.c_str(), ios_base::in | ios_base::binary);
+    std::ifstream infile(input.c_str(), std::ios_base::in | std::ios_base::binary);
     if (not infile.is_open())
-      throw runtime_error("Error opening input file");
+      throw std::runtime_error("Error opening input file");
 
     if (ba::ends_with(input, ".bz2"))
     {
       in.push(io::bzip2_decompressor());
-      input.erase(input.length() - 4, string::npos);
+      input.erase(input.length() - 4, std::string::npos);
     }
     else if (ba::ends_with(input, ".gz"))
     {
       in.push(io::gzip_decompressor());
-      input.erase(input.length() - 3, string::npos);
+      input.erase(input.length() - 3, std::string::npos);
     }
     in.push(infile);
 
     // Where to write our HSSP file to:
     // either to cout or an (optionally compressed) file.
-    ofstream outfile;
+    std::ofstream outfile;
     io::filtering_stream<io::output> out;
 
-    if (vm.count("output") and vm["output"].as<string>() != "stdout")
+    if (vm.count("output") and vm["output"].as<std::string>() != "stdout")
     {
-      outfilename = fs::path(vm["output"].as<string>());
-      outfile.open(outfilename.c_str(), ios_base::out|ios_base::trunc|ios_base::binary);
+      outfilename = fs::path(vm["output"].as<std::string>());
+      outfile.open(outfilename.c_str(), std::ios_base::out|std::ios_base::trunc|std::ios_base::binary);
 
       if (not outfile.is_open())
-        throw runtime_error("could not create output file");
+        throw std::runtime_error("could not create output file");
 
       if (ba::ends_with(outfilename.string(), ".bz2"))
         out.push(io::bzip2_compressor());
@@ -237,7 +236,7 @@ int main(int argc, char* argv[])
       out.push(outfile);
     }
     else
-      out.push(cout);
+      out.push(std::cout);
 
     // if input file is a FastA file, we process it differently
     if (ba::ends_with(input, ".fa") or ba::ends_with(input, ".fasta"))
@@ -250,9 +249,9 @@ int main(int argc, char* argv[])
           HSSP::CreateHSSP(*p, databanks, maxhits, minlength, gapOpen, gapExtend,
             threshold, fragmentCutOff, threads, fetchDbRefs, out);
         }
-        catch (exception& e)
+        catch (std::exception& e)
         {
-          cerr << "Creating HSSP for " << p->GetID() << " failed: " << e.what() << endl;
+          std::cerr << "Creating HSSP for " << p->GetID() << " failed: " << e.what() << std::endl;
         }
 
         delete p;
@@ -275,9 +274,9 @@ int main(int argc, char* argv[])
         gapOpen, gapExtend, threshold, fragmentCutOff, threads, fetchDbRefs, out);
     }
   }
-  catch (exception& e)
+  catch (std::exception& e)
   {
-    cerr << e.what() << endl;
+    std::cerr << e.what() << std::endl;
 
     try
     {
@@ -290,9 +289,9 @@ int main(int argc, char* argv[])
   }
 
 //#if defined(_MSC_VER) && ! NDEBUG
-//  cerr << "Press any key to quit application ";
+//  std::cerr << "Press any key to quit application ";
 //  char ch = _getch();
-//  cerr << endl;
+//  std::cerr << std::endl;
 //#endif
 
   return 0;

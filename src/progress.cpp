@@ -27,7 +27,6 @@
 
 #include "progress.h"
 
-using namespace std;
 
 #ifdef _MSC_VER
 
@@ -72,7 +71,7 @@ uint32 get_terminal_width()
 
 struct MProgressImpl
 {
-          MProgressImpl(int64 inMax, const string& inAction)
+          MProgressImpl(int64 inMax, const std::string& inAction)
             : mMax(inMax), mConsumed(0), mAction(inAction), mMessage(inAction)
             , mThread(boost::bind(&MProgressImpl::Run, this)) {}
 
@@ -83,7 +82,7 @@ struct MProgressImpl
 
   int64      mMax;
   MCounter    mConsumed;
-  string      mAction, mMessage;
+  std::string      mAction, mMessage;
   boost::mutex  mMutex;
   boost::thread  mThread;
   boost::timer::cpu_timer
@@ -115,7 +114,7 @@ void MProgressImpl::PrintProgress()
 {
   int width = get_terminal_width();
 
-  string msg;
+  std::string msg;
   msg.reserve(width + 1);
   if (mMessage.length() <= 20)
   {
@@ -140,26 +139,26 @@ void MProgressImpl::PrintProgress()
     msg += ' ';
   if (perc < 10)
     msg += ' ';
-  msg += boost::lexical_cast<string>(perc);
+  msg += boost::lexical_cast<std::string>(perc);
   msg += '%';
 
-  cout << '\r' << msg;
-  cout.flush();
+  std::cout << '\r' << msg;
+  std::cout.flush();
 }
 
 void MProgressImpl::PrintDone()
 {
-  string msg = mAction + " done in " + mTimer.format(0, "%ts cpu / %ws wall");
+  std::string msg = mAction + " done in " + mTimer.format(0, "%ts cpu / %ws wall");
 
   uint width = get_terminal_width();
 
   if (msg.length() < width)
-    msg += string(width - msg.length(), ' ');
+    msg += std::string(width - msg.length(), ' ');
 
-  cout << '\r' << msg << endl;
+  std::cout << '\r' << msg << std::endl;
 }
 
-MProgress::MProgress(int64 inMax, const string& inAction)
+MProgress::MProgress(int64 inMax, const std::string& inAction)
   : mImpl(nullptr)
 {
   if (isatty(STDOUT_FILENO))

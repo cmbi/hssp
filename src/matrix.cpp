@@ -19,7 +19,6 @@
 #include "utils.h"
 #include "../mtrx/matrices.h"
 
-using namespace std;
 namespace io = boost::iostreams;
 
 // --------------------------------------------------------------------

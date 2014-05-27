@@ -17,7 +17,6 @@
 #include "align-2d.h"
 #include "utils.h"
 
-using namespace std;
 namespace fs = boost::filesystem;
 
 // --------------------------------------------------------------------
@@ -25,32 +24,32 @@ namespace fs = boost::filesystem;
 arg_vector::operator char* const*()
 {
   m_argv.clear();
-  foreach (string& s, m_args)
+  foreach (std::string& s, m_args)
   {
     m_argv.push_back(s.c_str());
     if (VERBOSE > 1)
-      cerr << m_argv.back() << ' ';
+      std::cerr << m_argv.back() << ' ';
   }
   if (VERBOSE > 1)
-    cerr << endl;
+    std::cerr << std::endl;
 
   m_argv.push_back(nullptr);
   return const_cast<char*const*>(&m_argv[0]);
 }
 
-ostream& operator<<(ostream& os, const arg_vector& argv)
+std::ostream& operator<<(std::ostream& os, const arg_vector& argv)
 {
-  os << "About to execute: " << endl;
-  foreach (const string& a, argv.m_args)
+  os << "About to execute: " << std::endl;
+  foreach (const std::string& a, argv.m_args)
     os << a << ' ';
-  os << endl;
+  os << std::endl;
 
   return os;
 }
 
 // --------------------------------------------------------------------
 
-mas_exception::mas_exception(const string& msg)
+mas_exception::mas_exception(const std::string& msg)
 {
   snprintf(m_msg, sizeof(m_msg), "%s", msg.c_str());
 }
@@ -62,9 +61,9 @@ mas_exception::mas_exception(const boost::format& msg)
 
 //// --------------------------------------------------------------------
 //
-//string decode(const sequence& s)
+//std::string decode(const sequence& s)
 //{
-//  string result;
+//  std::string result;
 //  result.reserve(s.length());
 //
 //  foreach (aa a, s)
@@ -109,7 +108,7 @@ mas_exception::mas_exception(const boost::format& msg)
 //  return result;
 //}
 //
-//sequence encode(const string& s)
+//sequence encode(const std::string& s)
 //{
 //  init_reverse();
 //
@@ -137,14 +136,15 @@ mas_exception::mas_exception(const boost::format& msg)
 stats::~stats()
 {
   if (VERBOSE)
-    cerr << endl << "max: " << m_max << " count: " << m_count << " average: " << (m_cumm / m_count) << endl;
+    std::cerr << std::endl << "max: " << m_max << " count: " << m_count
+              << " average: " << (m_cumm / m_count) << std::endl;
 }
 #endif
 
 // --------------------------------------------------------------------
 
 #if P_UNIX
-void WriteToFD(int inFD, const std::string& inText)
+void WriteToFD(int inFD, const std::std::string& inText)
 {
   const char kEOLN[] = "\n";
   const char* s = inText.c_str();

@@ -33,7 +33,6 @@
 #pragma warning (disable: 4267)
 #endif
 
-using namespace std;
 namespace ba = boost::algorithm;
 namespace io = boost::iostreams;
 namespace fs = boost::filesystem;
@@ -46,109 +45,110 @@ int VERBOSE = 0;
 
 struct insertion
 {
-  uint32      m_ipos, m_jpos;
-  string      m_seq;
+  uint32 m_ipos, m_jpos;
+  std::string m_seq;
 };
 
 class seq
 {
   public:
-        seq(const string& acc);
-        seq(const seq&);
-        ~seq();
+    seq(const std::string& acc);
+    seq(const seq&);
+    ~seq();
 
-  void    validate(const seq& qseq);
+  void validate(const seq& qseq);
 
-  seq&    operator=(const seq&);
+  seq& operator=(const seq&);
 
-  void    swap(seq& o);
+  void swap(seq& o);
 
-  string    acc() const              { return m_impl->m_acc; }
+  std::string acc() const { return m_impl->m_acc; }
 
-  void    id(const string& id);
-  string    id() const              { return m_impl->m_id; }
+  void id(const std::string& id);
+  std::string id() const { return m_impl->m_id; }
 
-  void    pdb(const string& pdb);
-  string    pdb() const              { return m_impl->m_pdb; }
+  void pdb(const std::string& pdb);
+  std::string pdb() const { return m_impl->m_pdb; }
 
-  void    desc(const string& desc);
-  string    desc() const            { return m_impl->m_desc; }
+  void desc(const std::string& desc);
+  std::string desc() const { return m_impl->m_desc; }
 
-  void    hssp(const string& hssp);
+  void hssp(const std::string& hssp);
 
-  float    identity() const          { return m_impl->m_identical; }
-  float    similarity() const          { return m_impl->m_similar; }
+  float identity() const { return m_impl->m_identical; }
+  float similarity() const { return m_impl->m_similar; }
 
-  uint32    ifir() const            { return m_impl->m_ifir; }
-  uint32    ilas() const            { return m_impl->m_ilas; }
-  uint32    jfir() const            { return m_impl->m_jfir; }
-  uint32    jlas() const            { return m_impl->m_jlas; }
-  uint32    gapn() const            { return m_impl->m_gapn; }
-  uint32    gaps() const            { return m_impl->m_gaps; }
+  uint32 ifir() const { return m_impl->m_ifir; }
+  uint32 ilas() const { return m_impl->m_ilas; }
+  uint32 jfir() const { return m_impl->m_jfir; }
+  uint32 jlas() const { return m_impl->m_jlas; }
+  uint32 gapn() const { return m_impl->m_gapn; }
+  uint32 gaps() const { return m_impl->m_gaps; }
 
-  uint32    alignment_length() const      { return m_impl->m_length; }
-  uint32    seqlen() const            { return m_impl->m_seqlen; }
+  uint32 alignment_length() const { return m_impl->m_length; }
+  uint32 seqlen() const { return m_impl->m_seqlen; }
 
-  const list<insertion>&
-        insertions() const          { return m_impl->m_insertions; }
+  const std::list<insertion>& insertions() const
+  {
+    return m_impl->m_insertions;
+  }
 
-  void    append(const string& seq);
+  void append(const std::string& seq);
 
-  void    update(const seq& qseq);
+  void update(const seq& qseq);
   static void  update_all(buffer<seq*>& b, const seq& qseq);
 
-  bool    operator<(const seq& o) const
+  bool operator<(const seq& o) const
   {
     return m_impl->m_identical > o.m_impl->m_identical or
            (m_impl->m_identical == o.m_impl->m_identical and
             length() > o.length());
   }
 
-  uint32    length() const { return m_impl->m_end - m_impl->m_begin; }
+  uint32 length() const { return m_impl->m_end - m_impl->m_begin; }
 
-  char&    operator[](uint32 offset)
-        {
-          assert(offset < m_impl->m_size);
-          return m_impl->m_seq[offset];
-        }
+  char& operator[](uint32 offset)
+  {
+    assert(offset < m_impl->m_size);
+    return m_impl->m_seq[offset];
+  }
 
-  char    operator[](uint32 offset) const
-        {
-          assert(offset < m_impl->m_size);
-          return m_impl->m_seq[offset];
-        }
+  char operator[](uint32 offset) const
+  {
+    assert(offset < m_impl->m_size);
+    return m_impl->m_seq[offset];
+  }
 
   template<class T>
-  class basic_iterator : public std::iterator<bidirectional_iterator_tag,T>
+  class basic_iterator : public std::iterator<std::bidirectional_iterator_tag,T>
   {
   public:
-    typedef typename std::iterator<std::bidirectional_iterator_tag,
-                                   T> base_type;
-    typedef typename base_type::reference                reference;
-    typedef typename base_type::pointer                  pointer;
+    typedef typename std::iterator<std::bidirectional_iterator_tag, T> base_type;
+    typedef typename base_type::reference reference;
+    typedef typename base_type::pointer pointer;
 
-            basic_iterator(T* s) : m_seq(s) {}
-            basic_iterator(const basic_iterator& o) : m_seq(o.m_seq) {}
+    basic_iterator(T* s) : m_seq(s) {}
+    basic_iterator(const basic_iterator& o) : m_seq(o.m_seq) {}
 
-    basic_iterator&  operator=(const basic_iterator& o)
-            {
-              m_seq = o.m_seq;
-              return *this;
-            }
+    basic_iterator& operator=(const basic_iterator& o)
+    {
+      m_seq = o.m_seq;
+      return *this;
+    }
 
-    reference    operator*()          { return *m_seq; }
-    reference    operator->()        { return *m_seq; }
+    reference operator*() { return *m_seq; }
+    reference operator->() { return *m_seq; }
 
-    basic_iterator&  operator++()        { ++m_seq; return *this; }
-    basic_iterator  operator++(int)
+    basic_iterator& operator++() { ++m_seq; return *this; }
+    basic_iterator operator++(int)
     {
       basic_iterator iter(*this);
       operator++();
       return iter;
     }
 
-    basic_iterator&  operator--()        { --m_seq; return *this; }
-    basic_iterator  operator--(int)
+    basic_iterator& operator--() { --m_seq; return *this; }
+    basic_iterator operator--(int)
     {
       basic_iterator iter(*this);
       operator--();
@@ -162,14 +162,14 @@ class seq
     friend basic_iterator<U> operator-(basic_iterator<U>, int);
 
     private:
-    pointer      m_seq;
+      pointer m_seq;
   };
 
-  typedef basic_iterator<char>    iterator;
-  typedef basic_iterator<const char>  const_iterator;
+  typedef basic_iterator<char> iterator;
+  typedef basic_iterator<const char> const_iterator;
 
-  iterator    begin() { return iterator(m_impl->m_seq); }
-  iterator    end() { return iterator(m_impl->m_seq + m_impl->m_size); }
+  iterator begin() { return iterator(m_impl->m_seq); }
+  iterator end() { return iterator(m_impl->m_seq + m_impl->m_size); }
 
   const_iterator begin() const
   {
@@ -183,47 +183,44 @@ class seq
 
   private:
 
-  struct seq_impl
-  {
-          seq_impl(const string& acc);
-          ~seq_impl();
+    struct seq_impl
+    {
+      seq_impl(const std::string& acc);
+      ~seq_impl();
 
-    void    update(const seq_impl& qseq);
+      void update(const seq_impl& qseq);
 
-    iterator  begin()              { return iterator(m_seq); }
-    iterator  end()              { return iterator(m_seq + m_size); }
+      iterator begin() { return iterator(m_seq); }
+      iterator end() { return iterator(m_seq + m_size); }
 
-    const_iterator
-          begin() const          { return const_iterator(m_seq); }
-    const_iterator
-          end() const            { return const_iterator(m_seq + m_size); }
+      const_iterator begin() const { return const_iterator(m_seq); }
+      const_iterator end() const { return const_iterator(m_seq + m_size); }
 
-    string m_id;
-    string m_acc;
-    string m_desc;
-    string m_pdb;
-    uint32 m_ifir;
-    uint32 m_ilas;
-    uint32 m_jfir;
-    uint32 m_jlas;
-    uint32 m_length;
-    uint32 m_seqlen;
-    float m_similar;
-    float m_identical;
-    uint32    m_begin, m_end;
-    uint32    m_gaps, m_gapn;
-    list<insertion>
-          m_insertions;
-    char*    m_data;
-    char*    m_seq;
-    uint32    m_refcount;
-    uint32    m_size;
-    uint32 m_space;
-  };
+      std::string m_id;
+      std::string m_acc;
+      std::string m_desc;
+      std::string m_pdb;
+      uint32 m_ifir;
+      uint32 m_ilas;
+      uint32 m_jfir;
+      uint32 m_jlas;
+      uint32 m_length;
+      uint32 m_seqlen;
+      float m_similar;
+      float m_identical;
+      uint32 m_begin, m_end;
+      uint32 m_gaps, m_gapn;
+      std::list<insertion> m_insertions;
+      char* m_data;
+      char* m_seq;
+      uint32 m_refcount;
+      uint32 m_size;
+      uint32 m_space;
+    };
 
-  seq_impl*  m_impl;
+    seq_impl* m_impl;
 
-        seq();
+    seq();
 };
 
 template<class T>
@@ -234,32 +231,32 @@ inline seq::basic_iterator<T> operator-(seq::basic_iterator<T> i, int o)
   return r;
 }
 
-//typedef boost::ptr_vector<seq> mseq;
-typedef vector<seq>        mseq;
+//typedef boost::ptr_std::vector<seq> mseq;
+typedef std::vector<seq> mseq;
 
 const uint32 kBlockSize = 512;
 
-seq::seq_impl::seq_impl(const string& acc)
-  : m_acc(acc)
-  , m_identical(0)
-  , m_similar(0)
-  , m_length(0)
-  , m_seqlen(0)
-  , m_begin(0)
-  , m_end(0)
-  , m_gaps(0)
-  , m_gapn(0)
-  , m_data(nullptr)
-  , m_seq(nullptr)
-  , m_refcount(1)
-  , m_size(0)
-  , m_space(0)
+seq::seq_impl::seq_impl(const std::string& acc)
+  : m_acc(acc),
+    m_identical(0),
+    m_similar(0),
+    m_length(0),
+    m_seqlen(0),
+    m_begin(0),
+    m_end(0),
+    m_gaps(0),
+    m_gapn(0),
+    m_data(nullptr),
+    m_seq(nullptr),
+    m_refcount(1),
+    m_size(0),
+    m_space(0)
 {
   m_ifir = m_ilas = m_jfir = m_jlas = 0;
 
-  string::size_type s = m_acc.find('/');
-  if (s != string::npos)
-    m_acc.erase(s, string::npos);
+  std::string::size_type s = m_acc.find('/');
+  if (s != std::string::npos)
+    m_acc.erase(s, std::string::npos);
 }
 
 seq::seq_impl::~seq_impl()
@@ -268,7 +265,7 @@ seq::seq_impl::~seq_impl()
   delete m_data;
 }
 
-seq::seq(const string& acc)
+seq::seq(const std::string& acc)
   : m_impl(new seq_impl(acc))
 {
 }
@@ -305,22 +302,22 @@ void seq::swap(seq& o)
   std::swap(m_impl, o.m_impl);
 }
 
-void seq::id(const string& id)
+void seq::id(const std::string& id)
 {
   m_impl->m_id = id;
 }
 
-void seq::pdb(const string& pdb)
+void seq::pdb(const std::string& pdb)
 {
   m_impl->m_pdb = pdb;
 }
 
-void seq::desc(const string& desc)
+void seq::desc(const std::string& desc)
 {
   m_impl->m_desc = desc;
 }
 
-void seq::hssp(const string& hssp)
+void seq::hssp(const std::string& hssp)
 {
   // HSSP score=0.98/1.00 aligned=1-46/1-46 length=46 ngaps=0 gaplen=0
   // seqlen=46
@@ -361,7 +358,7 @@ void seq::hssp(const string& hssp)
     m_impl->m_seqlen = boost::lexical_cast<uint32>(m[1]);
 }
 
-void seq::append(const string& seq)
+void seq::append(const std::string& seq)
 {
   if (m_impl->m_size + seq.length() > m_impl->m_space)
   {
@@ -528,36 +525,36 @@ void seq::validate(const seq& qseq)
   bool error = false;
   if (gaps != m_impl->m_gaps)
   {
-    cerr << "gaps != m_gaps (" << gaps << " - " << m_impl->m_gaps << ')'
-         << endl;
+    std::cerr << "gaps != m_gaps (" << gaps << " - " << m_impl->m_gaps << ')'
+         << std::endl;
     error = true;
   }
 
   if (gapn != m_impl->m_gapn)\
   {
-    cerr << "gapn != m_gapn (" << gapn << " - " << m_impl->m_gapn << ')'
-         << endl;
+    std::cerr << "gapn != m_gapn (" << gapn << " - " << m_impl->m_gapn << ')'
+         << std::endl;
     error = true;
   }
 
   if (len != m_impl->m_length)
   {
-    cerr << "len != m_length (" << len << " - " << m_impl->m_length << ')'
-         << endl;
+    std::cerr << "len != m_length (" << len << " - " << m_impl->m_length << ')'
+         << std::endl;
     error = true;
   }
 
   if (m_impl->m_jfir + ylen - 1 != m_impl->m_jlas)
   {
-    cerr << "jfir != jlas + jlen (" << m_impl->m_jfir << ", "
-         << m_impl->m_jlas << ", " << ylen << ')' << endl;
+    std::cerr << "jfir != jlas + jlen (" << m_impl->m_jfir << ", "
+         << m_impl->m_jlas << ", " << ylen << ')' << std::endl;
     error = true;
   }
 
   // if (m_impl->m_ifir + xlen - 1 != m_impl->m_ilas)
   // {
-  //   cerr << "ifir != ilas + ilen (" << m_impl->m_ifir << ", "
-  //        << m_impl->m_ilas << ", " << xlen << ')' << endl;
+  //   std::cerr << "ifir != ilas + ilen (" << m_impl->m_ifir << ", "
+  //        << m_impl->m_ilas << ", " << xlen << ')' << std::endl;
   //   error = true;
   // }
 
@@ -566,8 +563,8 @@ void seq::validate(const seq& qseq)
 
   if (abs(score - m_impl->m_identical) > 0.1)
   {
-    cerr << "score != m_identical (" << score << ", "
-         << m_impl->m_identical << ")" << endl;
+    std::cerr << "score != m_identical (" << score << ", "
+         << m_impl->m_identical << ")" << std::endl;
     error = true;
   }
 
@@ -589,13 +586,13 @@ namespace std
 
 struct ResidueInfo
 {
-      ResidueInfo(const string& ri);
+      ResidueInfo(const std::string& ri);
 
-  string  m_ri, m_pr;
+  std::string  m_ri, m_pr;
   uint32  m_pos;
 };
 
-ResidueInfo::ResidueInfo(const string& ri)
+ResidueInfo::ResidueInfo(const std::string& ri)
   : m_ri(ri), m_pos(0)
 {
   for (int i = 34; i < 38; ++i)
@@ -603,8 +600,8 @@ ResidueInfo::ResidueInfo(const string& ri)
   m_ri[38] = ' ';
 }
 
-typedef shared_ptr<ResidueInfo> res_ptr;
-typedef vector<res_ptr>      res_list;
+typedef std::shared_ptr<ResidueInfo> res_ptr;
+typedef std::vector<res_ptr>      res_list;
 
 // --------------------------------------------------------------------
 
@@ -620,24 +617,25 @@ struct Hit
   uint32      m_nr, m_offset;
 };
 
-typedef shared_ptr<Hit> hit_ptr;
-typedef vector<hit_ptr>  hit_list;
+typedef std::shared_ptr<Hit> hit_ptr;
+typedef std::vector<hit_ptr>  hit_list;
 
 // --------------------------------------------------------------------
 
-uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa,
-                     hit_list& hits, res_list& residues, uint32& nchain)
+uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
+                     mseq& msa, hit_list& hits, res_list& residues,
+                     uint32& nchain)
 {
-  string line;
-  string qid;
+  std::string line;
+  std::string qid;
 
   uint32 offset = residues.size();
   uint32 result = 0;
   uint32 rix = offset;
-  string::size_type ccOffset = 0, queryNr=0, idWidth = 0;
+  std::string::size_type ccOffset = 0, queryNr=0, idWidth = 0;
   char chainId = 0;
   boost::regex r1("Chain . is considered to be the same as (.(?:(?:, .)* and .)?)");
-  map<string,uint32> index;
+  std::map<std::string,uint32> index;
 
   nchain += 1;
 
@@ -696,7 +694,7 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa,
 
       if (boost::regex_match(line, m, r1))
       {
-        string s = m[1];
+        std::string s = m[1];
         if (s.length() == 1)
           nchain += 1;
         else
@@ -737,7 +735,7 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa,
       }
       else
       {
-        string id = line.substr(0, ccOffset - 5);
+        std::string id = line.substr(0, ccOffset - 5);
         ba::trim(id);
 
         if (index.find(id) == index.end())
@@ -773,10 +771,10 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa,
           ++idWidth;
       }
 
-      string id = line.substr(0, idWidth);
+      std::string id = line.substr(0, idWidth);
       ba::trim(id);
 
-      string seq = line.substr(idWidth);
+      std::string seq = line.substr(idWidth);
 
       if (id == qid)
       {
@@ -818,54 +816,57 @@ uint32 ReadHSSP2File(istream& is, string& id, string& header, mseq& msa,
 // --------------------------------------------------------------------
 // Write collected information as a HSSP file to the output stream
 
-void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescription,
-  float inThreshold, uint32 inSeqLength, uint32 inNChain, uint32 inKChain,
-  const string& inUsedChains, mseq& msa, hit_list& hits, res_list& res, ostream& os)
+void CreateHSSPOutput(const std::string& inProteinID,
+                      const std::string& inProteinDescription,
+                      float inThreshold, uint32 inSeqLength, uint32 inNChain,
+                      uint32 inKChain, const std::string& inUsedChains,
+                      mseq& msa, hit_list& hits, res_list& res,
+                      std::ostream& os)
 {
   // print the header
-  os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0 2011" << endl
-     << "PDBID      " << inProteinID << endl
-     //<< "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << endl
-     << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << endl
-     << "REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991)." << endl
-     << "CONTACT    Maintained at http://www.cmbi.ru.nl/ by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << endl
+  os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0 2011" << std::endl
+     << "PDBID      " << inProteinID << std::endl
+     //<< "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << std::endl
+     << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << std::endl
+     << "REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991)." << std::endl
+     << "CONTACT    Maintained at http://www.cmbi.ru.nl/ by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << std::endl
      << inProteinDescription
-     << boost::format("SEQLENGTH %5.5d") % inSeqLength << endl
-     << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << endl;
+     << boost::format("SEQLENGTH %5.5d") % inSeqLength << std::endl
+     << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << std::endl;
 
   if (inKChain != inNChain)
-    os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % inKChain << inUsedChains << endl;
+    os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % inKChain << inUsedChains << std::endl;
 
-  os << boost::format("NALIGN     %4.4d") % hits.size() << endl
-     << "NOTATION : ID: EMBL/SWISSPROT identifier of the aligned (homologous) protein" << endl
-     << "NOTATION : STRID: if the 3-D structure of the aligned protein is known, then STRID is the Protein Data Bank identifier as taken" << endl
-     << "NOTATION : from the database reference or DR-line of the EMBL/SWISSPROT entry" << endl
-     << "NOTATION : %IDE: percentage of residue identity of the alignment" << endl
-     << "NOTATION : %SIM (%WSIM):  (weighted) similarity of the alignment" << endl
-     << "NOTATION : IFIR/ILAS: first and last residue of the alignment in the test sequence" << endl
-     << "NOTATION : JFIR/JLAS: first and last residue of the alignment in the alignend protein" << endl
-     << "NOTATION : LALI: length of the alignment excluding insertions and deletions" << endl
-     << "NOTATION : NGAP: number of insertions and deletions in the alignment" << endl
-     << "NOTATION : LGAP: total length of all insertions and deletions" << endl
-     << "NOTATION : LSEQ2: length of the entire sequence of the aligned protein" << endl
-     << "NOTATION : ACCNUM: SwissProt accession number" << endl
-     << "NOTATION : PROTEIN: one-line description of aligned protein" << endl
-     << "NOTATION : SeqNo,PDBNo,AA,STRUCTURE,BP1,BP2,ACC: sequential and PDB residue numbers, amino acid (lower case = Cys), secondary" << endl
-     << "NOTATION : structure, bridge partners, solvent exposure as in DSSP (Kabsch and Sander, Biopolymers 22, 2577-2637(1983)" << endl
-     << "NOTATION : VAR: sequence variability on a scale of 0-100 as derived from the NALIGN alignments" << endl
-     << "NOTATION : pair of lower case characters (AvaK) in the alignend sequence bracket a point of insertion in this sequence" << endl
-     << "NOTATION : dots (....) in the alignend sequence indicate points of deletion in this sequence" << endl
-     << "NOTATION : SEQUENCE PROFILE: relative frequency of an amino acid type at each position. Asx and Glx are in their" << endl
-     << "NOTATION : acid/amide form in proportion to their database frequencies" << endl
-     << "NOTATION : NOCC: number of aligned sequences spanning this position (including the test sequence)" << endl
-     << "NOTATION : NDEL: number of sequences with a deletion in the test protein at this position" << endl
-     << "NOTATION : NINS: number of sequences with an insertion in the test protein at this position" << endl
-     << "NOTATION : ENTROPY: entropy measure of sequence variability at this position" << endl
-     << "NOTATION : RELENT: relative entropy, i.e.  entropy normalized to the range 0-100" << endl
-     << "NOTATION : WEIGHT: conservation weight" << endl
-     << endl
-     << "## PROTEINS : identifier and alignment statistics" << endl
-     << "  NR.    ID         STRID   %IDE %WSIM IFIR ILAS JFIR JLAS LALI NGAP LGAP LSEQ2 ACCNUM     PROTEIN" << endl;
+  os << boost::format("NALIGN     %4.4d") % hits.size() << std::endl
+     << "NOTATION : ID: EMBL/SWISSPROT identifier of the aligned (homologous) protein" << std::endl
+     << "NOTATION : STRID: if the 3-D structure of the aligned protein is known, then STRID is the Protein Data Bank identifier as taken" << std::endl
+     << "NOTATION : from the database reference or DR-line of the EMBL/SWISSPROT entry" << std::endl
+     << "NOTATION : %IDE: percentage of residue identity of the alignment" << std::endl
+     << "NOTATION : %SIM (%WSIM):  (weighted) similarity of the alignment" << std::endl
+     << "NOTATION : IFIR/ILAS: first and last residue of the alignment in the test sequence" << std::endl
+     << "NOTATION : JFIR/JLAS: first and last residue of the alignment in the alignend protein" << std::endl
+     << "NOTATION : LALI: length of the alignment excluding insertions and deletions" << std::endl
+     << "NOTATION : NGAP: number of insertions and deletions in the alignment" << std::endl
+     << "NOTATION : LGAP: total length of all insertions and deletions" << std::endl
+     << "NOTATION : LSEQ2: length of the entire sequence of the aligned protein" << std::endl
+     << "NOTATION : ACCNUM: SwissProt accession number" << std::endl
+     << "NOTATION : PROTEIN: one-line description of aligned protein" << std::endl
+     << "NOTATION : SeqNo,PDBNo,AA,STRUCTURE,BP1,BP2,ACC: sequential and PDB residue numbers, amino acid (lower case = Cys), secondary" << std::endl
+     << "NOTATION : structure, bridge partners, solvent exposure as in DSSP (Kabsch and Sander, Biopolymers 22, 2577-2637(1983)" << std::endl
+     << "NOTATION : VAR: sequence variability on a scale of 0-100 as derived from the NALIGN alignments" << std::endl
+     << "NOTATION : pair of lower case characters (AvaK) in the alignend sequence bracket a point of insertion in this sequence" << std::endl
+     << "NOTATION : dots (....) in the alignend sequence indicate points of deletion in this sequence" << std::endl
+     << "NOTATION : SEQUENCE PROFILE: relative frequency of an amino acid type at each position. Asx and Glx are in their" << std::endl
+     << "NOTATION : acid/amide form in proportion to their database frequencies" << std::endl
+     << "NOTATION : NOCC: number of aligned sequences spanning this position (including the test sequence)" << std::endl
+     << "NOTATION : NDEL: number of sequences with a deletion in the test protein at this position" << std::endl
+     << "NOTATION : NINS: number of sequences with an insertion in the test protein at this position" << std::endl
+     << "NOTATION : ENTROPY: entropy measure of sequence variability at this position" << std::endl
+     << "NOTATION : RELENT: relative entropy, i.e.  entropy normalized to the range 0-100" << std::endl
+     << "NOTATION : WEIGHT: conservation weight" << std::endl
+     << std::endl
+     << "## PROTEINS : identifier and alignment statistics" << std::endl
+     << "  NR.    ID         STRID   %IDE %WSIM IFIR ILAS JFIR JLAS LALI NGAP LGAP LSEQ2 ACCNUM     PROTEIN" << std::endl;
 
   // print the first list
   uint32 nr = 1;
@@ -874,19 +875,19 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
   {
     const seq& s(msa[h->m_seq]);
 
-    string id = s.id();
+    std::string id = s.id();
     if (id.length() > 12)
-      id.erase(12, string::npos);
+      id.erase(12, std::string::npos);
     else if (id.length() < 12)
       id.append(12 - id.length(), ' ');
 
-    string acc = s.acc();
+    std::string acc = s.acc();
     if (acc.length() > 10)
-      acc.erase(10, string::npos);
+      acc.erase(10, std::string::npos);
     else if (acc.length() < 10)
       acc.append(10 - acc.length(), ' ');
 
-    string pdb = s.pdb();
+    std::string pdb = s.pdb();
     if (pdb.empty())
       pdb.append(4, ' ');
 
@@ -897,7 +898,7 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
            % s.jfir() % s.jlas() % s.alignment_length()
            % s.gaps() % s.gapn() % s.seqlen()
            % acc % s.desc()
-       << endl;
+       << std::endl;
 
     ++nr;
   }
@@ -919,16 +920,16 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
       ((i + 60) / 10 + 1) % 10
     };
 
-    os << boost::format("## ALIGNMENTS %4.4d - %4.4d") % (i + 1) % n << endl
+    os << boost::format("## ALIGNMENTS %4.4d - %4.4d") % (i + 1) % n << std::endl
        << boost::format(" SeqNo  PDBNo AA STRUCTURE BP1 BP2  ACC NOCC  VAR  ....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d")
-                 % k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << endl;
+                 % k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << std::endl;
 
     res_ptr last;
     uint32 nr = 1;
 
     foreach (res_ptr ri, res)
     {
-      string aln;
+      std::string aln;
 
       if (ri->m_ri[6] != '!')
       {
@@ -946,30 +947,30 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
         }
       }
 
-      os << boost::format(" %5.5d") % nr << ri->m_ri << "  " << aln << endl;
+      os << boost::format(" %5.5d") % nr << ri->m_ri << "  " << aln << std::endl;
       ++nr;
     }
   }
 
   // ## SEQUENCE PROFILE AND ENTROPY
-  os << "## SEQUENCE PROFILE AND ENTROPY" << endl
-     << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << endl;
+  os << "## SEQUENCE PROFILE AND ENTROPY" << std::endl
+     << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << std::endl;
 
   res_ptr last;
   nr = 1;
   foreach (res_ptr r, res)
   {
     if (r->m_pr.empty())
-      os << boost::format("%5.5d") % nr << "          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00" << endl;
+      os << boost::format("%5.5d") % nr << "          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00" << std::endl;
     else
-      os << boost::format("%5.5d") % nr << r->m_pr << endl;
+      os << boost::format("%5.5d") % nr << r->m_pr << std::endl;
     ++nr;
   }
 
   // insertion list
 
-  os << "## INSERTION LIST" << endl
-     << " AliNo  IPOS  JPOS   Len Sequence" << endl;
+  os << "## INSERTION LIST" << std::endl
+     << " AliNo  IPOS  JPOS   Len Sequence" << std::endl;
 
   foreach (hit_ptr h, hits)
   {
@@ -978,13 +979,13 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
     //foreach (insertion& ins, h->insertions)
     foreach (const insertion& ins, seq.insertions())
     {
-      string s = ins.m_seq;
+      std::string s = ins.m_seq;
 
       if (s.length() <= 100)
-        os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s << endl;
+        os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s << std::endl;
       else
       {
-        os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << endl;
+        os << boost::format(" %5.5d %5.5d %5.5d %5.5d ") % h->m_nr % (ins.m_ipos + h->m_offset) % ins.m_jpos % (ins.m_seq.length() - 2) << s.substr(0, 100) << std::endl;
         s.erase(0, 100);
 
         while (not s.empty())
@@ -993,31 +994,31 @@ void CreateHSSPOutput(const string& inProteinID, const string& inProteinDescript
           if (n > 100)
             n = 100;
 
-          os << "     +                   " << s.substr(0, n) << endl;
+          os << "     +                   " << s.substr(0, n) << std::endl;
           s.erase(0, n);
         }
       }
     }
   }
 
-  os << "//" << endl;
+  os << "//" << std::endl;
 }
 
 // --------------------------------------------------------------------
 
-void ConvertHsspFile(istream& in, ostream& out)
+void ConvertHsspFile(std::istream& in, std::ostream& out)
 {
   hit_list hits;
   res_list residues;
 
-  string id, header;
+  std::string id, header;
   uint32 seqlength = 0, nchain = 0, kchain = 0;
-  vector<string> usedChains;
+  std::vector<std::string> usedChains;
   mseq msa;
 
   for (;;)
   {
-    string line;
+    std::string line;
     getline(in, line);
     if (line.empty() and in.eof())
       break;
@@ -1028,7 +1029,7 @@ void ConvertHsspFile(istream& in, ostream& out)
     if (not residues.empty())
       residues.push_back(res_ptr(new ResidueInfo("      ! !              0   0    0    0    0")));
 
-    string h;
+    std::string h;
     swap(header, h);
 
     uint32 chainLength = ReadHSSP2File(in, id, header, msa, hits, residues,
@@ -1041,7 +1042,7 @@ void ConvertHsspFile(istream& in, ostream& out)
 
     ++kchain;
     seqlength += chainLength;
-    usedChains.push_back(string(&hits.back()->m_chain, 1));
+    usedChains.push_back(std::string(&hits.back()->m_chain, 1));
   }
 
   sort(hits.begin(), hits.end(),
@@ -1081,9 +1082,9 @@ int main(int argc, char* const argv[])
     po::options_description desc("MKHSSP options");
     desc.add_options()
       ("help,h", "Display help message")
-      ("input,i", po::value<string>(), "Input PDB file (or PDB ID)")
+      ("input,i", po::value<std::string>(), "Input PDB file (or PDB ID)")
       ("output,o",
-       po::value<string>(),
+       po::value<std::string>(),
        "Output file, use 'stdout' to output to screen")
       ("version", "Show version number");
 
@@ -1106,13 +1107,13 @@ int main(int argc, char* const argv[])
 
     if(vm.count("version")>0)
     {
-      cout << "hssp converter version "<<XSSP_VERSION << endl;
+      std::cout << "hssp converter version "<<XSSP_VERSION << std::endl;
       exit(0);
     }
 
     if (vm.count("help"))
     {
-      cerr << desc << endl;
+      std::cerr << desc << std::endl;
       exit(1);
     }
 
@@ -1120,11 +1121,11 @@ int main(int argc, char* const argv[])
     fs::ifstream ifs;
 
     if (vm.count("input") == 0)
-      in.push(cin);
+      in.push(std::cin);
     else
     {
-      fs::path input = vm["input"].as<string>();
-      ifs.open(input, ios::binary);
+      fs::path input = vm["input"].as<std::string>();
+      ifs.open(input, std::ios::binary);
 
       if (not ifs.is_open())
         throw mas_exception(
@@ -1138,12 +1139,12 @@ int main(int argc, char* const argv[])
     }
 
     if (vm.count("output") == 0)
-      ConvertHsspFile(in, cout);
+      ConvertHsspFile(in, std::cout);
     else
     {
-      fs::path output = vm["output"].as<string>();
+      fs::path output = vm["output"].as<std::string>();
 
-      fs::ofstream ofs(output, ios::binary);
+      fs::ofstream ofs(output, std::ios::binary);
       if (not ofs.is_open())
         throw mas_exception(
             boost::format("Could not open output file '%s'") % output);
@@ -1159,14 +1160,14 @@ int main(int argc, char* const argv[])
       ConvertHsspFile(in, out);
     }
   }
-  catch (exception& e)
+  catch (std::exception& e)
   {
-    cerr << e.what() << endl;
+    std::cerr << e.what() << std::endl;
     exit(1);
   }
   catch (...)
   {
-    cerr << "Unknown exception" << endl;
+    std::cerr << "Unknown exception" << std::endl;
     exit(1);
   }
 

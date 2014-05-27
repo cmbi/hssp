@@ -21,7 +21,6 @@
 #include "utils.h"
 #include "progress.h"
 
-using namespace std;
 namespace ba = boost::algorithm;
 namespace fs = boost::filesystem;
 namespace io = boost::iostreams;
@@ -41,7 +40,7 @@ const uint32
   kGappedDropOffFinal    = 25,
   kGapTrigger        = 22,
 
-  kMaxSequenceLength    = numeric_limits<uint16>::max();
+  kMaxSequenceLength    = std::numeric_limits<uint16>::max();
 
 const int32
   kHitWindow        = 40;
@@ -55,31 +54,31 @@ const int16
 class Matrix
 {
   public:
-          Matrix(const string& inName, int32 inGapOpen, int32 inGapExtend);
+    Matrix(const std::string& inName, int32 inGapOpen, int32 inGapExtend);
 
-  int8      operator()(char inAA1, char inAA2) const;
-  int8      operator()(uint8 inAA1, uint8 inAA2) const;
+  int8 operator()(char inAA1, char inAA2) const;
+  int8 operator()(uint8 inAA1, uint8 inAA2) const;
 
-  int32      OpenCost() const    { return mData.mGapOpen; }
-  int32      ExtendCost() const    { return mData.mGapExtend; }
+  int32 OpenCost() const { return mData.mGapOpen; }
+  int32 ExtendCost() const { return mData.mGapExtend; }
 
-  double      GappedLambda() const  { return mData.mGappedStats.lambda; }
-  double      GappedKappa() const    { return mData.mGappedStats.kappa; }
-  double      GappedEntropy() const  { return mData.mGappedStats.entropy; }
-  double      GappedAlpha() const    { return mData.mGappedStats.alpha; }
-  double      GappedBeta() const    { return mData.mGappedStats.beta; }
+  double GappedLambda() const { return mData.mGappedStats.lambda; }
+  double GappedKappa() const { return mData.mGappedStats.kappa; }
+  double GappedEntropy() const { return mData.mGappedStats.entropy; }
+  double GappedAlpha() const { return mData.mGappedStats.alpha; }
+  double GappedBeta() const { return mData.mGappedStats.beta; }
 
-  double      UngappedLambda() const  { return mData.mUngappedStats.lambda; }
-  double      UngappedKappa() const  { return mData.mUngappedStats.kappa; }
-  double      UngappedEntropy() const  { return mData.mUngappedStats.entropy; }
-  double      UngappedAlpha() const  { return mData.mUngappedStats.alpha; }
-  double      UngappedBeta() const  { return mData.mUngappedStats.beta; }
+  double UngappedLambda() const { return mData.mUngappedStats.lambda; }
+  double UngappedKappa() const { return mData.mUngappedStats.kappa; }
+  double UngappedEntropy() const { return mData.mUngappedStats.entropy; }
+  double UngappedAlpha() const { return mData.mUngappedStats.alpha; }
+  double UngappedBeta() const { return mData.mUngappedStats.beta; }
 
   private:
-  MMatrixData    mData;
+    MMatrixData mData;
 };
 
-Matrix::Matrix(const string& inName, int32 inGapOpen, int32 inGapExtend)
+Matrix::Matrix(const std::string& inName, int32 inGapOpen, int32 inGapExtend)
 {
   mData.mName = nullptr;
   for (const MMatrixData* data = kMMatrixData; data->mName != nullptr; ++data)
@@ -122,18 +121,18 @@ namespace filter
 class Alphabet
 {
   public:
-          Alphabet(const char* inChars);
+    Alphabet(const char* inChars);
 
-  bool      Contains(char inChar) const;
-  long      GetIndex(char inChar) const;
-  long      GetSize() const          { return mAlphaSize; }
-  double      GetLnSize() const        { return mAlphaLnSize; }
+  bool Contains(char inChar) const;
+  long GetIndex(char inChar) const;
+  long GetSize() const { return mAlphaSize; }
+  double GetLnSize() const { return mAlphaLnSize; }
 
   private:
-  long      mAlphaSize;
-  double      mAlphaLnSize;
-  long      mAlphaIndex[128];
-  const char*    mAlphaChars;
+  long mAlphaSize;
+  double mAlphaLnSize;
+  long mAlphaIndex[128];
+  const char* mAlphaChars;
 };
 
 Alphabet::Alphabet(const char* inChars)
@@ -144,8 +143,9 @@ Alphabet::Alphabet(const char* inChars)
 
   for (uint32 i = 0; i < 128; ++i)
   {
-    mAlphaIndex[i] =
-      static_cast<long>(find(mAlphaChars, mAlphaChars + mAlphaSize, toupper(i)) - mAlphaChars);
+    mAlphaIndex[i] = static_cast<long>(
+        std::find(mAlphaChars, mAlphaChars + mAlphaSize,
+                  toupper(i)) - mAlphaChars);
   }
 }
 
@@ -169,40 +169,40 @@ const Alphabet
 class Window
 {
   public:
-      Window(const string& inSequence, long inStart, long inLength,
+      Window(const std::string& inSequence, long inStart, long inLength,
              const Alphabet& inAlphabet);
 
-  void  CalcEntropy();
-  bool  ShiftWindow();
+  void CalcEntropy();
+  bool ShiftWindow();
 
-  double  GetEntropy() const      { return mEntropy; }
-  long  GetBogus() const      { return mBogus; }
+  double GetEntropy() const { return mEntropy; }
+  long GetBogus() const { return mBogus; }
 
-  void  DecState(long inCount);
-  void  IncState(long inCount);
+  void DecState(long inCount);
+  void IncState(long inCount);
 
-  void  Trim(long& ioEndL, long& ioEndR, long inMaxTrim);
+  void Trim(long& ioEndL, long& ioEndR, long inMaxTrim);
 
   private:
-  const string&  mSequence;
-  vector<long>  mComposition;
-  vector<long>  mState;
-  long      mStart;
-  long      mLength;
-  long      mBogus;
-  double      mEntropy;
+  const std::string& mSequence;
+  std::vector<long> mComposition;
+  std::vector<long> mState;
+  long mStart;
+  long mLength;
+  long mBogus;
+  double mEntropy;
   const Alphabet&mAlphabet;
 };
 
-Window::Window(const string& inSequence, long inStart, long inLength,
+Window::Window(const std::string& inSequence, long inStart, long inLength,
                const Alphabet& inAlphabet)
-  : mSequence(inSequence)
-  , mComposition(inAlphabet.GetSize())
-  , mStart(inStart)
-  , mLength(inLength)
-  , mBogus(0)
-  , mEntropy(-2.0)
-  , mAlphabet(inAlphabet)
+  : mSequence(inSequence),
+    mComposition(inAlphabet.GetSize()),
+    mStart(inStart),
+    mLength(inLength),
+    mBogus(0),
+    mEntropy(-2.0),
+    mAlphabet(inAlphabet)
 {
   long alphaSize = mAlphabet.GetSize();
 
@@ -226,7 +226,7 @@ Window::Window(const string& inSequence, long inStart, long inLength,
     }
   }
 
-  sort(mState.begin(), mState.begin() + n, greater<long>());
+  std::sort(mState.begin(), mState.begin() + n, std::greater<long>());
 }
 
 void Window::CalcEntropy()
@@ -315,7 +315,7 @@ static double lnfac(long inN)
          0.1208650973866179e-2,
         -0.5395239384953e-5
     };
-  static map<long,double> sLnFacMap;
+  static std::map<long,double> sLnFacMap;
 
   if (sLnFacMap.find(inN) == sLnFacMap.end())
   {
@@ -334,7 +334,7 @@ static double lnfac(long inN)
   return sLnFacMap[inN];
 }
 
-static double lnperm(vector<long>& inState, long inTotal)
+static double lnperm(std::vector<long>& inState, long inTotal)
 {
   double ans = lnfac(inTotal);
   for (uint32 i = 0; i < inState.size() and inState[i] != 0; ++i)
@@ -342,7 +342,7 @@ static double lnperm(vector<long>& inState, long inTotal)
   return ans;
 }
 
-static double lnass(vector<long>& inState, Alphabet inAlphabet)
+static double lnass(std::vector<long>& inState, Alphabet inAlphabet)
 {
     double result = lnfac(inAlphabet.GetSize());
     if (inState.size() == 0 or inState[0] == 0)
@@ -375,14 +375,14 @@ static double lnass(vector<long>& inState, Alphabet inAlphabet)
     return result;
 }
 
-static double lnprob(vector<long>& inState, long inTotal,
+static double lnprob(std::vector<long>& inState, long inTotal,
                      const Alphabet& inAlphabet)
 {
   double ans1, ans2 = 0, totseq;
 
   totseq = inTotal * inAlphabet.GetLnSize();
   ans1 = lnass(inState, inAlphabet);
-  if (ans1 > -100000.0 and inState[0] != numeric_limits<long>::min())
+  if (ans1 > -100000.0 and inState[0] != std::numeric_limits<long>::min())
     ans2 = lnperm(inState, inTotal);
   else
     throw mas_exception("Error in calculating lnass");
@@ -423,9 +423,9 @@ void Window::Trim(long& ioEndL, long& ioEndR, long inMaxTrim)
   ioEndR -= mLength - rEnd - 1;
 }
 
-static bool GetEntropy(const string& inSequence, const Alphabet& inAlphabet,
-                       long inWindow, long inMaxBogus,
-                       vector<double>& outEntropy)
+static bool GetEntropy(const std::string& inSequence,
+                       const Alphabet& inAlphabet, long inWindow,
+                       long inMaxBogus, std::vector<double>& outEntropy)
 {
   bool result = false;
 
@@ -461,9 +461,9 @@ static bool GetEntropy(const string& inSequence, const Alphabet& inAlphabet,
   return result;
 }
 
-static void GetMaskSegments(bool inProtein, const string& inSequence,
+static void GetMaskSegments(bool inProtein, const std::string& inSequence,
                             long inOffset,
-                            vector<pair<long,long> >& outSegments)
+                            std::vector<std::pair<long,long> >& outSegments)
 {
   double loCut, hiCut;
   long window, maxbogus, maxtrim;
@@ -491,7 +491,7 @@ static void GetMaskSegments(bool inProtein, const string& inSequence,
   long downset = (window + 1) / 2 - 1;
   long upset = window - downset;
 
-  vector<double> e;
+  std::vector<double> e;
   GetEntropy(inSequence, *alphabet, window, maxbogus, e);
 
   long first = downset;
@@ -515,7 +515,7 @@ static void GetMaskSegments(bool inProtein, const string& inSequence,
       long leftend = loi - downset;
       long rightend = hii + upset - 1;
 
-      string s(inSequence.substr(leftend, rightend - leftend + 1));
+      std::string s(inSequence.substr(leftend, rightend - leftend + 1));
       Window w(s, 0, rightend - leftend + 1, *alphabet);
       w.Trim(leftend, rightend, maxtrim);
 
@@ -524,12 +524,12 @@ static void GetMaskSegments(bool inProtein, const string& inSequence,
         long lend = loi - downset;
         long rend = leftend - 1;
 
-        string left(inSequence.substr(lend, rend - lend + 1));
+        std::string left(inSequence.substr(lend, rend - lend + 1));
         GetMaskSegments(inProtein, left, inOffset + lend, outSegments);
       }
 
       outSegments.push_back(
-        pair<long,long>(leftend + inOffset, rightend + inOffset + 1));
+        std::pair<long,long>(leftend + inOffset, rightend + inOffset + 1));
       i = rightend + downset;
       if (i > hii)
         i = hii;
@@ -538,11 +538,11 @@ static void GetMaskSegments(bool inProtein, const string& inSequence,
   }
 }
 
-string SEG(const string& inSequence)
+std::string SEG(const std::string& inSequence)
 {
-  string result = inSequence;
+  std::string result = inSequence;
 
-  vector<pair<long,long> > segments;
+  std::vector<std::pair<long,long> > segments;
   GetMaskSegments(true, result, 0, segments);
 
   for (uint32 i = 0; i < segments.size(); ++i)
@@ -554,11 +554,11 @@ string SEG(const string& inSequence)
   return result;
 }
 
-string DUST(const string& inSequence)
+std::string DUST(const std::string& inSequence)
 {
-  string result = inSequence;
+  std::string result = inSequence;
 
-  vector<pair<long,long> > segments;
+  std::vector<std::pair<long,long> > segments;
   GetMaskSegments(false, inSequence, 0, segments);
 
   for (uint32 i = 0; i < segments.size(); ++i)
@@ -572,7 +572,7 @@ string DUST(const string& inSequence)
 
 //int main()
 //{
-//  string seq;
+//  std::string seq;
 //
 //  ifstream in("input.seq", ios::binary);
 //  in >> seq;
@@ -732,24 +732,25 @@ int32 BlastComputeLengthAdjustment(const Matrix& inMatrix, int32 query_length,
 template<int WORDSIZE>
 struct Word
 {
-  static const uint32 kMaxWordIndex, kMaxIndex;
+  static const uint32 kMaxWordIndex;
+  static const uint32 kMaxIndex;
 
-          Word()
-          {
-            for (uint32 i = 0; i <= WORDSIZE; ++i)
-              aa[i] = 0;
-          }
+  Word()
+  {
+    for (uint32 i = 0; i <= WORDSIZE; ++i)
+      aa[i] = 0;
+  }
 
-          Word(const uint8* inSequence)
-          {
-            for (uint32 i = 0; i < WORDSIZE; ++i)
-              aa[i] = inSequence[i];
-            aa[WORDSIZE] = 0;
-          }
+  Word(const uint8* inSequence)
+  {
+    for (uint32 i = 0; i < WORDSIZE; ++i)
+      aa[i] = inSequence[i];
+    aa[WORDSIZE] = 0;
+  }
 
-  uint8&      operator[](uint32 ix)  { return aa[ix]; }
-  const uint8*  c_str() const      { return aa; }
-  size_t      length() const      { return WORDSIZE; }
+  uint8& operator[](uint32 ix) { return aa[ix]; }
+  const uint8* c_str() const { return aa; }
+  size_t length() const { return WORDSIZE; }
 
   class PermutationIterator
   {
@@ -759,16 +760,16 @@ struct Word
         : mWord(inWord), mIndex(0), mMatrix(inMatrix), mThreshold(inThreshold)
       {}
 
-    bool      Next(uint32& outIndex);
+    bool Next(uint32& outIndex);
 
     private:
-    Word      mWord;
-    uint32      mIndex;
-    const Matrix&  mMatrix;
-    int32      mThreshold;
+      Word mWord;
+      uint32 mIndex;
+      const Matrix& mMatrix;
+      int32 mThreshold;
   };
 
-  uint8      aa[WORDSIZE + 1];
+  uint8 aa[WORDSIZE + 1];
 };
 
 template<>
@@ -824,41 +825,42 @@ class WordHitIterator
 
   struct Entry
   {
-    uint16          mCount;
-    uint16          mDataOffset;
+    uint16 mCount;
+    uint16 mDataOffset;
   };
 
   public:
 
-  typedef Word<WORDSIZE>            IWord;
-  typedef typename IWord::PermutationIterator  WordPermutationIterator;
+  typedef Word<WORDSIZE> IWord;
+  typedef typename IWord::PermutationIterator WordPermutationIterator;
 
   struct WordHitIteratorStaticData
   {
-    vector<Entry>    mLookup;
-    vector<uint16>    mOffsets;
+    std::vector<Entry> mLookup;
+    std::vector<uint16> mOffsets;
   };
 
   WordHitIterator(const WordHitIteratorStaticData& inStaticData)
     : mLookup(inStaticData.mLookup), mOffsets(inStaticData.mOffsets) {}
 
-  static void        Init(const sequence& inQuery, const Matrix& inMatrix,
-                uint32 inThreshhold, WordHitIteratorStaticData& outStaticData);
+  static void Init(const sequence& inQuery, const Matrix& inMatrix,
+                   uint32 inThreshhold,
+                   WordHitIteratorStaticData& outStaticData);
 
-  void          Reset(const sequence& inTarget);
-  bool          Next(uint16& outQueryOffset, uint16& outTargetOffset);
-  uint32          Index() const    { return mIndex; }
+  void Reset(const sequence& inTarget);
+  bool Next(uint16& outQueryOffset, uint16& outTargetOffset);
+  uint32 Index() const { return mIndex; }
 
   private:
 
-  const uint8*      mTargetCurrent;
-  const uint8*      mTargetEnd;
-  uint16          mTargetOffset;
-  const vector<Entry>&  mLookup;
-  const vector<uint16>&  mOffsets;
-  uint32          mIndex;
-  const uint16*      mOffset;
-  uint16          mCount;
+  const uint8* mTargetCurrent;
+  const uint8* mTargetEnd;
+  uint16 mTargetOffset;
+  const std::vector<Entry>& mLookup;
+  const std::vector<uint16>& mOffsets;
+  uint32 mIndex;
+  const uint16* mOffset;
+  uint16 mCount;
 };
 
 template<> const uint32 WordHitIterator<2>::kMask = 0x0001F;
@@ -874,7 +876,7 @@ void WordHitIterator<WORDSIZE>::Init(const sequence& inQuery,
   uint64 N = IWord::kMaxWordIndex;
   size_t M = 0;
 
-  vector<vector<uint16>> test(N);
+  std::vector<std::vector<uint16>> test(N);
 
   for (uint16 i = 0; i < inQuery.length() - WORDSIZE + 1; ++i)
   {
@@ -890,8 +892,8 @@ void WordHitIterator<WORDSIZE>::Init(const sequence& inQuery,
     }
   }
 
-  outStaticData.mLookup = vector<Entry>(N);
-  outStaticData.mOffsets = vector<uint16>(M);
+  outStaticData.mLookup = std::vector<Entry>(N);
+  outStaticData.mOffsets = std::vector<uint16>(M);
 
   uint16* data = &outStaticData.mOffsets[0];
 
@@ -961,35 +963,38 @@ bool WordHitIterator<WORDSIZE>::Next(uint16& outQueryOffset,
 
 struct DiagonalStartTable
 {
-      DiagonalStartTable() : mTable(nullptr) {}
-      ~DiagonalStartTable() { delete[] mTable; }
+  DiagonalStartTable() : mTable(nullptr) {}
+  ~DiagonalStartTable() { delete[] mTable; }
 
   void  Reset(int32 inQueryLength, int32 inTargetLength)
-      {
-        mTargetLength = inTargetLength;
+  {
+    mTargetLength = inTargetLength;
 
-        int32 n = inQueryLength + inTargetLength + 1;
-        if (mTable == nullptr or n >= mTableLength)
-        {
-          uint32 k = ((n / 10240) + 1) * 10240;
-          int32* t = new int32[k];
-          delete[] mTable;
-          mTable = t;
-          mTableLength = k;
-        }
+    int32 n = inQueryLength + inTargetLength + 1;
+    if (mTable == nullptr or n >= mTableLength)
+    {
+      uint32 k = ((n / 10240) + 1) * 10240;
+      int32* t = new int32[k];
+      delete[] mTable;
+      mTable = t;
+      mTableLength = k;
+    }
 
-        fill(mTable, mTable + n, -inTargetLength);
-      }
+    std::fill(mTable, mTable + n, -inTargetLength);
+  }
 
   int32&  operator()(uint16 inQueryOffset, uint16 inTargetOffset)
-        { return mTable[mTargetLength - inTargetOffset + inQueryOffset]; }
+  {
+    return mTable[mTargetLength - inTargetOffset + inQueryOffset];
+  }
 
   private:
-              DiagonalStartTable(const DiagonalStartTable&);
-  DiagonalStartTable&  operator=(const DiagonalStartTable&);
+    DiagonalStartTable(const DiagonalStartTable&);
+    DiagonalStartTable&  operator=(const DiagonalStartTable&);
 
-  int32*  mTable;
-  int32  mTableLength, mTargetLength;
+    int32* mTable;
+    int32 mTableLength;
+    int32 mTargetLength;
 };
 
 // --------------------------------------------------------------------
@@ -1013,10 +1018,10 @@ struct DPData
     return mDPData[inI * mDimY + inJ];
   }
 
-  int16*    mDPData;
-  size_t    mDPDataLength;
-  size_t    mDimX;
-  size_t    mDimY;
+  int16* mDPData;
+  size_t mDPDataLength;
+  size_t mDimX;
+  size_t mDimY;
 };
 
 struct DiscardTraceBack
@@ -1024,7 +1029,7 @@ struct DiscardTraceBack
   int16 operator()(int16 inB, int16 inIx, int16 inIy, uint32 /*inI*/,
                    uint32 /*inJ*/) const
   {
-    return max(max(inB, inIx), inIy);
+    return std::max(std::max(inB, inIx), inIy);
   }
 
   void Set(uint32 inI, uint32 inJ, int16 inD) {}
@@ -1069,8 +1074,7 @@ inline void ReadEntry(const char*& inFasta, const char* inEnd,
 {
   assert(inFasta == inEnd or *inFasta == '>');
 
-  while (inFasta != inEnd and *inFasta++ != '\n')
-    ;
+  while (inFasta != inEnd and *inFasta++ != '\n');
 
   outTarget.clear();
 
@@ -1100,16 +1104,24 @@ inline void ReadEntry(const char*& inFasta, const char* inEnd,
 
 struct Hsp
 {
-  uint32    mScore;
-  uint32    mQueryStart, mQueryEnd, mTargetStart, mTargetEnd;
-  sequence  mAlignedQuery, mAlignedTarget;
-  double    mBitScore;
-  double    mExpect;
-  bool    mGapped;
+  uint32 mScore;
+  uint32 mQueryStart;
+  uint32 mQueryEnd;
+  uint32 mTargetStart;
+  uint32 mTargetEnd;
+  sequence mAlignedQuery;
+  sequence mAlignedTarget;
+  double mBitScore;
+  double mExpect;
+  bool mGapped;
 
-  bool operator>(const Hsp& inHsp) const { return mScore > inHsp.mScore; }
+  bool operator>(const Hsp& inHsp) const
+  {
+    return mScore > inHsp.mScore;
+  }
+
   void CalculateExpect(int64 inSearchSpace, double inLambda,
-                          double inLogKappa);
+                       double inLogKappa);
   bool Overlaps(const Hsp& inOther) const
   {
     return mQueryEnd >= inOther.mQueryStart and
@@ -1129,24 +1141,24 @@ void Hsp::CalculateExpect(int64 inSearchSpace, double inLambda,
 // --------------------------------------------------------------------
 
 struct Hit;
-typedef shared_ptr<Hit> HitPtr;
+typedef std::shared_ptr<Hit> HitPtr;
 
 struct Hit
 {
-          Hit(const char* inEntry, const sequence& inTarget);
+  Hit(const char* inEntry, const sequence& inTarget);
 
-  void      AddHsp(const Hsp& inHsp);
-  void      Cleanup(int64 inSearchSpace, double inLambda, double inLogKappa,
-                    double inExpect);
+  void AddHsp(const Hsp& inHsp);
+  void Cleanup(int64 inSearchSpace, double inLambda, double inLogKappa,
+               double inExpect);
 
-  string      mDefLine;
-  sequence    mTarget;
-  vector<Hsp>    mHsps;
+  std::string mDefLine;
+  sequence mTarget;
+  std::vector<Hsp> mHsps;
 };
 
 Hit::Hit(const char* inEntry, const sequence& inTarget)
-  : mDefLine(inEntry, const_cast<const char*>(strchr(inEntry, '\n')))
-  , mTarget(inTarget)
+  : mDefLine(inEntry, const_cast<const char*>(strchr(inEntry, '\n'))),
+    mTarget(inTarget)
 {
 }
 
@@ -1172,12 +1184,12 @@ void Hit::AddHsp(const Hsp& inHsp)
 void Hit::Cleanup(int64 inSearchSpace, double inLambda, double inLogKappa,
                   double inExpect)
 {
-  sort(mHsps.begin(), mHsps.end(), greater<Hsp>());
+  std::sort(mHsps.begin(), mHsps.end(), std::greater<Hsp>());
 
-  vector<Hsp>::iterator a = mHsps.begin();
+  std::vector<Hsp>::iterator a = mHsps.begin();
   while (a != mHsps.end() and a + 1 != mHsps.end())
   {
-    vector<Hsp>::iterator b = a + 1;
+    std::vector<Hsp>::iterator b = a + 1;
     while (b != mHsps.end())
     {
       if (a->Overlaps(*b))
@@ -1192,7 +1204,7 @@ void Hit::Cleanup(int64 inSearchSpace, double inLambda, double inLogKappa,
     hsp.CalculateExpect(inSearchSpace, inLambda, inLogKappa);
   });
 
-  sort(mHsps.begin(), mHsps.end(), greater<Hsp>());
+  std::sort(mHsps.begin(), mHsps.end(), std::greater<Hsp>());
 
   mHsps.erase(
     remove_if(mHsps.begin(), mHsps.end(), [=](const Hsp& hsp) -> bool {
@@ -1207,62 +1219,66 @@ template<int WORDSIZE>
 class BlastQuery
 {
   public:
-    BlastQuery(const string& inQuery, bool inFilter, double inExpect,
-               const string& inMatrix, bool inGapped, int32 inGapOpen,
+    BlastQuery(const std::string& inQuery, bool inFilter, double inExpect,
+               const std::string& inMatrix, bool inGapped, int32 inGapOpen,
                int32 inGapExtend, uint32 inReportLimit);
     ~BlastQuery();
 
-  void      Search(const vector<fs::path>& inDatabanks, MProgress& inProgress,
-                   uint32 inNrOfThreads);
-  //void      Report(Result& outResult);
-  void      WriteAsFasta(ostream& inStream);
+    void Search(const std::vector<fs::path>& inDatabanks,
+                MProgress& inProgress, uint32 inNrOfThreads);
+    void WriteAsFasta(std::ostream& inStream);
 
   private:
+    void SearchPart(const char* inFasta, size_t inLength,
+                    MProgress& inProgress, uint32& outDbCount,
+                    int64& outDbLength, std::vector<HitPtr>& outHits) const;
 
-  void      SearchPart(const char* inFasta, size_t inLength,
-                       MProgress& inProgress, uint32& outDbCount,
-                       int64& outDbLength, vector<HitPtr>& outHits) const;
+    int32 Extend(int32& ioQueryStart, const sequence& inTarget,
+                      int32& ioTargetStart, int32& ioDistance) const;
+    template<class Iterator1, class Iterator2, class TraceBack>
+    int32 AlignGapped(Iterator1 inQueryBegin, Iterator1 inQueryEnd,
+                      Iterator2 inTargetBegin, Iterator2 inTargetEnd,
+                      TraceBack& inTraceBack, int32 inDropOff,
+                      uint32& outBestX, uint32& outBestY) const;
 
-  int32      Extend(int32& ioQueryStart, const sequence& inTarget,
-                    int32& ioTargetStart, int32& ioDistance) const;
-  template<class Iterator1, class Iterator2, class TraceBack>
-  int32      AlignGapped(Iterator1 inQueryBegin, Iterator1 inQueryEnd,
-                         Iterator2 inTargetBegin, Iterator2 inTargetEnd,
-                         TraceBack& inTraceBack, int32 inDropOff,
-                         uint32& outBestX, uint32& outBestY) const;
+    int32 AlignGappedFirst(const sequence& inTarget, Hsp& ioHsp) const;
+    int32 AlignGappedSecond(const sequence& inTarget, Hsp& ioHsp) const;
 
-  int32      AlignGappedFirst(const sequence& inTarget, Hsp& ioHsp) const;
-  int32      AlignGappedSecond(const sequence& inTarget, Hsp& ioHsp) const;
+    void AddHit(HitPtr inHit, std::vector<HitPtr>& inHitList) const;
 
-  void      AddHit(HitPtr inHit, vector<HitPtr>& inHitList) const;
+    typedef WordHitIterator<WORDSIZE> IWordHitIterator;
+    typedef typename IWordHitIterator::WordHitIteratorStaticData StaticData;
 
-  typedef WordHitIterator<WORDSIZE>                IWordHitIterator;
-  typedef typename IWordHitIterator::WordHitIteratorStaticData  StaticData;
+    std::string mUnfiltered;
+    sequence mQuery;
+    Matrix mMatrix;
+    double mExpect;
+    double mCutOff;
+    bool mGapped;
+    int32 mS1;
+    int32 mS2;
+    int32 mXu;
+    int32 mXg;
+    int32 mXgFinal;
+    uint32 mReportLimit;
 
-  string      mUnfiltered;
-  sequence    mQuery;
-  Matrix    mMatrix;
-  double      mExpect, mCutOff;
-  bool      mGapped;
-  int32      mS1, mS2, mXu, mXg, mXgFinal;
-  uint32      mReportLimit;
+    uint32 mDbCount;
+    int64 mDbLength;
+    int64 mSearchSpace;
 
-  uint32      mDbCount;
-  int64      mDbLength, mSearchSpace;
+    std::vector<HitPtr> mHits;
 
-  vector<HitPtr>  mHits;
-
-  StaticData  mWordHitData;
+    StaticData mWordHitData;
 };
 
 template<int WORDSIZE>
-BlastQuery<WORDSIZE>::BlastQuery(const string& inQuery, bool inFilter,
-                                 double inExpect, const string& inMatrix,
+BlastQuery<WORDSIZE>::BlastQuery(const std::string& inQuery, bool inFilter,
+                                 double inExpect, const std::string& inMatrix,
                                  bool inGapped, int32 inGapOpen,
                                  int32 inGapExtend, uint32 inReportLimit)
-  : mUnfiltered(inQuery), mMatrix(inMatrix, inGapOpen, inGapExtend)
-  , mExpect(inExpect), mGapped(inGapped), mReportLimit(inReportLimit)
-  , mDbCount(0), mDbLength(0), mSearchSpace(0)
+  : mUnfiltered(inQuery), mMatrix(inMatrix, inGapOpen, inGapExtend),
+    mExpect(inExpect), mGapped(inGapped), mReportLimit(inReportLimit),
+    mDbCount(0), mDbLength(0), mSearchSpace(0)
 {
   if (mQuery.length() >= kMaxSequenceLength)
     throw mas_exception("Query length exceeds maximum");
@@ -1272,7 +1288,7 @@ BlastQuery<WORDSIZE>::BlastQuery(const string& inQuery, bool inFilter,
     return ResidueNr(aa) >= kResCount;
   }), mUnfiltered.end());
 
-  string query(mUnfiltered);
+  std::string query(mUnfiltered);
   if (inFilter)
     query = filter::SEG(query);
 
@@ -1303,7 +1319,7 @@ BlastQuery<WORDSIZE>::~BlastQuery()
 }
 
 template<int WORDSIZE>
-void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks,
+void BlastQuery<WORDSIZE>::Search(const std::vector<fs::path>& inDatabanks,
                                   MProgress& inProgress, uint32 inNrOfThreads)
 {
   foreach (const fs::path& p, inDatabanks)
@@ -1335,7 +1351,7 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks,
         t.create_thread([data, n, &m, &inProgress, this]() {
           uint32 dbCount = 0;
           int64 dbLength = 0;
-          vector<HitPtr> hits;
+          std::vector<HitPtr> hits;
 
           this->SearchPart(data, n, inProgress, dbCount, dbLength, hits);
 
@@ -1395,7 +1411,8 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks,
               [](const HitPtr hit) -> bool { return hit->mHsps.empty(); }),
     mHits.end());
 
-  sort(mHits.begin(), mHits.end(), [](const HitPtr a, const HitPtr b) -> bool {
+  std::sort(mHits.begin(), mHits.end(),
+            [](const HitPtr a, const HitPtr b) -> bool {
     return a->mHsps.front().mScore > b->mHsps.front().mScore or
            (a->mHsps.front().mScore == b->mHsps.front().mScore and
             a->mDefLine < b->mDefLine);
@@ -1407,11 +1424,11 @@ void BlastQuery<WORDSIZE>::Search(const vector<fs::path>& inDatabanks,
 
 
 template<int WORDSIZE>
-void BlastQuery<WORDSIZE>::WriteAsFasta(ostream& inStream)
+void BlastQuery<WORDSIZE>::WriteAsFasta(std::ostream& inStream)
 {
   foreach (HitPtr hit, mHits)
   {
-    string seq;
+    std::string seq;
     foreach (uint8 r, hit->mTarget)
     {
       if (seq.length() % 73 == 72)
@@ -1419,15 +1436,15 @@ void BlastQuery<WORDSIZE>::WriteAsFasta(ostream& inStream)
       seq += kResidues[r];
     }
 
-    inStream << hit->mDefLine << endl
-         << seq << endl;
+    inStream << hit->mDefLine << std::endl
+         << seq << std::endl;
   }
 }
 
 template<int WORDSIZE>
 void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength,
                                       MProgress& inProgress,
-  uint32& outDbCount, int64& outDbLength, vector<HitPtr>& outHits) const
+  uint32& outDbCount, int64& outDbLength, std::vector<HitPtr>& outHits) const
 {
   const char* end = inFasta + inLength;
   int32 queryLength = static_cast<int32>(mQuery.length());
@@ -1542,7 +1559,8 @@ int32 BlastQuery<WORDSIZE>::Extend(int32& ioQueryStart,
   sequence::const_iterator qe = ai;
 
   for (int32 test = score,
-       n = static_cast<int32>(min(mQuery.end() - ai, inTarget.end() - bi));
+       n = static_cast<int32>(
+         std::min(mQuery.end() - ai, inTarget.end() - bi));
        test >= score - mXu and n > 0;
        --n, ++ai, ++bi)
   {
@@ -1559,7 +1577,7 @@ int32 BlastQuery<WORDSIZE>::Extend(int32& ioQueryStart,
   bi = inTarget.begin() + ioTargetStart;
   sequence::const_iterator qs = ai + 1;
 
-  for (int32 test = score, n = min(ioQueryStart, ioTargetStart);
+  for (int32 test = score, n = std::min(ioQueryStart, ioTargetStart);
      test >= score - mXu and n > 0;
      --n)
   {
@@ -1680,17 +1698,17 @@ int32 BlastQuery<WORDSIZE>::AlignGapped(
         M = B(i - 1, j - 1) + s(*x, *y);
 
       // cut off the max value
-      if (M > numeric_limits<int16>::max())
-        M = numeric_limits<int16>::max();
+      if (M > std::numeric_limits<int16>::max())
+        M = std::numeric_limits<int16>::max();
 
       // (2)
       int32 Bij = B(i, j) = tb_max(M, Ix1, Iy1, i, j);
 
       // (3)
-      Ix(i, j) = max(M - d, Ix1 - e);
+      Ix(i, j) = std::max(M - d, Ix1 - e);
 
       // (4)
-      Iy(i, j) = max(M - d, Iy1 - e);
+      Iy(i, j) = std::max(M - d, Iy1 - e);
 
       if (Bij > bestScore)
       {
@@ -1880,9 +1898,10 @@ int32 BlastQuery<WORDSIZE>::AlignGappedSecond(const sequence& inTarget,
 }
 
 template<int WORDSIZE>
-void BlastQuery<WORDSIZE>::AddHit(HitPtr inHit, vector<HitPtr>& inHitList) const
+void BlastQuery<WORDSIZE>::AddHit(HitPtr inHit,
+                                  std::vector<HitPtr>& inHitList) const
 {
-  sort(inHit->mHsps.begin(), inHit->mHsps.end(), greater<Hsp>());
+  std::sort(inHit->mHsps.begin(), inHit->mHsps.end(), std::greater<Hsp>());
 
   inHitList.push_back(inHit);
 
@@ -1900,9 +1919,9 @@ void BlastQuery<WORDSIZE>::AddHit(HitPtr inHit, vector<HitPtr>& inHitList) const
 
 
 void SearchAndWriteResultsAsFastA(
-    ostream& inOutFile, const vector<fs::path>& inDatabanks,
-    const string& inQuery, const string& inProgram,
-    const string& inMatrix, uint32 inWordSize, double inExpect,
+    std::ostream& inOutFile, const std::vector<fs::path>& inDatabanks,
+    const std::string& inQuery, const std::string& inProgram,
+    const std::string& inMatrix, uint32 inWordSize, double inExpect,
     bool inFilter, bool inGapped, int32 inGapOpen, int32 inGapExtend,
     uint32 inReportLimit, uint32 inThreads)
 {
@@ -1917,7 +1936,7 @@ void SearchAndWriteResultsAsFastA(
 
   if (inWordSize == 0) inWordSize = 3;
 
-  string query(inQuery), queryID("query"), queryDef;
+  std::string query(inQuery), queryID("query"), queryDef;
 
   if (ba::starts_with(inQuery, ">"))
   {
@@ -1933,13 +1952,13 @@ void SearchAndWriteResultsAsFastA(
     else
     {
       queryID = inQuery.substr(1, inQuery.find('\n') - 1);
-      query = inQuery.substr(queryID.length() + 2, string::npos);
+      query = inQuery.substr(queryID.length() + 2, std::string::npos);
 
-      string::size_type s = queryID.find(' ');
-      if (s != string::npos)
+      std::string::size_type s = queryID.find(' ');
+      if (s != std::string::npos)
       {
         queryDef = queryID.substr(s + 1);
-        queryID.erase(s, string::npos);
+        queryID.erase(s, std::string::npos);
       }
     }
   }
@@ -1959,7 +1978,6 @@ void SearchAndWriteResultsAsFastA(
       q.WriteAsFasta(inOutFile);
       break;
     }
-
     case 3:
     {
       BlastQuery<3> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen,
@@ -1968,7 +1986,6 @@ void SearchAndWriteResultsAsFastA(
       q.WriteAsFasta(inOutFile);
       break;
     }
-
     case 4:
     {
       BlastQuery<4> q(query, inFilter, inExpect, inMatrix, inGapped, inGapOpen,
@@ -1977,7 +1994,6 @@ void SearchAndWriteResultsAsFastA(
       q.WriteAsFasta(inOutFile);
       break;
     }
-
     default:
       throw mas_exception(
           boost::format("Unsupported word size %d") % inWordSize);
