@@ -3,6 +3,7 @@
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
+#include "fasta.h"
 #include "hssp-nt.h"
 #include "mas.h"
 #include "structure.h"
@@ -32,56 +33,8 @@ namespace io = boost::iostreams;
 namespace po = boost::program_options;
 
 #define foreach BOOST_FOREACH
-int VERBOSE = 0;
+// int VERBOSE = 0;
 
-// --------------------------------------------------------------------
-
-MProtein* ReadProteinFromFastA(std::istream& in)
-{
-  std::string id, seq;
-
-  getline(in, id);
-  if (id.empty() and in.eof())
-    throw mas_exception("Not a valid id");
-
-  if (not ba::starts_with(id, ">"))
-    throw mas_exception("Not a valid FastA file: ID line does not start with '>'");
-
-  id.erase(0, 1);
-
-  std::string::size_type s = id.find(' ');
-  if (s != std::string::npos)
-    id.erase(s);
-
-  if (id.empty())
-    throw mas_exception("Not a valid FastA file: Empty or invalid ID line");
-
-  std::streambuf* b = in.rdbuf();
-
-  while (b->sgetc() != std::streambuf::traits_type::eof() and
-    b->sgetc() != '>')
-  {
-    std::string line;
-    getline(in, line);
-    seq += line;
-  }
-
-  MChain* chain = new MChain("A");
-  std::vector<MResidue*>& residues = chain->GetResidues();
-  MResidue* last = nullptr;
-  uint32 nr = 1;
-  foreach (char r, seq)
-  {
-    residues.push_back(new MResidue(nr, r, last));
-    ++nr;
-    last = residues.back();
-  }
-
-  MProtein* result = new MProtein(id, chain);
-  return result;
-}
-
-// --------------------------------------------------------------------
 
 int main(int argc, char* argv[])
 {
@@ -240,17 +193,19 @@ int main(int argc, char* argv[])
     // if input file is a FastA file, we process it differently
     if (ba::ends_with(input, ".fa") or ba::ends_with(input, ".fasta"))
     {
-      MProtein* p;
-      while ((p = ReadProteinFromFastA(in)) != nullptr)
+      std::vector<MProtein*> proteins = read_proteins_from_fasta(in);
+      for (auto& p: proteins)
       {
         try
         {
-          HSSP::CreateHSSP(*p, databanks, maxhits, minlength, gapOpen, gapExtend,
-            threshold, fragmentCutOff, threads, fetchDbRefs, out);
+          HSSP::CreateHSSP(*p, databanks, maxhits, minlength, gapOpen,
+                           gapExtend, threshold, fragmentCutOff, threads,
+                           fetchDbRefs, out);
         }
         catch (const std::exception& e)
         {
-          std::cerr << "Creating HSSP for " << p->GetID() << " failed: " << e.what() << std::endl;
+          std::cerr << "Creating HSSP for " << p->GetID() << " failed: "
+                    << e.what() << std::endl;
         }
 
         delete p;

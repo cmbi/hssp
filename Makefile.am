@@ -1,4 +1,4 @@
-bin_PROGRAMS	=	mkdssp mkhssp hsspconv hsspsoap
+bin_PROGRAMS	=	mkdssp mkhssp hsspconv hsspsoap test_xssp
 
 shared_LDADD =	-lzeep \
 								$(BOOST_DATE_TIME_LIB) \
@@ -22,6 +22,7 @@ mkdssp_LDADD	=	$(shared_LDADD)
 
 mkhssp_SOURCES =	src/blast.cpp \
 									src/dssp.cpp \
+									src/fasta.cpp \
 									src/fetchdbrefs.cpp \
 									src/hssp-nt.cpp \
 									src/iocif.cpp \
@@ -60,6 +61,17 @@ hsspsoap_LDADD	=	$(shared_LDADD) \
 									-lboost_timer \
 									rsrc/index.o \
 									rsrc/error.o
+
+test_xssp_SOURCES	=	src/fasta.cpp \
+										src/iocif.cpp \
+										src/mas.cpp \
+										src/primitives-3d.cpp \
+										src/structure.cpp \
+										src/utils.cpp \
+										tests/test_fasta.cpp
+
+test_xssp_LDADD	=	$(shared_LDADD) \
+									$(BOOST_UNIT_TEST_FRAMEWORK_LIB)
 
 AM_CPPFLAGS	=	-std=c++11 \
 							-pedantic \

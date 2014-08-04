@@ -13,6 +13,9 @@
 
 #define foreach BOOST_FOREACH
 
+int VERBOSE = 0;
+
+
 // 22 real letters and 1 dummy
 const char kResidues[] = "ACDEFGHIKLMNPQRSTVWYBZX";
 const uint8 kResidueNrTable[] = {

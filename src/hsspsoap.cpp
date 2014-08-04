@@ -50,7 +50,7 @@ extern char _binary_rsrc_error_html_start[];
 extern char _binary_rsrc_error_html_size[];
 
 // globals
-int VERBOSE;
+//int VERBOSE;
 uint32 gNrOfThreads;
 
 void GetDSSPForSequence(const std::string& inSequence, std::string& outDSSP)

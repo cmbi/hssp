@@ -31,7 +31,7 @@ namespace po = boost::program_options;
 namespace io = boost::iostreams;
 namespace ba = boost::algorithm;
 
-int VERBOSE = 0;
+//int VERBOSE = 0;
 
 int main(int argc, char* argv[])
 {
