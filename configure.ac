@@ -5,7 +5,7 @@ AC_PREREQ([2.68])
 AC_INIT([xssp], [2.2.2])
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE([subdir-objects])
-AC_CONFIG_SRCDIR([mtrx/matrices.h])
+AC_CONFIG_SRCDIR([src/version.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
