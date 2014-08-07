@@ -172,29 +172,3 @@ void WriteToFD(int inFD, const std::std::string& inText)
   }
 }
 #endif
-
-// --------------------------------------------------------------------
-
-#if P_WIN
-
-fs::path get_home()
-{
-  const char* home = getenv("HOME");
-  if (home == nullptr)
-    home = getenv("HOMEPATH");
-  if (home == nullptr)
-    throw mas_exception("No home defined");
-  return fs::path(home);
-}
-
-#else
-
-fs::path get_home()
-{
-  const char* home = getenv("HOME");
-  if (home == nullptr)
-    throw mas_exception("No home defined");
-  return fs::path(home);
-}
-
-#endif
