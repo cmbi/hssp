@@ -1,7 +1,10 @@
 // Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
 //   Distributed under the Boost Software License, Version 1.0.
-//       (See accompanying file LICENSE_1_0.txt or copy at    
-//             http://www.boost.org/LICENSE_1_0.txt)      
+//       (See accompanying file LICENSE_1_0.txt or copy at
+//             http://www.boost.org/LICENSE_1_0.txt)
+
+#ifndef XSSP_MAS_H
+#define XSSP_MAS_H
 
 #pragma once
 
@@ -27,14 +30,14 @@
 #include <boost/version.hpp>
 #include <boost/cstdint.hpp>
 
-typedef int8_t		int8;
-typedef uint8_t		uint8;
-typedef int16_t		int16;
-typedef uint16_t	uint16;
-typedef int32_t		int32;
-typedef uint32_t	uint32;
-typedef int64_t		int64;
-typedef uint64_t	uint64;
+typedef int8_t    int8;
+typedef uint8_t    uint8;
+typedef int16_t    int16;
+typedef uint16_t  uint16;
+typedef int32_t    int32;
+typedef uint32_t  uint32;
+typedef int64_t    int64;
+typedef uint64_t  uint64;
 
 #ifndef nullptr
 #define nullptr NULL
@@ -53,19 +56,21 @@ extern const uint8 kResidueNrTable[];
 
 inline uint8 ResidueNr(char inAA)
 {
-	int result = 23;
+  int result = 23;
 
-	inAA |= 040;
-	if (inAA >= 'a' and inAA <= 'z')
-		result = kResidueNrTable[inAA - 'a'];
+  inAA |= 040;
+  if (inAA >= 'a' and inAA <= 'z')
+    result = kResidueNrTable[inAA - 'a'];
 
-	return result;
+  return result;
 }
 
 inline bool is_gap(char aa)
 {
-	return aa == ' ' or aa == '.' or aa == '-';
+  return aa == ' ' or aa == '.' or aa == '-';
 }
 
 sequence encode(const std::string& s);
 std::string decode(const sequence& s);
+
+#endif

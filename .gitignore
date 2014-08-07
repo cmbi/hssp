@@ -1,0 +1,61 @@
+# C++
+
+## Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+obj/
+
+## Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+## Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+## Generated source code
+mtrx/matrices.h
+
+## Executables
+*.exe
+*.out
+*.app
+mkdssp
+mkhssp
+hsspsoap
+hsspconv
+test_xssp
+
+# http://www.gnu.org/software/automake
+Makefile
+Makefile.in
+.deps/
+.dirstamp
+
+# # http://www.gnu.org/software/autoconf
+/autom4te.cache
+/aclocal.m4
+/compile
+/configure
+/depcomp
+/install-sh
+/missing
+/stamp-h1
+/config
+config.log
+config.status
+config.h
+config.h.in
+
+# vim
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+*.un~
+Session.vim
+.netrwhist
+*~
