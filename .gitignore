@@ -29,6 +29,7 @@ mkdssp
 mkhssp
 hsspsoap
 hsspconv
+test_xssp
 
 # http://www.gnu.org/software/automake
 Makefile
