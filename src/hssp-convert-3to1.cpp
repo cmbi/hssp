@@ -438,7 +438,7 @@ void seq::seq_impl::update(const seq_impl& qseq)
       ins.m_seq += *si;
 
       qgapped = true;
-      ++jpos;
+      if(not sgap) ++jpos;
     }
     else
     {
@@ -453,7 +453,7 @@ void seq::seq_impl::update(const seq_impl& qseq)
       qgapped = false;
 
       ++ipos;
-      ++jpos;
+      if(not sgap) ++jpos;
     }
   }
 }

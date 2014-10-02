@@ -1272,7 +1272,7 @@ void MProfile::CalculateConservation(uint32 inThreads)
       MResInfo& ri = m_residues[i];
 
       ri.m_nocc = is_gap(m_seq[i]) ? 0 : 1;
-      for (uint32 j = 0; j < sizeof(ri.m_dist); ++j)
+      for (uint32 j = 0; j < 23; ++j)
         ri.m_dist[j] = m_seq[i] == j ? 1 : 0;
 
       foreach (MHitPtr e, m_entries)
