@@ -841,7 +841,16 @@ class WordHitIterator
   };
 
   WordHitIterator(const WordHitIteratorStaticData& inStaticData)
-    : mLookup(inStaticData.mLookup), mOffsets(inStaticData.mOffsets) {}
+  : mLookup(inStaticData.mLookup),
+    mOffsets(inStaticData.mOffsets),
+    mTargetCurrent(nullptr),
+    mTargetEnd(nullptr),
+    mIndex(0),
+    mOffset(0),
+    mCount(0),
+    mTargetOffset(0)
+  {
+  }
 
   static void Init(const sequence& inQuery, const Matrix& inMatrix,
                    uint32 inThreshhold,
@@ -963,7 +972,13 @@ bool WordHitIterator<WORDSIZE>::Next(uint16& outQueryOffset,
 
 struct DiagonalStartTable
 {
-  DiagonalStartTable() : mTable(nullptr) {}
+  DiagonalStartTable()
+  : mTable(nullptr),
+    mTableLength(0),
+    mTargetLength(0)
+  {
+  }
+
   ~DiagonalStartTable() { delete[] mTable; }
 
   void  Reset(int32 inQueryLength, int32 inTargetLength)
@@ -1276,9 +1291,15 @@ BlastQuery<WORDSIZE>::BlastQuery(const std::string& inQuery, bool inFilter,
                                  double inExpect, const std::string& inMatrix,
                                  bool inGapped, int32 inGapOpen,
                                  int32 inGapExtend, uint32 inReportLimit)
-  : mUnfiltered(inQuery), mMatrix(inMatrix, inGapOpen, inGapExtend),
-    mExpect(inExpect), mGapped(inGapped), mReportLimit(inReportLimit),
-    mDbCount(0), mDbLength(0), mSearchSpace(0)
+  : mUnfiltered(inQuery),
+    mMatrix(inMatrix, inGapOpen, inGapExtend),
+    mExpect(inExpect),
+    mGapped(inGapped),
+    mReportLimit(inReportLimit),
+    mDbCount(0),
+    mDbLength(0),
+    mSearchSpace(0),
+    mCutOff(0)
 {
   if (mQuery.length() >= kMaxSequenceLength)
     throw mas_exception("Query length exceeds maximum");

@@ -73,7 +73,7 @@ test_xssp_SOURCES	=	src/fasta.cpp \
 test_xssp_LDADD	=	$(shared_LDADD) \
 									$(BOOST_UNIT_TEST_FRAMEWORK_LIB)
 
-AM_CPPFLAGS	=	-std=c++11 \
+AM_CPPFLAGS	=	-std=c++0x \
 							-pedantic \
 							-Wall \
 							-Werror \
