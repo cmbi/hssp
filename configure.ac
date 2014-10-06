@@ -9,6 +9,17 @@ AC_CONFIG_SRCDIR([src/version.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
+# Old versions of autoconf require explicitly including the macros.
+m4_include([m4/ax_boost_base.m4])
+m4_include([m4/ax_boost_date_time.m4])
+m4_include([m4/ax_boost_filesystem.m4])
+m4_include([m4/ax_boost_iostreams.m4])
+m4_include([m4/ax_boost_program_options.m4])
+m4_include([m4/ax_boost_regex.m4])
+m4_include([m4/ax_boost_system.m4])
+m4_include([m4/ax_boost_thread.m4])
+m4_include([m4/ax_boost_unit_test_framework.m4])
+
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC
@@ -19,7 +30,8 @@ if test -z "$CPPCHECK"; then
 fi
 
 # Checks for libraries.
-AX_BOOST_BASE([1.54])
+AX_BOOST_BASE # Adding the boost version fails using old autoconf. Should be
+              # 1.48.
 AX_BOOST_DATE_TIME
 AX_BOOST_FILESYSTEM
 AX_BOOST_IOSTREAMS
@@ -34,7 +46,7 @@ AM_CONDITIONAL([HAVE_CPPCHECK], [test -n "$CPPCHECK"])
 AC_CHECK_HEADERS([sys/ioctl.h termios.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
-AC_CHECK_HEADER_STDBOOL
+# AC_CHECK_HEADER_STDBOOL # Doesn't work in old versions of autoconf
 AC_C_INLINE
 AC_TYPE_INT16_T
 AC_TYPE_INT32_T
