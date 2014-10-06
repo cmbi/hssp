@@ -104,5 +104,6 @@ struct stats
 // --------------------------------------------------------------------
 
 void WriteToFD(int inFD, const std::string& inText);
+boost::filesystem::path get_home();
 
 #endif
