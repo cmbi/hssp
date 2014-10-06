@@ -340,8 +340,8 @@ bool Linked(const MBridge& a, const MBridge& b)
 
 // --------------------------------------------------------------------
 
-MResidue::MResidue(uint32 inNumber,
-    MResidue* inPrevious, const std::vector<MAtom>& inAtoms)
+MResidue::MResidue(uint32 inNumber, MResidue* inPrevious,
+                   const std::vector<MAtom>& inAtoms)
   : mPrev(inPrevious)
   , mNext(nullptr)
   , mSeqNumber(inAtoms.front().mResSeq)
@@ -352,6 +352,7 @@ MResidue::MResidue(uint32 inNumber,
   , mAccessibility(0)
   , mSecondaryStructure(loop)
   , mSheet(0)
+  , mBend(false)
 {
   if (mPrev != nullptr)
     mPrev->mNext = this;
@@ -442,6 +443,8 @@ MResidue::MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious)
   , mSecondaryStructure(loop)
   , mSheet(0)
   , mBend(false)
+  , mRadius(0)
+  , mH(MAtom())
 {
   std::fill(mHelixFlags, mHelixFlags + 3, helixNone);
 
@@ -1026,6 +1029,7 @@ MProtein::MProtein(const std::string& inID, MChain* inChain)
   , mIgnoredWaterMolecules(0)
   , mNrOfHBondsInParallelBridges(0)
   , mNrOfHBondsInAntiparallelBridges(0)
+  , mResidueCount(0)
 {
   std::fill(mParallelBridgesPerLadderHistogram,
             mParallelBridgesPerLadderHistogram + kHistogramSize, 0);

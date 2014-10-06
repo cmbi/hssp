@@ -230,8 +230,22 @@ struct MHit
   MHit(const MHit& e);
 
   MHit(const std::string& id, const std::string& def, const sequence& seq)
-    : m_id(id), m_def(def), m_seq(seq), m_distance(0)
-    , m_identical(0), m_similar(0), m_length(0), m_gaps(0), m_gapn(0) {}
+    : m_id(id),
+      m_def(def),
+      m_seq(seq),
+      m_distance(0),
+      m_identical(0),
+      m_similar(0),
+      m_length(0),
+      m_gaps(0),
+      m_gapn(0),
+      m_score(0.0),
+      m_ifir(0),
+      m_ilas(0),
+      m_jfir(0),
+      m_jlas(0)
+  {
+  }
 
   struct insertion
   {
