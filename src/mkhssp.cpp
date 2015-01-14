@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
     po::options_description desc("MKHSSP options");
     desc.add_options()
       ("help,h",               "Display help message")
-      ("input,i",    po::value<std::string>(), "Input PDB file(.pdb) (or PDB ID) mmCIF file (.cif), or fasta file(.fa/.fasta), optionally gzipped(.gz) or bzipped2(.bz2)")
+      ("input,i",    po::value<std::string>(), "Input PDB file(.pdb) (or PDB ID) mmCIF file (.cif/.mcif), or fasta file(.fa/.fasta), optionally gzipped(.gz) or bzipped2(.bz2)")
       ("output,o",  po::value<std::string>(), "Output file, use 'stdout' to output to screen")
       ("databank,d",  po::value<std::vector<std::string>>(),
                          "Databank to use (can be specified multiple times)")
@@ -223,7 +223,7 @@ int main(int argc, char* argv[])
       // read protein and calculate the secondary structure
       MProtein a;
 
-      if (ba::ends_with(input, ".cif"))
+      if (ba::ends_with(input, ".cif") or ba::ends_with(input, ".mcif"))
         a.ReadmmCIF(in);
       else
         a.ReadPDB(in);
