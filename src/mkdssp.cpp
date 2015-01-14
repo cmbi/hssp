@@ -127,7 +127,7 @@ int main(int argc, char* argv[])
     // OK, we've got the file, now create a protein
     MProtein a;
 
-    if (ba::ends_with(input, ".cif"))
+    if (ba::ends_with(input, ".cif") or ba::ends_with(input, ".mcif"))
       a.ReadmmCIF(in);
     else
       a.ReadPDB(in);
