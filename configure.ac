@@ -32,7 +32,8 @@ AX_BOOST_SYSTEM
 AX_BOOST_THREAD
 AX_BOOST_UNIT_TEST_FRAMEWORK
 AM_CONDITIONAL([HAVE_CPPCHECK], [test -n "$CPPCHECK"])
-AC_CHECK_LIB([zeep], [main], [], [AC_MSG_ERROR([Error])])
+AC_CHECK_LIB([zeep], [main], [], [AC_MSG_ERROR([libzeep not found])])
+AC_CHECK_LIB([bz2], [BZ2_bzCompress], [], [AC_MSG_ERROR([libbz2 not found])])
 
 # Checks for header files.
 AC_CHECK_HEADERS([sys/ioctl.h termios.h])
