@@ -1,5 +1,6 @@
 The source code for building the `mkdssp`, `mkhssp`, `hsspconv`, and
-`hsspsoap` programs is bundled in the `xssp` project.
+`hsspsoap` programs is bundled in the `xssp` project. The DSSP executable is
+`mkdssp`.
 
 # Download and installation instructions
 
@@ -14,7 +15,7 @@ System libraries:
 
 * libzeep version >= 3.0
 * libboost version >= 1.48
-* libbz2 if you want support for bzip2-compressed input files
+* libbz2
 
 ### Instructions
 
@@ -24,18 +25,22 @@ Download and uncompress the xssp [source code archive][2] (version >= 2.2.6):
     tar -zxvf xssp-2.?.?.tar.gz
     cd xssp-2.?.?.tar.gz
 
-Configure en build `mkdssp`:
+Configure en build the xssp executables:
 
     ./configure
+    make
+
+To build only one executable of the xssp project, e.g. `mkdssp`, type:
+
     make mkdssp
 
-Test the executable:
+To test the `mkdssp` executable type:
 
     ./mkdssp
 
-To add the executable to /usr/local/bin type:
+To add the executables to /usr/local/bin type:
 
-    sudo make mkdssp
+    sudo make
 
 # Citing xssp
 
