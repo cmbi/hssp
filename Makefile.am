@@ -11,49 +11,90 @@ shared_LDADD =	-lzeep \
 								-lpthread
 
 mkdssp_SOURCES	=	src/dssp.cpp \
+									src/dssp.h \
 									src/iocif.cpp \
+									src/iocif.h \
 									src/mas.cpp \
+									src/mas.h \
 									src/mkdssp.cpp \
 									src/primitives-3d.cpp \
+									src/primitives-3d.h \
 									src/structure.cpp \
-									src/utils.cpp
+									src/structure.h \
+									src/buffer.h \
+									src/utils.cpp \
+									src/utils.h \
+									src/version.h
 
 mkdssp_LDADD	=	$(shared_LDADD)
 
 mkhssp_SOURCES =	src/blast.cpp \
+									src/blast.h \
 									src/dssp.cpp \
+									src/dssp.h \
 									src/fasta.cpp \
+									src/fasta.h \
 									src/fetchdbrefs.cpp \
+									src/fetchdbrefs.h \
 									src/hssp-nt.cpp \
+									src/hssp-nt.h \
 									src/iocif.cpp \
+									src/iocif.h \
 									src/mas.cpp \
+									src/mas.h \
 									src/matrix.cpp \
+									src/matrix.h \
+									mtrx/matrices.h \
+									mtrx/mkmat_h.pl \
 									src/mkhssp.cpp \
 									src/primitives-3d.cpp \
+									src/primitives-3d.h \
 									src/progress.cpp \
+									src/progress.h \
 									src/structure.cpp \
-									src/utils.cpp
+									src/structure.h \
+									src/buffer.h \
+									src/align-2d.h \
+									src/utils.cpp \
+									src/utils.h
 
 mkhssp_LDADD	=	$(shared_LDADD) \
 								-lboost_timer
 
 hsspconv_SOURCES = src/hssp-convert-3to1.cpp \
-									 src/utils.cpp
+									 src/utils.cpp \
+									 src/utils.h
+
 
 hsspconv_LDADD	=	$(shared_LDADD)
 
 hsspsoap_SOURCES =	src/blast.cpp \
+										src/blast.h \
 										src/dssp.cpp \
+										src/dssp.h \
 										src/fetchdbrefs.cpp \
+										src/fetchdbrefs.h \
 										src/hssp-nt.cpp \
+										src/hssp-nt.h \
 										src/hsspsoap.cpp \
 										src/iocif.cpp \
+										src/iocif.h \
 										src/mas.cpp \
+										src/mas.h \
 										src/matrix.cpp \
+										src/matrix.h \
 										src/primitives-3d.cpp \
+										src/primitives-3d.h \
 										src/progress.cpp \
+										src/progress.h \
 										src/structure.cpp \
-										src/utils.cpp
+										src/structure.h \
+										src/buffer.h \
+										src/align-2d.h \
+										src/utils.cpp \
+										src/utils.h \
+										rsrc/index.html \
+										rsrc/error.html
 
 hsspsoap_LDADD	=	$(shared_LDADD) \
 									-lboost_math_c99 \
@@ -66,7 +107,11 @@ test_xssp_SOURCES	=	src/fasta.cpp \
 										src/iocif.cpp \
 										src/mas.cpp \
 										src/primitives-3d.cpp \
+										src/primitives-3d.h \
 										src/structure.cpp \
+										src/structure.h \
+										src/buffer.h \
+										src/align-2d.h \
 										src/utils.cpp \
 										tests/test_fasta.cpp
 
@@ -82,6 +127,7 @@ AM_CPPFLAGS	=	-std=c++0x \
 							-Isrc/
 
 BUILT_SOURCES	=	mtrx/matrices.h
+CLEANFILES = mtrx/matrices.h
 
 rsrc/index.o: rsrc/index.html
 	ld -r -b binary -o rsrc/index.o rsrc/index.html
@@ -90,7 +136,7 @@ rsrc/error.o: rsrc/error.html
 	ld -r -b binary -o rsrc/error.o rsrc/error.html
 
 mtrx/matrices.h: mtrx/mkmat_h.pl
-	perl mtrx/mkmat_h.pl mtrx/
+	$(PERL) mtrx/mkmat_h.pl mtrx/
 
 if HAVE_CPPCHECK
 cppcheck:
