@@ -54,6 +54,10 @@ config.h.in
 config.guess
 config.sub
 
+AUTHORS
+Changelog
+NEWS
+
 # vim
 [._]*.s[a-w][a-z]
 [._]s[a-w][a-z]
