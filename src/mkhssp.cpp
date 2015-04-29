@@ -1,4 +1,4 @@
-//  Copyright Maarten L. Hekkelman, Radboud University 2008.
+// Copyright Maarten L. Hekkelman, Radboud University 2008.
 // Copyright Coos Baakman, Jon Black, Wouter G. Touw & Gert Vriend, Radboud university medical center 2015.
 // Distributed under the Boost Software License, Version 1.0.
 //    (See accompanying file LICENSE_1_0.txt or copy at
@@ -56,23 +56,21 @@ int main(int argc, char* argv[])
   {
     po::options_description desc("MKHSSP options");
     desc.add_options()
-      ("help,h",               "Display help message")
-      ("input,i",    po::value<std::string>(), "Input PDB file(.pdb) (or PDB ID) mmCIF file (.cif/.mcif), or fasta file(.fa/.fasta), optionally gzipped(.gz) or bzipped2(.bz2)")
-      ("output,o",  po::value<std::string>(), "Output file, use 'stdout' to output to screen")
-      ("databank,d",  po::value<std::vector<std::string>>(),
-                         "Databank to use (can be specified multiple times)")
+      ("help,h", "Display help message")
+      ("input,i", po::value<std::string>(), "PDB ID or input PDB file(.pdb), mmCIF file (.cif/.mcif), or fasta file(.fa/.fasta), optionally gzipped(.gz) or bzipped2(.bz2)")
+      ("output,o", po::value<std::string>(), "Output file, use 'stdout' to output to screen")
+      ("databank,d", po::value<std::vector<std::string>>(), "Databank to use (can be specified multiple times)")
       ("threads,a",  po::value<uint32>(), "Number of threads (default is maximum)")
-//      ("use-seqres",  po::value<bool>(),   "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
-      ("min-length",  po::value<uint32>(), "Minimal chain length (default = 25)")
-      ("fragment-cutoff",
-              po::value<float>(),  "Minimal alignment length as fraction of chain length (default = 0.75)")
-      ("gap-open,O",  po::value<float>(),  "Gap opening penalty (default is 30.0)")
-      ("gap-extend,E",po::value<float>(),  "Gap extension penalty (default is 2.0)")
-      ("threshold",  po::value<float>(),  "Homology threshold adjustment (default = 0.05)")
-      ("max-hits,m",  po::value<uint32>(), "Maximum number of hits to include (default = 5000)")
-      ("fetch-dbrefs",           "Fetch DBREF records for each UniProt ID")
-      ("verbose,v",             "Verbose mode")
-      ("version",            "Show version number")
+//      ("use-seqres", po::value<bool>(), "Use SEQRES chain instead of chain based on ATOM records (values are true of false, default is true)")
+      ("min-length", po::value<uint32>(), "Minimal chain length (default = 25)")
+      ("fragment-cutoff", po::value<float>(), "Minimal alignment length as fraction of chain length (default = 0.75)")
+      ("gap-open,O", po::value<float>(), "Gap opening penalty (default is 30.0)")
+      ("gap-extend,E", po::value<float>(), "Gap extension penalty (default is 2.0)")
+      ("threshold", po::value<float>(), "Homology threshold adjustment (default = 0.05)")
+      ("max-hits,m", po::value<uint32>(), "Maximum number of hits to include (default = 5000)")
+      ("fetch-dbrefs", "Fetch DBREF records for each UniProt ID")
+      ("verbose,v", "Verbose mode")
+      ("version", "Show version number")
       ;
 
     po::positional_options_description p;

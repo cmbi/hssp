@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
     po::options_description desc("mkdssp " XSSP_VERSION " options");
     desc.add_options()
       ("help,h", "Display help message")
-      ("input,i", po::value<std::string>(), "Input file")
+      ("input,i", po::value<std::string>(), "Input PDB file(.pdb) or mmCIF file (.cif/.mcif), optionally gzipped(.gz) or bzipped2(.bz2)")
       ("output,o",
        po::value<std::string>(),
        "Output file, use 'stdout' to output to screen")
