@@ -1,3 +1,12 @@
+# 2.2.6 (06-05-2015)
+
+	* Provide configure script
+	* Update contact details (#61) and citation info (#60)
+	* Update copyright information (#64)
+	* Add README.md (#62)
+	* Support .mcif extension mkdssp (#51)
+	* Support coordinate-only PDB files (#52)
+
 # 2.2.5 (06-10-2014)
 
 	* Minor fixes for compilation and execution
