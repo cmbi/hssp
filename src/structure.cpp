@@ -1095,21 +1095,30 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
     if (ba::starts_with(line, "COMPND"))
     {
       ba::trim_right(line);
-      mCompound = mCompound + line.substr(10);
+      if (line.length() >= 10)
+      {
+        mCompound = mCompound + line.substr(10);
+      }
       continue;
     }
 
     if (ba::starts_with(line, "SOURCE"))
     {
       ba::trim_right(line);
-      mSource = mSource + line.substr(10);
+      if (line.length() >= 10)
+      {
+        mSource = mSource + line.substr(10);
+      }
       continue;
     }
 
     if (ba::starts_with(line, "AUTHOR"))
     {
       ba::trim_right(line);
-      mAuthor = mAuthor + line.substr(10);
+      if (line.length() >= 10)
+      {
+        mAuthor = mAuthor + line.substr(10);
+      }
       continue;
     }
 
