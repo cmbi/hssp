@@ -7,8 +7,6 @@
 <head>
 	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
     <title>DSSP</title>
-    <meta name="author" content="Maarten L. Hekkelman" />
-    <meta name="generator" content="Japi" />
 	<!-- Date: maandag 11 april, 2011 -->
 
 <style type="text/css">
@@ -106,31 +104,18 @@ form h3 {
 
 	<h3>Web server &amp; service</h3>
 	
-	<p>We've created a web server to calculate DSSP files from PDB files. You can find the server at <a href="http://mrs.cmbi.ru.nl/hsspsoap/">http://mrs.cmbi.ru.nl/hsspsoap/</a> or you can use this form:</p>
+	<p>We've created a web server to calculate DSSP files from PDB files. You can find the server at <a href="http://www.cmbi.umcn.nl/xssp/">http://www.cmbi.umcn.nl/xssp/</a></p>
 	
-	<form action="http://mrs.cmbi.ru.nl/hsspsoap/PDB2DSSP" method="POST" enctype="multipart/form-data">
-		<h3>DSSP</h3>
-		Paste the contents of a PDB file in the box below or select a file and press 'Calculate DSSP'
-		<br/>
-
-		<textarea cols="80" name="pdb" rows="5"></textarea>
-		<br/>
-		<input type="file" name="pdbfile" maxlength="80" size="50" />
-		<br/>
-		<input type="submit" value="Calculate DSSP"/>
-		<input type="reset" name="Clear" value="Clear"/>
-	</form>
-	
-	<p>Of course, this web server can be used as a web service as well. Here is the <a href="http://mrs.cmbi.ru.nl/hsspsoap/wsdl">WSDL</a>.
+	<p>Of course, this web server can be used as a web service as well. Here is the <a href="http://www.cmbi.umcn.nl/xssp/api/">API</a>.
 	</p>
 	
 	<h3>Application</h3>
 	
-	<p>The current version of DSSP is available as a prebuilt binary for Windows and for Linux. You can download the binaries from <a href="ftp://ftp.cmbi.ru.nl/pub/software/dssp/">ftp://ftp.cmbi.ru.nl/pub/software/dssp/</a></p>
+    <p>The current version of DSSP is available from <a href="http://www.github.com/cmbi/xssp/">GitHub</a>. Older prebuilt binaries for Windows and for Linux can ben downloaded from <a href="ftp://ftp.cmbi.ru.nl/pub/software/dssp/">ftp://ftp.cmbi.ru.nl/pub/software/dssp/</a></p>
 
 	<p>Using the application is as simple as opening a terminal window (on Windows this is called the Command Prompt, you can find it under the Start menu, Desk Accessories). Then, in the terminal you type the command to execute dssp and the file to operate on, e.g.:</p>
 	
-	<blockquote><code>dssp-2 my-pdb.ent my-ss.dssp</code></blockquote>
+	<blockquote><code>mkdssp my-pdb.ent my-ss.dssp</code></blockquote>
 	
 	<p>In this example the PDB file called <code>my-pdb.ent</code> will be used as input and the file <code>my-ss.dssp</code> will be created containing the resulting DSSP output. If you omit this last parameter, the output will be written to your terminal instead.</p>
 
@@ -184,7 +169,7 @@ form h3 {
 
 	<h3>Source code</h3>
 	
-	<p>If you're interested in the source code for DSSP, please send me an e-mail at <a href="mailto:m.hekkelman@cmbi.ru.nl">m.hekkelman@cmbi.ru.nl</a>.</p>
+	<p>The source code is available on <a href="http://www.github.com/cmbi/xssp/">GitHub</a></p>
 	
 	<h3>History</h3>
 	
