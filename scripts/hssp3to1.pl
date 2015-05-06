@@ -193,7 +193,7 @@ DATE       file generated on $date
 SEQBASE    UniProt
 THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + 5
 REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991).
-CONTACT    Maintained at http://www.cmbi.ru.nl/ by Maarten L. Hekkelman <m.hekkelman\@cmbi.ru.nl>
+CONTACT    Maintained at http://www.cmbi.umcn.nl/ <xssp.cmbi\@radboudumc.nl>
 $header
 SEQLENGTH  $seqlen
 NCHAIN     $nchain chain(s) in $pdbid data set

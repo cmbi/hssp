@@ -125,7 +125,7 @@ std::string ResidueToDSSPLine(const MResidue& residue)
 
 void WriteDSSP(MProtein& protein, std::ostream& os)
 {
-  const std::string kFirstLine("==== Secondary Structure Definition by the program DSSP, CMBI version by M.L. Hekkelman/2010-10-21 ==== ");
+  const std::string kFirstLine("==== Secondary Structure Definition by the program DSSP, CMBI version ==== ");
   boost::format kHeaderLine("%1% %|127t|%2%");
 
   using namespace boost::gregorian;

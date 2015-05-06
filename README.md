@@ -74,8 +74,8 @@ Sander C and Schneider R, Proteins (1991) 9, 56-69.
 
 In 2013, maintenance of xssp has been taken over from Maarten Hekkelman by
 Coos Baakman, Jon Black, and Wouter Touw. If you want to provide feedback,
-either send an e-mail or have a look at [existing issues][5] (if
-necessary, create a new issue).
+either send an e-mail to xssp.cmbi@radboudumc.nl or have a look at
+[existing issues][5] (if necessary, create a new issue).
 
 
 [1]: http://swift.cmbi.ru.nl/gv/dssp/DSSP_5.html
