@@ -1,6 +1,6 @@
 #ifndef version_h
 #define version_h
 
-#define XSSP_VERSION "2.2.5"
+#define XSSP_VERSION "2.2.6"
 
 #endif
