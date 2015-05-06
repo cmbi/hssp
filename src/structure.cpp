@@ -1,4 +1,5 @@
 // Copyright Maarten L. Hekkelman, Radboud University 2008-2011.
+// Copyright Coos Baakman, Jon Black, Wouter G. Touw & Gert Vriend, Radboud university medical center 2015.
 //   Distributed under the Boost Software License, Version 1.0.
 //       (See accompanying file LICENSE_1_0.txt or copy at
 //             http://www.boost.org/LICENSE_1_0.txt)
@@ -1094,21 +1095,30 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
     if (ba::starts_with(line, "COMPND"))
     {
       ba::trim_right(line);
-      mCompound = mCompound + line.substr(10);
+      if (line.length() >= 10)
+      {
+        mCompound = mCompound + line.substr(10);
+      }
       continue;
     }
 
     if (ba::starts_with(line, "SOURCE"))
     {
       ba::trim_right(line);
-      mSource = mSource + line.substr(10);
+      if (line.length() >= 10)
+      {
+        mSource = mSource + line.substr(10);
+      }
       continue;
     }
 
     if (ba::starts_with(line, "AUTHOR"))
     {
       ba::trim_right(line);
-      mAuthor = mAuthor + line.substr(10);
+      if (line.length() >= 10)
+      {
+        mAuthor = mAuthor + line.substr(10);
+      }
       continue;
     }
 
@@ -1202,10 +1212,19 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       atom.mLoc.mY = ParseFloat(line.substr(38, 8));
       //  47 - 54  Real(8.3) z Orthogonal coordinates for Z in Angstroms.
       atom.mLoc.mZ = ParseFloat(line.substr(46, 8));
+
       //  55 - 60  Real(6.2) occupancy Occupancy.
-      atom.mOccupancy = ParseFloat(line.substr(54, 6));
+      if (line.length() > 54)
+      {
+        atom.mOccupancy = ParseFloat(line.substr(54, 6));
+      }
+
       //  61 - 66  Real(6.2) tempFactor Temperature factor.
-      atom.mTempFactor = ParseFloat(line.substr(60, 6));
+      if (line.length() > 60)
+      {
+        atom.mTempFactor = ParseFloat(line.substr(60, 6));
+      }
+
       //  77 - 78  LString(2) element Element symbol, right-justified.
       if (line.length() > 76)
         atom.mElement = ba::trim_copy(line.substr(76, 3));

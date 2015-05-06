@@ -1,4 +1,5 @@
 //  Copyright Maarten L. Hekkelman, Radboud University 2011.
+// Copyright Coos Baakman, Jon Black, Wouter G. Touw & Gert Vriend, Radboud university medical center 2015.
 // Distributed under the Boost Software License, Version 1.0.
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
@@ -827,7 +828,7 @@ void CreateHSSPOutput(const std::string& inProteinID,
      //<< "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << std::endl
      << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << std::endl
      << "REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991)." << std::endl
-     << "CONTACT    Maintained at http://www.cmbi.ru.nl/ by Maarten L. Hekkelman <m.hekkelman@cmbi.ru.nl>" << std::endl
+     << "CONTACT    Maintained at http://www.cmbi.umcn.nl/ <xssp.cmbi@radboudumc.nl>" << std::endl
      << inProteinDescription
      << boost::format("SEQLENGTH %5.5d") % inSeqLength << std::endl
      << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << std::endl;
@@ -1077,7 +1078,7 @@ int main(int argc, char* const argv[])
 {
   try
   {
-    po::options_description desc("MKHSSP options");
+    po::options_description desc("hsspconv options");
     desc.add_options()
       ("help,h", "Display help message")
       ("input,i", po::value<std::string>(), "Input PDB file (or PDB ID)")
