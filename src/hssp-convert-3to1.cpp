@@ -1078,7 +1078,7 @@ int main(int argc, char* const argv[])
 {
   try
   {
-    po::options_description desc("MKHSSP options");
+    po::options_description desc("hsspconv options");
     desc.add_options()
       ("help,h", "Display help message")
       ("input,i", po::value<std::string>(), "Input PDB file (or PDB ID)")

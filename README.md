@@ -65,9 +65,9 @@ Kabsch W and Sander C, Biopolymers (1983) 22, 2577-2637.
 The original reference for HSSP is:
 
 ```
-Database of homology derived protein structures and the structural
+Database of homology-derived protein structures and the structural
  meaning of sequence alignment.
-Sander C and Schneider R, Proteins (1991) 9, 56-69.
+Sander C and Schneider R, Proteins (1991) 9, 56-68.
 ```
 
 # Contact

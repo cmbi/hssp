@@ -41,17 +41,11 @@ int main(int argc, char* argv[])
     po::options_description desc("mkdssp " XSSP_VERSION " options");
     desc.add_options()
       ("help,h", "Display help message")
-      ("input,i",
-       po::value<std::string>(),
-       "Input PDB file (.pdb) or mmCIF file (.cif/.mcif), optionally compressed by gzip (.gz) or bzip2 (.bz2)")
-      ("output,o",
-       po::value<std::string>(),
-       "Output file, optionally compressed by gzip (.gz) or bzip2 (.bz2). Use 'stdout' to output to screen")
+      ("input,i", po::value<std::string>(), "Input PDB file (.pdb) or mmCIF file (.cif/.mcif), optionally compressed by gzip (.gz) or bzip2 (.bz2)")
+      ("output,o", po::value<std::string>(), "Output file, optionally compressed by gzip (.gz) or bzip2 (.bz2). Use 'stdout' to output to screen")
       ("verbose,v", "Verbose output")
-      ("version", "Print version")
-      ("debug,d",
-       po::value<int>(),
-       "Debug level (for even more verbose output)");
+      ("version", "Print version and citation info")
+      ("debug,d", po::value<int>(), "Debug level (for even more verbose output)");
 
     po::positional_options_description p;
     p.add("input", 1);
@@ -65,7 +59,17 @@ int main(int argc, char* argv[])
 
     if (vm.count("version")>0)
     {
-      std::cout << "mkdssp version " XSSP_VERSION << std::endl;
+      std::cout << "mkdssp version " XSSP_VERSION << std::endl
+         << std::endl
+         << "If you use DSSP, please cite: " << std::endl
+         << "Touw WG, Baakman C, Black J, te Beek TA, Krieger E, Joosten RP & Vriend G." << std::endl
+         << "A series of PDB-related databanks for everyday needs." << std::endl
+         << "Nucleic Acids Res. (2015) 43, D364-D368. doi: 10.1093/nar/gku1028." << std::endl
+         << std::endl
+         << "The original DSSP reference is: " << std::endl
+         << "Kabsch W & Sander C." << std::endl
+         << "Dictionary of protein secondary structure: pattern recognition of hydrogen-bonded and geometrical features." << std::endl
+         << "Biopolymers (1983) 22, 2577-2637. doi: 10.1002/bip.360221211." << std::endl;
       exit(0);
     }
 

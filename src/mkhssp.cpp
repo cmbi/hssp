@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
 
   try
   {
-    po::options_description desc("MKHSSP options");
+    po::options_description desc("mkhssp options");
     desc.add_options()
       ("help,h", "Display help message")
       ("input,i", po::value<std::string>(), "PDB ID or input PDB file (.pdb), mmCIF file (.cif/.mcif), or fasta file (.fa/.fasta), optionally compressed by gzip (.gz) or bzip2 (.bz2)")
@@ -70,8 +70,7 @@ int main(int argc, char* argv[])
       ("max-hits,m", po::value<uint32>(), "Maximum number of hits to include (default = 5000)")
       ("fetch-dbrefs", "Fetch DBREF records for each UniProt ID")
       ("verbose,v", "Verbose mode")
-      ("version", "Show version number")
-      ;
+      ("version", "Show version number and citation info");
 
     po::positional_options_description p;
     p.add("input", 1);
@@ -98,7 +97,17 @@ int main(int argc, char* argv[])
 
     if (vm.count("version")>0)
     {
-      std::cout << "mkhssp version " << XSSP_VERSION << std::endl;
+      std::cout << "mkhssp version " << XSSP_VERSION << std::endl
+         << std::endl
+         << "If you use HSSP, please cite: " << std::endl
+         << "Touw WG, Baakman C, Black J, te Beek TA, Krieger E, Joosten RP & Vriend G." << std::endl
+         << "A series of PDB-related databanks for everyday needs." << std::endl
+         << "Nucleic Acids Res. (2015) 43, D364-D368. doi: 10.1093/nar/gku1028." << std::endl
+         << std::endl
+         << "The original HSSP reference is: " << std::endl
+         << "Sander C & Schneider R." << std::endl
+         << "Database of homology-derived protein structures and the structural meaning of sequence alignment." << std::endl
+         << "Proteins (1991) 9, 56-68. doi: 10.1002/prot.340090107." << std::endl;
       exit(0);
     }
 
