@@ -40,7 +40,7 @@ To test the `mkdssp` executable type:
 
 To add the executables to /usr/local/bin type:
 
-    sudo make
+    sudo make install
 
 # Citing xssp
 
