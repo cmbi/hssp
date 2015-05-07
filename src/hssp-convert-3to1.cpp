@@ -14,8 +14,12 @@
 #include <boost/filesystem/fstream.hpp>
 #include <boost/foreach.hpp>
 #include <boost/iostreams/copy.hpp>
+
+#ifdef HAVE_LIBBZ2
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#endif
+
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/program_options.hpp>
@@ -1130,10 +1134,12 @@ int main(int argc, char* const argv[])
         throw mas_exception(
             boost::format("Could not open input file '%s'") % input);
 
+#ifdef HAVE_LIBBZ2
       if (input.extension() == ".bz2")
         in.push(io::bzip2_decompressor());
       else if (input.extension() == ".gz")
         in.push(io::gzip_decompressor());
+#endif
       in.push(ifs);
     }
 
@@ -1150,10 +1156,12 @@ int main(int argc, char* const argv[])
 
       io::filtering_stream<io::output> out;
 
+#ifdef HAVE_LIBBZ2
       if (output.extension() == ".bz2")
         out.push(io::bzip2_compressor());
       else if (output.extension() == ".gz")
         out.push(io::gzip_compressor());
+#endif
       out.push(ofs);
 
       ConvertHsspFile(in, out);

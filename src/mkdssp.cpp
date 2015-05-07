@@ -15,10 +15,12 @@
 #include <boost/program_options.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
-#if defined USE_COMPRESSION
+
+#ifdef HAVE_LIBBZ2
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #endif
+
 #include <boost/algorithm/string.hpp>
 
 #if defined(_MSC_VER)
@@ -116,7 +118,7 @@ int main(int argc, char* argv[])
 
     io::filtering_stream<io::input> in;
 
-#if defined USE_COMPRESSION
+#ifdef HAVE_LIBBZ2
     if (ba::ends_with(input, ".bz2"))
     {
       in.push(io::bzip2_decompressor());
@@ -155,7 +157,7 @@ int main(int argc, char* argv[])
         throw std::runtime_error("could not create output file");
 
       io::filtering_stream<io::output> out;
-#if defined USE_COMPRESSION
+#ifdef HAVE_LIBBZ2
       if (ba::ends_with(output, ".bz2"))
         out.push(io::bzip2_compressor());
       else if (ba::ends_with(output, ".gz"))

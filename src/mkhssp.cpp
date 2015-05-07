@@ -16,8 +16,12 @@
 #include <boost/foreach.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
+
+#ifdef HAVE_LIBBZ2
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#endif
+
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
@@ -171,6 +175,7 @@ int main(int argc, char* argv[])
     if (not infile.is_open())
       throw std::runtime_error("Error opening input file");
 
+#ifdef HAVE_LIBBZ2
     if (ba::ends_with(input, ".bz2"))
     {
       in.push(io::bzip2_decompressor());
@@ -181,6 +186,7 @@ int main(int argc, char* argv[])
       in.push(io::gzip_decompressor());
       input.erase(input.length() - 3, std::string::npos);
     }
+#endif
     in.push(infile);
 
     // Where to write our HSSP file to:
@@ -196,10 +202,12 @@ int main(int argc, char* argv[])
       if (not outfile.is_open())
         throw std::runtime_error("could not create output file");
 
+#ifdef HAVE_LIBBZ2
       if (ba::ends_with(outfilename.string(), ".bz2"))
         out.push(io::bzip2_compressor());
       else if (ba::ends_with(outfilename.string(), ".gz"))
         out.push(io::gzip_compressor());
+#endif
       out.push(outfile);
     }
     else

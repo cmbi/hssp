@@ -1,7 +1,6 @@
 bin_PROGRAMS	=	mkdssp mkhssp hsspconv test_xssp
 
-shared_LDADD =	-lzeep \
-								$(BOOST_DATE_TIME_LIB) \
+shared_LDADD =	$(BOOST_DATE_TIME_LIB) \
 								$(BOOST_FILESYSTEM_LIB) \
 								$(BOOST_IOSTREAMS_LIB) \
 								$(BOOST_PROGRAM_OPTIONS_LIB) \
@@ -59,7 +58,8 @@ mkhssp_SOURCES =	src/blast.cpp \
 									src/utils.h
 
 mkhssp_LDADD	=	$(shared_LDADD) \
-								-lboost_timer
+								-lboost_timer \
+								-lzeep
 
 hsspconv_SOURCES = src/hssp-convert-3to1.cpp \
 									 src/utils.cpp \
