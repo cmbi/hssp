@@ -1,7 +1,6 @@
-bin_PROGRAMS	=	mkdssp mkhssp hsspconv hsspsoap test_xssp
+bin_PROGRAMS	=	mkdssp mkhssp hsspconv test_xssp
 
-shared_LDADD =	-lzeep \
-								$(BOOST_DATE_TIME_LIB) \
+shared_LDADD =	$(BOOST_DATE_TIME_LIB) \
 								$(BOOST_FILESYSTEM_LIB) \
 								$(BOOST_IOSTREAMS_LIB) \
 								$(BOOST_PROGRAM_OPTIONS_LIB) \
@@ -59,7 +58,8 @@ mkhssp_SOURCES =	src/blast.cpp \
 									src/utils.h
 
 mkhssp_LDADD	=	$(shared_LDADD) \
-								-lboost_timer
+								-lboost_timer \
+								-lzeep
 
 hsspconv_SOURCES = src/hssp-convert-3to1.cpp \
 									 src/utils.cpp \
@@ -68,42 +68,8 @@ hsspconv_SOURCES = src/hssp-convert-3to1.cpp \
 
 hsspconv_LDADD	=	$(shared_LDADD)
 
-hsspsoap_SOURCES =	src/blast.cpp \
-										src/blast.h \
-										src/dssp.cpp \
-										src/dssp.h \
-										src/fetchdbrefs.cpp \
-										src/fetchdbrefs.h \
-										src/hssp-nt.cpp \
-										src/hssp-nt.h \
-										src/hsspsoap.cpp \
-										src/iocif.cpp \
-										src/iocif.h \
-										src/mas.cpp \
-										src/mas.h \
-										src/matrix.cpp \
-										src/matrix.h \
-										src/primitives-3d.cpp \
-										src/primitives-3d.h \
-										src/progress.cpp \
-										src/progress.h \
-										src/structure.cpp \
-										src/structure.h \
-										src/buffer.h \
-										src/align-2d.h \
-										src/utils.cpp \
-										src/utils.h \
-										rsrc/index.html \
-										rsrc/error.html
-
-hsspsoap_LDADD	=	$(shared_LDADD) \
-									-lboost_math_c99 \
-									-lbz2 -lz -lrt \
-									-lboost_timer \
-									rsrc/index.o \
-									rsrc/error.o
-
 test_xssp_SOURCES	=	src/fasta.cpp \
+										src/fasta.h \
 										src/iocif.cpp \
 										src/mas.cpp \
 										src/primitives-3d.cpp \
@@ -124,22 +90,16 @@ AM_CPPFLAGS	=	-std=c++0x \
 							-Werror \
 							-Wno-reorder \
 							$(BOOST_CPPFLAGS) \
-							-Isrc/
+							-I$(srcdir)/src/
 
 BUILT_SOURCES	=	mtrx/matrices.h
 CLEANFILES = mtrx/matrices.h
-
-rsrc/index.o: rsrc/index.html
-	ld -r -b binary -o rsrc/index.o rsrc/index.html
-
-rsrc/error.o: rsrc/error.html
-	ld -r -b binary -o rsrc/error.o rsrc/error.html
 
 mtrx/matrices.h: mtrx/mkmat_h.pl
 	$(PERL) mtrx/mkmat_h.pl mtrx/
 
 if HAVE_CPPCHECK
 cppcheck:
-		$(CPPCHECK) --quiet --enable=style src test
+		$(CPPCHECK) --quiet --enable=style $(srcdir)/src $(srcdir)/test
 check:	cppcheck
 endif

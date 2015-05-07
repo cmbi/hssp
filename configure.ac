@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([xssp], [2.2.6], [Jon.Black@radboudumc.nl])
+AC_INIT([xssp], [2.2.7], [Jon.Black@radboudumc.nl])
 AM_INIT_AUTOMAKE([subdir-objects])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
@@ -14,7 +14,7 @@ AC_PROG_CC
 AC_PROG_INSTALL
 AC_CHECK_PROGS([PERL], [perl], [yes])
 if test -z "$PERL"; then
-  AC_MSG_ERROR([perl not found - stopping])
+  AC_MSG_WARN([perl not found - cannot build mkhssp])
 fi
 AC_CHECK_PROGS([CPPCHECK], [cppcheck], [yes])
 if test -z "$CPPCHECK"; then
@@ -32,8 +32,10 @@ AX_BOOST_SYSTEM
 AX_BOOST_THREAD
 AX_BOOST_UNIT_TEST_FRAMEWORK
 AM_CONDITIONAL([HAVE_CPPCHECK], [test -n "$CPPCHECK"])
-AC_CHECK_LIB([zeep], [main], [], [AC_MSG_ERROR([libzeep not found])])
-AC_CHECK_LIB([bz2], [BZ2_bzCompress], [], [AC_MSG_ERROR([libbz2 not found])])
+AC_CHECK_LIB([zeep], [main], [ ],
+             [AC_MSG_WARN([libzeep not found - cannot build mkhssp])])
+AC_CHECK_LIB([bz2], [BZ2_bzCompress], [],
+             [AC_MSG_WARN([libbz2 not found - compressed files not supported])])
 
 # Checks for header files.
 AC_CHECK_HEADERS([sys/ioctl.h termios.h])

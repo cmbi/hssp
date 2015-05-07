@@ -1,3 +1,8 @@
+# 2.2.7 (07-05-2015)
+
+	* Remove hsspsoap
+	* Make perl, bz2, and libzeep optional
+
 # 2.2.6 (06-05-2015)
 
 	* Provide configure script
