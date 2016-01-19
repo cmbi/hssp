@@ -2,6 +2,13 @@ The source code for building the `mkdssp`, `mkhssp`, `hsspconv`, and
 `hsspsoap` programs is bundled in the `xssp` project. The DSSP executable is
 `mkdssp`.
 
+# Development
+
+The provided Dockerfile sets up a development environment. Build the docker
+image using the command `docker build -t xssp .` and run the image in a
+container, with a local source copy and data files mounted, with the command
+`docker run -v /home/jon/projects/xssp:/app -v /mnt/extra:/srv/data -it xssp`.
+
 # Download and installation instructions
 
 Pre-compiled *old* versions of DSSP are available from the
