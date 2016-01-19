@@ -4,6 +4,10 @@
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "fasta.h"
 #include "hssp-nt.h"
 #include "mas.h"

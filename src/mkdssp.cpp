@@ -6,6 +6,10 @@
 //
 // A DSSP reimplementation
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "dssp.h"
 #include "iocif.h"
 #include "mas.h"
@@ -119,6 +123,7 @@ int main(int argc, char* argv[])
     io::filtering_stream<io::input> in;
 
 #ifdef HAVE_LIBBZ2
+    std::cout << "have bz2" << std::endl;
     if (ba::ends_with(input, ".bz2"))
     {
       in.push(io::bzip2_decompressor());
@@ -129,6 +134,8 @@ int main(int argc, char* argv[])
       in.push(io::gzip_decompressor());
       input.erase(input.length() - 3);
     }
+#else
+    std::cout << "no bz2" << std::endl;
 #endif
 
     in.push(infile);

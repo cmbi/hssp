@@ -34,8 +34,10 @@ AX_BOOST_UNIT_TEST_FRAMEWORK
 AM_CONDITIONAL([HAVE_CPPCHECK], [test -n "$CPPCHECK"])
 AC_CHECK_LIB([zeep], [main], [ ],
              [AC_MSG_WARN([libzeep not found - cannot build mkhssp])])
-AC_CHECK_LIB([bz2], [BZ2_bzCompress], [],
-             [AC_MSG_WARN([libbz2 not found - compressed files not supported])])
+AX_CHECK_LIBRARY([LIBBZ2], [bzlib.h], [bz2], [],
+                 [AC_MSG_WARN([libbz2 not found - compressed files not supported])])
+AX_CHECK_LIBRARY([LIBZ], [zlib.h], [z], [],
+                 [AC_MSG_WARN([libz not found - compressed files not supported])])
 
 # Checks for header files.
 AC_CHECK_HEADERS([sys/ioctl.h termios.h])
