@@ -44,7 +44,6 @@ mkhssp_SOURCES =	src/blast.cpp \
 									src/matrix.cpp \
 									src/matrix.h \
 									mtrx/matrices.h \
-									mtrx/mkmat_h.pl \
 									src/mkhssp.cpp \
 									src/primitives-3d.cpp \
 									src/primitives-3d.h \
@@ -93,7 +92,16 @@ AM_CPPFLAGS	=	-std=c++0x \
 							-I$(srcdir)/src/
 
 BUILT_SOURCES	=	mtrx/matrices.h
-CLEANFILES = mtrx/matrices.h
+CLEANFILES =	mtrx/matrices.h
+EXTRA_DIST =	mtrx/mkmat_h.pl \
+							mtrx/BLOSUM30 \
+							mtrx/BLOSUM45 \
+							mtrx/BLOSUM62 \
+							mtrx/BLOSUM80 \
+							mtrx/GONNET250 \
+							mtrx/PAM20 \
+							mtrx/PAM350 \
+							mtrx/PAM60
 
 mtrx/matrices.h: mtrx/mkmat_h.pl
 	$(PERL) mtrx/mkmat_h.pl mtrx/
