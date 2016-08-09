@@ -1398,12 +1398,18 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
 
     std::pair<MResidueID,MResidueID> ssbond;
 
+    if (ss["ptnr1_label_seq_id"].compare(".") == 0 || ss["ptnr1_label_seq_id"].compare("?") == 0)
+      continue;
+
     ssbond.first.chain = ss["ptnr1_label_asym_id"];
     ssbond.first.seqNumber = boost::lexical_cast<uint16>(
         ss["ptnr1_label_seq_id"]);
     ssbond.first.insertionCode = ss["pdbx_ptnr1_PDB_ins_code"];
     if (ssbond.first.insertionCode == "?")
       ssbond.first.insertionCode.clear();
+
+    if (ss["ptnr2_label_seq_id"].compare(".") == 0 || ss["ptnr2_label_seq_id"].compare("?") == 0)
+      continue;
 
     ssbond.second.chain = ss["ptnr2_label_asym_id"];
     ssbond.second.seqNumber = boost::lexical_cast<uint16>(
@@ -1436,7 +1442,7 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
     a.mAltLoc = atom["label_alt_id"] == "." ? ' ' : atom["label_alt_id"][0];
     a.mResName = atom["auth_comp_id"];
     a.mChainID = atom["label_asym_id"];
-    a.mResSeq = boost::lexical_cast<int16>(atom["auth_seq_id"]);
+    a.mResSeq = boost::lexical_cast<uint32>(atom["auth_seq_id"]);
     a.mICode = atom["pdbx_PDB_ins_code"] == "?" ? "" : atom["pdbx_PDB_ins_code"];
 
     // map seq_id

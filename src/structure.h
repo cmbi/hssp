@@ -55,7 +55,7 @@ struct MAtom
   char    mAltLoc;
   std::string  mResName;
   std::string  mChainID;
-  int16    mResSeq;
+  uint32    mResSeq;
   std::string  mICode;
   MAtomType  mType;
   MPoint    mLoc;
