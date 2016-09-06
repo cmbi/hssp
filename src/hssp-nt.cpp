@@ -159,7 +159,7 @@ struct MResInfo
   uint8 m_letter;
   std::string m_chain_id;
   uint32 m_seq_nr;
-  uint32 m_pdb_nr;
+  int32 m_pdb_nr;
   MSecondaryStructure m_ss;
   std::string m_dssp;
   float m_consweight;
@@ -1442,7 +1442,7 @@ void CreateHSSP(const std::string& inProtein,
   MChain* chain = new MChain("A");
   std::vector<MResidue*>& residues = chain->GetResidues();
   MResidue* last = nullptr;
-  uint32 nr = 1;
+  int32 nr = 1;
   foreach (char r, inProtein)
   {
     residues.push_back(new MResidue(nr, r, last));

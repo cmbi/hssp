@@ -341,7 +341,7 @@ bool Linked(const MBridge& a, const MBridge& b)
 
 // --------------------------------------------------------------------
 
-MResidue::MResidue(uint32 inNumber, MResidue* inPrevious,
+MResidue::MResidue(int32 inNumber, MResidue* inPrevious,
                    const std::vector<MAtom>& inAtoms)
   : mPrev(inPrevious)
   , mNext(nullptr)
@@ -433,7 +433,7 @@ MResidue::MResidue(uint32 inNumber, MResidue* inPrevious,
     std::cerr << "Created residue " << mN.mResName << std::endl;
 }
 
-MResidue::MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious)
+MResidue::MResidue(int32 inNumber, char inTypeCode, MResidue* inPrevious)
   : mPrev(nullptr)
   , mNext(nullptr)
   , mSeqNumber(inNumber)
@@ -1684,7 +1684,7 @@ void MProtein::AddResidue(const std::vector<MAtom>& inAtoms)
     if (not residues.empty())
       prev = residues.back();
 
-    uint32 resNumber = mResidueCount + mChains.size() + mChainBreaks;
+    int32 resNumber = mResidueCount + mChains.size() + mChainBreaks;
     MResidue* r = new MResidue(resNumber, prev, inAtoms);
     // check for chain breaks
     if (prev != nullptr and not prev->ValidDistance(*r))

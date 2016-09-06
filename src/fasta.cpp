@@ -42,7 +42,7 @@ std::vector<MProtein*> read_proteins_from_fasta(std::istream& in)
     MChain* chain = new MChain("A");
     std::vector<MResidue*>& residues = chain->GetResidues();
     MResidue* last = nullptr;
-    uint32 nr = 1;
+    int32 nr = 1;
     for (auto& r: seq)
     {
       residues.push_back(new MResidue(nr, r, last));

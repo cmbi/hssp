@@ -55,7 +55,7 @@ struct MAtom
   char    mAltLoc;
   std::string  mResName;
   std::string  mChainID;
-  uint32    mResSeq;
+  int32    mResSeq;
   std::string  mICode;
   MAtomType  mType;
   MPoint    mLoc;
@@ -154,8 +154,8 @@ class MResidue
 {
   public:
             MResidue(const MResidue& residue);
-            MResidue(uint32 inNumber, char inTypeCode, MResidue* inPrevious);
-            MResidue(uint32 inNumber,
+            MResidue(int32 inNumber, char inTypeCode, MResidue* inPrevious);
+            MResidue(int32 inNumber,
               MResidue* inPrevious, const std::vector<MAtom>& inAtoms);
 
   void        SetChainID(const std::string& inChainID);
@@ -225,7 +225,7 @@ class MResidue
   // bridge functions
   MBridgeType      TestBridge(MResidue* inResidue) const;
 
-  uint16        GetSeqNumber() const    { return mSeqNumber; }
+  int16        GetSeqNumber() const    { return mSeqNumber; }
   std::string      GetInsertionCode() const  { return mInsertionCode; }
 
   void        SetNumber(uint16 inNumber)  { mNumber = inNumber; }
