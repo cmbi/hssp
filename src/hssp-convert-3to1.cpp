@@ -24,6 +24,7 @@
 #include <boost/iostreams/filter/gzip.hpp>
 #endif
 
+#include <boost/format.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/program_options.hpp>
@@ -797,7 +798,7 @@ uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
 
             if (r != residues[rix]->m_ri[8] and
                 not (r == 'C' or islower(residues[rix]->m_ri[8])))
-              throw mas_exception("Invalid hssp3 file");
+              throw mas_exception(boost::format {"Invalid hssp3 residue: \'%c\' expected to be \'%c\'"} % residues[rix]->m_ri[8] % r);
 
             residues[rix]->m_pos = pos;
             ++rix;
