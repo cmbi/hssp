@@ -27,6 +27,8 @@ mkdssp_SOURCES	=	src/dssp.cpp \
 
 mkdssp_LDADD	=	$(shared_LDADD)
 
+src/matrix.$(OBJEXT): mtrx/matrices.h
+
 mkhssp_SOURCES =	src/blast.cpp \
 									src/blast.h \
 									src/dssp.cpp \
