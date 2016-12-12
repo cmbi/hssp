@@ -98,7 +98,7 @@ void FetchHTTPDocument(const std::string& inServer, const std::string& inURL,
   response_stream >> status_code;
   std::string status_message;
   getline(response_stream, status_message);
-  if (response_stream == false or http_version.substr(0, 5) != "HTTP/")
+  if (!response_stream or http_version.substr(0, 5) != "HTTP/")
     throw mas_exception("Invalid response");
 
   if (status_code != 200)
@@ -205,7 +205,7 @@ void FetchHTTPDocument(const std::string& inServer, const std::string& inURL,
   response_stream >> status_code;
   std::string status_message;
   getline(response_stream, status_message);
-  if (response_stream == false or http_version.substr(0, 5) != "HTTP/")
+  if (!response_stream or http_version.substr(0, 5) != "HTTP/")
     throw mas_exception("Invalid response");
 
   if (status_code != 200)
