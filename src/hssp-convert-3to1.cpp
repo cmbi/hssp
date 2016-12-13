@@ -781,10 +781,19 @@ uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
       std::string id = line.substr(0, idWidth);
       ba::trim(id);
 
+      if (id.length() <= 0)
+        throw mas_exception(boost::format{
+          "Encountered an empty id in alignment line: \"%1%\""} % line);
+
       std::string seq = line.substr(idWidth);
 
       if (id == qid)
       {
+        if (index.find(id) == index.end())
+          throw mas_exception(boost::format{
+            "id \"%1%\" is encountered in the alignment, but not in the header"
+          } % id);
+
         uint32 pos = msa[index[id]].length();
         foreach (char r, seq)
         {

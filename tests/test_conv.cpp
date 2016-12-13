@@ -6,17 +6,21 @@
 #include <fstream>
 
 #include "hssp-convert-3to1.h"
+#include "utils.h"
 
 BOOST_AUTO_TEST_SUITE(test_hsspconv_suite)
 
 BOOST_AUTO_TEST_CASE(test_conv_4s1h)
 {
     std::ifstream in;
-    in.open("test-data/4s1h.sto");
+    in.open("test-data/wrong1.sto");
 
     std::ostringstream out;
 
-    ConvertHsspFile(in, out);
+    BOOST_CHECK_THROW(
+        ConvertHsspFile(in, out),
+        mas_exception
+    );
 
     in.close();
 }
