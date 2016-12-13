@@ -1,4 +1,4 @@
-bin_PROGRAMS	=	mkdssp mkhssp hsspconv test_xssp
+bin_PROGRAMS	=	mkdssp mkhssp hsspconv test_fasta test_conv
 
 shared_LDADD =	$(BOOST_DATE_TIME_LIB) \
 								$(BOOST_FILESYSTEM_LIB) \
@@ -62,14 +62,22 @@ mkhssp_LDADD	=	$(shared_LDADD) \
 								-lboost_timer \
 								-lzeep
 
-hsspconv_SOURCES = src/hssp-convert-3to1.cpp \
+hsspconv_SOURCES = src/hssp-convert-3to1.cpp src/hsspconv.cpp \
 									 src/utils.cpp \
 									 src/utils.h
 
-
 hsspconv_LDADD	=	$(shared_LDADD)
 
-test_xssp_SOURCES	=	src/fasta.cpp \
+test_conv_SOURCES = src/hssp-convert-3to1.cpp \
+					src/utils.cpp \
+					src/utils.h \
+					src/mas.cpp \
+					tests/test_conv.cpp
+
+test_conv_LDADD = $(shared_LDADD) $(BOOST_UNIT_TEST_FRAMEWORK_LIB)
+
+
+test_fasta_SOURCES	=	src/fasta.cpp \
 										src/fasta.h \
 										src/iocif.cpp \
 										src/mas.cpp \
@@ -82,7 +90,7 @@ test_xssp_SOURCES	=	src/fasta.cpp \
 										src/utils.cpp \
 										tests/test_fasta.cpp
 
-test_xssp_LDADD	=	$(shared_LDADD) \
+test_fasta_LDADD	=	$(shared_LDADD) \
 									$(BOOST_UNIT_TEST_FRAMEWORK_LIB)
 
 AM_CPPFLAGS	=	-std=c++11 \

@@ -1,5 +1,5 @@
 #define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE Main
+#define BOOST_TEST_MODULE Fasta
 
 
 #include "fasta.h"
