@@ -21,3 +21,5 @@ RUN make ; make install ; ldconfig
 WORKDIR /app
 
 COPY . /app
+
+RUN ./autogen.sh && ./configure && make mkhssp mkdssp hsspconv
