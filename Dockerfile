@@ -22,4 +22,4 @@ WORKDIR /app
 
 COPY . /app
 
-RUN ./autogen.sh && ./configure && make mkhssp mkdssp hsspconv
+RUN ./autogen.sh && ./configure && make
