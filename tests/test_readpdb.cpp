@@ -1,3 +1,6 @@
+#define BOOST_TEST_DYN_LINK
+#define BOOST_TEST_MODULE ReadPDB
+
 #include "structure.h"
 
 #include <boost/test/unit_test.hpp>

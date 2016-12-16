@@ -1,4 +1,4 @@
-bin_PROGRAMS	=	mkdssp mkhssp hsspconv test_fasta test_conv
+bin_PROGRAMS	=	mkdssp mkhssp hsspconv test_fasta test_conv test_readpdb
 
 shared_LDADD =	$(BOOST_DATE_TIME_LIB) \
 								$(BOOST_FILESYSTEM_LIB) \
@@ -88,11 +88,25 @@ test_fasta_SOURCES	=	src/fasta.cpp \
 										src/buffer.h \
 										src/align-2d.h \
 										src/utils.cpp \
-										tests/main_test_module.cpp \
-										tests/test_fasta.cpp \
-										tests/test_readpdb.cpp
+										tests/test_fasta.cpp
 
 test_fasta_LDADD	=	$(shared_LDADD) \
+									$(BOOST_UNIT_TEST_FRAMEWORK_LIB)
+
+test_readpdb_SOURCES	=	src/fasta.cpp \
+										src/fasta.h \
+										src/iocif.cpp \
+										src/mas.cpp \
+										src/primitives-3d.cpp \
+										src/primitives-3d.h \
+										src/structure.cpp \
+										src/structure.h \
+										src/buffer.h \
+										src/align-2d.h \
+										src/utils.cpp \
+										tests/test_readpdb.cpp
+
+test_readpdb_LDADD	=	$(shared_LDADD) \
 									$(BOOST_UNIT_TEST_FRAMEWORK_LIB)
 
 AM_CPPFLAGS	=	-std=c++11 \
