@@ -88,7 +88,9 @@ test_fasta_SOURCES	=	src/fasta.cpp \
 										src/buffer.h \
 										src/align-2d.h \
 										src/utils.cpp \
-										tests/test_fasta.cpp
+										tests/main_test_module.cpp \
+										tests/test_fasta.cpp \
+										tests/test_readpdb.cpp
 
 test_fasta_LDADD	=	$(shared_LDADD) \
 									$(BOOST_UNIT_TEST_FRAMEWORK_LIB)

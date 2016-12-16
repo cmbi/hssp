@@ -971,10 +971,10 @@ void MChain::WritePDB(std::ostream& os)
   os << (ter % (last->GetCAlpha().mSerial + 1) % kResidueInfo[last->GetType()].name % mChainID % last->GetNumber() % ' ') << std::endl;
 }
 
-MResidue* MChain::GetResidueBySeqNumber(uint16 inSeqNumber,
-                                        const std::string& inInsertionCode)
+const MResidue* MChain::GetResidueBySeqNumber(uint16 inSeqNumber,
+                                              const std::string& inInsertionCode) const
 {
-  std::vector<MResidue*>::iterator r = find_if(mResidues.begin(), mResidues.end(),
+  const auto r = find_if(mResidues.begin(), mResidues.end(),
     boost::bind(&MResidue::GetSeqNumber, _1) == inSeqNumber and
     boost::bind(&MResidue::GetInsertionCode, _1) == inInsertionCode);
   if (r == mResidues.end())
@@ -2228,11 +2228,24 @@ void MProtein::SetChain(const std::string& inChainID, const MChain& inChain)
   chain.SetChainID(inChainID);
 }
 
+// Non-const overload, implemented in terms of the const overload
 MResidue* MProtein::GetResidue(const std::string& inChainID,
                                uint16 inSeqNumber,
                                const std::string& inInsertionCode)
 {
-  MChain& chain = GetChain(inChainID);
+  return const_cast<MResidue *>( static_cast<const MProtein &>( *this ).GetResidue(
+    inChainID,
+    inSeqNumber,
+    inInsertionCode
+  ) );
+}
+
+// Const overload
+const MResidue* MProtein::GetResidue(const std::string& inChainID,
+                                     uint16 inSeqNumber,
+                                     const std::string& inInsertionCode) const
+{
+  const MChain& chain = GetChain(inChainID);
   if (chain.GetResidues().empty())
     throw mas_exception(boost::format("Invalid chain id '%s'") % inChainID);
   return chain.GetResidueBySeqNumber(inSeqNumber, inInsertionCode);

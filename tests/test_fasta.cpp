@@ -1,15 +1,10 @@
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE Fasta
-
-
 #include "fasta.h"
 
 #include <boost/test/unit_test.hpp>
 
 #include <sstream>
 
-
-BOOST_AUTO_TEST_SUITE(test_mkhssp_suite)
+BOOST_AUTO_TEST_SUITE(fasta_test_suite)
 
 BOOST_AUTO_TEST_CASE(test_read_proteins_from_fasta_single)
 {
