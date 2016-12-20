@@ -299,8 +299,8 @@ class MChain
   std::string      GetChainID() const          { return mChainID; }
   void        SetChainID(const std::string& inChainID);
 
-  MResidue*      GetResidueBySeqNumber(uint16 inSeqNumber,
-                                       const std::string& inInsertionCode);
+  const MResidue*      GetResidueBySeqNumber(uint16 inSeqNumber,
+                                             const std::string& inInsertionCode) const;
 
   void        GetSequence(std::string& outSequence) const;
 
@@ -382,6 +382,9 @@ class MProtein
 
   MResidue* GetResidue(const std::string& inChainID, uint16 inSeqNumber,
                        const std::string& inInsertionCode);
+
+  const MResidue* GetResidue(const std::string& inChainID, uint16 inSeqNumber,
+                             const std::string& inInsertionCode) const;
 
   // statistics
   uint32 GetNrOfHBondsInParallelBridges() const

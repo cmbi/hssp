@@ -19,6 +19,7 @@
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/math/special_functions/round.hpp>
+#include <boost/optional.hpp>
 
 #include <set>
 #include <numeric>
@@ -26,6 +27,9 @@
 
 namespace ba = boost::algorithm;
 namespace bm = boost::math;
+
+using boost::none;
+using boost::optional;
 
 #define foreach BOOST_FOREACH
 // --------------------------------------------------------------------
@@ -967,10 +971,10 @@ void MChain::WritePDB(std::ostream& os)
   os << (ter % (last->GetCAlpha().mSerial + 1) % kResidueInfo[last->GetType()].name % mChainID % last->GetNumber() % ' ') << std::endl;
 }
 
-MResidue* MChain::GetResidueBySeqNumber(uint16 inSeqNumber,
-                                        const std::string& inInsertionCode)
+const MResidue* MChain::GetResidueBySeqNumber(uint16 inSeqNumber,
+                                              const std::string& inInsertionCode) const
 {
-  std::vector<MResidue*>::iterator r = find_if(mResidues.begin(), mResidues.end(),
+  const auto r = find_if(mResidues.begin(), mResidues.end(),
     boost::bind(&MResidue::GetSeqNumber, _1) == inSeqNumber and
     boost::bind(&MResidue::GetInsertionCode, _1) == inInsertionCode);
   if (r == mResidues.end())
@@ -1070,6 +1074,7 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
   std::vector<MAtom> atoms;
   char firstAltLoc = 0;
   bool atomSeen = false;
+  optional<MAtom> prevAtom;
 
   while (not is.eof())
   {
@@ -1173,6 +1178,7 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       atoms.clear();
       firstAltLoc = 0;
       atomSeen = false;
+      prevAtom = none;
 
       terminatedChains.insert(line[21]);
 
@@ -1232,17 +1238,26 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       atom.mCharge = 0;
 
 //      alternative test, check chain ID as well.
-      if (not atoms.empty() and
-        (atom.mChainID != atoms.back().mChainID or
-         (atom.mResSeq != atoms.back().mResSeq or
-          (atom.mResSeq == atoms.back().mResSeq and
-           atom.mICode != atoms.back().mICode))))
+      if (prevAtom
+          &&
+          (
+            atom.mChainID != prevAtom->mChainID
+            ||
+            atom.mResSeq  != prevAtom->mResSeq
+            ||
+            atom.mICode   != prevAtom->mICode
+          )
+        )
 //      if (not atoms.empty() and
 //        (atom.mResSeq != atoms.back().mResSeq or (atom.mResSeq == atoms.back().mResSeq and atom.mICode != atoms.back().mICode)))
       {
-        AddResidue(atoms);
-        atoms.clear();
+        if ( ! atoms.empty() )
+        {
+          AddResidue(atoms);
+          atoms.clear();
+        }
         firstAltLoc = 0;
+        prevAtom    = none;
       }
 
       try
@@ -1258,6 +1273,8 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
 
       if (atom.mType == kHydrogen)
         continue;
+
+      prevAtom = atom;
 
       if (atom.mAltLoc != ' ')
       {
@@ -2211,11 +2228,24 @@ void MProtein::SetChain(const std::string& inChainID, const MChain& inChain)
   chain.SetChainID(inChainID);
 }
 
+// Non-const overload, implemented in terms of the const overload
 MResidue* MProtein::GetResidue(const std::string& inChainID,
                                uint16 inSeqNumber,
                                const std::string& inInsertionCode)
 {
-  MChain& chain = GetChain(inChainID);
+  return const_cast<MResidue *>( static_cast<const MProtein &>( *this ).GetResidue(
+    inChainID,
+    inSeqNumber,
+    inInsertionCode
+  ) );
+}
+
+// Const overload
+const MResidue* MProtein::GetResidue(const std::string& inChainID,
+                                     uint16 inSeqNumber,
+                                     const std::string& inInsertionCode) const
+{
+  const MChain& chain = GetChain(inChainID);
   if (chain.GetResidues().empty())
     throw mas_exception(boost::format("Invalid chain id '%s'") % inChainID);
   return chain.GetResidueBySeqNumber(inSeqNumber, inInsertionCode);
