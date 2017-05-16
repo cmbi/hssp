@@ -1015,6 +1015,7 @@ struct MResidueID
 
 MProtein::MProtein()
   : mResidueCount(0)
+  , mID("unknown")
   , mChainBreaks(0)
   , mIgnoredWaterMolecules(0)
   , mNrOfHBondsInParallelBridges(0)
