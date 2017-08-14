@@ -33,7 +33,7 @@ std::string ResidueToDSSPLine(const MResidue& residue)
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA           CHAIN AUTHCHAIN
  */
   boost::format kDSSPResidueLine(
-  "%5.5d%5.5d%1.1s%1.1s %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f           %4.4s  %4.4s");
+  "%5.5d%5.5d%1.1s%1.1s %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f             %4.4s      %4.4s");
 
   const MAtom& ca = residue.GetCAlpha();
 
