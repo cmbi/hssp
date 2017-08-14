@@ -299,6 +299,9 @@ class MChain
   std::string      GetChainID() const          { return mChainID; }
   void        SetChainID(const std::string& inChainID);
 
+  std::string GetAuthChainID(void) const;
+  void SetAuthChainID(const std::string &inAuthChainID);
+
   const MResidue*      GetResidueBySeqNumber(uint16 inSeqNumber,
                                              const std::string& inInsertionCode) const;
 
@@ -317,7 +320,8 @@ class MChain
   bool        Empty() const            { return mResidues.empty(); }
 
   private:
-  std::string      mChainID;
+  std::string      mChainID,
+                   mAuthChainID;
   std::vector<MResidue*>
             mResidues;
 };

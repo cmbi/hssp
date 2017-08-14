@@ -115,15 +115,13 @@ std::string ResidueToDSSPLine(const MResidue& residue)
   }
 
   std::string chainChar = ca.mChainID,
-                          long_ChainID1 = "<",
-                          long_ChainID2 = "<";
+                          long_ChainID1 = ca.mChainID,
+                          long_ChainID2 = ca.mAuthChainID;
   if (ca.mChainID.length () > 1)
   {
     // For mmCIF compatibility
 
     chainChar = ">";
-    long_ChainID1 = ca.mChainID;
-    long_ChainID2 = ca.mAuthChainID;
   }
 
   return (kDSSPResidueLine % residue.GetNumber() % ca.mResSeq % ca.mICode % chainChar % code %

@@ -947,6 +947,16 @@ void MChain::SetChainID(const std::string& inChainID)
            boost::bind(&MResidue::SetChainID, _1, inChainID));
 }
 
+void MChain::SetAuthChainID(const std::string& inAuthChainID)
+{
+  mAuthChainID = inAuthChainID;
+}
+
+std::string MChain::GetAuthChainID(void) const
+{
+  return mAuthChainID;
+}
+
 void MChain::Translate(const MPoint& inTranslation)
 {
   for_each(mResidues.begin(), mResidues.end(),
@@ -1697,6 +1707,8 @@ void MProtein::AddResidue(const std::vector<MAtom>& inAtoms)
   if (hasN and hasCA and hasC and hasO)
   {
     MChain& chain = GetChain(inAtoms.front().mChainID);
+    chain.SetAuthChainID(inAtoms.front().mAuthChainID);
+
     std::vector<MResidue*>& residues(chain.GetResidues());
 
     MResidue* prev = nullptr;
