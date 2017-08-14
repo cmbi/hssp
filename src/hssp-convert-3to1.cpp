@@ -750,6 +750,7 @@ uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
           index[id] = msa.size();
           hits.push_back(
               hit_ptr(new Hit(msa.size(), queryNr, chainId, offset)));
+
           msa.push_back(seq(id));
         }
 
@@ -922,7 +923,9 @@ void CreateHSSPOutput(const std::string& inProteinID,
   // print the alignments
   for (uint32 i = 0; i < hits.size(); i += 70)
   {
-    uint32 n = i + 70;
+    uint32 m = i + 70,
+           n = m,
+           j;
     if (n > hits.size())
       n = hits.size();
 
@@ -961,6 +964,10 @@ void CreateHSSPOutput(const std::string& inProteinID,
           else
             aln += ' ';
         }
+
+        // Add whitespace placeholders.
+        for (j = n; j < m; j++)
+          aln += ' ';
       }
 
       os << boost::format(" %5.5d") % nr << ri->m_ri.substr(0, 43) << "  " << aln << ri->m_ri.substr(43) << std::endl;
