@@ -1206,6 +1206,7 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       atom.mResName = ba::trim_copy(line.substr(17, 4));
       //  22    Character chainID Chain identifier.
       atom.mChainID = line[21];
+      atom.mAuthChainID = atom.mChainID;
       //  23 - 26  Integer resSeq Residue sequence number.
       atom.mResSeq = boost::lexical_cast<int16>(
           ba::trim_copy(line.substr(22, 4)));
@@ -1459,6 +1460,7 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
     a.mAltLoc = atom["label_alt_id"] == "." ? ' ' : atom["label_alt_id"][0];
     a.mResName = atom["auth_comp_id"];
     a.mChainID = atom["label_asym_id"];
+    a.mAuthChainID = atom["auth_asym_id"];
     a.mResSeq = boost::lexical_cast<uint32>(atom["auth_seq_id"]);
     a.mICode = atom["pdbx_PDB_ins_code"] == "?" ? "" : atom["pdbx_PDB_ins_code"];
 

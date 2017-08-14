@@ -54,7 +54,7 @@ struct MAtom
   std::string  mName;
   char    mAltLoc;
   std::string  mResName;
-  std::string  mChainID;
+  std::string  mChainID, mAuthChainID;
   int32    mResSeq;
   std::string  mICode;
   MAtomType  mType;
