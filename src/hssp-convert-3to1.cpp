@@ -750,6 +750,7 @@ uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
           index[id] = msa.size();
           hits.push_back(
               hit_ptr(new Hit(msa.size(), queryNr, chainId, offset)));
+
           msa.push_back(seq(id));
         }
 
@@ -840,7 +841,7 @@ void CreateHSSPOutput(const std::string& inProteinID,
                       std::ostream& os)
 {
   // print the header
-  os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 2.0 2011" << std::endl
+  os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 3.0 2017" << std::endl
      << "PDBID      " << inProteinID << std::endl
      //<< "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << std::endl
      << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << std::endl
@@ -922,7 +923,9 @@ void CreateHSSPOutput(const std::string& inProteinID,
   // print the alignments
   for (uint32 i = 0; i < hits.size(); i += 70)
   {
-    uint32 n = i + 70;
+    uint32 m = i + 70,
+           n = m,
+           j;
     if (n > hits.size())
       n = hits.size();
 
@@ -938,7 +941,7 @@ void CreateHSSPOutput(const std::string& inProteinID,
 
     os << boost::format("## ALIGNMENTS %4.4d - %4.4d") % (i + 1) % n << std::endl
        << boost::format(" SeqNo  PDBNo AA STRUCTURE BP1 BP2  ACC NOCC  VAR  ....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d")
-                 % k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << std::endl;
+                 % k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << " CHAIN AUTHCHAIN" << std::endl;
 
     res_ptr last;
     uint32 nr = 1;
@@ -961,16 +964,20 @@ void CreateHSSPOutput(const std::string& inProteinID,
           else
             aln += ' ';
         }
+
+        // Add whitespace placeholders.
+        for (j = n; j < m; j++)
+          aln += ' ';
       }
 
-      os << boost::format(" %5.5d") % nr << ri->m_ri << "  " << aln << std::endl;
+      os << boost::format(" %5.5d") % nr << ri->m_ri.substr(0, 43) << "  " << aln << ri->m_ri.substr(43) << std::endl;
       ++nr;
     }
   }
 
   // ## SEQUENCE PROFILE AND ENTROPY
   os << "## SEQUENCE PROFILE AND ENTROPY" << std::endl
-     << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << std::endl;
+     << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT CHAIN AUTHCHAIN" << std::endl;
 
   res_ptr last;
   nr = 1;

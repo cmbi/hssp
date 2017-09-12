@@ -157,7 +157,8 @@ float calculateDistance(const sequence& a, const sequence& b)
 struct MResInfo
 {
   uint8 m_letter;
-  std::string m_chain_id;
+  std::string m_chain_id,
+              m_auth_chain_id;
   uint32 m_seq_nr;
   int32 m_pdb_nr;
   MSecondaryStructure m_ss;
@@ -379,7 +380,7 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence,
       ++seq_nr;
 
     std::string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
-    MResInfo res = { inSequence[i], m_chain.GetChainID(), seq_nr,
+    MResInfo res = { inSequence[i], m_chain.GetChainID(), m_chain.GetAuthChainID(), seq_nr,
       (*ri)->GetSeqNumber(), (*ri)->GetSecondaryStructure(), dssp };
     res.Add(res.m_letter, 0);
     m_residues.push_back(res);
@@ -825,7 +826,7 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
 
   uint32 nextNr = m_residues.front().m_seq_nr;
   os << "#=GF CC ## RESIDUE INFORMATION" << std::endl
-     << "#=GF CC SeqNo   PDBNo AA STRUCTURE BP1 BP2  ACC  NOCC VAR"
+     << "#=GF CC SeqNo   PDBNo AA STRUCTURE BP1 BP2  ACC  NOCC VAR CHAIN AUTHCHAIN"
      << std::endl;
   foreach (auto& ri, m_residues)
   {
@@ -836,14 +837,16 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
       os << boost::format("#=GF RI %5.5d       ! !              0   0    0     0   0") % nextNr << std::endl;
 
     uint32 ivar = uint32(100 * (1 - ri.m_consweight));
-    os << boost::format("#=GF RI %5.5d %s%5.5d%4.4d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar << std::endl;
+    os << boost::format("#=GF RI %5.5d %s%5.5d%4.4d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar;
+
+    os << boost::format("  %4.4s      %4.4s") % ri.m_chain_id % ri.m_auth_chain_id << std::endl;
 
     nextNr = ri.m_seq_nr + 1;
   }
 
   // ## SEQUENCE PROFILE AND ENTROPY
   os << "#=GF CC ## SEQUENCE PROFILE AND ENTROPY" << std::endl
-     << "#=GF CC   SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT" << std::endl;
+     << "#=GF CC   SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT CHAIN AUTHCHAIN" << std::endl;
 
   nextNr = m_residues.front().m_seq_nr;
   foreach (auto& ri, m_residues)
@@ -855,13 +858,19 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
       os << boost::format("#=GF PR %5.5d           0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0     0    0    0   0.000      0  1.00")
         % nextNr << std::endl;
 
-    os << boost::format("#=GF PR %5.5d %5.5d %1.1s") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_chain_id;
+    char chainChar = '>';
+    if (ri.m_chain_id.length() <= 1)
+        chainChar = ri.m_chain_id[0];
+
+    os << boost::format("#=GF PR %5.5d %5.5d %1.1s") % ri.m_seq_nr % ri.m_pdb_nr % chainChar;
 
     for (uint32 i = 0; i < 20; ++i)
       os << boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
 
     uint32 relent = uint32(100 * ri.m_entropy / log(20.0));
-    os << "  " << boost::format("%4.4d %4.4d %4.4d  %6.3f   %4.4d %5.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight << std::endl;
+    os << "  " << boost::format("%4.4d %4.4d %4.4d  %6.3f   %4.4d %5.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight;
+
+    os << boost::format("   %4.4s      %4.4s") % ri.m_chain_id % ri.m_auth_chain_id << std::endl;
 
     nextNr = ri.m_seq_nr + 1;
   }

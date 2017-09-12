@@ -30,10 +30,10 @@ std::string ResidueToDSSPLine(const MResidue& residue)
 /*
   This is the header line for the residue lines in a DSSP file:
 
-  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA           CHAIN
+  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA           CHAIN AUTHCHAIN
  */
   boost::format kDSSPResidueLine(
-  "%5.5d%5.5d%1.1s%1.1s %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f           %4.4s");
+  "%5.5d%5.5d%1.1s%1.1s %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f             %4.4s      %4.4s");
 
   const MAtom& ca = residue.GetCAlpha();
 
@@ -115,13 +115,13 @@ std::string ResidueToDSSPLine(const MResidue& residue)
   }
 
   std::string chainChar = ca.mChainID,
-                          long_ChainID = "";
+                          long_ChainID1 = ca.mChainID,
+                          long_ChainID2 = ca.mAuthChainID;
   if (ca.mChainID.length () > 1)
   {
     // For mmCIF compatibility
 
     chainChar = ">";
-    long_ChainID = ca.mChainID;
   }
 
   return (kDSSPResidueLine % residue.GetNumber() % ca.mResSeq % ca.mICode % chainChar % code %
@@ -129,12 +129,12 @@ std::string ResidueToDSSPLine(const MResidue& residue)
     bp[0] % bp[1] % sheet % floor(residue.Accessibility() + 0.5) %
     NHO[0] % ONH[0] % NHO[1] % ONH[1] %
     residue.TCO() % residue.Kappa() % alpha % residue.Phi() % residue.Psi() %
-    ca.mLoc.mX % ca.mLoc.mY % ca.mLoc.mZ % long_ChainID).str();
+    ca.mLoc.mX % ca.mLoc.mY % ca.mLoc.mZ % long_ChainID1 % long_ChainID2).str();
 }
 
 void WriteDSSP(MProtein& protein, std::ostream& os)
 {
-  const std::string kFirstLine("==== Secondary Structure Definition by the program DSSP, CMBI version 2.0                          ==== ");
+  const std::string kFirstLine("==== Secondary Structure Definition by the program DSSP, CMBI version 3.0                          ==== ");
   boost::format kHeaderLine("%1% %|127t|%2%");
 
   using namespace boost::gregorian;
@@ -216,7 +216,7 @@ void WriteDSSP(MProtein& protein, std::ostream& os)
 
   // per residue information
 
-  os << "  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA            CHAIN" << std::endl;
+  os << "  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA            CHAIN AUTHCHAIN" << std::endl;
   boost::format kDSSPResidueLine(
     "%5.5d        !%c             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");
 
