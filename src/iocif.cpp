@@ -275,9 +275,12 @@ file::file(std::istream& is)
       }
 
       if (not rec.m_loop)
+      {
         p = skip_value(p, m_end);
+      }
 
       loop = false;
+
       continue;
     }
 
@@ -289,6 +292,7 @@ file::file(std::istream& is)
 
     p = skip_value(p, m_end);
     p = skip_white(p, m_end);
+
 
     // check for a new data_ block
     if (p != m_end and strncmp(p, "data_", 5) == 0)
@@ -400,14 +404,14 @@ const char* skip_value(const char* p, const char* end)
 
     if (*p == '\'')
     {
-      do ++p; while (p != end and *p != '\'');
+      do ++p; while (p != end and not (*p == '\'' and isspace(*(p + 1))));
       ++p;
       break;
     }
 
     if (*p == '\"')
     {
-      do ++p; while (p != end and *p != '\"');
+      do ++p; while (p != end and not (*p == '\"' and isspace(*(p + 1))));
       ++p;
       break;
     }
