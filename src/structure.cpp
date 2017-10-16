@@ -1456,10 +1456,18 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
   // remap label_seq_id to auth_seq_id
   std::map<std::string, std::map<int,int> > seq_id_map;
 
+  bool hasModelNum = false;
+  int modelNum = 0;
+
   foreach (const mmCIF::row& atom, data["_atom_site"])
   {
-    // skip over NMR models > 1
-    if (atoi(atom["pdbx_PDB_model_num"].c_str()) > 1)
+    // skip over NMR models other than the first
+    if (!hasModelNum)
+    {
+      modelNum = atoi(atom["pdbx_PDB_model_num"].c_str());
+      hasModelNum = true;
+    }
+    if (atoi(atom["pdbx_PDB_model_num"].c_str()) != modelNum)
       continue;
 
     std::string label_seq_id = atom["label_seq_id"];
