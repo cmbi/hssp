@@ -161,6 +161,7 @@ struct MResInfo
               m_auth_chain_id;
   uint32 m_seq_nr;
   int32 m_pdb_nr;
+  std::string m_ins_code;
   MSecondaryStructure m_ss;
   std::string m_dssp;
   float m_consweight;
@@ -381,7 +382,7 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence,
 
     std::string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
     MResInfo res = { inSequence[i], m_chain.GetChainID(), m_chain.GetAuthChainID(), seq_nr,
-      (*ri)->GetSeqNumber(), (*ri)->GetSecondaryStructure(), dssp };
+      (*ri)->GetSeqNumber(), (*ri)->GetInsertionCode(), (*ri)->GetSecondaryStructure(), dssp };
     res.Add(res.m_letter, 0);
     m_residues.push_back(res);
 
@@ -862,7 +863,7 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
     if (ri.m_chain_id.length() <= 1)
         chainChar = ri.m_chain_id[0];
 
-    os << boost::format("#=GF PR %5.5d %5.5d %1.1s") % ri.m_seq_nr % ri.m_pdb_nr % chainChar;
+    os << boost::format("#=GF PR %5.5d %5.5d%s%1.1s") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_ins_code % chainChar;
 
     for (uint32 i = 0; i < 20; ++i)
       os << boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
