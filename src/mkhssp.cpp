@@ -13,7 +13,6 @@
 #include "mas.h"
 #include "structure.h"
 #include "utils.h"
-#include "version.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -105,7 +104,7 @@ int main(int argc, char* argv[])
 
     if (vm.count("version")>0)
     {
-      std::cout << "mkhssp version " << XSSP_VERSION << std::endl
+      std::cout << "mkhssp version " << PACKAGE_VERSION << std::endl
          << std::endl
          << "If you use HSSP, please cite: " << std::endl
          << "Touw WG, Baakman C, Black J, te Beek TA, Krieger E, Joosten RP & Vriend G." << std::endl

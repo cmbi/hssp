@@ -11,7 +11,6 @@
 #include "buffer.h"
 #include "mas.h"
 #include "utils.h"
-#include "version.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/convenience.hpp>
@@ -841,7 +840,7 @@ void CreateHSSPOutput(const std::string& inProteinID,
                       std::ostream& os)
 {
   // print the header
-  os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION 3.0 2017" << std::endl
+  os << "HSSP       HOMOLOGY DERIVED SECONDARY STRUCTURE OF PROTEINS , VERSION " << PACKAGE_VERSION << " 2018" << std::endl
      << "PDBID      " << inProteinID << std::endl
      //<< "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << std::endl
      << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << std::endl

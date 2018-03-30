@@ -4,6 +4,10 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at
 //             http://www.boost.org/LICENSE_1_0.txt)
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "mas.h"
 
 #include "dssp.h"
@@ -134,7 +138,7 @@ std::string ResidueToDSSPLine(const MResidue& residue)
 
 void WriteDSSP(MProtein& protein, std::ostream& os)
 {
-  const std::string kFirstLine("==== Secondary Structure Definition by the program DSSP, CMBI version 3.0                          ==== ");
+  const std::string kFirstLine("==== Secondary Structure Definition by the program DSSP, CMBI version " PACKAGE_VERSION "                          ==== ");
   boost::format kHeaderLine("%1% %|127t|%2%");
 
   using namespace boost::gregorian;

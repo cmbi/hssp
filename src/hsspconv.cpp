@@ -22,7 +22,6 @@
 #include <boost/regex.hpp>
 
 #include "mas.h"
-#include "version.h"
 #include "utils.h"
 
 #include "hssp-convert-3to1.h"
@@ -66,7 +65,7 @@ int main(int argc, char* const argv[])
 
     if(vm.count("version")>0)
     {
-      std::cout << "hssp converter version "<<XSSP_VERSION << std::endl;
+      std::cout << "hssp converter version "<< PACKAGE_VERSION << std::endl;
       exit(0);
     }
 

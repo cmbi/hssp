@@ -14,7 +14,6 @@
 #include "iocif.h"
 #include "mas.h"
 #include "structure.h"
-#include "version.h"
 
 #include <boost/program_options.hpp>
 #include <boost/iostreams/copy.hpp>
@@ -44,7 +43,7 @@ int main(int argc, char* argv[])
 {
   try
   {
-    po::options_description desc("mkdssp " XSSP_VERSION " options");
+    po::options_description desc("mkdssp " PACKAGE_VERSION " options");
     desc.add_options()
       ("help,h", "Display help message")
       ("input,i", po::value<std::string>(), "Input PDB file (.pdb) or mmCIF file (.cif/.mcif), optionally compressed by gzip (.gz) or bzip2 (.bz2)")
@@ -65,7 +64,7 @@ int main(int argc, char* argv[])
 
     if (vm.count("version")>0)
     {
-      std::cout << "mkdssp version " XSSP_VERSION << std::endl
+      std::cout << "mkdssp version " << PACKAGE_VERSION << std::endl
          << std::endl
          << "If you use DSSP, please cite: " << std::endl
          << "Touw WG, Baakman C, Black J, te Beek TA, Krieger E, Joosten RP & Vriend G." << std::endl
