@@ -863,7 +863,7 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
     if (ri.m_chain_id.length() <= 1)
         chainChar = ri.m_chain_id[0];
 
-    os << boost::format("#=GF PR %5.5d %5.5d%s%1.1s") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_ins_code % chainChar;
+    os << boost::format("#=GF PR %5.5d %5.5d%1.1s%1.1s") % ri.m_seq_nr % ri.m_pdb_nr % ri.m_ins_code % chainChar;
 
     for (uint32 i = 0; i < 20; ++i)
       os << boost::format("%4.4d") % uint32(100.0 * ri.m_freq[i] + 0.5);
