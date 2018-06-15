@@ -23,6 +23,9 @@ System libraries:
 * libzeep version >= 3.0
 * libboost version >= 1.48
 * libbz2
+* autoconf
+* automake
+* autotools-dev
 
 ### Instructions
 
@@ -32,8 +35,9 @@ Download and uncompress the xssp [source code archive][2] (version >= 2.2.6):
     tar -zxvf xssp-2.?.?.tar.gz
     cd xssp-2.?.?.tar.gz
 
-Configure en build the xssp executables:
+Configure and build the xssp executables:
 
+    ./autogen.sh
     ./configure
     make
 
