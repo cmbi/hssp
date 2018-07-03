@@ -1172,10 +1172,6 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       continue;
     }
 
-    // add ATOMs only if the chain isn't terminated
-    if (terminatedChains.count(line[21]))
-      continue;
-
     if (ba::starts_with(line, "TER   "))
     {
       if (atoms.empty())
