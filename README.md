@@ -89,8 +89,8 @@ either send an e-mail to xssp.cmbi@radboudumc.nl or have a look at
 [existing issues][5] (if necessary, create a new issue).
 
 
-[1]: http://swift.cmbi.ru.nl/gv/dssp/DSSP_5.html
+[1]: http://swift.cmbi.umcn.nl/gv/dssp/DSSP_5.html
 [2]: https://github.com/cmbi/xssp/releases
 [3]: http://dx.doi.org/10.1093/nar/gku1028
-[4]: http://swift.cmbi.ru.nl/gv/facilities/
+[4]: http://swift.cmbi.umcn.nl/gv/facilities/
 [5]: https://github.com/cmbi/xssp/issues

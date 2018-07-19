@@ -57,7 +57,7 @@ void FetchHTTPDocument(const std::string& inServer, const std::string& inURL,
   std::string soapRequest = (boost::format(
     "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
       "<SOAP-ENV:Body>"
-        "<ns:GetLinked xmlns:ns='http://mrs.cmbi.ru.nl/mrsws/search'>"
+        "<ns:GetLinked xmlns:ns='http://mrs.cmbi.umcn.nl/mrsws/search'>"
           "<ns:db>%1%</ns:db>"
           "<ns:id>%2%</ns:id>"
           "<ns:linkedDatabank>pdb</ns:linkedDatabank>"
@@ -161,7 +161,7 @@ void FetchHTTPDocument(const std::string& inServer, const std::string& inURL,
   s <<
     "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
       "<SOAP-ENV:Body>"
-        "<ns:GetLinkedEx xmlns:ns='http://mrs.cmbi.ru.nl/mrsws/search'>"
+        "<ns:GetLinkedEx xmlns:ns='http://mrs.cmbi.umcn.nl/mrsws/search'>"
           "<ns:db>" << inDb << "</ns:db>"
           "<ns:linkedDatabank>pdb</ns:linkedDatabank>";
 

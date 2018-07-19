@@ -891,7 +891,7 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
   std::map<std::string,std::vector<std::string>> linked;
   if (inFetchDBRefs)
   {
-    const std::string kBaseURL = "http://mrs.cmbi.ru.nl/mrsws/search";
+    const std::string kBaseURL = "http://mrs.cmbi.umcn.nl/mrsws/search";
 
     foreach (const MHitPtr e, m_entries)
       linked[e->m_id].clear();
