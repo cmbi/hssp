@@ -77,7 +77,7 @@ std::string ResidueToDSSPLine(const MResidue& residue)
 
   double alpha;
   char chirality;
-  std::tr1::tie(alpha,chirality) = residue.Alpha();
+  std::tie(alpha,chirality) = residue.Alpha();
 
   uint32 bp[2] = {};
   char bridgelabel[2] = { ' ', ' ' };

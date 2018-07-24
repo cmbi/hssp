@@ -152,7 +152,7 @@ double CosinusAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3, const 
 
 // --------------------------------------------------------------------
 
-std::tr1::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q)
+std::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q)
 {
   if (q.R_component_1() > 1)
     q = Normalize(q);
@@ -168,7 +168,7 @@ std::tr1::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q)
 
   MPoint axis(q.R_component_2() / s, q.R_component_3() / s, q.R_component_4() / s);
 
-  return std::tr1::make_tuple(angle, axis);
+  return std::make_tuple(angle, axis);
 }
 
 MPoint CenterPoints(std::vector<MPoint>& points)
