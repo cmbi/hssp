@@ -32,7 +32,7 @@ AX_BOOST_SYSTEM
 AX_BOOST_THREAD
 AX_BOOST_UNIT_TEST_FRAMEWORK
 AM_CONDITIONAL([HAVE_CPPCHECK], [test -n "$CPPCHECK"])
-AC_CHECK_LIB([zeep], [main], [ ],
+AC_CHECK_LIB([zeep], [main],,
              [AC_MSG_WARN([libzeep not found - cannot build mkhssp])])
 AX_CHECK_LIBRARY([LIBBZ2], [bzlib.h], [bz2], [],
                  [AC_MSG_WARN([libbz2 not found - compressed files not supported])])

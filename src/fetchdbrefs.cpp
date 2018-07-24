@@ -1,3 +1,5 @@
+#ifdef HAVE_LIBZEEP
+
 #include "fetchdbrefs.h"
 
 #include "mas.h"
@@ -307,4 +309,7 @@ void FetchPDBReferences(const std::string& inBaseURL, const std::string& inDb,
   {
 
   }
+
 }
+
+#endif
