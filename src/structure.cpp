@@ -554,7 +554,7 @@ double MResidue::Psi() const
   return result;
 }
 
-std::tr1::tuple<double,char> MResidue::Alpha() const
+std::tuple<double,char> MResidue::Alpha() const
 {
   double alhpa = 360;
   char chirality = ' ';
@@ -571,7 +571,7 @@ std::tr1::tuple<double,char> MResidue::Alpha() const
     else
       chirality = '+';
   }
-  return std::tr1::make_tuple(alhpa, chirality);
+  return std::make_tuple(alhpa, chirality);
 }
 
 double MResidue::Kappa() const

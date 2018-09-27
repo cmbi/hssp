@@ -11,8 +11,9 @@
 
 #pragma once
 
+#include <tuple>
+
 #include <boost/math/quaternion.hpp>
-#include <boost/tr1/tuple.hpp>
 
 #include <vector>
 
@@ -71,7 +72,7 @@ double CosinusAngle(const MPoint& p1, const MPoint& p2, const MPoint& p3,
 
 MQuaternion Normalize(MQuaternion q);
 
-std::tr1::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q);
+std::tuple<double,MPoint> QuaternionToAngleAxis(MQuaternion q);
 MPoint Centroid(std::vector<MPoint>& points);
 MPoint CenterPoints(std::vector<MPoint>& points);
 MQuaternion AlignPoints(const std::vector<MPoint>& a,
