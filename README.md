@@ -31,9 +31,9 @@ System libraries:
 
 Download and uncompress the xssp [source code archive][2] (version >= 2.2.6):
 
-    wget https://github.com/cmbi/xssp/archive/xssp-2.?.?.tar.gz
-    tar -zxvf xssp-2.?.?.tar.gz
-    cd xssp-2.?.?.tar.gz
+    wget https://github.com/cmbi/xssp/archive/xssp-?.?.?.tar.gz
+    tar -zxvf xssp-?.?.?.tar.gz
+    cd xssp-?.?.?.tar.gz
 
 Configure and build the xssp executables:
 
