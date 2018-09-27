@@ -380,7 +380,7 @@ MResidue::MResidue(int32 inNumber, MResidue* inPrevious,
     if (MapResidue(atom.mResName) != mType)
       throw mas_exception(
         boost::format("inconsistent residue types in atom records for residue %1% (%2% != %3%)")
-          % inNumber % atom.mResName % inAtoms.front().mResName);
+          % atom.mResSeq % atom.mResName % inAtoms.front().mResName);
 
     if (atom.mResSeq != mSeqNumber)
       throw mas_exception(boost::format("inconsistent residue sequence numbers (%1% != %2%)") % atom.mResSeq % mSeqNumber);
