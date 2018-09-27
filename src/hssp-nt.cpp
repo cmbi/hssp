@@ -23,7 +23,6 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/range/adaptor/sliced.hpp>
 #include <boost/regex.hpp>
-#include <boost/tr1/cmath.hpp>
 
 #include <algorithm>
 #include <cmath>
