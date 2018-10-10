@@ -35,7 +35,6 @@ using boost::optional;
 // --------------------------------------------------------------------
 
 const double
-  kSSBridgeDistance = 3.0,
   kMinimalDistance = 0.5,
   kMinimalCADistance = 9.0,
   kMinHBondEnergy = -9.9,
