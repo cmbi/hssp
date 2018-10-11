@@ -32,8 +32,9 @@ AX_BOOST_SYSTEM
 AX_BOOST_THREAD
 AX_BOOST_UNIT_TEST_FRAMEWORK
 AM_CONDITIONAL([HAVE_CPPCHECK], [test -n "$CPPCHECK"])
-AC_CHECK_LIB([zeep], [main], [ ],
-             [AC_MSG_WARN([libzeep not found - cannot build mkhssp])])
+AC_CHECK_LIB([zeep], [main],,
+             [AC_MSG_WARN([libzeep not found - fetch-dbrefs is disabled in mkhssp])])
+AM_CONDITIONAL([USE_FETCH_DBREFS], [test "$HAVE_LIBZEEP" -eq 1])
 AX_CHECK_LIBRARY([LIBBZ2], [bzlib.h], [bz2], [],
                  [AC_MSG_WARN([libbz2 not found - compressed files not supported])])
 AX_CHECK_LIBRARY([LIBZ], [zlib.h], [z], [],

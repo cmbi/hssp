@@ -75,7 +75,9 @@ int main(int argc, char* argv[])
       ("gap-extend,E", po::value<float>(), "Gap extension penalty (default is 2.0)")
       ("threshold", po::value<float>(), "Homology threshold adjustment (default = 0.05)")
       ("max-hits,m", po::value<uint32>(), "Maximum number of hits to include (default = 5000)")
+#ifdef HAVE_LIBZEEP
       ("fetch-dbrefs", "Fetch DBREF records for each UniProt ID")
+#endif
       ("verbose,v", "Verbose mode")
       ("version", "Show version number and citation info");
 
@@ -163,7 +165,11 @@ int main(int argc, char* argv[])
     if (vm.count("fragment-cutoff"))
       fragmentCutOff = vm["fragment-cutoff"].as<float>();
 
+#ifdef HAVE_LIBZEEP
     bool fetchDbRefs = vm.count("fetch-dbrefs") > 0;
+#else
+    bool fetchDbRefs = false;
+#endif
 
     uint32 threads = boost::thread::hardware_concurrency();
     if (vm.count("threads"))

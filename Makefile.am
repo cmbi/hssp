@@ -35,8 +35,6 @@ mkhssp_SOURCES =	src/blast.cpp \
 									src/dssp.h \
 									src/fasta.cpp \
 									src/fasta.h \
-									src/fetchdbrefs.cpp \
-									src/fetchdbrefs.h \
 									src/hssp-nt.cpp \
 									src/hssp-nt.h \
 									src/iocif.cpp \
@@ -57,10 +55,15 @@ mkhssp_SOURCES =	src/blast.cpp \
 									src/align-2d.h \
 									src/utils.cpp \
 									src/utils.h
+if USE_FETCH_DBREFS
+mkhssp_SOURCES += src/fetchdbrefs.cpp src/fetchdbrefs.h
+endif
 
 mkhssp_LDADD	=	$(shared_LDADD) \
-								-lboost_timer \
-								-lzeep
+								-lboost_timer
+if USE_FETCH_DBREFS
+mkhssp_LDADD += -lzeep
+endif
 
 hsspconv_SOURCES = src/hssp-convert-3to1.cpp src/hsspconv.cpp \
 									 src/utils.cpp \

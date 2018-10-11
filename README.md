@@ -20,7 +20,7 @@ Pre-compiled *old* versions of DSSP are available from the
 
 System libraries:
 
-* libzeep version >= 3.0
+* libzeep version >= 3.0 (for mkhssp --fetch-dbrefs only)
 * libboost version >= 1.48
 * libbz2
 * autoconf

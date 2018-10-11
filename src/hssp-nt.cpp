@@ -3,7 +3,9 @@
 #include "blast.h"
 #include "buffer.h"
 #include "dssp.h"
-#include "fetchdbrefs.h"
+#ifdef HAVE_LIBZEEP
+  #include "fetchdbrefs.h"
+#endif
 #include "matrix.h"
 #include "progress.h"
 #include "structure.h"
@@ -888,6 +890,7 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
   boost::format fmt("#=GS %s HSSP score=%4.2f/%4.2f aligned=%d-%d/%d-%d length=%d ngaps=%d gaplen=%d seqlen=%d");
 
   std::map<std::string,std::vector<std::string>> linked;
+#ifdef HAVE_LIBZEEP
   if (inFetchDBRefs)
   {
     const std::string kBaseURL = "http://mrs.cmbi.umcn.nl/mrsws/search";
@@ -897,6 +900,7 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
 
     FetchPDBReferences(kBaseURL, "uniprot", linked);
   }
+#endif
 
   foreach (const MHitPtr e, m_entries)
   {
@@ -908,11 +912,13 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
            % e->m_ifir % e->m_ilas % e->m_jfir % e->m_jlas % e->m_length
            % e->m_gaps % e->m_gapn % e->m_seq.length() << std::endl;
 
+#ifdef HAVE_LIBZEEP
     if (inFetchDBRefs and not linked[e->m_id].empty())
     {
       os << "#=GS " << id << " DR PDB " << ba::join(linked[e->m_id], ", ")
          << std::endl;
     }
+#endif
   }
 
   if (tl < 17)
