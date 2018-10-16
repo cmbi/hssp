@@ -29,46 +29,12 @@
 #include "progress.h"
 
 
-#ifdef _MSC_VER
-
-#include <Windows.h>
-
-uint32 get_terminal_width()
-{
-  return TERM_WIDTH;
-}
-
-int64 MCounter::operator++(int)
-{
-  return ::InterlockedExchangeAdd64(&m_value, 1);
-}
-
-int64 MCounter::operator+=(int64 inValue)
-{
-  return ::InterlockedExchangeAdd64(&m_value, inValue);
-}
-
-int64 MCounter::operator=(int64 inValue)
-{
-  ::InterlockedExchange64(&m_value, inValue);
-  return inValue;
-}
-
-// --------------------------------------------------------------------
-
-#define STDOUT_FILENO 1
-bool isatty(int) { return true; }
-
-#else
-
 uint32 get_terminal_width()
 {
   struct winsize w;
   ioctl(0, TIOCGWINSZ, &w);
   return w.ws_col;
 }
-
-#endif
 
 struct MProgressImpl
 {

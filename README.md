@@ -18,6 +18,9 @@ Pre-compiled *old* versions of DSSP are available from the
 
 ### Pre-requisites
 
+Compiler:
+* Must support at least the c++ 11 standard.
+
 System libraries:
 
 * libzeep version >= 3.0 (for mkhssp --fetch-dbrefs only)
