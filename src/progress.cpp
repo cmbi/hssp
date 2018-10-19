@@ -117,7 +117,7 @@ void MProgressImpl::PrintDone()
 {
   std::string msg = mAction + " done in " + mTimer.format(0, "%ts cpu / %ws wall");
 
-  uint width = get_terminal_width();
+  unsigned int width = get_terminal_width();
 
   if (msg.length() < width)
     msg += std::string(width - msg.length(), ' ');
