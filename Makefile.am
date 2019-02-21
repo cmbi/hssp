@@ -7,7 +7,7 @@ shared_LDADD =	$(BOOST_DATE_TIME_LIB) \
 								$(BOOST_REGEX_LIB) \
 								$(BOOST_SYSTEM_LIB) \
 								$(BOOST_THREAD_LIB) \
-								-lpthread
+								-lpthread -lrt
 
 mkdssp_SOURCES	=	src/dssp.cpp \
 									src/dssp.h \

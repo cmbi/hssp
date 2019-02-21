@@ -14,6 +14,8 @@
 #include "structure.h"
 #include "utils.h"
 
+#include <iostream>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/foreach.hpp>
