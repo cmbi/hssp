@@ -855,6 +855,14 @@ void CreateHSSPOutput(const std::string& inProteinID,
      << boost::format("SEQLENGTH %5.5d") % inSeqLength << std::endl
      << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << std::endl;
 
+  for (const auto &pair: inSameChains)
+  {
+    os << boost::format("SCHAIN     %s") % pair.first;
+    for (const std::string &chain: pair.second)
+      os << boost::format(", %s") % chain;
+    os << std::endl;
+  }
+
   if (inKChain != inNChain)
     os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % inKChain << inUsedChains << std::endl;
 
