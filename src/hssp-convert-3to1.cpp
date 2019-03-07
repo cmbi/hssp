@@ -30,6 +30,7 @@
 #include <boost/program_options/config.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/regex.hpp>
+#include <boost/algorithm/string/regex.hpp>
 
 #include <cmath>
 
@@ -630,7 +631,8 @@ typedef std::vector<hit_ptr>  hit_list;
 
 uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
                      mseq& msa, hit_list& hits, res_list& residues,
-                     uint32& nchain)
+                     uint32& nchain,
+                     std::map<std::string, std::vector<std::string>> &sameChains)
 {
   std::string line;
   std::string qid;
@@ -640,7 +642,7 @@ uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
   uint32 rix = offset;
   std::string::size_type ccOffset = 0, queryNr=0, idWidth = 0;
   char chainId = 0;
-  boost::regex r1("Chain . is considered to be the same as (.(?:(?:, .)* and .)?)");
+  boost::regex r1("Chain (.+) is considered to be the same as (.+(?:(?:, .+)* and .+)?)");
   std::map<std::string,uint32> index;
 
   nchain += 1;
@@ -700,7 +702,9 @@ uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
 
       if (boost::regex_match(line, m, r1))
       {
-        std::string s = m[1];
+        boost::algorithm::split_regex(sameChains[m[1]], m[2], boost::regex(" *(and|,) *"));
+
+        std::string s = m[2];
         if (s.length() == 1)
           nchain += 1;
         else
@@ -835,7 +839,8 @@ uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
 void CreateHSSPOutput(const std::string& inProteinID,
                       const std::string& inProteinDescription,
                       float inThreshold, uint32 inSeqLength, uint32 inNChain,
-                      uint32 inKChain, const std::string& inUsedChains,
+                      uint32 inKChain, const std::map<std::string, std::vector<std::string>> &inSameChains,
+                      const std::string& inUsedChains,
                       mseq& msa, hit_list& hits, res_list& res,
                       std::ostream& os)
 {
@@ -849,6 +854,14 @@ void CreateHSSPOutput(const std::string& inProteinID,
      << inProteinDescription
      << boost::format("SEQLENGTH %5.5d") % inSeqLength << std::endl
      << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << std::endl;
+
+  for (const auto &pair: inSameChains)
+  {
+    os << boost::format("SCHAIN     %s") % pair.first;
+    for (const std::string &chain: pair.second)
+      os << boost::format(", %s") % chain;
+    os << std::endl;
+  }
 
   if (inKChain != inNChain)
     os << boost::format("KCHAIN     %4.4d chain(s) used here ; chains(s) : ") % inKChain << inUsedChains << std::endl;
@@ -1037,6 +1050,8 @@ void ConvertHsspFile(std::istream& in, std::ostream& out)
   uint32 seqlength = 0, nchain = 0, kchain = 0;
   std::vector<std::string> usedChains;
   mseq msa;
+  std::map<std::string, std::vector<std::string>> sameChains;
+
 
   for (;;)
   {
@@ -1055,7 +1070,7 @@ void ConvertHsspFile(std::istream& in, std::ostream& out)
     swap(header, h);
 
     uint32 chainLength = ReadHSSP2File(in, id, header, msa, hits, residues,
-                                       nchain);
+                                       nchain, sameChains);
 //    if (not h.empty() and h != header)
 //      throw mas_exception("Inconsistent HSSP3 file, different header parts");
 
@@ -1091,6 +1106,6 @@ void ConvertHsspFile(std::istream& in, std::ostream& out)
     h->m_nr = nr++;
 
   CreateHSSPOutput(id, header, 0.05f, seqlength, nchain, kchain,
-                   ba::join(usedChains, ", "), msa,
-    hits, residues, out);
+                   sameChains, ba::join(usedChains, ", "), msa,
+                   hits, residues, out);
 }
