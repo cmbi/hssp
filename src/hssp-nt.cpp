@@ -475,7 +475,7 @@ void MProfile::AdjustXGapCosts(std::vector<float>& gop,
     {
       if (ix + d >= m_residues.size() or
         m_residues[ix + d].m_dist[22] > 0 or
-        ix - d < 0 or
+        ix < d or
         m_residues[ix - d].m_dist[22] > 0)
       {
         gop[ix] *= (2 + ((8 - d) * 2)) / 8.f;
