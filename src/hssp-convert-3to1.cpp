@@ -20,6 +20,8 @@
 
 #ifdef HAVE_LIBBZ2
 #include <boost/iostreams/filter/bzip2.hpp>
+#endif
+#ifdef HAVE_LIBZ
 #include <boost/iostreams/filter/gzip.hpp>
 #endif
 

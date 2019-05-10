@@ -10,6 +10,8 @@
 
 #ifdef HAVE_LIBBZ2
 #include <boost/iostreams/filter/bzip2.hpp>
+#endif
+#ifdef HAVE_LIBZ
 #include <boost/iostreams/filter/gzip.hpp>
 #endif
 
@@ -91,7 +93,9 @@ int main(int argc, char* const argv[])
 #ifdef HAVE_LIBBZ2
       if (input.extension() == ".bz2")
         in.push(io::bzip2_decompressor());
-      else if (input.extension() == ".gz")
+#endif
+#ifdef HAVE_LIBZ
+      if (input.extension() == ".gz")
         in.push(io::gzip_decompressor());
 #endif
       in.push(ifs);
@@ -113,7 +117,9 @@ int main(int argc, char* const argv[])
 #ifdef HAVE_LIBBZ2
       if (output.extension() == ".bz2")
         out.push(io::bzip2_compressor());
-      else if (output.extension() == ".gz")
+#endif
+#ifdef HAVE_LIBZ
+      if (output.extension() == ".gz")
         out.push(io::gzip_compressor());
 #endif
       out.push(ofs);
