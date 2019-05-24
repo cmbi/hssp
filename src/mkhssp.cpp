@@ -22,6 +22,8 @@
 
 #ifdef HAVE_LIBBZ2
 #include <boost/iostreams/filter/bzip2.hpp>
+#endif
+#ifdef HAVE_LIBZ
 #include <boost/iostreams/filter/gzip.hpp>
 #endif
 
@@ -190,7 +192,9 @@ int main(int argc, char* argv[])
       in.push(io::bzip2_decompressor());
       input.erase(input.length() - 4, std::string::npos);
     }
-    else if (ba::ends_with(input, ".gz"))
+#endif
+#ifdef HAVE_LIBZ
+    if (ba::ends_with(input, ".gz"))
     {
       in.push(io::gzip_decompressor());
       input.erase(input.length() - 3, std::string::npos);
@@ -214,9 +218,12 @@ int main(int argc, char* argv[])
 #ifdef HAVE_LIBBZ2
       if (ba::ends_with(outfilename.string(), ".bz2"))
         out.push(io::bzip2_compressor());
-      else if (ba::ends_with(outfilename.string(), ".gz"))
+#endif
+#ifdef HAVE_LIBZ
+      if (ba::ends_with(outfilename.string(), ".gz"))
         out.push(io::gzip_compressor());
 #endif
+
       out.push(outfile);
     }
     else
