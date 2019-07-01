@@ -25,6 +25,7 @@ System libraries:
 
 * libzeep version >= 3.0 (for mkhssp --fetch-dbrefs only)
 * libboost version >= 1.48
+* libz
 * libbz2
 * autoconf
 * automake
