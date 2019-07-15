@@ -582,15 +582,6 @@ void seq::validate(const seq& qseq)
         boost::format("validation failed for %1%") % m_impl->m_id);
 }
 
-namespace std
-{
-  template<>
-  void swap(seq& a, seq& b)
-  {
-    a.swap(b);
-  }
-}
-
 // --------------------------------------------------------------------
 
 struct ResidueInfo
