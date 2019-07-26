@@ -1158,14 +1158,20 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
     {
       //SSBOND   1 CYS A    6    CYS A   11                          1555   1555  2.03
       std::pair<MResidueID,MResidueID> ssbond;
+
       ssbond.first.chain = line[15];
       ssbond.first.seqNumber = boost::lexical_cast<uint16>(
           ba::trim_copy(line.substr(16, 5)));
       ssbond.first.insertionCode = line[21];
+
       ssbond.second.chain = line[29];
       ssbond.second.seqNumber = boost::lexical_cast<uint16>(
           ba::trim_copy(line.substr(30, 5)));
       ssbond.second.insertionCode = line[35];
+
+      // (for parsing the REDO files)
+      if (line[35] == 0)
+        ssbond.second.insertionCode = " ";
 
       ssbonds.push_back(ssbond);
       continue;
