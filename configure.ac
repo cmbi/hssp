@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([xssp], [3.0.8], [Coos.Baakman@radboudumc.nl])
+AC_INIT([xssp], [3.0.9], [Coos.Baakman@radboudumc.nl])
 AM_INIT_AUTOMAKE([subdir-objects])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
