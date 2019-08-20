@@ -103,7 +103,7 @@ float calculateDistance(const sequence& a, const sequence& b)
         M += B(x - 1, y - 1);
 
       float s;
-      uint16 i = 0;
+      uint32 i = 0;
       if (a[x] == b[y])
         i = 1;
 
@@ -160,8 +160,8 @@ struct MResInfo
   uint8 m_letter;
   std::string m_chain_id,
               m_auth_chain_id;
-  uint32 m_seq_nr;
-  int32 m_pdb_nr;
+  int64 m_seq_nr;
+  int64 m_pdb_nr;
   std::string m_ins_code;
   MSecondaryStructure m_ss;
   std::string m_dssp;
@@ -372,7 +372,7 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence,
   const std::vector<MResidue*>& residues = m_chain.GetResidues();
   std::vector<MResidue*>::const_iterator ri = residues.begin();
 
-  uint32 seq_nr = 1;
+  int64 seq_nr = 1;
   for (uint32 i = 0; i < inSequence.length(); ++i)
   {
     assert(ri != residues.end());

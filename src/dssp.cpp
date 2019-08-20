@@ -79,7 +79,7 @@ std::string ResidueToDSSPLine(const MResidue& residue)
   char chirality;
   std::tie(alpha,chirality) = residue.Alpha();
 
-  uint32 bp[2] = {};
+  int64 bp[2] = {};
   char bridgelabel[2] = { ' ', ' ' };
   for (uint32 i = 0; i < 2; ++i)
   {
@@ -107,13 +107,13 @@ std::string ResidueToDSSPLine(const MResidue& residue)
 
     if (acceptors[i].residue != nullptr)
     {
-      int32 d = acceptors[i].residue->GetNumber() - residue.GetNumber();
+      int64 d = acceptors[i].residue->GetNumber() - residue.GetNumber();
       NHO[i] = (boost::format("%d,%3.1f") % d % acceptors[i].energy).str();
     }
 
     if (donors[i].residue != nullptr)
     {
-      int32 d = donors[i].residue->GetNumber() - residue.GetNumber();
+      int64 d = donors[i].residue->GetNumber() - residue.GetNumber();
       ONH[i] = (boost::format("%d,%3.1f") % d % donors[i].energy).str();
     }
   }
@@ -229,7 +229,9 @@ void WriteDSSP(MProtein& protein, std::ostream& os)
   foreach (const MChain* chain, protein.GetChains())
   {
     foreach (const MResidue* residue, chain->GetResidues())
+    {
       residues.push_back(residue);
+    }
   }
 
   // keep residues sorted by residue number as assigned during reading the PDB file

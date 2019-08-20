@@ -39,24 +39,24 @@ struct entry
     , m_seq(seq)
     , m_weight(weight) {}
 
-  uint32 nr() const { return m_nr; }
+  int64 nr() const { return m_nr; }
   float weight() const { return m_weight; }
   uint32 length() const { return static_cast<uint32>(m_seq.length()); }
 
-  void insert_gap(uint32 pos);
+  void insert_gap(int64 pos);
   void append_gap();
 
-  void remove_gap(uint32 pos);
+  void remove_gap(int64 pos);
 
   void remove_gaps();
   void dump_positions() { m_positions.clear(); }
 
-  uint32 m_nr;
+  int64 m_nr;
   std::string m_id;
   sequence m_seq;
   sec_structure m_ss;
   float m_weight;
-  std::vector<int16> m_positions;
+  std::vector<int64> m_positions;
 };
 
 // --------------------------------------------------------------------
