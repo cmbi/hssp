@@ -41,7 +41,7 @@ const uint32
   kGappedDropOffFinal    = 25,
   kGapTrigger        = 22,
 
-  kMaxSequenceLength    = std::numeric_limits<uint16>::max();
+  kMaxSequenceLength    = std::numeric_limits<uint32>::max();
 
 const int32
   kHitWindow        = 40;
@@ -826,8 +826,8 @@ class WordHitIterator
 
   struct Entry
   {
-    uint16 mCount;
-    uint16 mDataOffset;
+    uint32 mCount;
+    uint32 mDataOffset;
   };
 
   public:
@@ -838,7 +838,7 @@ class WordHitIterator
   struct WordHitIteratorStaticData
   {
     std::vector<Entry> mLookup;
-    std::vector<uint16> mOffsets;
+    std::vector<uint32> mOffsets;
   };
 
   WordHitIterator(const WordHitIteratorStaticData& inStaticData)
@@ -858,19 +858,19 @@ class WordHitIterator
                    WordHitIteratorStaticData& outStaticData);
 
   void Reset(const sequence& inTarget);
-  bool Next(uint16& outQueryOffset, uint16& outTargetOffset);
+  bool Next(uint32& outQueryOffset, uint32& outTargetOffset);
   uint32 Index() const { return mIndex; }
 
   private:
 
   const uint8* mTargetCurrent;
   const uint8* mTargetEnd;
-  uint16 mTargetOffset;
+  uint32 mTargetOffset;
   const std::vector<Entry>& mLookup;
-  const std::vector<uint16>& mOffsets;
+  const std::vector<uint32>& mOffsets;
   uint32 mIndex;
-  const uint16* mOffset;
-  uint16 mCount;
+  const uint32* mOffset;
+  uint32 mCount;
 };
 
 template<> const uint32 WordHitIterator<2>::kMask = 0x0001F;
@@ -886,9 +886,9 @@ void WordHitIterator<WORDSIZE>::Init(const sequence& inQuery,
   uint64 N = IWord::kMaxWordIndex;
   size_t M = 0;
 
-  std::vector<std::vector<uint16>> test(N);
+  std::vector<std::vector<uint32>> test(N);
 
-  for (uint16 i = 0; i < inQuery.length() - WORDSIZE + 1; ++i)
+  for (uint32 i = 0; i < inQuery.length() - WORDSIZE + 1; ++i)
   {
     IWord w(inQuery.c_str() + i);
 
@@ -903,14 +903,14 @@ void WordHitIterator<WORDSIZE>::Init(const sequence& inQuery,
   }
 
   outStaticData.mLookup = std::vector<Entry>(N);
-  outStaticData.mOffsets = std::vector<uint16>(M);
+  outStaticData.mOffsets = std::vector<uint32>(M);
 
-  uint16* data = &outStaticData.mOffsets[0];
+  uint32* data = &outStaticData.mOffsets[0];
 
   for (uint32 i = 0; i < N; ++i)
   {
-    outStaticData.mLookup[i].mCount = static_cast<uint16>(test[i].size());
-    outStaticData.mLookup[i].mDataOffset = static_cast<uint16>(
+    outStaticData.mLookup[i].mCount = static_cast<uint32>(test[i].size());
+    outStaticData.mLookup[i].mDataOffset = static_cast<uint32>(
         data - &outStaticData.mOffsets[0]);
 
     for (uint32 j = 0; j < outStaticData.mLookup[i].mCount; ++j)
@@ -940,8 +940,8 @@ void WordHitIterator<WORDSIZE>::Reset(const sequence& inTarget)
 }
 
 template<int WORDSIZE>
-bool WordHitIterator<WORDSIZE>::Next(uint16& outQueryOffset,
-                                     uint16& outTargetOffset)
+bool WordHitIterator<WORDSIZE>::Next(uint32& outQueryOffset,
+                                     uint32& outTargetOffset)
 {
   bool result = false;
 
@@ -999,7 +999,7 @@ struct DiagonalStartTable
     std::fill(mTable, mTable + n, -inTargetLength);
   }
 
-  int32&  operator()(uint16 inQueryOffset, uint16 inTargetOffset)
+  int32&  operator()(uint32 inQueryOffset, uint32 inTargetOffset)
   {
     return mTable[mTargetLength - inTargetOffset + inQueryOffset];
   }
@@ -1501,7 +1501,7 @@ void BlastQuery<WORDSIZE>::SearchPart(const char* inFasta, size_t inLength,
     iter.Reset(target);
     diagonals.Reset(queryLength, static_cast<int32>(target.length()));
 
-    uint16 queryOffset, targetOffset;
+    uint32 queryOffset, targetOffset;
     while (iter.Next(queryOffset, targetOffset))
     {
       ++hitsToDb;

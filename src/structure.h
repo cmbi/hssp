@@ -225,11 +225,11 @@ class MResidue
   // bridge functions
   MBridgeType      TestBridge(MResidue* inResidue) const;
 
-  int16        GetSeqNumber() const    { return mSeqNumber; }
+  int64        GetSeqNumber() const    { return mSeqNumber; }
   std::string      GetInsertionCode() const  { return mInsertionCode; }
 
-  void        SetNumber(uint16 inNumber)  { mNumber = inNumber; }
-  uint16        GetNumber() const      { return mNumber; }
+  void        SetNumber(int64 inNumber)  { mNumber = inNumber; }
+  int64        GetNumber() const      { return mNumber; }
 
   void        Translate(const MPoint& inTranslation);
   void        Rotate(const MQuaternion& inRotation);
@@ -265,7 +265,7 @@ class MResidue
   std::string      mChainID;
   MResidue*      mPrev;
   MResidue*      mNext;
-  int32        mSeqNumber, mNumber;
+  int64        mSeqNumber, mNumber;
   std::string      mInsertionCode;
   MResidueType    mType;
   uint8        mSSBridgeNr;
@@ -302,7 +302,7 @@ class MChain
   std::string GetAuthChainID(void) const;
   void SetAuthChainID(const std::string &inAuthChainID);
 
-  const MResidue*      GetResidueBySeqNumber(uint16 inSeqNumber,
+  const MResidue*      GetResidueBySeqNumber(int64 inSeqNumber,
                                              const std::string& inInsertionCode) const;
 
   void        GetSequence(std::string& outSequence) const;
@@ -354,7 +354,7 @@ class MProtein
   void GetCAlphaLocations(const std::string& inChainID,
                                  std::vector<MPoint>& outPoints) const;
   MPoint        GetCAlphaPosition(const std::string& inChainID,
-                                  int16 inPDBResSeq) const;
+                                  int64 inPDBResSeq) const;
 
   void        GetSequence(const std::string& inChainID,
                           entry& outEntry) const;
@@ -384,10 +384,10 @@ class MProtein
   template<class OutputIterator>
   void        GetSequences(OutputIterator outSequences) const;
 
-  MResidue* GetResidue(const std::string& inChainID, uint16 inSeqNumber,
+  MResidue* GetResidue(const std::string& inChainID, int64 inSeqNumber,
                        const std::string& inInsertionCode);
 
-  const MResidue* GetResidue(const std::string& inChainID, uint16 inSeqNumber,
+  const MResidue* GetResidue(const std::string& inChainID, int64 inSeqNumber,
                              const std::string& inInsertionCode) const;
 
   // statistics

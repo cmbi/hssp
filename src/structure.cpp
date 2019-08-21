@@ -980,7 +980,7 @@ void MChain::WritePDB(std::ostream& os)
   os << (ter % (last->GetCAlpha().mSerial + 1) % kResidueInfo[last->GetType()].name % mChainID % last->GetNumber() % ' ') << std::endl;
 }
 
-const MResidue* MChain::GetResidueBySeqNumber(uint16 inSeqNumber,
+const MResidue* MChain::GetResidueBySeqNumber(int64 inSeqNumber,
                                               const std::string& inInsertionCode) const
 {
   const auto r = find_if(mResidues.begin(), mResidues.end(),
@@ -1002,7 +1002,7 @@ void MChain::GetSequence(std::string& outSequence) const
 struct MResidueID
 {
   std::string chain;
-  uint16 seqNumber;
+  int64 seqNumber;
   std::string insertionCode;
 
   bool operator<(const MResidueID& o) const
@@ -1160,12 +1160,12 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       std::pair<MResidueID,MResidueID> ssbond;
 
       ssbond.first.chain = line[15];
-      ssbond.first.seqNumber = boost::lexical_cast<uint16>(
+      ssbond.first.seqNumber = boost::lexical_cast<int64>(
           ba::trim_copy(line.substr(16, 5)));
       ssbond.first.insertionCode = line[21];
 
       ssbond.second.chain = line[29];
-      ssbond.second.seqNumber = boost::lexical_cast<uint16>(
+      ssbond.second.seqNumber = boost::lexical_cast<int64>(
           ba::trim_copy(line.substr(30, 5)));
       ssbond.second.insertionCode = line[35];
 
@@ -1220,7 +1220,7 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       atom.mChainID = line[21];
       atom.mAuthChainID = atom.mChainID;
       //  23 - 26  Integer resSeq Residue sequence number.
-      atom.mResSeq = boost::lexical_cast<int16>(
+      atom.mResSeq = boost::lexical_cast<int64>(
           ba::trim_copy(line.substr(22, 4)));
       //  27    AChar iCode Code for insertion of residues.
       atom.mICode = line.substr(26, 1);
@@ -1432,7 +1432,7 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
       continue;
 
     ssbond.first.chain = ss["ptnr1_label_asym_id"];
-    ssbond.first.seqNumber = boost::lexical_cast<uint16>(
+    ssbond.first.seqNumber = boost::lexical_cast<int64>(
         ss["ptnr1_label_seq_id"]);
     ssbond.first.insertionCode = ss["pdbx_ptnr1_PDB_ins_code"];
     if (ssbond.first.insertionCode == "?")
@@ -1442,7 +1442,7 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
       continue;
 
     ssbond.second.chain = ss["ptnr2_label_asym_id"];
-    ssbond.second.seqNumber = boost::lexical_cast<uint16>(
+    ssbond.second.seqNumber = boost::lexical_cast<int64>(
         ss["ptnr2_label_seq_id"]);
     ssbond.second.insertionCode = ss["pdbx_ptnr2_PDB_ins_code"];
     if (ssbond.second.insertionCode == "?")
@@ -1455,7 +1455,7 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
   char firstAltLoc = 0;
 
   // remap label_seq_id to auth_seq_id
-  std::map<std::string, std::map<int,int> > seq_id_map;
+  std::map<std::string, std::map<int64,int64> > seq_id_map;
 
   bool hasModelNum = false;
   int modelNum = 0;
@@ -1488,7 +1488,7 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
     if (label_seq_id == "?" or label_seq_id == ".")
       seq_id_map[a.mChainID][a.mResSeq] = a.mResSeq;
     else
-      seq_id_map[a.mChainID][boost::lexical_cast<int16>(label_seq_id)] = a.mResSeq;
+      seq_id_map[a.mChainID][boost::lexical_cast<int64>(label_seq_id)] = a.mResSeq;
 
     a.mLoc.mX = ParseFloat(atom["Cartn_x"]);
     a.mLoc.mY = ParseFloat(atom["Cartn_y"]);
@@ -1545,7 +1545,9 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
   }
 
   if (not atoms.empty())
+  {
     AddResidue(atoms);
+  }
 
   // map the sulfur bridges
   uint32 ssbondNr = 1;
@@ -1647,7 +1649,7 @@ void MProtein::GetStatistics(uint32& outNrOfResidues, uint32& outNrOfChains,
         if (donor[i].residue != nullptr and donor[i].energy < kMaxHBondEnergy)
         {
           ++outNrOfHBonds;
-          int32 k = donor[i].residue->GetNumber() - r->GetNumber();
+          int64 k = donor[i].residue->GetNumber() - r->GetNumber();
           if (k >= -5 and k <= 5)
             outNrOfHBondsPerDistance[k + 5] += 1;
         }
@@ -1725,7 +1727,7 @@ void MProtein::AddResidue(const std::vector<MAtom>& inAtoms)
     if (not residues.empty())
       prev = residues.back();
 
-    int32 resNumber = mResidueCount + mChains.size() + mChainBreaks;
+    int64 resNumber = mResidueCount + mChains.size() + mChainBreaks;
     MResidue* r = new MResidue(resNumber, prev, inAtoms);
     // check for chain breaks
     if (prev != nullptr and not prev->ValidDistance(*r))
@@ -1794,8 +1796,10 @@ void MProtein::CalculateSecondaryStructure(bool inPreferPiHelices)
   std::vector<MResidue*> residues;
   residues.reserve(mResidueCount);
   foreach (const MChain* chain, mChains)
+  {
     residues.insert(residues.end(), chain->GetResidues().begin(),
                     chain->GetResidues().end());
+  }
 
   if (VERBOSE)
     std::cerr << "using " << residues.size() << " residues" << std::endl;
@@ -2254,7 +2258,7 @@ void MProtein::SetChain(const std::string& inChainID, const MChain& inChain)
 
 // Non-const overload, implemented in terms of the const overload
 MResidue* MProtein::GetResidue(const std::string& inChainID,
-                               uint16 inSeqNumber,
+                               int64 inSeqNumber,
                                const std::string& inInsertionCode)
 {
   return const_cast<MResidue *>( static_cast<const MProtein &>( *this ).GetResidue(
@@ -2266,7 +2270,7 @@ MResidue* MProtein::GetResidue(const std::string& inChainID,
 
 // Const overload
 const MResidue* MProtein::GetResidue(const std::string& inChainID,
-                                     uint16 inSeqNumber,
+                                     int64 inSeqNumber,
                                      const std::string& inInsertionCode) const
 {
   const MChain& chain = GetChain(inChainID);
@@ -2287,7 +2291,7 @@ void MProtein::GetCAlphaLocations(const std::string& inChainID,
 }
 
 MPoint MProtein::GetCAlphaPosition(const std::string& inChainID,
-                                   int16 inPDBResSeq) const
+                                   int64 inPDBResSeq) const
 {
   std::string chainID = inChainID;
   if (chainID.empty())
