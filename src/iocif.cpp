@@ -2,19 +2,13 @@
 
 #include "utils.h"
 
-#include <boost/algorithm/string.hpp>
-#include <boost/foreach.hpp>
-#include <boost/iostreams/copy.hpp>
-#include <boost/iostreams/device/back_inserter.hpp>
-
+#include <algorithm>
+#include <string>
 #include <cassert>
 #include <iostream>
 #include <string>
 
 #define foreach BOOST_FOREACH
-
-namespace io = boost::iostreams;
-namespace ba = boost::algorithm;
 
 //  Our CIF implementation consists of flyweight classes.
 
@@ -155,7 +149,7 @@ std::string record::get_joined(const char* inName,
   for (iterator i = begin(); i != end(); ++i)
   {
     std::string s = i->operator[](inName);
-    ba::trim(s);
+    Trim(s);
     result = (result.empty() ? result : result + inDelimiter) + s;
   }
 
@@ -167,7 +161,7 @@ file::file(std::istream& is)
   // first extract data into a buffer
   m_buffer.reserve(10 * 1024 * 1024); // reserve 10 MB, should be sufficient
 
-  io::copy(is, io::back_inserter(m_buffer));
+  Copy(is, m_buffer);
 
   m_data = &m_buffer[0];
   m_end = m_data + m_buffer.size();

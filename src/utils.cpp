@@ -8,14 +8,11 @@
 
 #include "align-2d.h"
 
-#include <boost/bind.hpp>
-#include <boost/foreach.hpp>
-#include <boost/thread.hpp>
-
 #include <cstdio>
 #include <iostream>
+#include <cctype>
 
-namespace fs = boost::filesystem;
+namespace fs = std::filesystem;
 
 #define foreach BOOST_FOREACH
 // --------------------------------------------------------------------
@@ -51,11 +48,6 @@ std::ostream& operator<<(std::ostream& os, const arg_vector& argv)
 mas_exception::mas_exception(const std::string& msg)
 {
   snprintf(m_msg, sizeof(m_msg), "%s", msg.c_str());
-}
-
-mas_exception::mas_exception(const boost::format& msg)
-{
-  snprintf(m_msg, sizeof(m_msg), "%s", msg.str().c_str());
 }
 
 //// --------------------------------------------------------------------
@@ -196,6 +188,62 @@ fs::path get_home()
   if (home == nullptr)
     throw mas_exception("No home defined");
   return fs::path(home);
+}
+
+
+std::string Format(const std::string &fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    int size = vsnprintf(nullptr, 0, fmt.c_str(), args);
+    char *buffer = new char[size];
+
+    vsnprintf(buffer, size, fmt.c_str(), args);
+
+    std::string s(buffer);
+
+    delete[] buffer;
+    va_end(args);
+
+    return s;
+}
+
+bool StartsWith(const std::string &s, const std::string &prefix)
+{
+    size_t i = 0;
+    while (i < prefix.length() && i < s.length())
+    {
+        if (prefix[i] != s[i])
+            return false;
+
+        i++
+    }
+
+    return i > prefix.length();
+}
+
+std::string TrimLeft(const std::string &s)
+{
+    size_t i = 0;
+    while (i < s.length() && isspace(s[i]))
+        i++;
+
+    return s.substr(i, s.length() - i);
+}
+
+std::string TrimRight(const std::string &s)
+{
+    size_t f = s.length();
+    while (f > 0 && isspace(s[f - 1])
+        f --;
+
+    return s.substr(0, f);
+}
+
+std::string Trim(const std::string &s)
+{
+    return TrimRight(TrimLeft(s));
 }
 
 #endif

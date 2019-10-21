@@ -12,21 +12,15 @@
 
 #include "dssp.h"
 #include "structure.h"
-
-#include <boost/bind.hpp>
-#include <boost/date_time/date_clock_device.hpp>
-#include <boost/date_time/gregorian/gregorian.hpp>
-#include <boost/foreach.hpp>
-#include <boost/format.hpp>
+#include "utils.h"
 
 #if defined(_MSC_VER)
 #include <conio.h>
 #include <ctype.h>
 #endif
 #include <iostream>
-
-
-#define foreach BOOST_FOREACH
+#include <ctime>
+#include <algorithm>
 
 
 std::string LimitWidth(int64 n, uint64 w)
@@ -56,7 +50,7 @@ std::string ResidueToDSSPLine(const MResidue& residue)
 
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA           CHAIN AUTHCHAIN
  */
-  boost::format kDSSPResidueLine(
+  std::string kDSSPResidueLine(
   "%5s%5s%1.1s%1.1s %c  %c %c%c%c%c%c%c%c%4s%4s%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f             %4.4s      %4.4s");
 
   const MAtom& ca = residue.GetCAlpha();
@@ -65,7 +59,7 @@ std::string ResidueToDSSPLine(const MResidue& residue)
   if (residue.GetType() == kCysteine and residue.GetSSBridgeNr() != 0)
     code = 'a' + ((residue.GetSSBridgeNr() - 1) % 26);
 
-  char ss;
+  char ss = ' ';
   switch (residue.GetSecondaryStructure())
   {
     case alphahelix:  ss = 'H'; break;
@@ -127,13 +121,13 @@ std::string ResidueToDSSPLine(const MResidue& residue)
     if (acceptors[i].residue != nullptr)
     {
       std::string d = LimitWidth(acceptors[i].residue->GetNumber() - residue.GetNumber(), 5);  // won't fit otherwise...
-      NHO[i] = (boost::format("%s,%3.1f") % d % acceptors[i].energy).str();
+      NHO[i] = Format("%s,%3.1f", d, acceptors[i].energy);
     }
 
     if (donors[i].residue != nullptr)
     {
       std::string d = LimitWidth(donors[i].residue->GetNumber() - residue.GetNumber(), 5);  // won't fit otherwise...
-      ONH[i] = (boost::format("%s,%3.1f") % d % donors[i].energy).str();
+      ONH[i] = Format("%s,%3.1f", d, donors[i].energy);
     }
   }
 
@@ -151,69 +145,68 @@ std::string ResidueToDSSPLine(const MResidue& residue)
   std::string residueNumber = LimitWidth(residue.GetNumber(), 5),
               seqNumber = LimitWidth(ca.mResSeq, 5);
 
-  return (kDSSPResidueLine % residueNumber % seqNumber % ca.mICode % chainChar % code %
-    ss % helix[0] % helix[1] % helix[2] % bend % chirality % bridgelabel[0] % bridgelabel[1] %
-    bp[0] % bp[1] % sheet % floor(residue.Accessibility() + 0.5) %
-    NHO[0] % ONH[0] % NHO[1] % ONH[1] %
-    residue.TCO() % residue.Kappa() % alpha % residue.Phi() % residue.Psi() %
-    ca.mLoc.mX % ca.mLoc.mY % ca.mLoc.mZ % long_ChainID1 % long_ChainID2).str();
+  return Format(kDSSPResidueLine, residueNumber, seqNumber, ca.mICode, chainChar, code,
+                ss, helix[0], helix[1], helix[2], bend, chirality, bridgelabel[0], bridgelabel[1],
+                bp[0], bp[1], sheet, floor(residue.Accessibility() + 0.5),
+                NHO[0], ONH[0], NHO[1], ONH[1],
+                residue.TCO(), residue.Kappa(), alpha, residue.Phi(), residue.Psi(),
+                ca.mLoc.mX, ca.mLoc.mY, ca.mLoc.mZ, long_ChainID1, long_ChainID2);
 }
 
 void WriteDSSP(MProtein& protein, std::ostream& os)
 {
   const std::string kFirstLine("==== Secondary Structure Definition by the program DSSP, CMBI version " PACKAGE_VERSION "                          ==== ");
-  boost::format kHeaderLine("%1% %|127t|%2%");
-
-  using namespace boost::gregorian;
+  std::string kHeaderLine("%1% %|127t|%2%");
 
   uint32 nrOfResidues, nrOfChains, nrOfSSBridges, nrOfIntraChainSSBridges, nrOfHBonds;
   uint32 nrOfHBondsPerDistance[11] = {};
 
   protein.GetStatistics(nrOfResidues, nrOfChains, nrOfSSBridges, nrOfIntraChainSSBridges, nrOfHBonds, nrOfHBondsPerDistance);
 
-  date today = day_clock::local_day();
+  time_t today = time(0);
+  char todayString[sizeof "2011-10-08T07:07:09Z"];
+  strftime(todayString, sizeof(todayString), "%FT%TZ", gmtime(&today));
 
-  os << kHeaderLine % (kFirstLine + "DATE=" + to_iso_extended_string(today)) % '.' << std::endl;
-  os << kHeaderLine % "REFERENCE W. KABSCH AND C.SANDER, BIOPOLYMERS 22 (1983) 2577-2637" % '.' << std::endl;
-  os << kHeaderLine % protein.GetHeader() % '.' << std::endl;
+  os << Format(kHeaderLine, kFirstLine + "DATE=" + todayString, '.') << std::endl;
+  os << Format(kHeaderLine, "REFERENCE W. KABSCH AND C.SANDER, BIOPOLYMERS 22 (1983) 2577-2637", '.') << std::endl;
+  os << Format(kHeaderLine, protein.GetHeader(), '.') << std::endl;
   if (not protein.GetCompound().empty())
-    os << kHeaderLine % protein.GetCompound() % '.' << std::endl;
+    os << Format(kHeaderLine, protein.GetCompound(), '.') << std::endl;
   if (not protein.GetSource().empty())
-    os << kHeaderLine % protein.GetSource() % '.' << std::endl;
+    os << Format(kHeaderLine, protein.GetSource(), '.') << std::endl;
   if (not protein.GetAuthor().empty())
-    os << kHeaderLine % protein.GetAuthor() % '.' << std::endl;
+    os << Format(kHeaderLine, protein.GetAuthor(), '.') << std::endl;
 
   double accessibleSurface = 0;  // calculate accessibility as
-  foreach (const MChain* chain, protein.GetChains())
+  for (const MChain* chain : protein.GetChains())
   {
-    foreach (const MResidue* residue, chain->GetResidues())
+    for (const MResidue* residue : chain->GetResidues())
       accessibleSurface += residue->Accessibility();
   }
 
-  os << boost::format("%5.5d%3.3d%3.3d%3.3d%3.3d TOTAL NUMBER OF RESIDUES, NUMBER OF CHAINS, NUMBER OF SS-BRIDGES(TOTAL,INTRACHAIN,INTERCHAIN) %|127t|%c") %
-       nrOfResidues % nrOfChains % nrOfSSBridges % nrOfIntraChainSSBridges % (nrOfSSBridges - nrOfIntraChainSSBridges) % '.' << std::endl;
-     os << kHeaderLine % (boost::format("%8.1f   ACCESSIBLE SURFACE OF PROTEIN (ANGSTROM**2)") % accessibleSurface) % '.' << std::endl;
+  os << Format("%5.5d%3.3d%3.3d%3.3d%3.3d TOTAL NUMBER OF RESIDUES, NUMBER OF CHAINS, NUMBER OF SS-BRIDGES(TOTAL,INTRACHAIN,INTERCHAIN) %|127t|%c",
+       nrOfResidues, nrOfChains, nrOfSSBridges, nrOfIntraChainSSBridges, (nrOfSSBridges - nrOfIntraChainSSBridges), '.') << std::endl;
+     os << Format(kHeaderLine, Format("%8.1f   ACCESSIBLE SURFACE OF PROTEIN (ANGSTROM**2)", accessibleSurface), '.') << std::endl;
 
   // hydrogenbond summary
 
-  os << kHeaderLine % (
-    boost::format("%5.5d%5.1f   TOTAL NUMBER OF HYDROGEN BONDS OF TYPE O(I)-->H-N(J)  , SAME NUMBER PER 100 RESIDUES")
-      % nrOfHBonds % (nrOfHBonds * 100.0 / nrOfResidues)) % '.' << std::endl;
+  os << Format(kHeaderLine, Format("%5.5d%5.1f   TOTAL NUMBER OF HYDROGEN BONDS OF TYPE O(I)-->H-N(J)  , SAME NUMBER PER 100 RESIDUES",
+                                   nrOfHBonds, (nrOfHBonds * 100.0 / nrOfResidues)), '.') << std::endl;
 
   uint32 nrOfHBondsInParallelBridges = protein.GetNrOfHBondsInParallelBridges();
-  os << kHeaderLine % (
-    boost::format("%5.5d%5.1f   TOTAL NUMBER OF HYDROGEN BONDS IN     PARALLEL BRIDGES, SAME NUMBER PER 100 RESIDUES")
-      % nrOfHBondsInParallelBridges % (nrOfHBondsInParallelBridges * 100.0 / nrOfResidues)) % '.' << std::endl;
+  os << Format(kHeaderLine,
+    Format("%5.5d%5.1f   TOTAL NUMBER OF HYDROGEN BONDS IN     PARALLEL BRIDGES, SAME NUMBER PER 100 RESIDUES",
+           nrOfHBondsInParallelBridges, nrOfHBondsInParallelBridges * 100.0 / nrOfResidues), '.') << std::endl;
 
   uint32 nrOfHBondsInAntiparallelBridges = protein.GetNrOfHBondsInAntiparallelBridges();
-  os << kHeaderLine % (
-    boost::format("%5.5d%5.1f   TOTAL NUMBER OF HYDROGEN BONDS IN ANTIPARALLEL BRIDGES, SAME NUMBER PER 100 RESIDUES")
-      % nrOfHBondsInAntiparallelBridges % (nrOfHBondsInAntiparallelBridges * 100.0 / nrOfResidues)) % '.' << std::endl;
+  os << Format(kHeaderLine,
+    Format("%5.5d%5.1f   TOTAL NUMBER OF HYDROGEN BONDS IN ANTIPARALLEL BRIDGES, SAME NUMBER PER 100 RESIDUES",
+           nrOfHBondsInAntiparallelBridges, nrOfHBondsInAntiparallelBridges * 100.0 / nrOfResidues), '.') << std::endl;
 
-  boost::format kHBondsLine("%5.5d%5.1f   TOTAL NUMBER OF HYDROGEN BONDS OF TYPE O(I)-->H-N(I%c%1.1d), SAME NUMBER PER 100 RESIDUES");
-     for (int32 k = 0; k < 11; ++k)
+  std::string kHBondsLine("%5.5d%5.1f   TOTAL NUMBER OF HYDROGEN BONDS OF TYPE O(I)-->H-N(I%c%1.1d), SAME NUMBER PER 100 RESIDUES");
+  for (int32 k = 0; k < 11; ++k)
   {
-    os << kHeaderLine % (kHBondsLine % nrOfHBondsPerDistance[k] % (nrOfHBondsPerDistance[k] * 100.0 / nrOfResidues) % (k - 5 < 0 ? '-' : '+') % abs(k - 5)) % '.' << std::endl;
+    os << Format(kHeaderLine, Format(kHBondsLine, nrOfHBondsPerDistance[k], (nrOfHBondsPerDistance[k] * 100.0 / nrOfResidues), (k - 5 < 0 ? '-' : '+'), abs(k - 5)), '.') << std::endl;
   }
 
   // histograms...
@@ -223,45 +216,49 @@ void WriteDSSP(MProtein& protein, std::ostream& os)
 
   protein.GetResiduesPerAlphaHelixHistogram(histogram);
   for (uint32 i = 0; i < kHistogramSize; ++i)
-    os << boost::format("%3.3d") % histogram[i];
+    os << Format("%3.3d", histogram[i]);
   os << "    RESIDUES PER ALPHA HELIX         ." << std::endl;
 
   protein.GetParallelBridgesPerLadderHistogram(histogram);
   for (uint32 i = 0; i < kHistogramSize; ++i)
-    os << boost::format("%3.3d") % histogram[i];
+    os << Format("%3.3d", histogram[i]);
   os << "    PARALLEL BRIDGES PER LADDER      ." << std::endl;
 
   protein.GetAntiparallelBridgesPerLadderHistogram(histogram);
   for (uint32 i = 0; i < kHistogramSize; ++i)
-    os << boost::format("%3.3d") % histogram[i];
+    os << Format("%3.3d", histogram[i]);
   os << "    ANTIPARALLEL BRIDGES PER LADDER  ." << std::endl;
 
   protein.GetLaddersPerSheetHistogram(histogram);
   for (uint32 i = 0; i < kHistogramSize; ++i)
-    os << boost::format("%3.3d") % histogram[i];
+    os << Format("%3.3d", histogram[i]);
   os << "    LADDERS PER SHEET                ." << std::endl;
 
   // per residue information
 
   os << "  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA            CHAIN AUTHCHAIN" << std::endl;
-  boost::format kDSSPResidueLine(
-    "%5s        !%c             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");
+  std::string kDSSPResidueLine("%5s        !%c             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");
 
   std::vector<const MResidue*> residues;
 
-  foreach (const MChain* chain, protein.GetChains())
+  for (const MChain* chain : protein.GetChains())
   {
-    foreach (const MResidue* residue, chain->GetResidues())
+    for (const MResidue* residue : chain->GetResidues())
     {
       residues.push_back(residue);
     }
   }
 
   // keep residues sorted by residue number as assigned during reading the PDB file
-  sort(residues.begin(), residues.end(), boost::bind(&MResidue::GetNumber, _1) < boost::bind(&MResidue::GetNumber, _2));
+  std::sort(residues.begin(), residues.end(),
+       [](const MResidue *r1, const MResidue *r2)
+       {
+            return r1->GetNumber() > r2->GetNumber();
+       }
+  );
 
   const MResidue* last = nullptr;
-  foreach (const MResidue* residue, residues)
+  for (const MResidue* residue : residues)
   {
     // insert a break line whenever we detect missing residues
     // can be the transition to a different chain, or missing residues in the current chain
@@ -272,7 +269,7 @@ void WriteDSSP(MProtein& protein, std::ostream& os)
         breaktype = '*';
 
       std::string residueNumber = LimitWidth(last->GetNumber() + 1, 5);
-      os << (kDSSPResidueLine % residueNumber % breaktype) << std::endl;
+      os << Format(kDSSPResidueLine, residueNumber, breaktype) << std::endl;
     }
     os << ResidueToDSSPLine(*residue) << std::endl;
     last = residue;

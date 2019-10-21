@@ -2,14 +2,14 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([xssp], [3.0.10], [Coos.Baakman@radboudumc.nl])
+AC_INIT([xssp], [3.1.1], [Coos.Baakman@radboudumc.nl])
 AM_INIT_AUTOMAKE([subdir-objects])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
 # Checks for programs.
-AC_PROG_CXX
+AC_PROG_CXX([8.1])
 AC_PROG_CC
 AC_PROG_INSTALL
 AC_CHECK_PROGS([PERL], [perl], [yes])

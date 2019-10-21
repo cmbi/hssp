@@ -13,20 +13,10 @@
 #include "iocif.h"
 #include "utils.h"
 
-#include <boost/algorithm/string.hpp>
-#include <boost/bind.hpp>
-#include <boost/foreach.hpp>
-#include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/math/special_functions/round.hpp>
-#include <boost/optional.hpp>
-
+#include <cmath>
 #include <set>
 #include <numeric>
 #include <functional>
-
-namespace ba = boost::algorithm;
-namespace bm = boost::math;
 
 using boost::none;
 using boost::optional;
@@ -108,8 +98,8 @@ MSurfaceDots::MSurfaceDots(int32 N)
 
 MAtomType MapElement(std::string inElement)
 {
-  ba::trim(inElement);
-  ba::to_upper(inElement);
+  inElement = Trim(inElement);
+  Upper(inElement);
 
   MAtomType result = kUnknownAtom;
   if (inElement == "H")
@@ -145,7 +135,7 @@ MAtomType MapElement(std::string inElement)
 
 MResidueType MapResidue(std::string inName)
 {
-  ba::trim(inName);
+  inName = Trim(inName);
 
   MResidueType result = kUnknownResidue;
 
@@ -666,7 +656,7 @@ double MResidue::CalculateHBondEnergy(MResidue& inDonor, MResidue& inAcceptor)
       result = kCouplingConstant / distanceHO - kCouplingConstant / distanceHC + kCouplingConstant / distanceNC - kCouplingConstant / distanceNO;
 
     // DSSP compatibility mode:
-    result = bm::round(result * 1000) / 1000;
+    result = round(result * 1000) / 1000;
 
     if (result < kMinHBondEnergy)
       result = kMinHBondEnergy;
@@ -1096,10 +1086,9 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
     if (VERBOSE > 3)
       std::cerr << line << std::endl;
 
-    if (ba::starts_with(line, "HEADER"))
+    if (StartsWith(line, "HEADER"))
     {
-      mHeader = line;
-      ba::trim(mHeader);
+      mHeader = Trim(line);
       if (line.length() >= 66)
         mID = line.substr(62, 4);
       else
@@ -1107,9 +1096,9 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       continue;
     }
 
-    if (ba::starts_with(line, "COMPND"))
+    if (StartsWith(line, "COMPND"))
     {
-      ba::trim_right(line);
+      line = TrimRight(line);
       if (line.length() >= 10)
       {
         mCompound = mCompound + line.substr(10);
@@ -1117,9 +1106,9 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       continue;
     }
 
-    if (ba::starts_with(line, "SOURCE"))
+    if (StartsWith(line, "SOURCE"))
     {
-      ba::trim_right(line);
+      line = TrimRight(line);
       if (line.length() >= 10)
       {
         mSource = mSource + line.substr(10);
@@ -1127,9 +1116,9 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       continue;
     }
 
-    if (ba::starts_with(line, "AUTHOR"))
+    if (StartsWith(line, "AUTHOR"))
     {
-      ba::trim_right(line);
+      line = TrimRight(line);
       if (line.length() >= 10)
       {
         mAuthor = mAuthor + line.substr(10);
@@ -1137,36 +1126,34 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       continue;
     }
 
-    if (ba::starts_with(line, "DBREF"))
+    if (StartsWith(line, "DBREF"))
     {
-      ba::trim(line);
+      line = Trim(line);
       mDbRef.push_back(line);
       continue;
     }
 
     // brain dead support for only the first model in the file (NMR)
-    if (ba::starts_with(line, "MODEL"))
+    if (StartsWith(line, "MODEL"))
     {
       model = true;
       continue;
     }
 
-    if (ba::starts_with(line, "ENDMDL") and model == true)
+    if (StartsWith(line, "ENDMDL") and model == true)
       break;
 
-    if (ba::starts_with(line, "SSBOND"))
+    if (StartsWith(line, "SSBOND"))
     {
       //SSBOND   1 CYS A    6    CYS A   11                          1555   1555  2.03
       std::pair<MResidueID,MResidueID> ssbond;
 
       ssbond.first.chain = line[15];
-      ssbond.first.seqNumber = boost::lexical_cast<int64>(
-          ba::trim_copy(line.substr(16, 5)));
+      ssbond.first.seqNumber = boost::lexical_cast<int64>(Trim(line.substr(16, 5)));
       ssbond.first.insertionCode = line[21];
 
       ssbond.second.chain = line[29];
-      ssbond.second.seqNumber = boost::lexical_cast<int64>(
-          ba::trim_copy(line.substr(30, 5)));
+      ssbond.second.seqNumber = boost::lexical_cast<int64>(Trim(line.substr(30, 5)));
       ssbond.second.insertionCode = line[35];
 
       // (for parsing the REDO files)
@@ -1177,7 +1164,7 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       continue;
     }
 
-    if (ba::starts_with(line, "TER   "))
+    if (StartsWith(line, "TER   "))
     {
       if (atoms.empty())
       {
@@ -1197,31 +1184,29 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       continue;
     }
 
-    if (ba::starts_with(line, "ATOM  ") or ba::starts_with(line, "HETATM"))
+    if (StartsWith(line, "ATOM  ") or StartsWith(line, "HETATM"))
       //  1 - 6  Record name "ATOM "
     {
       if (cAlphaOnly and line.substr(12, 4) != " CA ")
         continue;
 
-      atomSeen = ba::starts_with(line, "ATOM  ");
+      atomSeen = StartsWith(line, "ATOM  ");
 
       MAtom atom = {};
 
       //  7 - 11  Integer serial Atom serial number.
-      atom.mSerial = boost::lexical_cast<uint32>(
-          ba::trim_copy(line.substr(6, 5)));
+      atom.mSerial = boost::lexical_cast<uint32>(Trim(line.substr(6, 5)));
       //  13 - 16  Atom name Atom name.
-      atom.mName = ba::trim_copy(line.substr(12, 4));
+      atom.mName = Trim(line.substr(12, 4));
       //  17    Character altLoc Alternate location indicator.
       atom.mAltLoc = line[16];
       //  18 - 20  Residue name resName Residue name.
-      atom.mResName = ba::trim_copy(line.substr(17, 4));
+      atom.mResName = Trim(line.substr(17, 4));
       //  22    Character chainID Chain identifier.
       atom.mChainID = line[21];
       atom.mAuthChainID = atom.mChainID;
       //  23 - 26  Integer resSeq Residue sequence number.
-      atom.mResSeq = boost::lexical_cast<int64>(
-          ba::trim_copy(line.substr(22, 4)));
+      atom.mResSeq = boost::lexical_cast<int64>(Trim(line.substr(22, 4)));
       //  27    AChar iCode Code for insertion of residues.
       atom.mICode = line.substr(26, 1);
 
@@ -1246,7 +1231,7 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
 
       //  77 - 78  LString(2) element Element symbol, right-justified.
       if (line.length() > 76)
-        atom.mElement = ba::trim_copy(line.substr(76, 3));
+        atom.mElement = Trim(line.substr(76, 3));
       //  79 - 80  LString(2) charge Charge on the atom.
       atom.mCharge = 0;
 
@@ -1400,8 +1385,7 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
   {
     if (desc["type"] == "polymer")
     {
-      std::string s = desc["pdbx_description"];
-      ba::trim(s);
+      std::string s = Trim(desc["pdbx_description"]);
       mCompound = (mCompound.empty() ? mCompound : mCompound + "; ") + s;
     }
   }

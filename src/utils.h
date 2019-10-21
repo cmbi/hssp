@@ -11,15 +11,13 @@
 
 #include "mas.h"
 
-#include <boost/filesystem.hpp>
-#include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/thread.hpp>
+#include <filesystem>
+#include <string>
 
 #ifndef NDEBUG
 #include <iostream>
 #endif
-#include <time.h>
+#include <ctime>
 
 // --------------------------------------------------------------------
 
@@ -54,7 +52,7 @@ inline
 void arg_vector::push(const std::string& option, const T& value)
 {
   m_args.push_back(option);
-  m_args.push_back(boost::lexical_cast<std::string>(value));
+  m_args.push_back(std::to_string(value));
 }
 
 template<>
@@ -73,7 +71,6 @@ class mas_exception : public std::exception
 {
   public:
           mas_exception(const std::string& msg);
-          mas_exception(const boost::format& msg);
 
   virtual const char*
           what() const throw()  { return m_msg; }
@@ -105,6 +102,15 @@ struct stats
 // --------------------------------------------------------------------
 
 void WriteToFD(int inFD, const std::string& inText);
-boost::filesystem::path get_home();
+std::filesystem::path get_home();
+
+std::string Format(const std::string &fmt, ...);
+
+std::string TrimLeft(const std::string &s);
+std::string TrimRight(const std::string &s);
+std::string Trim(const std::string &s);
+
+bool StartsWith(const std::string &s, const std::string &prefix);
+
 
 #endif
