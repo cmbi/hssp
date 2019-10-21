@@ -29,6 +29,26 @@
 #define foreach BOOST_FOREACH
 
 
+std::string LimitWidth(int64 n, uint64 w)
+{
+    std::string s = std::to_string(n);
+
+    if (s.length() > w)
+    {
+        s = s.substr(s.length() - w);
+
+        if (n < 0)
+            s = s.replace(0, 1, "-");
+    }
+    else if (s.length() < w)
+    {
+        s = s.insert(0, w - s.length(), ' ');
+    }
+
+    return s;
+}
+
+
 std::string ResidueToDSSPLine(const MResidue& residue)
 {
 /*
@@ -37,7 +57,7 @@ std::string ResidueToDSSPLine(const MResidue& residue)
   #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA           CHAIN AUTHCHAIN
  */
   boost::format kDSSPResidueLine(
-  "%5.5d%5.5d%1.1s%1.1s %c  %c %c%c%c%c%c%c%c%4.4d%4.4d%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f             %4.4s      %4.4s");
+  "%5s%5s%1.1s%1.1s %c  %c %c%c%c%c%c%c%c%4s%4s%c%4.4d %11s%11s%11s%11s  %6.3f%6.1f%6.1f%6.1f%6.1f %6.1f %6.1f %6.1f             %4.4s      %4.4s");
 
   const MAtom& ca = residue.GetCAlpha();
 
@@ -79,15 +99,14 @@ std::string ResidueToDSSPLine(const MResidue& residue)
   char chirality;
   std::tie(alpha,chirality) = residue.Alpha();
 
-  int64 bp[2] = {};
+  std::string bp[2] = {};
   char bridgelabel[2] = { ' ', ' ' };
   for (uint32 i = 0; i < 2; ++i)
   {
     MBridgeParner p = residue.GetBetaPartner(i);
     if (p.residue != nullptr)
     {
-      bp[i] = p.residue->GetNumber();
-      bp[i] %= 10000;  // won't fit otherwise...
+      bp[i] = LimitWidth(p.residue->GetNumber(), 4);  // won't fit otherwise...
       bridgelabel[i] = 'A' + p.ladder % 26;
       if (p.parallel)
         bridgelabel[i] = tolower(bridgelabel[i]);
@@ -107,14 +126,14 @@ std::string ResidueToDSSPLine(const MResidue& residue)
 
     if (acceptors[i].residue != nullptr)
     {
-      int64 d = acceptors[i].residue->GetNumber() - residue.GetNumber();
-      NHO[i] = (boost::format("%d,%3.1f") % d % acceptors[i].energy).str();
+      std::string d = LimitWidth(acceptors[i].residue->GetNumber() - residue.GetNumber(), 5);  // won't fit otherwise...
+      NHO[i] = (boost::format("%s,%3.1f") % d % acceptors[i].energy).str();
     }
 
     if (donors[i].residue != nullptr)
     {
-      int64 d = donors[i].residue->GetNumber() - residue.GetNumber();
-      ONH[i] = (boost::format("%d,%3.1f") % d % donors[i].energy).str();
+      std::string d = LimitWidth(donors[i].residue->GetNumber() - residue.GetNumber(), 5);  // won't fit otherwise...
+      ONH[i] = (boost::format("%s,%3.1f") % d % donors[i].energy).str();
     }
   }
 
@@ -128,7 +147,11 @@ std::string ResidueToDSSPLine(const MResidue& residue)
     chainChar = ">";
   }
 
-  return (kDSSPResidueLine % residue.GetNumber() % ca.mResSeq % ca.mICode % chainChar % code %
+  // won't fit otherwise...
+  std::string residueNumber = LimitWidth(residue.GetNumber(), 5),
+              seqNumber = LimitWidth(ca.mResSeq, 5);
+
+  return (kDSSPResidueLine % residueNumber % seqNumber % ca.mICode % chainChar % code %
     ss % helix[0] % helix[1] % helix[2] % bend % chirality % bridgelabel[0] % bridgelabel[1] %
     bp[0] % bp[1] % sheet % floor(residue.Accessibility() + 0.5) %
     NHO[0] % ONH[0] % NHO[1] % ONH[1] %
@@ -222,7 +245,7 @@ void WriteDSSP(MProtein& protein, std::ostream& os)
 
   os << "  #  RESIDUE AA STRUCTURE BP1 BP2  ACC     N-H-->O    O-->H-N    N-H-->O    O-->H-N    TCO  KAPPA ALPHA  PHI   PSI    X-CA   Y-CA   Z-CA            CHAIN AUTHCHAIN" << std::endl;
   boost::format kDSSPResidueLine(
-    "%5.5d        !%c             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");
+    "%5s        !%c             0   0    0      0, 0.0     0, 0.0     0, 0.0     0, 0.0   0.000 360.0 360.0 360.0 360.0    0.0    0.0    0.0");
 
   std::vector<const MResidue*> residues;
 
@@ -247,7 +270,9 @@ void WriteDSSP(MProtein& protein, std::ostream& os)
       char breaktype = ' ';
       if (last->GetChainID() != residue->GetChainID())
         breaktype = '*';
-      os << (kDSSPResidueLine % (last->GetNumber() + 1) % breaktype) << std::endl;
+
+      std::string residueNumber = LimitWidth(last->GetNumber() + 1, 5);
+      os << (kDSSPResidueLine % residueNumber % breaktype) << std::endl;
     }
     os << ResidueToDSSPLine(*residue) << std::endl;
     last = residue;
