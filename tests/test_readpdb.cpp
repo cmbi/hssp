@@ -92,7 +92,7 @@ ATOM     22  O   PRO A   4       1.184   1.937 -26.714  1.00 12.02           O
   const MProtein theProtein = ReadPDBIntoMProtein( raw_pdb_data_ss );
 
   // Then: the resulting MProtein should have 4 residues: A:1, A:2, A:3, A:4
-  BOOST_CHECK_EQUAL( getNrOfResidues( theProtein ), 4 );
+  BOOST_CHECK_EQUAL( getNrOfResidues( theProtein ), unsigned(4) );
   checkResidueIsPresent( theProtein, "A", 1 );
   checkResidueIsPresent( theProtein, "A", 2 );
   checkResidueIsPresent( theProtein, "A", 3 );
@@ -137,7 +137,7 @@ ATOM   1095  O   ARG A 125      28.075   2.852  -8.074  1.00 10.39           O
   // Then: the resulting MProtein should have at least 3 residues
   // (but accept more in case A:123 is accepted in the future)
   // including A:120, A:124 and A:125
-  BOOST_CHECK_GE( getNrOfResidues( theProtein ), 3 );
+  BOOST_CHECK_GE( getNrOfResidues( theProtein ), unsigned(3) );
   checkResidueIsPresent( theProtein, "A", 120 );
   checkResidueIsPresent( theProtein, "A", 124 );
   checkResidueIsPresent( theProtein, "A", 125 );

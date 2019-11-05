@@ -18,7 +18,7 @@ BOOST_AUTO_TEST_CASE(test_read_proteins_from_fasta_single)
   ss << "TTCCPSIVARSNFNVCRLPGTPEAICATYTGCIIIPGATCPGDYAN" << std::endl;
   auto proteins = read_proteins_from_fasta(ss);
 
-  BOOST_CHECK_EQUAL(proteins.size(), 1);
+  BOOST_CHECK_EQUAL(proteins.size(), unsigned(1));
 }
 
 BOOST_AUTO_TEST_CASE(test_read_proteins_from_fasta_multiple)
@@ -32,7 +32,7 @@ BOOST_AUTO_TEST_CASE(test_read_proteins_from_fasta_multiple)
   ss << "TTCCPSIVARSNFNVCRLPGTPEAICATYTGCIIIPGATCPGDYAN" << std::endl;
   auto proteins = read_proteins_from_fasta(ss);
 
-  BOOST_CHECK_EQUAL(proteins.size(), 3);
+  BOOST_CHECK_EQUAL(proteins.size(), unsigned(3));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
