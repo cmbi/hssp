@@ -118,7 +118,13 @@ AM_CPPFLAGS	=	-std=c++11 \
 							-Werror \
 							-Wno-reorder \
 							$(BOOST_CPPFLAGS) \
+							$(BZ2LIB_CPPFLAGS) \
+							$(ZLIB_CPPFLAGS) \
 							-I$(srcdir)/src/
+
+AM_LDFLAGS	=	$(BOOST_LDFLAGS) \
+				$(BZ2LIB_LDFLAGS) \
+				$(ZLIB_LDFLAGS)
 
 BUILT_SOURCES	=	mtrx/matrices.h
 CLEANFILES =	mtrx/matrices.h
