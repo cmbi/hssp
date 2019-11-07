@@ -1,4 +1,4 @@
-bin_PROGRAMS	=	mkdssp mkhssp hsspconv test_fasta test_conv test_readpdb
+bin_PROGRAMS	=	mkhssp hsspconv test_fasta test_conv test_readpdb
 
 shared_LDADD =	$(BOOST_DATE_TIME_LIB) \
 								$(BOOST_FILESYSTEM_LIB) \
@@ -9,30 +9,10 @@ shared_LDADD =	$(BOOST_DATE_TIME_LIB) \
 								$(BOOST_THREAD_LIB) \
 								-lpthread
 
-mkdssp_SOURCES	=	src/dssp.cpp \
-									src/dssp.h \
-									src/iocif.cpp \
-									src/iocif.h \
-									src/mas.cpp \
-									src/mas.h \
-									src/mkdssp.cpp \
-									src/primitives-3d.cpp \
-									src/primitives-3d.h \
-									src/structure.cpp \
-									src/structure.h \
-									src/buffer.h \
-									src/utils.cpp \
-									src/utils.h \
-									src/version.h
-
-mkdssp_LDADD	=	$(shared_LDADD)
-
 src/matrix.$(OBJEXT): mtrx/matrices.h
 
 mkhssp_SOURCES =	src/blast.cpp \
 									src/blast.h \
-									src/dssp.cpp \
-									src/dssp.h \
 									src/fasta.cpp \
 									src/fasta.h \
 									src/hssp-nt.cpp \

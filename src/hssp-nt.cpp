@@ -2,7 +2,6 @@
 
 #include "blast.h"
 #include "buffer.h"
-#include "dssp.h"
 #ifdef HAVE_LIBZEEP
   #include "fetchdbrefs.h"
 #endif
@@ -153,6 +152,68 @@ float calculateDistance(const sequence& a, const sequence& b)
   return result;
 }
 
+// ----------------------------------------------------
+
+char GetAACode(char oneLetterCode, int64 bridgeNumberSS)
+{
+    if (bridgeNumberSS != 0)
+        return 'a' + (bridgeNumberSS - 1) % 26;
+    else
+        return oneLetterCode;
+}
+
+// ----------------------------------------------------
+
+std::string GetStructureString(const MResidue &residue)
+{
+    std::string s(9, ' ');
+
+    switch (residue.GetSecondaryStructure())
+    {
+        case alphahelix:  s[0] = 'H'; break;
+        case betabridge:  s[0] = 'B'; break;
+        case strand:      s[0] = 'E'; break;
+        case helix_3:     s[0] = 'G'; break;
+        case helix_5:     s[0] = 'I'; break;
+        case turn:        s[0] = 'T'; break;
+        case bend:        s[0] = 'S'; break;
+        case loop:        s[0] = ' '; break;
+    }
+
+    for (uint32 stride = 3; stride <= 5; ++stride)
+    {
+        switch (residue.GetHelixFlag(stride))
+        {
+            case helixNone:         s[stride - 1] = ' '; break;
+            case helixStart:        s[stride - 1] = '>'; break;
+            case helixEnd:          s[stride - 1] = '<'; break;
+            case helixStartAndEnd:  s[stride - 1] = 'X'; break;
+            case helixMiddle:       s[stride - 1] = '0' + stride; break;
+        }
+    }
+
+    double alpha;
+    char chirality;
+    std::tie(alpha, chirality) = residue.Alpha();
+
+    s[5] = residue.IsBend()? 'S' : ' ';
+    s[6] = chirality;
+
+    for (uint32 i = 0; i < 2; ++i)
+    {
+        MBridgeParner p = residue.GetBetaPartner(i);
+        if (p.residue != nullptr)
+        {
+            s[7 + i] = 'A' + p.ladder % 26;
+            if (p.parallel)
+                s[7 + i] = tolower(s[7 + i]);
+        }
+    }
+
+    return s;
+}
+
+
 // --------------------------------------------------------------------
 
 struct MResInfo
@@ -164,7 +225,12 @@ struct MResInfo
   int64 m_pdb_nr;
   std::string m_ins_code;
   MSecondaryStructure m_ss;
-  std::string m_dssp;
+  char m_structure[9];
+  char m_aa;
+  int64 m_beta_partner_1,
+        m_beta_partner_2,
+        m_ss_bridge_nr;
+  double m_accessibility;
   float m_consweight;
   uint32 m_nocc;
   uint32 m_dist[23];
@@ -381,9 +447,20 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence,
         (*ri)->GetNumber() > (*(ri - 1))->GetNumber() + 1)
       ++seq_nr;
 
-    std::string dssp = ResidueToDSSPLine(**ri).substr(5, 34);
-    MResInfo res = { inSequence[i], m_chain.GetChainID(), m_chain.GetAuthChainID(), seq_nr,
-      (*ri)->GetSeqNumber(), (*ri)->GetInsertionCode(), (*ri)->GetSecondaryStructure(), dssp };
+    int64 bridge_nr = 0;
+    if ((*ri)->GetType() == kCysteine)
+        bridge_nr = (*ri)->GetSSBridgeNr();
+
+    MResInfo res = {
+        inSequence[i], m_chain.GetChainID(), m_chain.GetAuthChainID(), seq_nr,
+        (*ri)->GetSeqNumber(), (*ri)->GetInsertionCode(), (*ri)->GetSecondaryStructure()
+    };
+    res.m_aa = kResidueInfo[(*ri)->GetType()].code;
+    strncpy(res.m_structure, GetStructureString(*(*ri)).c_str(), 9);
+    res.m_beta_partner_1 = ((*ri)->GetBetaPartner(0).residue != nullptr)? (*ri)->GetBetaPartner(0).residue->GetNumber() : 0;
+    res.m_beta_partner_2 = ((*ri)->GetBetaPartner(1).residue != nullptr)? (*ri)->GetBetaPartner(1).residue->GetNumber() : 0;
+    res.m_ss_bridge_nr = bridge_nr;
+    res.m_accessibility = (*ri)->Accessibility();
     res.Add(res.m_letter, 0);
     m_residues.push_back(res);
 
@@ -814,6 +891,29 @@ char map_value_to_char(double v)
   return map_value_to_char(static_cast<uint32>(v));
 }
 
+std::string FixedLengthString(const std::string &s, const uint64 length)
+{
+    std::string r(s);
+
+    if (s.length() < length)
+    {
+        r = r.insert(0, length - r.length(), ' ');
+    }
+    else if (s.length() > length)
+    {
+        r = std::string(length, '-');
+        r[length - 1] = '>';
+    }
+    return r;
+}
+
+std::string FixedLengthString(const int64 number, const uint64 length)
+{
+    std::string s = std::to_string(number);
+
+    return FixedLengthString(s, length);
+}
+
 void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
                               bool inFetchDBRefs) const
 {
@@ -828,9 +928,9 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
 
   uint32 nextNr = m_residues.front().m_seq_nr;
   os << "#=GF CC ## RESIDUE INFORMATION" << std::endl
-     << "#=GF CC SeqNo   PDBNo AA STRUCTURE BP1 BP2  ACC  NOCC VAR CHAIN AUTHCHAIN"
+     << "#=GF CC SeqNo   PDBNo AA STRUCTURE BP1 BP2  ACC  NOCC VAR CHAIN AUTHCHAIN     NUMBER     RESNUM        BP1        BP2"
      << std::endl;
-  foreach (auto& ri, m_residues)
+  for (const MResInfo &ri : m_residues)
   {
     if (ri.m_chain_id.empty())
       continue;
@@ -839,19 +939,30 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
       os << boost::format("#=GF RI %5.5d       ! !              0   0    0     0   0") % nextNr << std::endl;
 
     uint32 ivar = uint32(100 * (1 - ri.m_consweight));
-    os << boost::format("#=GF RI %5.5d %s%5.5d%4.4d") % ri.m_seq_nr % ri.m_dssp % ri.m_nocc % ivar;
 
-    os << boost::format("  %4.4s      %4.4s") % ri.m_chain_id % ri.m_auth_chain_id << std::endl;
+    char aa_code = GetAACode(ri.m_aa, ri.m_ss_bridge_nr);
+
+    os << boost::format("#=GF RI %5.5s %5.5s%c%c %c %9.9s %4.4s%4.4s%5.5s %5.5d%4.4d")
+          % FixedLengthString(ri.m_seq_nr, 5) % FixedLengthString(ri.m_pdb_nr, 5) % ri.m_ins_code.at(0) % FixedLengthString(ri.m_chain_id, 1)
+          % aa_code % ri.m_structure
+          % FixedLengthString(ri.m_beta_partner_1, 4) % FixedLengthString(ri.m_beta_partner_2, 4)
+          % FixedLengthString(floor(ri.m_accessibility + 0.5), 5)
+          % ri.m_nocc % ivar;
+
+    os << boost::format("  %4.4s      %4.4s %10.10s %10.10s %10.10s %10.10s")
+          % ri.m_chain_id % ri.m_auth_chain_id
+          % FixedLengthString(ri.m_seq_nr, 10) % FixedLengthString(ri.m_pdb_nr, 10)
+          % FixedLengthString(ri.m_beta_partner_1, 10) % FixedLengthString(ri.m_beta_partner_2, 10) << std::endl;
 
     nextNr = ri.m_seq_nr + 1;
   }
 
   // ## SEQUENCE PROFILE AND ENTROPY
   os << "#=GF CC ## SEQUENCE PROFILE AND ENTROPY" << std::endl
-     << "#=GF CC   SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT CHAIN AUTHCHAIN" << std::endl;
+     << "#=GF CC   SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT CHAIN AUTHCHAIN     NUMBER     RESNUM        BP1        BP2" << std::endl;
 
   nextNr = m_residues.front().m_seq_nr;
-  foreach (auto& ri, m_residues)
+  for (const MResInfo &ri : m_residues)
   {
     if (ri.m_chain_id.empty())
       continue;
@@ -872,7 +983,10 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
     uint32 relent = uint32(100 * ri.m_entropy / log(20.0));
     os << "  " << boost::format("%4.4d %4.4d %4.4d  %6.3f   %4.4d %5.2f") % ri.m_nocc % ri.m_del % ri.m_ins % ri.m_entropy % relent % ri.m_consweight;
 
-    os << boost::format("   %4.4s      %4.4s") % ri.m_chain_id % ri.m_auth_chain_id << std::endl;
+    os << boost::format("   %4.4s      %4.4s %10.10s %10.10s %10.10s %10.10s")
+          % ri.m_chain_id % ri.m_auth_chain_id
+          % FixedLengthString(ri.m_seq_nr, 10) % FixedLengthString(ri.m_pdb_nr, 10)
+          % FixedLengthString(ri.m_beta_partner_1, 10) % FixedLengthString(ri.m_beta_partner_2, 10) << std::endl;
 
     nextNr = ri.m_seq_nr + 1;
   }
@@ -1472,3 +1586,4 @@ void CreateHSSP(const std::string& inProtein,
 }
 
 }
+

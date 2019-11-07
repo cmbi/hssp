@@ -946,7 +946,7 @@ void CreateHSSPOutput(const std::string& inProteinID,
 
     os << boost::format("## ALIGNMENTS %4.4d - %4.4d") % (i + 1) % n << std::endl
        << boost::format(" SeqNo  PDBNo AA STRUCTURE BP1 BP2  ACC NOCC  VAR  ....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d....:....%1.1d")
-                 % k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << " CHAIN AUTHCHAIN" << std::endl;
+          % k[0] % k[1] % k[2] % k[3] % k[4] % k[5] % k[6] << " CHAIN AUTHCHAIN     NUMBER     RESNUM        BP1        BP2" << std::endl;
 
     res_ptr last;
     uint32 nr = 1;
@@ -982,7 +982,7 @@ void CreateHSSPOutput(const std::string& inProteinID,
 
   // ## SEQUENCE PROFILE AND ENTROPY
   os << "## SEQUENCE PROFILE AND ENTROPY" << std::endl
-     << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT CHAIN AUTHCHAIN" << std::endl;
+     << " SeqNo PDBNo   V   L   I   M   F   W   Y   G   A   P   S   T   C   H   R   K   Q   E   N   D  NOCC NDEL NINS ENTROPY RELENT WEIGHT CHAIN AUTHCHAIN     NUMBER     RESNUM        BP1        BP2" << std::endl;
 
   res_ptr last;
   nr = 1;
