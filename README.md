@@ -1,20 +1,20 @@
-The source code for building the `mkdssp`, `mkhssp`, `hsspconv`, and
-`hsspsoap` programs is bundled in the `xssp` project. The DSSP executable is
-`mkdssp`.
+The source code for building the `mkhssp` and `hsspconv`
+programs is bundled in the `hssp` project. The mkhssp executable
+creates stockholm files with hssp annotations in them. The hsspconv
+executable converts stockholm to the original hssp format.
 
 # Development
 
 The provided Dockerfile sets up a development environment. Build the docker
-image using the command `docker build -t xssp .` and run the image in a
+image using the command `docker build -t hssp .` and run the image in a
 container, with a local source copy and data files mounted, with the command
-`docker run -v /home/jon/projects/xssp:/app -v /mnt/extra:/srv/data -it xssp`.
+`docker run -v /home/jon/projects/hssp:/app -v /mnt/extra:/srv/data -it hssp`.
 
 # Download and installation instructions
 
-Pre-compiled *old* versions of DSSP are available from the
-[old repository][1]. New source code archives are available [here][2].
+Source code archives are available [here][2].
 
-## Compiling xssp programs
+## Compiling hssp programs
 
 ### Pre-requisites
 
@@ -33,33 +33,33 @@ System libraries:
 
 ### Instructions
 
-Download and uncompress the xssp [source code archive][2] (version >= 2.2.6):
+Download and uncompress the hssp [source code archive][2] (version >= 2.2.6):
 
-    wget https://github.com/cmbi/xssp/archive/xssp-?.?.?.tar.gz
-    tar -zxvf xssp-?.?.?.tar.gz
-    cd xssp-?.?.?.tar.gz
+    wget https://github.com/cmbi/hssp/archive/hssp-?.?.?.tar.gz
+    tar -zxvf hssp-?.?.?.tar.gz
+    cd hssp-?.?.?.tar.gz
 
-Configure and build the xssp executables:
+Configure and build the hssp executables:
 
     ./autogen.sh
     ./configure
     make
 
-To build only one executable of the xssp project, e.g. `mkdssp`, type:
+To build only one executable of the hssp project, e.g. `mkhssp`, type:
 
-    make mkdssp
+    make mkhssp
 
-To test the `mkdssp` executable type:
+To test the `mkhssp` executable type:
 
-    ./mkdssp
+    ./mkhssp
 
 To add the executables to /usr/local/bin type:
 
     sudo make install
 
-# Citing xssp
+# Citing hssp
 
-The [reference][3] for the new versions of xssp and other protein structure
+The [reference][3] for the new versions of hssp and other protein structure
 bioinformatics [facilities][4] is:
 
 ```
@@ -87,14 +87,14 @@ Sander C and Schneider R, Proteins (1991) 9, 56-68.
 
 # Contact
 
-In 2013, maintenance of xssp has been taken over from Maarten Hekkelman by
-Coos Baakman, Jon Black, and Wouter Touw. If you want to provide feedback,
-either send an e-mail to xssp.cmbi@radboudumc.nl or have a look at
+In 2013, maintenance of hssp has been taken over from Maarten Hekkelman by
+Coos Baakman. If you want to provide feedback,
+either send an e-mail to hssp.cmbi@radboudumc.nl or have a look at
 [existing issues][5] (if necessary, create a new issue).
 
 
-[1]: http://swift.cmbi.umcn.nl/gv/dssp/DSSP_5.html
-[2]: https://github.com/cmbi/xssp/releases
+[1]: http://swift.cmbi.umcn.nl/gv/hssp/
+[2]: https://github.com/cmbi/hssp/releases
 [3]: http://dx.doi.org/10.1093/nar/gku1028
 [4]: http://swift.cmbi.umcn.nl/gv/facilities/
-[5]: https://github.com/cmbi/xssp/issues
+[5]: https://github.com/cmbi/hssp/issues
