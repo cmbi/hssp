@@ -22,7 +22,7 @@ if test -z "$CPPCHECK"; then
 fi
 
 # Checks for libraries.
-AX_BOOST_BASE([1.48])
+AX_BOOST_BASE([1.54])
 AX_BOOST_DATE_TIME
 AX_BOOST_FILESYSTEM
 AX_BOOST_IOSTREAMS
