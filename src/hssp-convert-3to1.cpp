@@ -695,13 +695,13 @@ uint32 ReadHSSP2File(std::istream& is, std::string& id, std::string& header,
 
       if (boost::regex_match(line, m, r1))
       {
-        boost::algorithm::split_regex(sameChains[m[1]], m[2], boost::regex(" *(and|,) *"));
-
-        std::string s = m[2];
-        if (s.length() == 1)
-          nchain += 1;
-        else
-          nchain += (s.length() - 1) / 3;
+        std::string s = m[2].str();
+        boost::sregex_token_iterator i(s.begin(), s.end(), boost::regex(" *(and|,) *"), -1), j;
+        for (; i != j; i++)
+        {
+            sameChains[m[1]].push_back(*i);
+            nchain ++;
+        }
 
         continue;
       }
