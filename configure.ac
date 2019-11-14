@@ -22,15 +22,16 @@ if test -z "$CPPCHECK"; then
 fi
 
 # Checks for libraries.
-AX_BOOST_BASE([1.54])
-AX_BOOST_DATE_TIME
-AX_BOOST_FILESYSTEM
-AX_BOOST_IOSTREAMS
-AX_BOOST_PROGRAM_OPTIONS
-AX_BOOST_REGEX
-AX_BOOST_SYSTEM
-AX_BOOST_THREAD
-AX_BOOST_UNIT_TEST_FRAMEWORK
+AX_BOOST_BASE([1.54],,AC_MSG_ERROR([libboost_base not found]))
+AX_BOOST_DATE_TIME([1.54],,AC_MSG_ERROR([libboost_date_time not found]))
+AX_BOOST_TIMER([1.54],,AC_MSG_ERROR([libboost_timer not found]))
+AX_BOOST_FILESYSTEM([1.54],,AC_MSG_ERROR([libboost_filesystem not found]))
+AX_BOOST_IOSTREAMS([1.54],,AC_MSG_ERROR([libboost_iostreams not found]))
+AX_BOOST_PROGRAM_OPTIONS([1.54],,AC_MSG_ERROR([libboost_options not found]))
+AX_BOOST_REGEX([1.54],,AC_MSG_ERROR([libboost_regex not found]))
+AX_BOOST_SYSTEM([1.54],,AC_MSG_ERROR([libboost_system not found]))
+AX_BOOST_THREAD([1.54],,AC_MSG_ERROR([libboost_thread not found]))
+AX_BOOST_UNIT_TEST_FRAMEWORK([1.54],,AC_MSG_ERROR([libboost_unit_test_framework not found]))
 AM_CONDITIONAL([HAVE_CPPCHECK], [test -n "$CPPCHECK"])
 AC_CHECK_LIB([zeep], [main],,
              [AC_MSG_WARN([libzeep not found - fetch-dbrefs is disabled in mkhssp])])
