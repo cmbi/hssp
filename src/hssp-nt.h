@@ -1,5 +1,5 @@
-#ifndef XSSP_HSSPNT_H
-#define XSSP_HSSPNT_H
+#ifndef HSSP_HSSPNT_H
+#define HSSP_HSSPNT_H
 
 #pragma once
 

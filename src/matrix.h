@@ -6,8 +6,8 @@
 //
 // substitution matrix for multiple sequence alignments
 
-#ifndef XSSP_MATRIX_H
-#define XSSP_MATRIX_H
+#ifndef HSSP_MATRIX_H
+#define HSSP_MATRIX_H
 
 #pragma once
 

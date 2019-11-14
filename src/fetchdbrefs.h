@@ -1,5 +1,5 @@
-#ifndef XSSP_FETCHDBREFS_H
-#define XSSP_FETCHDBREFS_H
+#ifndef HSSP_FETCHDBREFS_H
+#define HSSP_FETCHDBREFS_H
 
 #pragma once
 

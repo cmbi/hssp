@@ -7,15 +7,15 @@
 
 #include <sstream>
 
-namespace xssp { namespace test { } }
+namespace hssp { namespace test { } }
 
-using namespace xssp::test;
+using namespace hssp::test;
 
 using std::istream;
 using std::istringstream;
 using std::string;
 
-namespace xssp {
+namespace hssp {
   namespace test {
 
     class readpdb_fixture {
@@ -101,7 +101,7 @@ ATOM     22  O   PRO A   4       1.184   1.937 -26.714  1.00 12.02           O
 
 
 
-// Test the issue documented in https://github.com/cmbi/xssp/issues/79
+// Test the issue documented in https://github.com/cmbi/hssp/issues/79
 //
 // Residue 124's ATOM records were being ignored because the code didn't
 // adequately reset after rejecting the residue 123's ATOM records.

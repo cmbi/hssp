@@ -4,8 +4,8 @@
 //       (See accompanying file LICENSE_1_0.txt or copy at
 //             http://www.boost.org/LICENSE_1_0.txt)
 
-#ifndef XSSP_ALIGN2D_H
-#define XSSP_ALIGN2D_H
+#ifndef HSSP_ALIGN2D_H
+#define HSSP_ALIGN2D_H
 
 #pragma once
 

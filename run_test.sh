@@ -35,7 +35,7 @@ esac
 _dc_opts="-f docker-compose.yml"
 exit_code=0
 for _t in $_tests; do
-    _command="docker-compose $_dc_opts run $_dc_run_opts xssp ./$_t"
+    _command="docker-compose $_dc_opts run $_dc_run_opts hssp ./$_t"
     echo $_command
     $_command
     e=$?

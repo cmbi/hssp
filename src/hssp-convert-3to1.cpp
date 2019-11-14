@@ -843,7 +843,7 @@ void CreateHSSPOutput(const std::string& inProteinID,
      //<< "SEQBASE    " << inDatabank->GetName() << " version " << inDatabank->GetVersion() << std::endl
      << "THRESHOLD  according to: t(L)=(290.15 * L ** -0.562) + " << (inThreshold * 100) << std::endl
      << "REFERENCE  Sander C., Schneider R. : Database of homology-derived protein structures. Proteins, 9:56-68 (1991)." << std::endl
-     << "CONTACT    Maintained at http://www.cmbi.umcn.nl/ <xssp.cmbi@radboudumc.nl>" << std::endl
+     << "CONTACT    Maintained at http://www.cmbi.umcn.nl/ <hssp.cmbi@radboudumc.nl>" << std::endl
      << inProteinDescription
      << boost::format("SEQLENGTH %5.5d") % inSeqLength << std::endl
      << boost::format("NCHAIN     %4.4d chain(s) in %s data set") % inNChain % inProteinID << std::endl;

@@ -1,5 +1,5 @@
-#ifndef XSSP_FASTA_H
-#define XSSP_FASTA_H
+#ifndef HSSP_FASTA_H
+#define HSSP_FASTA_H
 
 #pragma once
 

@@ -7,8 +7,8 @@
 //  Simplified Blast algorithm implementation. Works on
 //  FastA formatted files containing proteins.
 
-#ifndef XSSP_BLAST_H
-#define XSSP_BLAST_H
+#ifndef HSSP_BLAST_H
+#define HSSP_BLAST_H
 
 #pragma once
 

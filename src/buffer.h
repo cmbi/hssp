@@ -6,8 +6,8 @@
 //
 // buffer is a thread safe queue
 
-#ifndef XSSP_BUFFER_H
-#define XSSP_BUFFER_H
+#ifndef HSSP_BUFFER_H
+#define HSSP_BUFFER_H
 
 #pragma once
 
