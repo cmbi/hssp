@@ -555,7 +555,7 @@ double MResidue::Psi() const
 
 std::tuple<double,char> MResidue::Alpha() const
 {
-  double alhpa = 360;
+  double alpha = 360;
   char chirality = ' ';
 
   const MResidue* nextNext = mNext ? mNext->Next() : nullptr;
@@ -563,14 +563,14 @@ std::tuple<double,char> MResidue::Alpha() const
       nextNext != nullptr and
       NoChainBreak(mPrev, nextNext))
   {
-    alhpa = DihedralAngle(mPrev->GetCAlpha(), GetCAlpha(), mNext->GetCAlpha(),
+    alpha = DihedralAngle(mPrev->GetCAlpha(), GetCAlpha(), mNext->GetCAlpha(),
                           nextNext->GetCAlpha());
-    if (alhpa < 0)
+    if (alpha < 0)
       chirality = '-';
     else
       chirality = '+';
   }
-  return std::make_tuple(alhpa, chirality);
+  return std::make_tuple(alpha, chirality);
 }
 
 double MResidue::Kappa() const
@@ -1182,7 +1182,7 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       if (atoms.empty())
       {
         std::cerr << "no atoms read before TER record " << std::endl
-           << line << std::endl;
+                  << line << std::endl;
         continue;
       }
 
@@ -1201,7 +1201,20 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       //  1 - 6  Record name "ATOM "
     {
       if (cAlphaOnly and line.substr(12, 4) != " CA ")
+      {
+        if (VERBOSE)
+          std::cerr << "Skipping ATOM/HETATM " << ba::trim_copy(line.substr(12, 4))
+                    << " line because this is a C-alpha only file" << std::endl;
         continue;
+      }
+
+      if (line.length() < 80)
+      {
+        if (VERBOSE)
+          std::cerr << "Skipping ATOM/HETATM line because it's shorter than 80 characters" << std::endl;
+
+        continue;
+      }
 
       atomSeen = ba::starts_with(line, "ATOM  ");
 
@@ -1281,7 +1294,8 @@ void MProtein::ReadPDB(std::istream& is, bool cAlphaOnly)
       {
         if (VERBOSE)
           std::cerr << e.what() << std::endl;
-        atom.mType = kUnknownAtom;
+
+        continue;
       }
 
       if (atom.mType == kHydrogen)
@@ -1508,7 +1522,8 @@ void MProtein::ReadmmCIF(std::istream& is, bool cAlphaOnly)
     {
       if (VERBOSE)
         std::cerr << e.what() << std::endl;
-      a.mType = kUnknownAtom;
+
+      continue;
     }
 
     if (a.mType == kHydrogen)
@@ -1782,13 +1797,17 @@ void MProtein::GetPoints(std::vector<MPoint>& outPoints) const
 void MProtein::Translate(const MPoint& inTranslation)
 {
   foreach (MChain* chain, mChains)
+  {
     chain->Translate(inTranslation);
+  }
 }
 
 void MProtein::Rotate(const MQuaternion& inRotation)
 {
   foreach (MChain* chain, mChains)
+  {
     chain->Rotate(inRotation);
+  }
 }
 
 void MProtein::CalculateSecondaryStructure(bool inPreferPiHelices)
@@ -1843,7 +1862,7 @@ void MProtein::CalculateAlphaHelices(const std::vector<MResidue*>& inResidues,
                                      bool inPreferPiHelices)
 {
   if (VERBOSE)
-    std::cerr << "Calculate alhpa helices" << std::endl;
+    std::cerr << "Calculate alpha helices" << std::endl;
 
   // Helix and Turn
   foreach (const MChain* chain, mChains)
