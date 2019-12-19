@@ -282,6 +282,7 @@ MResInfo MResInfo::NewGap(size_t inDel, float inSumDistance, uint8 inResidue,
 {
   MResInfo r = {};
 
+  r.m_ins_code = " ";
   r.m_dist[22] = static_cast<uint32>(inDel);
   r.m_sum_dist_weight = r.m_dist_weight[22] = inSumDistance;
   r.Add(inResidue, inDistance);
@@ -940,10 +941,11 @@ void MProfile::PrintStockholm(std::ostream& os, const std::string& inChainID,
 
     uint32 ivar = uint32(100 * (1 - ri.m_consweight));
 
-    char aa_code = GetAACode(ri.m_aa, ri.m_ss_bridge_nr);
+    char aa_code = GetAACode(ri.m_aa, ri.m_ss_bridge_nr),
+         ins_code = (ri.m_ins_code.size() > 0)? ri.m_ins_code.at(0): ' ';
 
     os << boost::format("#=GF RI %5.5s %5.5s%c%c %c %9.9s %4.4s%4.4s%5.5s %5.5d%4.4d")
-          % FixedLengthString(ri.m_seq_nr, 5) % FixedLengthString(ri.m_pdb_nr, 5) % ri.m_ins_code.at(0) % FixedLengthString(ri.m_chain_id, 1)
+          % FixedLengthString(ri.m_seq_nr, 5) % FixedLengthString(ri.m_pdb_nr, 5) % ins_code % FixedLengthString(ri.m_chain_id, 1)
           % aa_code % ri.m_structure
           % FixedLengthString(ri.m_beta_partner_1, 4) % FixedLengthString(ri.m_beta_partner_2, 4)
           % FixedLengthString(floor(ri.m_accessibility + 0.5), 5)
