@@ -37,7 +37,7 @@ Download and uncompress the hssp [source code archive][2] (version >= 2.2.6):
 
     wget https://github.com/cmbi/hssp/archive/hssp-?.?.?.tar.gz
     tar -zxvf hssp-?.?.?.tar.gz
-    cd hssp-?.?.?.tar.gz
+    cd hssp-?.?.?
 
 Configure and build the hssp executables:
 
