@@ -225,7 +225,7 @@ struct MResInfo
   int64 m_pdb_nr;
   std::string m_ins_code;
   MSecondaryStructure m_ss;
-  char m_structure[9];
+  char m_structure[10];
   char m_aa;
   int64 m_beta_partner_1,
         m_beta_partner_2,
@@ -457,7 +457,7 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence,
         (*ri)->GetSeqNumber(), (*ri)->GetInsertionCode(), (*ri)->GetSecondaryStructure()
     };
     res.m_aa = kResidueInfo[(*ri)->GetType()].code;
-    strncpy(res.m_structure, GetStructureString(*(*ri)).c_str(), 8);
+    strncpy(res.m_structure, GetStructureString(*(*ri)).c_str(), 9);
     res.m_beta_partner_1 = ((*ri)->GetBetaPartner(0).residue != nullptr)? (*ri)->GetBetaPartner(0).residue->GetNumber() : 0;
     res.m_beta_partner_2 = ((*ri)->GetBetaPartner(1).residue != nullptr)? (*ri)->GetBetaPartner(1).residue->GetNumber() : 0;
     res.m_ss_bridge_nr = bridge_nr;
