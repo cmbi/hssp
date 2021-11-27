@@ -12,6 +12,7 @@ From:ubuntu:latest
     ./autogen.sh
     ./configure
     make
+    make install
 
 %environment
     export LC_ALL=C.UTF-8
