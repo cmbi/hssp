@@ -1,3 +1,6 @@
+# singularity
+*.sif
+
 # C++
 
 ## Compiled Object files
