@@ -92,7 +92,7 @@ test_readpdb_SOURCES	=	src/fasta.cpp \
 test_readpdb_LDADD	=	$(shared_LDADD) \
 									$(BOOST_UNIT_TEST_FRAMEWORK_LIB)
 
-AM_CPPFLAGS	=	-std=c++11 \
+AM_CPPFLAGS	=	-std=c++14 \
 							-pedantic \
 							-Wall \
 							-Werror \
