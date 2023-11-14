@@ -25,6 +25,7 @@
 #include <boost/range/adaptor/sliced.hpp>
 #include <boost/regex.hpp>
 
+#include <random>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -391,6 +392,7 @@ void MHit::CalculateDistance(const sequence& chain)
 
 struct MProfile
 {
+
   MProfile(const MChain& inChain, const sequence& inSequence,
            float inThreshold, float inFragmentCutOff);
   ~MProfile();
@@ -425,6 +427,8 @@ struct MProfile
   float m_frag_cutoff;
   float m_sum_dist_weight;
   bool m_shuffled;
+
+  std::mt19937 m_random_state;
 };
 
 MProfile::MProfile(const MChain& inChain, const sequence& inSequence,
@@ -468,6 +472,9 @@ MProfile::MProfile(const MChain& inChain, const sequence& inSequence,
     ++ri;
     ++seq_nr;
   }
+
+  std::random_device rd;
+  m_random_state = std::mt19937(rd());
 }
 
 MProfile::~MProfile()
@@ -1222,7 +1229,7 @@ void MProfile::Process(std::istream& inHits, float inGapOpen,
       std::cerr << "dropping " << (hits.size() - 10 * inMaxHits) << " hits"
                 << std::endl;
 
-    random_shuffle(hits.begin(), hits.end());
+    std::shuffle(hits.begin(), hits.end(), m_random_state);
     hits.erase(hits.begin() + inMaxHits * 10, hits.end());
     m_shuffled = true;
   }
@@ -1243,7 +1250,7 @@ void MProfile::Process(std::istream& inHits, float inGapOpen,
   // now if we have too many entries, take a random set
   if (m_entries.size() > inMaxHits and inMaxHits > 0)
   {
-    random_shuffle(m_entries.begin(), m_entries.end());
+    std::shuffle(m_entries.begin(), m_entries.end(), m_random_state);
     m_entries.erase(m_entries.begin() + inMaxHits, m_entries.end());
     m_shuffled = true;
   }
